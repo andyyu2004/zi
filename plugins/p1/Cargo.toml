@@ -1,0 +1,20 @@
+[package]
+name = "p1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen = { version = "0.18.0", default-features = false, features = ["realloc"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "zi:zi"
+
+[package.metadata.component.bindings]
+ownership = "borrowing-duplicate-if-necessary"
+
+[package.metadata.component.target]
+path = "../../zi-plugin/wit/zi.wit"
+world = "plugin"

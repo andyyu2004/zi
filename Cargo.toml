@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "zi",
+    "zi-plugin",
+    "plugins/*",
+]
+resolver = "2"

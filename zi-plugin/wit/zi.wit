@@ -1,0 +1,8 @@
+package zi:zi;
+
+world plugin {
+    import test: func() -> string;
+    export greet: func(input: string) -> string;
+
+}
+
