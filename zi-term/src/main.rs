@@ -7,6 +7,8 @@ use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{execute, terminal};
 use event::*;
 use futures_util::{Stream, StreamExt};
+use ratatui::backend::{Backend, CrosstermBackend};
+use ratatui::Terminal;
 use tokio::select;
 use zi::Editor;
 
@@ -14,7 +16,8 @@ use zi::Editor;
 async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let editor = zi::Editor::default();
-    let mut app = App::new(stdout, editor)?;
+    let term = Terminal::new(CrosstermBackend::new(stdout))?;
+    let mut app = App::new(term, editor)?;
     app.enter()?;
 
     let events =
@@ -24,18 +27,18 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-struct App<W: io::Write> {
+struct App<B: Backend + io::Write> {
     editor: Editor,
-    writer: W,
+    term: Terminal<B>,
 }
 
-impl<W: io::Write> App<W> {
-    fn new(writer: W, editor: Editor) -> io::Result<Self> {
-        Ok(Self { writer, editor })
+impl<B: Backend + io::Write> App<B> {
+    fn new(term: Terminal<B>, editor: Editor) -> io::Result<Self> {
+        Ok(Self { term, editor })
     }
 
     fn enter(&mut self) -> io::Result<()> {
-        execute!(self.writer, EnterAlternateScreen, DisableMouseCapture)?;
+        execute!(self.term.backend_mut(), EnterAlternateScreen, DisableMouseCapture)?;
         terminal::enable_raw_mode()?;
         Ok(())
     }
@@ -90,9 +93,9 @@ impl<W: io::Write> App<W> {
 //     };
 // }
 
-impl<W: io::Write> Drop for App<W> {
+impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
-        _ = execute!(self.writer, crossterm::terminal::LeaveAlternateScreen);
+        _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
         _ = terminal::disable_raw_mode();
     }
 }
