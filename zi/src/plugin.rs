@@ -1,7 +1,11 @@
 use std::path::Path;
 
 use wasmtime::component::{bindgen, Component, Linker};
-pub use wasmtime::{Config, Engine, Result, Store};
+pub use wasmtime::Engine;
+
+pub type Store = wasmtime::Store<Context>;
+
+use crate::Editor;
 
 bindgen!({
     async: true,
@@ -10,11 +14,9 @@ bindgen!({
     },
 });
 
-pub struct Loader {}
-
-impl Loader {}
-
-pub struct Context;
+pub struct Context {
+    pub(crate) editor: Editor,
+}
 
 #[async_trait::async_trait]
 impl PluginImports for Context {
@@ -25,14 +27,14 @@ impl PluginImports for Context {
 
 pub async fn load(
     engine: Engine,
-    store: &mut Store<Context>,
+    store: &mut Store,
     plugin_paths: &[impl AsRef<Path>],
 ) -> wasmtime::Result<Box<[Plugin]>> {
     let mut plugins = Vec::with_capacity(plugin_paths.len());
     let mut linker = Linker::new(&engine);
     for path in plugin_paths {
         let component = Component::from_file(&engine, path)?;
-        Plugin::add_to_linker(&mut linker, |ctx: &mut Context| ctx)?;
+        Plugin::add_to_linker(&mut linker, |ctx| ctx)?;
         let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
         plugins.push(bindings);
     }
@@ -45,13 +47,14 @@ mod test {
     use wasmtime::{Config, Engine, Store};
 
     use super::Context;
+    use crate::Editor;
 
     #[tokio::test]
     async fn it_works() -> wasmtime::Result<()> {
         let mut config = Config::new();
         config.wasm_component_model(true).async_support(true);
         let engine = Engine::new(&config)?;
-        let mut store = Store::new(&engine, Context {});
+        let mut store = Store::new(&engine, Context { editor: Editor::default() });
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         for plugin in &plugins[..] {
             dbg!(plugin.call_greet(&mut store, "wer").await?);

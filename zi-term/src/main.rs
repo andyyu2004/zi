@@ -13,13 +13,13 @@ use zi::Editor;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
-    let editor = zi::Editor::load().await?;
-    let mut term = App::new(stdout, editor)?;
-    term.enter()?;
+    let editor = zi::Editor::default();
+    let mut app = App::new(stdout, editor)?;
+    app.enter()?;
 
     let events =
         EventStream::new().filter_map(|ev| async { ev.map(Event::from_crossterm).transpose() });
-    term.run(events).await?;
+    app.run(events).await?;
 
     Ok(())
 }
@@ -42,22 +42,22 @@ impl<W: io::Write> App<W> {
 
     async fn run(&mut self, mut events: impl Stream<Item = io::Result<Event>>) -> io::Result<()> {
         let mut events = std::pin::pin!(events);
-        let exit = false;
         loop {
-            if exit {
+            if self.editor.quit {
                 break;
             }
 
             select! {
-                Some(event) = events.next() => {
-                    self.on_event(event?).await;
-                }
-
+                Some(event) = events.next() => self.on_event(event?).await,
             }
+
+            self.render();
         }
 
         Ok(())
     }
+
+    fn render(&self) {}
 
     async fn on_event(&mut self, event: Event) {
         match event {
