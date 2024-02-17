@@ -44,6 +44,8 @@ impl<B: Backend + io::Write> App<B> {
     }
 
     async fn run(&mut self, mut events: impl Stream<Item = io::Result<Event>>) -> io::Result<()> {
+        self.render()?;
+
         let mut events = std::pin::pin!(events);
         loop {
             if self.editor.quit {
@@ -54,13 +56,19 @@ impl<B: Backend + io::Write> App<B> {
                 Some(event) = events.next() => self.on_event(event?).await,
             }
 
-            self.render();
+            self.render()?;
         }
 
         Ok(())
     }
 
-    fn render(&self) {}
+    fn render(&mut self) -> io::Result<()> {
+        let (view, buf) = self.editor.active();
+        self.term.draw(|frame| {
+            frame.set_cursor(0, 0);
+        })?;
+        Ok(())
+    }
 
     async fn on_event(&mut self, event: Event) {
         match event {
@@ -69,29 +77,6 @@ impl<B: Backend + io::Write> App<B> {
         }
     }
 }
-
-// #[macro_export]
-// macro_rules! ctrl {
-//     ($code:expr) => {
-//         key!(ctrl $code)
-//     };
-// }
-//
-// #[macro_export]
-// macro_rules! key {
-//     ($code:expr) => {
-//         Event::Key(KeyEvent { code: KeyCode::Char($code), modifiers: KeyModifiers::empty() })
-//     };
-//     (ctrl $code:expr) => {
-//         Event::Key(KeyEvent { code: KeyCode::Char($code), modifiers: KeyModifiers::CONTROL })
-//     };
-//     (alt $code:expr) => {
-//         Event::Key(KeyEvent { code: KeyCode::Char($code), modifiers: KeyModifiers::ALT })
-//     };
-//     (shift $code:expr) => {
-//         Event::Key(KeyEvent { code: KeyCode::Char($code), modifiers: KeyModifiers::SHIFT })
-//     };
-// }
 
 impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {

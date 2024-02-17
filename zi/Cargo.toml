@@ -6,7 +6,9 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.77"
 crossterm = { version = "0.27.0", default-features = false }
+ropey = "1.6.1"
 rustc-hash = "1.1.0"
+slotmap = "1.0.7"
 wasmtime = { version = "17.0.1", features = ["component-model"] }
 
 [dev-dependencies]

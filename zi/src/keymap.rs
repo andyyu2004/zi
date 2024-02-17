@@ -37,13 +37,13 @@ impl Keymap {
         if let crossterm::event::KeyCode::Char(c) = key.code {
             match c {
                 'i' if matches!(mode, Mode::Insert) => {
-                    return Some(|editor| editor.mode = Mode::Insert);
+                    return Some(|editor| editor.set_mode(Mode::Insert));
                 }
                 'q' if matches!(mode, Mode::Normal) => {
                     return Some(|editor| editor.quit = true);
                 }
                 'f' if matches!(mode, Mode::Insert) => {
-                    return Some(|editor| editor.mode = Mode::Normal);
+                    return Some(|editor| editor.set_mode(Mode::Normal));
                 }
                 _ => (),
             }
