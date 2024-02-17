@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.77"
 crossterm = { version = "0.27.0", default-features = false }
 rustc-hash = "1.1.0"
-zi-plugin = { path = "../zi-plugin" }
+wasmtime = { version = "17.0.1", features = ["component-model"] }
+
+[dev-dependencies]
+tokio = { version = "1.36.0", default-features = false, features = ["rt-multi-thread", "macros"] }

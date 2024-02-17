@@ -44,7 +44,7 @@ pub async fn load(
 mod test {
     use wasmtime::{Config, Engine, Store};
 
-    use crate::Context;
+    use super::Context;
 
     #[tokio::test]
     async fn it_works() -> wasmtime::Result<()> {

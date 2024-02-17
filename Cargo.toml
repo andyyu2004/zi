@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "zi",
-    "zi-plugin",
     "zi-term",
     "plugins/*",
 ]

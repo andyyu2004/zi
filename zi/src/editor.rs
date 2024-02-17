@@ -1,7 +1,6 @@
-use zi_plugin::{Config, Context, Engine, Plugin, Store};
-
 use crate::event::KeyEvent;
 use crate::keymap::Keymap;
+use crate::plugin::{self, Config, Context, Engine, Plugin, Result, Store};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Mode {
@@ -17,12 +16,12 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub async fn load() -> zi_plugin::Result<Self> {
+    pub async fn load() -> Result<Self> {
         let mut config = Config::new();
         config.wasm_component_model(true).async_support(true);
         let engine = Engine::new(&config)?;
         let mut store = Store::new(&engine, Context {});
-        let plugins = zi_plugin::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
+        let plugins = plugin::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         Ok(Self { plugins, keymap: Keymap::new(), mode: Mode::default() })
     }
 
