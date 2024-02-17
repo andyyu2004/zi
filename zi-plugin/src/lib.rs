@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use wasmtime::component::{bindgen, Component, Linker};
-use wasmtime::{Config, Engine, Store};
+pub use wasmtime::{Config, Engine, Result, Store};
 
 bindgen!({
     async: true,
@@ -10,25 +10,29 @@ bindgen!({
     },
 });
 
-pub struct PluginContext;
+pub struct Loader {}
+
+impl Loader {}
+
+pub struct Context;
 
 #[async_trait::async_trait]
-impl PluginImports for PluginContext {
+impl PluginImports for Context {
     async fn test(&mut self) -> wasmtime::Result<String> {
         todo!()
     }
 }
 
-pub async fn f(
+pub async fn load(
     engine: Engine,
-    store: &mut Store<PluginContext>,
+    store: &mut Store<Context>,
     plugin_paths: &[impl AsRef<Path>],
 ) -> wasmtime::Result<Box<[Plugin]>> {
     let mut plugins = Vec::with_capacity(plugin_paths.len());
     let mut linker = Linker::new(&engine);
     for path in plugin_paths {
         let component = Component::from_file(&engine, path)?;
-        Plugin::add_to_linker(&mut linker, |ctx: &mut PluginContext| ctx)?;
+        Plugin::add_to_linker(&mut linker, |ctx: &mut Context| ctx)?;
         let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
         plugins.push(bindings);
     }
@@ -40,15 +44,15 @@ pub async fn f(
 mod test {
     use wasmtime::{Config, Engine, Store};
 
-    use crate::PluginContext;
+    use crate::Context;
 
     #[tokio::test]
-    async fn t() -> wasmtime::Result<()> {
+    async fn it_works() -> wasmtime::Result<()> {
         let mut config = Config::new();
         config.wasm_component_model(true).async_support(true);
         let engine = Engine::new(&config)?;
-        let mut store = Store::new(&engine, PluginContext {});
-        let plugins = super::f(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
+        let mut store = Store::new(&engine, Context {});
+        let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         for plugin in &plugins[..] {
             dbg!(plugin.call_greet(&mut store, "wer").await?);
         }

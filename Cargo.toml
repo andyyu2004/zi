@@ -2,6 +2,7 @@
 members = [
     "zi",
     "zi-plugin",
+    "zi-term",
     "plugins/*",
 ]
 resolver = "2"
