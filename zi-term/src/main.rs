@@ -11,8 +11,8 @@ use event::*;
 use futures_util::{Stream, StreamExt};
 use tokio::select;
 use tracing_subscriber::EnvFilter;
-use tui::{Backend, CrosstermBackend, Element, Terminal};
-use zi::{Buffer, Editor, View};
+use tui::{Backend, CrosstermBackend, Frame, Terminal};
+use zi::Editor;
 
 #[derive(Parser)]
 struct Opts {
@@ -84,11 +84,7 @@ impl<B: Backend + io::Write> App<B> {
     fn render(&mut self) -> io::Result<()> {
         let rect = self.term.size()?;
         tracing::debug!(?rect, "rendering");
-        let el = build_widget_tree(&self.editor);
-        self.term.draw(|frame| {
-            let area = *frame.buffer_mut().area();
-            frame.render_widget(el, area)
-        })?;
+        self.term.draw(|frame| render(&self.editor, frame))?;
         Ok(())
     }
 
@@ -100,15 +96,23 @@ impl<B: Backend + io::Write> App<B> {
     }
 }
 
-fn build_widget_tree(editor: &Editor) -> impl tui::Element + '_ {
-    let (_view, buf) = editor.active();
+fn render(editor: &Editor, frame: &mut Frame) {
+    let (view, buf) = editor.active();
     let el = tui::Lines::new(buf.text().lines());
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
-    tui::vstack(
+
+    let widget = tui::vstack(
         [tui::Constraint::Fill(1), tui::Constraint::Max(1), tui::Constraint::Max(1)],
         (el, statusline, cmdline),
-    )
+    );
+
+    let area = *frame.buffer_mut().area();
+    frame.render_widget(widget, area);
+
+    let cursor = view.cursor();
+    let (x, y) = cursor.coords();
+    frame.set_cursor(x, y);
 }
 
 impl<W: Backend + io::Write> Drop for App<W> {

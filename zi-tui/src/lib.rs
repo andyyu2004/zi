@@ -11,7 +11,7 @@ pub use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
 pub use ratatui::text::Text;
 pub use ratatui::widgets::Widget;
-pub use ratatui::Terminal;
+pub use ratatui::{Frame, Terminal};
 
 pub use self::element::Element;
 pub use self::sequence::ElementSeq;

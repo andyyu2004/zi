@@ -4,7 +4,7 @@ use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::Keymap;
-use crate::{Buffer, BufferId, View, ViewId};
+use crate::{Buffer, BufferId, Position, View, ViewId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Mode {
@@ -73,6 +73,13 @@ impl Editor {
         let view = self.active_view();
         let buffer = self.buffer(view.buffer()).expect("active buffer not found?");
         (view, buffer)
+    }
+
+    #[inline]
+    pub fn set_cursor(&mut self, view: ViewId, cursor: Position) {
+        let view = &mut self.views[view];
+        let buf = &self.buffers[view.buffer()];
+        view.set_cursor(buf.text(), cursor);
     }
 }
 
