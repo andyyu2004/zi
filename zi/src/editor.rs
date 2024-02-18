@@ -1,3 +1,5 @@
+use std::fmt;
+
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
@@ -9,6 +11,19 @@ pub enum Mode {
     #[default]
     Normal,
     Insert,
+}
+
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Mode::Normal => "NORMAL",
+                Mode::Insert => "INSERT",
+            }
+        )
+    }
 }
 
 pub struct Editor {

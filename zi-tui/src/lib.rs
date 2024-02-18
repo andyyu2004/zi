@@ -9,6 +9,7 @@ pub use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 pub use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
+pub use ratatui::text::Text;
 pub use ratatui::widgets::Widget;
 pub use ratatui::Terminal;
 
@@ -39,8 +40,6 @@ pub struct Stack<S> {
     seq: S,
 }
 
-impl<S: ElementSeq> Element for Stack<S> {}
-
 impl<S: ElementSeq> Widget for Stack<S>
 where
     S: ElementSeq,
@@ -51,6 +50,7 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Lines<'a, I> {
     lines: I,
     _marker: PhantomData<&'a ()>,
@@ -60,13 +60,6 @@ impl<I> Lines<'_, I> {
     pub fn new(lines: I) -> Self {
         Self { lines, _marker: PhantomData }
     }
-}
-
-impl<'a, I> Element for Lines<'a, I>
-where
-    I: Iterator,
-    I::Item: Into<Cow<'a, str>>,
-{
 }
 
 impl<'a, I> Widget for Lines<'a, I>

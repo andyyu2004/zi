@@ -16,5 +16,5 @@ package = "zi:zi"
 ownership = "borrowing-duplicate-if-necessary"
 
 [package.metadata.component.target]
-path = "../../zi-plugin/wit/zi.wit"
+path = "../../zi/wit/zi.wit"
 world = "plugin"

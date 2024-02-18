@@ -18,6 +18,19 @@ pub trait ElementSeq {
     }
 }
 
+impl<const N: usize, T: Element> ElementSeq for [T; N] {
+    fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
+        assert_eq!(areas.len(), N);
+        for (view, area) in self.into_iter().zip(areas.iter()) {
+            view.render(*area, buf);
+        }
+    }
+
+    fn len(&self) -> usize {
+        N
+    }
+}
+
 impl<T: Element> ElementSeq for Vec<T> {
     fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
         assert_eq!(areas.len(), self.len());
@@ -28,17 +41,6 @@ impl<T: Element> ElementSeq for Vec<T> {
 
     fn len(&self) -> usize {
         self.len()
-    }
-}
-
-impl<T: Element> ElementSeq for T {
-    fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
-        assert_eq!(areas.len(), self.len());
-        self.render(areas[0], buf);
-    }
-
-    fn len(&self) -> usize {
-        1
     }
 }
 
