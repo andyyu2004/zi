@@ -7,10 +7,9 @@ use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{execute, terminal};
 use event::*;
 use futures_util::{Stream, StreamExt};
-use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::Terminal;
 use tokio::select;
 use zi::Editor;
+use zi_tui::{Backend, CrosstermBackend, Terminal};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,9 +61,14 @@ impl<B: Backend + io::Write> App<B> {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     fn render(&mut self) -> io::Result<()> {
         let (view, buf) = self.editor.active();
+        let rect = self.term.size()?;
+        tracing::debug!(?rect, "rendering");
+        let text = buf.text();
         self.term.draw(|frame| {
+            text.lines().for_each(|line| {});
             frame.set_cursor(0, 0);
         })?;
         Ok(())

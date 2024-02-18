@@ -2,7 +2,7 @@
 members = [
     "zi",
     "zi-term",
-    "plugins/*",
+    "plugins/*", "zi-tui",
 ]
 
 resolver = "2"

@@ -10,7 +10,13 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    #[inline]
     pub fn new(id: BufferId, text: Rope) -> Self {
         Self { id, text }
+    }
+
+    #[inline]
+    pub fn text(&self) -> &Rope {
+        &self.text
     }
 }

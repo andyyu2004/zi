@@ -54,10 +54,10 @@ impl Editor {
     }
 
     #[inline]
-    pub fn active(&self) -> (&Buffer, &View) {
+    pub fn active(&self) -> (&View, &Buffer) {
         let view = self.active_view();
         let buffer = self.buffer(view.buffer()).expect("active buffer not found?");
-        (buffer, view)
+        (view, buffer)
     }
 }
 
