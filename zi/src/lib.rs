@@ -1,3 +1,5 @@
+#![feature(try_blocks)]
+
 mod buffer;
 mod editor;
 pub mod event;

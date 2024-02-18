@@ -1,6 +1,6 @@
 use ropey::Rope;
 
-use crate::{BufferId, Editor, Position};
+use crate::{Buffer, BufferId, Editor, Position};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -8,7 +8,7 @@ slotmap::new_key_type! {
 
 pub struct View {
     id: ViewId,
-    buffer: BufferId,
+    buf: BufferId,
     cursor: Position,
 }
 
@@ -20,7 +20,7 @@ impl View {
 
     #[inline]
     pub fn buffer(&self) -> BufferId {
-        self.buffer
+        self.buf
     }
 
     #[inline]
@@ -29,12 +29,20 @@ impl View {
     }
 
     #[inline]
-    pub fn set_cursor(&mut self, _text: &Rope, cursor: Position) {
-        // validate etc
-        self.cursor = cursor;
+    pub fn set_cursor(&mut self, buf: &Buffer, pos: Position) {
+        assert_eq!(buf.id(), self.buf);
+        let text = buf.text();
+
+        let _: Option<()> = try {
+            // check line is in-bounds
+            let line = text.get_line(pos.line().idx())?;
+            // check column is in-bounds for the line
+            let _col = line.get_char(pos.col().idx())?;
+            self.cursor = pos;
+        };
     }
 
-    pub(crate) fn new(id: ViewId, buffer: BufferId) -> Self {
-        Self { id, buffer, cursor: Position::default() }
+    pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
+        Self { id, buf, cursor: Position::default() }
     }
 }

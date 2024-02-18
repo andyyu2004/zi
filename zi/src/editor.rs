@@ -79,7 +79,7 @@ impl Editor {
     pub fn set_cursor(&mut self, view: ViewId, cursor: Position) {
         let view = &mut self.views[view];
         let buf = &self.buffers[view.buffer()];
-        view.set_cursor(buf.text(), cursor);
+        view.set_cursor(buf, cursor);
     }
 }
 

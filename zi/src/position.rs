@@ -13,7 +13,7 @@ impl Position {
     }
 
     #[inline]
-    pub fn row(&self) -> Line {
+    pub fn line(&self) -> Line {
         self.line
     }
 
@@ -66,6 +66,11 @@ impl Line {
     pub fn right(self, amt: u16) -> Self {
         Self(unsafe { NonZeroU16::new_unchecked(self.0.get().saturating_add(amt)) })
     }
+
+    #[inline]
+    pub fn idx(self) -> usize {
+        self.0.get() as usize - 1
+    }
 }
 
 impl Default for Line {
@@ -88,6 +93,11 @@ impl Col {
     #[inline]
     pub fn right(self, amt: u16) -> Self {
         Self(self.0.saturating_add(amt))
+    }
+
+    #[inline]
+    pub fn idx(self) -> usize {
+        self.0 as usize
     }
 }
 

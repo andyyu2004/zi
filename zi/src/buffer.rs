@@ -16,6 +16,11 @@ impl Buffer {
     }
 
     #[inline]
+    pub fn id(&self) -> BufferId {
+        self.id
+    }
+
+    #[inline]
     pub fn text(&self) -> &Rope {
         &self.text
     }
