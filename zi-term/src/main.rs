@@ -1,18 +1,37 @@
 mod event;
 
 use std::io;
+use std::path::PathBuf;
 
+use clap::Parser;
 use crossterm::event::{DisableMouseCapture, EventStream};
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{execute, terminal};
 use event::*;
 use futures_util::{Stream, StreamExt};
 use tokio::select;
+use tracing_subscriber::EnvFilter;
 use zi::Editor;
 use zi_tui::{Backend, CrosstermBackend, Terminal};
 
+#[derive(Parser)]
+struct Opts {
+    #[clap(long)]
+    log: Option<PathBuf>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let opts = Opts::parse();
+    if let Some(log) = opts.log {
+        let file = std::fs::OpenOptions::new().create(true).append(true).open(log)?;
+        tracing_subscriber::fmt()
+            .with_writer(file)
+            .with_ansi(false)
+            .with_env_filter(EnvFilter::from_env("ZI_LOG"))
+            .init();
+    }
+
     let stdout = io::stdout().lock();
     let editor = zi::Editor::default();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
