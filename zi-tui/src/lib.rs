@@ -1,5 +1,87 @@
+use std::borrow::Cow;
+use std::marker::PhantomData;
+use std::rc::Rc;
+
 pub use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::widgets;
+pub use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+pub use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::text::Line;
+pub use ratatui::widgets::Widget;
 pub use ratatui::Terminal;
 
-pub trait Widget: widgets::Widget {}
+pub trait View: Widget {}
+
+pub trait ViewSeq {
+    fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer);
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+pub fn vstack<I, S>(constraints: I, seq: S) -> impl View
+where
+    S: ViewSeq,
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
+    <I::IntoIter as Iterator>::Item: Into<Constraint>,
+{
+    let constraints = constraints.into_iter();
+    assert_eq!(
+        constraints.len(),
+        seq.len(),
+        "constraints length doesn't match the view sequence length: {} != {}",
+        constraints.len(),
+        seq.len()
+    );
+    let layout = Layout::new(Direction::Vertical, constraints);
+    Stack { layout, seq }
+}
+
+pub struct Stack<S> {
+    layout: Layout,
+    seq: S,
+}
+
+impl<S: ViewSeq> View for Stack<S> {}
+
+impl<S: ViewSeq> Widget for Stack<S>
+where
+    S: ViewSeq,
+{
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let areas = self.layout.split(area);
+        self.seq.render(areas, buf);
+    }
+}
+
+pub struct Lines<'a, I> {
+    lines: I,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<I> Lines<'_, I> {
+    pub fn new(lines: I) -> Self {
+        Self { lines, _marker: PhantomData }
+    }
+}
+
+impl<'a, I> Widget for Lines<'a, I>
+where
+    I: Iterator,
+    I::Item: Into<Cow<'a, str>>,
+{
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        for (i, line) in self.lines.enumerate() {
+            if i >= area.height as usize {
+                break;
+            }
+            let line = Line::default().spans([line]);
+            // safe cast to u16 as we already checked that i < area.height (which is a u16)
+            buf.set_line(area.x, area.y + i as u16, &line, area.width);
+        }
+    }
+}

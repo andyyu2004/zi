@@ -64,11 +64,9 @@ impl Editor {
 impl Default for Editor {
     fn default() -> Self {
         let mut buffers = SlotMap::default();
-        let buf = buffers.insert_with_key(|id| Buffer::new(id, "test text".into()));
+        let buf = buffers.insert_with_key(|id| Buffer::new(id, "test text\nnext line\n".into()));
         let mut views = SlotMap::default();
-        let active_view = views
-            // FIXME using random area
-            .insert_with_key(|id| View::new(id, buf));
+        let active_view = views.insert_with_key(|id| View::new(id, buf));
 
         Self {
             buffers,

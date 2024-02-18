@@ -82,13 +82,14 @@ impl<B: Backend + io::Write> App<B> {
 
     #[tracing::instrument(skip(self), level = "debug")]
     fn render(&mut self) -> io::Result<()> {
-        let (view, buf) = self.editor.active();
         let rect = self.term.size()?;
         tracing::debug!(?rect, "rendering");
+        let (view, buf) = self.editor.active();
         let text = buf.text();
+        let widget = zi_tui::Lines::new(text.lines());
         self.term.draw(|frame| {
-            text.lines().for_each(|line| {});
-            frame.set_cursor(0, 0);
+            let area = *frame.buffer_mut().area();
+            frame.render_widget(widget, area)
         })?;
         Ok(())
     }
