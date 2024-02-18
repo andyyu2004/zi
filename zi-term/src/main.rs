@@ -11,8 +11,8 @@ use event::*;
 use futures_util::{Stream, StreamExt};
 use tokio::select;
 use tracing_subscriber::EnvFilter;
-use zi::Editor;
-use zi_tui::{Backend, CrosstermBackend, Terminal};
+use zi::{Buffer, Editor, View};
+use zi_tui::{Backend, CrosstermBackend, Element, Terminal};
 
 #[derive(Parser)]
 struct Opts {
@@ -85,11 +85,10 @@ impl<B: Backend + io::Write> App<B> {
         let rect = self.term.size()?;
         tracing::debug!(?rect, "rendering");
         let (view, buf) = self.editor.active();
-        let text = buf.text();
-        let widget = zi_tui::Lines::new(text.lines());
+        let el = build_widget_tree(view, buf);
         self.term.draw(|frame| {
             let area = *frame.buffer_mut().area();
-            frame.render_widget(widget, area)
+            frame.render_widget(el, area)
         })?;
         Ok(())
     }
@@ -100,6 +99,11 @@ impl<B: Backend + io::Write> App<B> {
             Event::Resize(_, _) => {}
         }
     }
+}
+
+fn build_widget_tree<'b>(view: &View, buf: &'b Buffer) -> impl Element + 'b {
+    let el = zi_tui::Lines::new(buf.text().lines());
+    el
 }
 
 impl<W: Backend + io::Write> Drop for App<W> {

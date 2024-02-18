@@ -1,5 +1,5 @@
+mod element;
 mod sequence;
-mod view;
 
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -12,12 +12,12 @@ use ratatui::text::Line;
 pub use ratatui::widgets::Widget;
 pub use ratatui::Terminal;
 
-pub use self::sequence::ViewSeq;
-pub use self::view::View;
+pub use self::element::Element;
+pub use self::sequence::ElementSeq;
 
-pub fn vstack<I, S>(constraints: I, seq: S) -> impl View
+pub fn vstack<I, S>(constraints: I, seq: S) -> impl Element
 where
-    S: ViewSeq,
+    S: ElementSeq,
     I: IntoIterator,
     I::IntoIter: ExactSizeIterator,
     <I::IntoIter as Iterator>::Item: Into<Constraint>,
@@ -39,11 +39,11 @@ pub struct Stack<S> {
     seq: S,
 }
 
-impl<S: ViewSeq> View for Stack<S> {}
+impl<S: ElementSeq> Element for Stack<S> {}
 
-impl<S: ViewSeq> Widget for Stack<S>
+impl<S: ElementSeq> Widget for Stack<S>
 where
-    S: ViewSeq,
+    S: ElementSeq,
 {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let areas = self.layout.split(area);
@@ -60,6 +60,13 @@ impl<I> Lines<'_, I> {
     pub fn new(lines: I) -> Self {
         Self { lines, _marker: PhantomData }
     }
+}
+
+impl<'a, I> Element for Lines<'a, I>
+where
+    I: Iterator,
+    I::Item: Into<Cow<'a, str>>,
+{
 }
 
 impl<'a, I> Widget for Lines<'a, I>
