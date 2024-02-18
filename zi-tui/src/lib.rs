@@ -1,6 +1,8 @@
+mod sequence;
+mod view;
+
 use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 pub use ratatui::backend::{Backend, CrosstermBackend};
 pub use ratatui::buffer::Buffer;
@@ -10,17 +12,8 @@ use ratatui::text::Line;
 pub use ratatui::widgets::Widget;
 pub use ratatui::Terminal;
 
-pub trait View: Widget {}
-
-pub trait ViewSeq {
-    fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer);
-
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
+pub use self::sequence::ViewSeq;
+pub use self::view::View;
 
 pub fn vstack<I, S>(constraints: I, seq: S) -> impl View
 where
