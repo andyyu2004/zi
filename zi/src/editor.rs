@@ -1,5 +1,6 @@
 use std::fmt;
 
+use ropey::Rope;
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
@@ -36,6 +37,22 @@ pub struct Editor {
 }
 
 impl Editor {
+    pub fn new(content: impl Into<Rope>) -> Self {
+        let mut buffers = SlotMap::default();
+        let buf = buffers.insert_with_key(|id| Buffer::new(id, content.into()));
+        let mut views = SlotMap::default();
+        let active_view = views.insert_with_key(|id| View::new(id, buf));
+
+        Self {
+            buffers,
+            views,
+            active_view,
+            mode: Default::default(),
+            keymap: Default::default(),
+            quit: false,
+        }
+    }
+
     #[inline]
     pub fn on_key(&mut self, key: KeyEvent) {
         if let Some(f) = self.keymap.on_key(self.mode, key) {
@@ -85,18 +102,6 @@ impl Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        let mut buffers = SlotMap::default();
-        let buf = buffers.insert_with_key(|id| Buffer::new(id, "test text\nnext line\n".into()));
-        let mut views = SlotMap::default();
-        let active_view = views.insert_with_key(|id| View::new(id, buf));
-
-        Self {
-            buffers,
-            views,
-            active_view,
-            mode: Default::default(),
-            keymap: Default::default(),
-            quit: false,
-        }
+        Self::new("")
     }
 }

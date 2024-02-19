@@ -18,6 +18,7 @@ use zi::Editor;
 struct Opts {
     #[clap(long)]
     log: Option<PathBuf>,
+    path: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -32,8 +33,9 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
+    let content = opts.path.as_ref().map(std::fs::read_to_string).transpose()?.unwrap_or_default();
     let stdout = io::stdout().lock();
-    let editor = zi::Editor::default();
+    let editor = zi::Editor::new(content);
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
     let mut app = App::new(term, editor)?;
     app.enter()?;
