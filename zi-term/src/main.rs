@@ -84,8 +84,6 @@ impl<B: Backend + io::Write> App<B> {
 
     #[tracing::instrument(skip(self), level = "debug")]
     fn render(&mut self) -> io::Result<()> {
-        let rect = self.term.size()?;
-        tracing::debug!(?rect, "rendering");
         self.term.draw(|frame| render(&self.editor, frame))?;
         Ok(())
     }

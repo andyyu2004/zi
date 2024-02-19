@@ -1,11 +1,14 @@
 use std::fmt;
 
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::Keymap;
+use crate::view::HasViewId;
 use crate::{Buffer, BufferId, Position, View, ViewId};
+
+mod api;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Mode {
@@ -92,11 +95,18 @@ impl Editor {
         (view, buffer)
     }
 
-    #[inline]
-    pub fn set_cursor(&mut self, view: ViewId, cursor: Position) {
-        let view = &mut self.views[view];
-        let buf = &self.buffers[view.buffer()];
-        view.set_cursor(buf, cursor);
+    pub fn current_line(&self) -> RopeSlice {
+        let (view, buffer) = self.active();
+        let cursor = view.cursor();
+        let text = buffer.text();
+        text.line(cursor.line().idx())
+    }
+
+    pub fn current_char(&self) -> char {
+        let (view, buffer) = self.active();
+        let cursor = view.cursor();
+        let text = buffer.text();
+        text.line(cursor.line().idx()).char(cursor.col().idx())
     }
 }
 

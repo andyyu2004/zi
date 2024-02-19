@@ -2158,6 +2158,7 @@ dependencies = [
  "rustc-hash",
  "slotmap",
  "tokio",
+ "tracing",
  "wasmtime",
 ]
 
