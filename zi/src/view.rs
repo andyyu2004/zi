@@ -37,8 +37,9 @@ impl View {
             // check line is in-bounds
             let line = text.get_line(pos.line().idx())?;
             // check column is in-bounds for the line
-            let _col = line.get_char(pos.col().idx())?;
-            self.cursor = pos;
+            if line.get_char(pos.col().idx())? != '\n' {
+                self.cursor = pos;
+            }
         };
     }
 
