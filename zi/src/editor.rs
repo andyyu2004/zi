@@ -91,7 +91,7 @@ impl Editor {
     pub fn set_mode(&mut self, mode: Mode) {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = active!(self);
-            view.move_cursor(buf, Direction::Left);
+            view.move_cursor(mode, buf, Direction::Left);
         }
 
         self.mode = mode;
@@ -126,7 +126,7 @@ impl Editor {
         let text = buffer.text_mut();
         let idx = text.line_to_char(cursor.line().idx()) + cursor.col().idx();
         text.insert_char(idx, c);
-        view.force_set_cursor(view.cursor().right(1));
+        view.move_cursor(self.mode, buffer, Direction::Right);
     }
 
     pub fn current_line(&self) -> RopeSlice {

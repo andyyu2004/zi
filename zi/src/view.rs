@@ -1,5 +1,5 @@
 use crate::editor::cursor::SetCursorFlags;
-use crate::{Buffer, BufferId, Col, Direction, Position};
+use crate::{Buffer, BufferId, Col, Direction, Mode, Position};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -47,7 +47,7 @@ impl View {
         self.cursor.pos
     }
 
-    pub(crate) fn move_cursor(&mut self, buf: &Buffer, direction: Direction) {
+    pub(crate) fn move_cursor(&mut self, mode: Mode, buf: &Buffer, direction: Direction) {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
@@ -65,7 +65,7 @@ impl View {
             SetCursorFlags::empty()
         };
 
-        self.set_cursor(buf, pos, flags);
+        self.set_cursor(mode, buf, pos, flags);
     }
 
     pub(crate) fn force_set_cursor(&mut self, pos: Position) {
@@ -73,7 +73,13 @@ impl View {
     }
 
     #[inline]
-    pub(crate) fn set_cursor(&mut self, buf: &Buffer, pos: Position, flags: SetCursorFlags) {
+    pub(crate) fn set_cursor(
+        &mut self,
+        mode: Mode,
+        buf: &Buffer,
+        pos: Position,
+        flags: SetCursorFlags,
+    ) {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
 
@@ -84,12 +90,19 @@ impl View {
         };
 
         // Pretending CRLF doesn't exist.
-        let n = match line.get_char(line.len_chars().max(1) - 1) {
-            Some('\n') => 2,
-            _ => 1,
+        // We don't allow the cursor on the newline character.
+        let n: usize = match line.get_char(line.len_chars().saturating_sub(1)) {
+            Some('\n') => 1,
+            _ => 0,
         };
 
-        let max_col = Col::from(line.len_chars().max(n) - n);
+        // Normal mode not allowed to move past the end of the line.
+        let n = match mode {
+            Mode::Normal => n + 1,
+            Mode::Insert => n,
+        };
+
+        let max_col = Col::from(line.len_chars().saturating_sub(n));
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();

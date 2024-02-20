@@ -12,13 +12,13 @@ impl Editor {
     #[inline]
     pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Position>) {
         let (view, buf) = active!(self: view);
-        view.set_cursor(buf, pos.into(), SetCursorFlags::empty());
+        view.set_cursor(self.mode, buf, pos.into(), SetCursorFlags::empty());
     }
 
     #[inline]
     pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction) {
         let (view, buf) = active!(self: view);
-        view.move_cursor(buf, direction);
+        view.move_cursor(self.mode, buf, direction);
     }
 
     #[inline]

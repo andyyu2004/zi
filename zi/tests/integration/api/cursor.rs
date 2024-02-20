@@ -57,6 +57,10 @@ fn move_cursor_horizontal_no_newline() {
     assert_eq!(editor.active_cursor(), (1, 2));
     editor.move_active_cursor(Direction::Right);
     assert_eq!(editor.active_cursor(), (1, 2));
+
+    editor.set_mode(zi::Mode::Insert);
+    editor.move_active_cursor(Direction::Right);
+    assert_eq!(editor.active_cursor(), (1, 3), "insert mode can move one character further");
 }
 
 #[test]
