@@ -53,6 +53,12 @@ impl Keymap {
                 'i' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.set_mode(Mode::Insert)));
                 }
+                'a' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| {
+                        editor.set_mode(Mode::Insert);
+                        editor.move_active_cursor(Direction::Right);
+                    }));
+                }
                 'q' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.quit = true));
                 }

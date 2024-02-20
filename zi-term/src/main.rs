@@ -77,14 +77,15 @@ impl<B: Backend + io::Write> App<B> {
                 Some(event) = events.next() => self.on_event(event?).await,
             }
 
-            self.render()?;
-
             // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
+            // Looks much less janky if we set the cursor before rendering.
             let style = match self.editor.mode() {
                 zi::Mode::Normal => SetCursorStyle::SteadyBlock,
                 zi::Mode::Insert => SetCursorStyle::SteadyBar,
             };
             execute!(self.term.backend_mut(), cursor::Show, style)?;
+
+            self.render()?;
         }
 
         Ok(())
