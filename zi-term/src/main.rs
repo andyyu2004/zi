@@ -4,9 +4,10 @@ use std::io;
 use std::path::PathBuf;
 
 use clap::Parser;
+use crossterm::cursor::SetCursorStyle;
 use crossterm::event::{DisableMouseCapture, EventStream};
 use crossterm::terminal::EnterAlternateScreen;
-use crossterm::{execute, terminal};
+use crossterm::{cursor, execute, terminal};
 use event::*;
 use futures_util::{Stream, StreamExt};
 use tokio::select;
@@ -77,6 +78,13 @@ impl<B: Backend + io::Write> App<B> {
             }
 
             self.render()?;
+
+            // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
+            let style = match self.editor.mode() {
+                zi::Mode::Normal => SetCursorStyle::SteadyBlock,
+                zi::Mode::Insert => SetCursorStyle::SteadyBar,
+            };
+            execute!(self.term.backend_mut(), cursor::Show, style)?;
         }
 
         Ok(())
