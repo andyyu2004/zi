@@ -2,7 +2,7 @@ use crossterm::event::KeyCode;
 use rustc_hash::FxHashMap;
 
 use crate::event::KeyEvent;
-use crate::{Editor, Mode};
+use crate::{Direction, Editor, Mode};
 
 #[derive(Default)]
 pub(crate) struct Keymap {
@@ -61,13 +61,13 @@ impl Keymap {
                 'j' if matches!(mode, Mode::Normal) => {
                     return Some(|editor| {
                         let view = editor.active_view();
-                        editor.set_cursor(view.id(), view.cursor().down(1))
+                        editor.move_cursor(view.id(), Direction::Down)
                     });
                 }
                 'k' if matches!(mode, Mode::Normal) => {
                     return Some(|editor| {
                         let view = editor.active_view();
-                        editor.set_cursor(view.id(), view.cursor().up(1))
+                        editor.move_cursor(view.id(), Direction::Up)
                     });
                 }
                 'f' if matches!(mode, Mode::Insert) => {

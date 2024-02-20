@@ -168,5 +168,22 @@ impl Col {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+impl Direction {
+    pub(crate) fn is_vertical(&self) -> bool {
+        matches!(self, Self::Up | Self::Down)
+    }
+
+    pub(crate) fn is_horizontal(&self) -> bool {
+        matches!(self, Self::Left | Self::Right)
+    }
+}
+
 #[cfg(test)]
 mod tests;

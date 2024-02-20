@@ -1,3 +1,5 @@
+pub(crate) mod cursor;
+
 use std::fmt;
 
 use ropey::{Rope, RopeSlice};
@@ -5,10 +7,7 @@ use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::Keymap;
-use crate::view::HasViewId;
-use crate::{Buffer, BufferId, Position, View, ViewId};
-
-mod api;
+use crate::{Buffer, BufferId, View, ViewId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Mode {

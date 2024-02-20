@@ -10,5 +10,5 @@ mod view;
 
 pub use self::buffer::{Buffer, BufferId};
 pub use self::editor::{Editor, Mode};
-pub use self::position::{Col, Line, Position};
+pub use self::position::{Col, Direction, Line, Position};
 pub use self::view::{View, ViewId};
