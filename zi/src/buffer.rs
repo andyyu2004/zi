@@ -24,4 +24,9 @@ impl Buffer {
     pub fn text(&self) -> &Rope {
         &self.text
     }
+
+    #[inline]
+    pub fn text_mut(&mut self) -> &mut Rope {
+        &mut self.text
+    }
 }

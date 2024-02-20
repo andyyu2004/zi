@@ -12,7 +12,10 @@ pub(crate) struct Keymap {
     actions: Vec<Action>,
 }
 
-type Action = fn(&mut Editor);
+pub enum Action {
+    Fn(fn(&mut Editor)),
+    Closure(Box<dyn FnOnce(&mut Editor) + Send + Sync>),
+}
 
 // macro_rules! keymap {
 //     ( $($mode:ident {
@@ -35,49 +38,41 @@ type Action = fn(&mut Editor);
 impl Keymap {
     pub fn on_key(&mut self, mode: Mode, key: KeyEvent) -> Option<Action> {
         // temp
+        use Action::*;
         match key.code {
             KeyCode::Esc if matches!(mode, Mode::Insert) => {
-                return Some(|editor| editor.set_mode(Mode::Normal));
+                return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
             }
+            KeyCode::Left => return Some(Fn(|editor| editor.move_active_cursor(Direction::Left))),
+            KeyCode::Right => {
+                return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));
+            }
+            KeyCode::Up => return Some(Fn(|editor| editor.move_active_cursor(Direction::Up))),
+            KeyCode::Down => return Some(Fn(|editor| editor.move_active_cursor(Direction::Down))),
             KeyCode::Char(c) => match c {
                 'i' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| editor.set_mode(Mode::Insert));
+                    return Some(Fn(|editor| editor.set_mode(Mode::Insert)));
                 }
                 'q' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| editor.quit = true);
+                    return Some(Fn(|editor| editor.quit = true));
                 }
                 'h' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| {
-                        let view = editor.active_view();
-                        editor.set_cursor(view.id(), view.cursor().left(1))
-                    });
+                    return Some(Fn(|editor| editor.move_active_cursor(Direction::Left)));
                 }
                 'l' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| {
-                        let view = editor.active_view();
-                        editor.set_cursor(view.id(), view.cursor().right(1))
-                    });
+                    return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));
                 }
                 'j' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| {
-                        let view = editor.active_view();
-                        editor.move_cursor(view.id(), Direction::Down)
-                    });
+                    return Some(Fn(|editor| editor.move_active_cursor(Direction::Down)));
                 }
                 'k' if matches!(mode, Mode::Normal) => {
-                    return Some(|editor| {
-                        let view = editor.active_view();
-                        editor.move_cursor(view.id(), Direction::Up)
-                    });
+                    return Some(Fn(|editor| editor.move_active_cursor(Direction::Up)));
                 }
                 'f' if matches!(mode, Mode::Insert) => {
-                    return Some(|editor| editor.set_mode(Mode::Normal));
+                    return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
                 }
                 char if matches!(mode, Mode::Insert) => {
-                    return Some(|editor| {
-                        let (view, buf) = editor.active();
-                        let cursor = view.cursor();
-                    });
+                    return Some(Closure(Box::new(move |editor| editor.insert_char(char))));
                 }
                 _ => (),
             },

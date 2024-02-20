@@ -68,6 +68,10 @@ impl View {
         self.set_cursor(buf, pos, flags);
     }
 
+    pub(crate) fn force_set_cursor(&mut self, pos: Position) {
+        self.cursor = Cursor::new(pos);
+    }
+
     #[inline]
     pub(crate) fn set_cursor(&mut self, buf: &Buffer, pos: Position, flags: SetCursorFlags) {
         assert_eq!(buf.id(), self.buf);
@@ -79,7 +83,13 @@ impl View {
             None => return,
         };
 
-        let max_col = Col::from(line.len_chars().max(2) - 2);
+        // Pretending CRLF doesn't exist.
+        let n = match line.get_char(line.len_chars().max(1) - 1) {
+            Some('\n') => 2,
+            _ => 1,
+        };
+
+        let max_col = Col::from(line.len_chars().max(n) - n);
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();

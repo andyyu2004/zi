@@ -36,7 +36,31 @@ fn set_cursor() {
 }
 
 #[test]
-fn move_cursor() {
+fn move_cursor_empty() {
+    let mut editor = Editor::new("");
+    assert_eq!(editor.active_cursor(), (1, 0));
+    for _ in 1..10 {
+        for &direction in &[Direction::Left, Direction::Right, Direction::Up, Direction::Down] {
+            editor.move_active_cursor(direction);
+            assert_eq!(editor.active_cursor(), (1, 0));
+        }
+    }
+}
+
+#[test]
+fn move_cursor_horizontal_no_newline() {
+    let mut editor = Editor::new("abc");
+    assert_eq!(editor.active_cursor(), (1, 0));
+    editor.move_active_cursor(Direction::Right);
+    assert_eq!(editor.active_cursor(), (1, 1));
+    editor.move_active_cursor(Direction::Right);
+    assert_eq!(editor.active_cursor(), (1, 2));
+    editor.move_active_cursor(Direction::Right);
+    assert_eq!(editor.active_cursor(), (1, 2));
+}
+
+#[test]
+fn vertical_move_cursor_remembers_column() {
     let mut editor = Editor::new(
         r#"foo
 test

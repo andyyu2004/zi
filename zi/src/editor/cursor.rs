@@ -1,3 +1,4 @@
+use super::active;
 use crate::view::HasViewId;
 use crate::{Direction, Editor, Position};
 
@@ -10,16 +11,13 @@ bitflags::bitflags! {
 impl Editor {
     #[inline]
     pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Position>) {
-        let view = &mut self.views[view.view_id()];
-        let buf = &self.buffers[view.buffer()];
-
+        let (view, buf) = active!(self: view);
         view.set_cursor(buf, pos.into(), SetCursorFlags::empty());
     }
 
     #[inline]
     pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction) {
-        let view = &mut self.views[view.view_id()];
-        let buf = &self.buffers[view.buffer()];
+        let (view, buf) = active!(self: view);
         view.move_cursor(buf, direction);
     }
 

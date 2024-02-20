@@ -6,8 +6,8 @@ use ropey::{Rope, RopeSlice};
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
-use crate::keymap::Keymap;
-use crate::{Buffer, BufferId, View, ViewId};
+use crate::keymap::{Action, Keymap};
+use crate::{Buffer, BufferId, Direction, View, ViewId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Mode {
@@ -38,6 +38,23 @@ pub struct Editor {
     active_view: ViewId,
 }
 
+/// Get the active view and buffer.
+/// This needs to be a macro so rust can figure out the mutable borrows are disjoint
+macro_rules! active {
+    ($editor:ident) => {
+        active!($editor: $editor.active_view)
+    };
+    ($editor:ident: $view:expr) => {{
+        #[allow(unused_imports)]
+        use $crate::view::HasViewId as _;
+        let view = &mut $editor.views[$view.view_id()];
+        let buf = &mut $editor.buffers[view.buffer()];
+        (view, buf)
+    }};
+}
+
+pub(crate) use active;
+
 impl Editor {
     pub fn new(content: impl Into<Rope>) -> Self {
         let mut buffers = SlotMap::default();
@@ -58,7 +75,10 @@ impl Editor {
     #[inline]
     pub fn on_key(&mut self, key: KeyEvent) {
         if let Some(f) = self.keymap.on_key(self.mode, key) {
-            f(self)
+            match f {
+                Action::Fn(f) => f(self),
+                Action::Closure(f) => f(self),
+            }
         }
     }
 
@@ -69,6 +89,11 @@ impl Editor {
 
     #[inline]
     pub fn set_mode(&mut self, mode: Mode) {
+        if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
+            let (view, buf) = active!(self);
+            view.move_cursor(buf, Direction::Left);
+        }
+
         self.mode = mode;
     }
 
@@ -92,6 +117,16 @@ impl Editor {
         let view = self.active_view();
         let buffer = self.buffer(view.buffer()).expect("active buffer not found?");
         (view, buffer)
+    }
+
+    pub fn insert_char(&mut self, c: char) {
+        // Don't care if we're actually in insert mode, that's more a key binding namespace.
+        let (view, buffer) = active!(self);
+        let cursor = view.cursor();
+        let text = buffer.text_mut();
+        let idx = text.line_to_char(cursor.line().idx()) + cursor.col().idx();
+        text.insert_char(idx, c);
+        view.force_set_cursor(view.cursor().right(1));
     }
 
     pub fn current_line(&self) -> RopeSlice {
