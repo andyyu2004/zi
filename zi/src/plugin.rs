@@ -3,11 +3,36 @@ use std::path::Path;
 use wasmtime::component::{Component, Linker};
 pub use wasmtime::Engine;
 
-use crate::zi::zi::editor;
+use crate::zi::api::editor;
 
 pub type Store = wasmtime::Store<Editor>;
 
-use crate::{Editor, Plugin, PluginImports};
+use crate::{Editor, Plugin};
+
+// #[async_trait::async_trait]
+// impl editor::HostView for Editor {
+//     async fn buffer(
+//         &mut self,
+//         view: Resource<editor::View>,
+//     ) -> wasmtime::Result<Resource<editor::Buffer>> {
+//         let buf = Editor::buffer(self, BufferId::from(view));
+//     }
+//
+//     fn drop(&mut self, _rep: Resource<editor::View>) -> wasmtime::Result<()> {
+//         Ok(())
+//     }
+// }
+//
+// #[async_trait::async_trait]
+// impl editor::HostBuffer for Editor {
+//     async fn id(&mut self, buf: Resource<editor::Buffer>) -> wasmtime::Result<editor::BufferId> {
+//         Ok(buf.rep())
+//     }
+//
+//     fn drop(&mut self, _rep: Resource<editor::Buffer>) -> wasmtime::Result<()> {
+//         Ok(())
+//     }
+// }
 
 #[async_trait::async_trait]
 impl editor::Host for Editor {
@@ -19,14 +44,18 @@ impl editor::Host for Editor {
         self.set_mode(mode);
         Ok(())
     }
+
+    // async fn get_view(&mut self, id: editor::ViewId) -> wasmtime::Result<Resource<editor::View>> {
+    //     Ok(Resource::new_borrow(id))
+    // }
 }
 
-#[async_trait::async_trait]
-impl PluginImports for Editor {
-    async fn test(&mut self) -> wasmtime::Result<String> {
-        todo!()
-    }
-}
+// #[async_trait::async_trait]
+// impl PluginImports for Editor {
+//     async fn test(&mut self) -> wasmtime::Result<String> {
+//         todo!()
+//     }
+// }
 
 pub async fn load(
     engine: Engine,
@@ -59,7 +88,7 @@ mod test {
         let mut store = Store::new(&engine, Editor::default());
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         for plugin in &plugins[..] {
-            dbg!(plugin.call_greet(&mut store, "wer").await?);
+            plugin.call_initialize(&mut store).await?;
         }
         Ok(())
     }

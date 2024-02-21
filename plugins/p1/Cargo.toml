@@ -14,6 +14,7 @@ package = "zi:zi"
 
 [package.metadata.component.bindings]
 ownership = "borrowing-duplicate-if-necessary"
+derives = ["PartialEq", "Eq"]
 
 [package.metadata.component.target]
 path = "../../zi/wit/zi.wit"

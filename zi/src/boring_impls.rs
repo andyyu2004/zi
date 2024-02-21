@@ -2,6 +2,17 @@ use std::fmt;
 
 use crate::Mode;
 
+// Kinda painful that we can't seem to control the derives? wit-bindgen has a setting but doesn't
+// have the async stuff.
+impl PartialEq for Mode {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Mode::Normal => matches!(other, Mode::Normal),
+            Mode::Insert => matches!(other, Mode::Insert),
+        }
+    }
+}
+
 #[allow(clippy::derivable_impls)]
 impl Default for Mode {
     fn default() -> Self {

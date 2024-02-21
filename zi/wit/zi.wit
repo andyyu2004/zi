@@ -1,11 +1,10 @@
-package zi:zi;
+package zi:api;
 
 world plugin {
-    import test: func() -> string;
-
-    export greet: func(input: string) -> string;
-
     import editor;
+    use editor.{mode};
+
+    export initialize: func();
 }
 
 interface editor {
@@ -14,13 +13,16 @@ interface editor {
         insert,
     }
 
+    type line = u32;
+    type col = u32;
+
     record position {
-       line: u32,
-       col: u32,
+       line: line,
+       col: col,
     }
 
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
-
 }
+
 
