@@ -78,9 +78,10 @@ impl editor::Host for Editor {
         Ok(Resource::new_own(self.active_view().id().data().as_ffi() as u32))
     }
 
-    // async fn get_view(&mut self, id: editor::ViewId) -> wasmtime::Result<Resource<editor::View>> {
-    //     Ok(Resource::new_borrow(id))
-    // }
+    async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
+        self.insert(&text);
+        Ok(())
+    }
 }
 
 // #[async_trait::async_trait]

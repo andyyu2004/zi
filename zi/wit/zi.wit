@@ -21,6 +21,7 @@ interface editor {
        col: col,
     }
 
+    insert: func(text: string) -> ();
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
     get-active-view: func() -> view;

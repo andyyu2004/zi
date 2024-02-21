@@ -68,10 +68,6 @@ impl View {
         self.set_cursor(mode, buf, pos, flags);
     }
 
-    pub(crate) fn force_set_cursor(&mut self, pos: Position) {
-        self.cursor = Cursor::new(pos);
-    }
-
     #[inline]
     pub(crate) fn set_cursor(
         &mut self,

@@ -99,12 +99,18 @@ impl Editor {
 
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
-        let (view, buffer) = active!(self);
+        let (view, buf) = active!(self);
         let cursor = view.cursor();
-        let text = buffer.text_mut();
+        let text = buf.text_mut();
         let idx = text.line_to_char(cursor.line().idx()) + cursor.col().idx();
         text.insert_char(idx, c);
-        view.move_cursor(self.mode, buffer, Direction::Right);
+        view.move_cursor(self.mode, buf, Direction::Right);
+    }
+
+    pub fn insert(&mut self, s: &str) {
+        for c in s.chars() {
+            self.insert_char(c);
+        }
     }
 
     pub fn current_line(&self) -> RopeSlice {
