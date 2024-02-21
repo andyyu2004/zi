@@ -25,7 +25,7 @@ where
 
 impl PartialEq<(u32, u32)> for Position {
     fn eq(&self, &(line, col): &(u32, u32)) -> bool {
-        self.line.0.get() == line && self.col.0 == col
+        self.line.0 == line && self.col.0 == col
     }
 }
 
@@ -48,7 +48,7 @@ impl Position {
     /// Returns the 0-based (x, y) coordinates of the position
     #[inline]
     pub fn coords(&self) -> (u32, u32) {
-        (self.col.0, self.line.0.get() - 1)
+        (self.col.0, self.line.0)
     }
 
     #[inline]
@@ -81,48 +81,36 @@ impl Position {
     }
 }
 
-/// 1-based line number
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Line(NonZeroU32);
+/// 0-based line number
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Line(u32);
 
 impl fmt::Display for Line {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.get())
+        write!(f, "{}", self.0)
     }
 }
 
 impl From<u32> for Line {
     fn from(n: u32) -> Self {
-        assert_ne!(n, 0, "Line number must be non-zero");
-        // SAFETY: just checked that n is non-zero
-        unsafe { Self(NonZeroU32::new_unchecked(n)) }
+        Self(n)
     }
 }
 
 impl Line {
     #[inline]
     pub fn left(self, amt: u32) -> Self {
-        match NonZeroU32::new(self.0.get().saturating_sub(amt)) {
-            Some(n) => Self(n),
-            None => self,
-        }
+        Self(self.0.saturating_sub(amt))
     }
 
     #[inline]
     pub fn right(self, amt: u32) -> Self {
-        Self(unsafe { NonZeroU32::new_unchecked(self.0.get().saturating_add(amt)) })
+        Self(self.0.saturating_add(amt))
     }
 
     #[inline]
     pub fn idx(self) -> usize {
-        self.0.get() as usize - 1
-    }
-}
-
-impl Default for Line {
-    fn default() -> Self {
-        // SAFETY: 1 is non-zero
-        Self(unsafe { NonZeroU32::new(1).unwrap_unchecked() })
+        self.0 as usize
     }
 }
 

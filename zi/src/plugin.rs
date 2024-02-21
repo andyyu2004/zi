@@ -47,7 +47,8 @@ impl editor::HostView for Editor {
         view: Resource<editor::View>,
         pos: editor::Position,
     ) -> wasmtime::Result<()> {
-        Ok(self.set_cursor(v(view), pos))
+        self.set_cursor(v(view), pos);
+        Ok(())
     }
 
     fn drop(&mut self, _rep: Resource<editor::View>) -> wasmtime::Result<()> {
