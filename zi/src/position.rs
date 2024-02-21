@@ -1,5 +1,5 @@
 use std::fmt;
-use std::num::NonZeroU16;
+use std::num::NonZeroU32;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
@@ -13,20 +13,18 @@ impl fmt::Display for Position {
     }
 }
 
-impl From<(Line, Col)> for Position {
-    fn from((line, col): (Line, Col)) -> Self {
-        Self { line, col }
-    }
-}
-
-impl From<(u16, u16)> for Position {
-    fn from((line, col): (u16, u16)) -> Self {
+impl<L, C> From<(L, C)> for Position
+where
+    Col: From<C>,
+    Line: From<L>,
+{
+    fn from((line, col): (L, C)) -> Self {
         Self { line: Line::from(line), col: Col::from(col) }
     }
 }
 
-impl PartialEq<(u16, u16)> for Position {
-    fn eq(&self, &(line, col): &(u16, u16)) -> bool {
+impl PartialEq<(u32, u32)> for Position {
+    fn eq(&self, &(line, col): &(u32, u32)) -> bool {
         self.line.0.get() == line && self.col.0 == col
     }
 }
@@ -49,27 +47,27 @@ impl Position {
 
     /// Returns the 0-based (x, y) coordinates of the position
     #[inline]
-    pub fn coords(&self) -> (u16, u16) {
+    pub fn coords(&self) -> (u32, u32) {
         (self.col.0, self.line.0.get() - 1)
     }
 
     #[inline]
-    pub fn left(self, amt: u16) -> Self {
+    pub fn left(self, amt: u32) -> Self {
         Self::new(self.line, self.col.left(amt))
     }
 
     #[inline]
-    pub fn up(self, amt: u16) -> Self {
+    pub fn up(self, amt: u32) -> Self {
         Self::new(self.line.left(amt), self.col)
     }
 
     #[inline]
-    pub fn down(self, amt: u16) -> Self {
+    pub fn down(self, amt: u32) -> Self {
         Self::new(self.line.right(amt), self.col)
     }
 
     #[inline]
-    pub fn right(self, amt: u16) -> Self {
+    pub fn right(self, amt: u32) -> Self {
         Self::new(self.line, self.col.right(amt))
     }
 
@@ -85,7 +83,7 @@ impl Position {
 
 /// 1-based line number
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Line(NonZeroU16);
+pub struct Line(NonZeroU32);
 
 impl fmt::Display for Line {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -93,26 +91,26 @@ impl fmt::Display for Line {
     }
 }
 
-impl From<u16> for Line {
-    fn from(n: u16) -> Self {
+impl From<u32> for Line {
+    fn from(n: u32) -> Self {
         assert_ne!(n, 0, "Line number must be non-zero");
         // SAFETY: just checked that n is non-zero
-        unsafe { Self(NonZeroU16::new_unchecked(n)) }
+        unsafe { Self(NonZeroU32::new_unchecked(n)) }
     }
 }
 
 impl Line {
     #[inline]
-    pub fn left(self, amt: u16) -> Self {
-        match NonZeroU16::new(self.0.get().saturating_sub(amt)) {
+    pub fn left(self, amt: u32) -> Self {
+        match NonZeroU32::new(self.0.get().saturating_sub(amt)) {
             Some(n) => Self(n),
             None => self,
         }
     }
 
     #[inline]
-    pub fn right(self, amt: u16) -> Self {
-        Self(unsafe { NonZeroU16::new_unchecked(self.0.get().saturating_add(amt)) })
+    pub fn right(self, amt: u32) -> Self {
+        Self(unsafe { NonZeroU32::new_unchecked(self.0.get().saturating_add(amt)) })
     }
 
     #[inline]
@@ -124,13 +122,13 @@ impl Line {
 impl Default for Line {
     fn default() -> Self {
         // SAFETY: 1 is non-zero
-        Self(unsafe { NonZeroU16::new(1).unwrap_unchecked() })
+        Self(unsafe { NonZeroU32::new(1).unwrap_unchecked() })
     }
 }
 
 /// 1-based column index
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Col(u16);
+pub struct Col(u32);
 
 impl fmt::Display for Col {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -138,27 +136,34 @@ impl fmt::Display for Col {
     }
 }
 
-impl From<u16> for Col {
-    fn from(n: u16) -> Self {
+impl From<i32> for Col {
+    fn from(n: i32) -> Self {
+        assert!(n >= 0, "Column number must be non-negative");
+        Self(n as u32)
+    }
+}
+
+impl From<u32> for Col {
+    fn from(n: u32) -> Self {
         Self(n)
     }
 }
 
 impl From<usize> for Col {
     fn from(n: usize) -> Self {
-        assert!(n < u16::MAX as usize, "Column number must be less than u16::MAX");
-        Self(n as u16)
+        assert!(n < u32::MAX as usize, "Column number must be less than u32::MAX");
+        Self(n as u32)
     }
 }
 
 impl Col {
     #[inline]
-    pub fn left(self, amt: u16) -> Self {
+    pub fn left(self, amt: u32) -> Self {
         Self(self.0.saturating_sub(amt))
     }
 
     #[inline]
-    pub fn right(self, amt: u16) -> Self {
+    pub fn right(self, amt: u32) -> Self {
         Self(self.0.saturating_add(amt))
     }
 

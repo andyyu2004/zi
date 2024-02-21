@@ -121,7 +121,8 @@ fn render(editor: &Editor, frame: &mut Frame) {
 
     let cursor = view.cursor();
     let (x, y) = cursor.coords();
-    frame.set_cursor(x, y);
+    // FIXME this only works if the entire buffer fits in view
+    frame.set_cursor(x as u16, y as u16);
 }
 
 impl<W: Backend + io::Write> Drop for App<W> {

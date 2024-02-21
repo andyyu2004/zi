@@ -28,6 +28,7 @@ interface editor {
     resource view {
         get-buffer: func() -> buffer;
         get-cursor: func() -> position;
+        set-cursor: func(pos: position) -> ();
     }
 
     resource buffer {

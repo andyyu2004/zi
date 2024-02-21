@@ -16,23 +16,38 @@ impl From<Position> for editor::Position {
     }
 }
 
+impl From<editor::Position> for Position {
+    fn from(value: editor::Position) -> Self {
+        Self::from((value.line, value.col))
+    }
+}
+
+fn v(res: Resource<editor::View>) -> ViewId {
+    ViewId::from(KeyData::from_ffi(res.rep() as u64))
+}
+
 #[async_trait::async_trait]
 impl editor::HostView for Editor {
     async fn get_buffer(
         &mut self,
         view: Resource<editor::View>,
     ) -> wasmtime::Result<Resource<editor::Buffer>> {
-        Ok(Resource::new_own(
-            self.view(ViewId::from(KeyData::from_ffi(view.rep() as u64))).buffer().data().as_ffi()
-                as u32,
-        ))
+        Ok(Resource::new_own(self.view(v(view)).buffer().data().as_ffi() as u32))
     }
 
     async fn get_cursor(
         &mut self,
         view: Resource<editor::View>,
     ) -> wasmtime::Result<editor::Position> {
-        Ok(self.view(ViewId::from(KeyData::from_ffi(view.rep() as u64))).cursor().into())
+        Ok(self.view(v(view)).cursor().into())
+    }
+
+    async fn set_cursor(
+        &mut self,
+        view: Resource<editor::View>,
+        pos: editor::Position,
+    ) -> wasmtime::Result<()> {
+        Ok(self.set_cursor(v(view), pos))
     }
 
     fn drop(&mut self, _rep: Resource<editor::View>) -> wasmtime::Result<()> {
