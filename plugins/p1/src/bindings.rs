@@ -55,6 +55,111 @@ pub mod zi {
           }
         }
       }
+      pub type Line = u32;
+      pub type Col = u32;
+      #[repr(C)]
+      #[derive(Clone, Copy, Eq, PartialEq)]
+      pub struct Position {
+        pub line: Line,
+        pub col: Col,
+      }
+      impl ::core::fmt::Debug for Position {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+          f.debug_struct("Position").field("line", &self.line).field("col", &self.col).finish()
+        }
+      }
+      
+      #[derive(Debug)]
+      #[repr(transparent)]
+      pub struct View{
+        handle: wit_bindgen::rt::Resource<View>,
+      }
+      
+      impl View{
+        #[doc(hidden)]
+        pub unsafe fn from_handle(handle: u32) -> Self {
+          Self {
+            handle: wit_bindgen::rt::Resource::from_handle(handle),
+          }
+        }
+        
+        #[doc(hidden)]
+        pub fn into_handle(self) -> u32 {
+          wit_bindgen::rt::Resource::into_handle(self.handle)
+        }
+        
+        #[doc(hidden)]
+        pub fn handle(&self) -> u32 {
+          wit_bindgen::rt::Resource::handle(&self.handle)
+        }
+      }
+      
+      
+      unsafe impl wit_bindgen::rt::WasmResource for View{
+        #[inline]
+        unsafe fn drop(_handle: u32) {
+          #[cfg(not(target_arch = "wasm32"))]
+          unreachable!();
+          
+          #[cfg(target_arch = "wasm32")]
+          {
+            #[link(wasm_import_module = "zi:api/editor")]
+            extern "C" {
+              #[link_name = "[resource-drop]view"]
+              fn drop(_: u32);
+            }
+            
+            drop(_handle);
+          }
+        }
+      }
+      
+      
+      #[derive(Debug)]
+      #[repr(transparent)]
+      pub struct Buffer{
+        handle: wit_bindgen::rt::Resource<Buffer>,
+      }
+      
+      impl Buffer{
+        #[doc(hidden)]
+        pub unsafe fn from_handle(handle: u32) -> Self {
+          Self {
+            handle: wit_bindgen::rt::Resource::from_handle(handle),
+          }
+        }
+        
+        #[doc(hidden)]
+        pub fn into_handle(self) -> u32 {
+          wit_bindgen::rt::Resource::into_handle(self.handle)
+        }
+        
+        #[doc(hidden)]
+        pub fn handle(&self) -> u32 {
+          wit_bindgen::rt::Resource::handle(&self.handle)
+        }
+      }
+      
+      
+      unsafe impl wit_bindgen::rt::WasmResource for Buffer{
+        #[inline]
+        unsafe fn drop(_handle: u32) {
+          #[cfg(not(target_arch = "wasm32"))]
+          unreachable!();
+          
+          #[cfg(target_arch = "wasm32")]
+          {
+            #[link(wasm_import_module = "zi:api/editor")]
+            extern "C" {
+              #[link_name = "[resource-drop]buffer"]
+              fn drop(_: u32);
+            }
+            
+            drop(_handle);
+          }
+        }
+      }
+      
       #[allow(unused_unsafe, clippy::all)]
       pub fn get_mode() -> Mode{
         
@@ -111,6 +216,79 @@ pub mod zi {
           wit_import(result0);
         }
       }
+      #[allow(unused_unsafe, clippy::all)]
+      pub fn get_active_view() -> View{
+        
+        #[allow(unused_imports)]
+        use wit_bindgen::rt::{alloc, vec::Vec, string::String};
+        unsafe {
+          
+          #[cfg(target_arch = "wasm32")]
+          #[link(wasm_import_module = "zi:api/editor")]
+          extern "C" {
+            #[link_name = "get-active-view"]
+            fn wit_import() -> i32;
+          }
+          
+          #[cfg(not(target_arch = "wasm32"))]
+          fn wit_import() -> i32{ unreachable!() }
+          let ret = wit_import();
+          View::from_handle(ret as u32)
+        }
+      }
+      impl View {
+        #[allow(unused_unsafe, clippy::all)]
+        pub fn get_buffer(&self,) -> Buffer{
+          
+          #[allow(unused_imports)]
+          use wit_bindgen::rt::{alloc, vec::Vec, string::String};
+          unsafe {
+            
+            #[cfg(target_arch = "wasm32")]
+            #[link(wasm_import_module = "zi:api/editor")]
+            extern "C" {
+              #[link_name = "[method]view.get-buffer"]
+              fn wit_import(_: i32, ) -> i32;
+            }
+            
+            #[cfg(not(target_arch = "wasm32"))]
+            fn wit_import(_: i32, ) -> i32{ unreachable!() }
+            let ret = wit_import((self).handle() as i32);
+            Buffer::from_handle(ret as u32)
+          }
+        }
+      }
+      impl View {
+        #[allow(unused_unsafe, clippy::all)]
+        pub fn get_cursor(&self,) -> Position{
+          
+          #[allow(unused_imports)]
+          use wit_bindgen::rt::{alloc, vec::Vec, string::String};
+          unsafe {
+            
+            #[repr(align(4))]
+            struct RetArea([u8; 8]);
+            let mut ret_area = ::core::mem::MaybeUninit::<RetArea>::uninit();
+            let ptr0 = ret_area.as_mut_ptr() as i32;
+            #[cfg(target_arch = "wasm32")]
+            #[link(wasm_import_module = "zi:api/editor")]
+            extern "C" {
+              #[link_name = "[method]view.get-cursor"]
+              fn wit_import(_: i32, _: i32, );
+            }
+            
+            #[cfg(not(target_arch = "wasm32"))]
+            fn wit_import(_: i32, _: i32, ){ unreachable!() }
+            wit_import((self).handle() as i32, ptr0);
+            let l1 = *((ptr0 + 0) as *const i32);
+            let l2 = *((ptr0 + 4) as *const i32);
+            Position{
+              line: l1 as u32,
+              col: l2 as u32,
+            }
+          }
+        }
+      }
       
     }
     
@@ -120,7 +298,7 @@ pub mod zi {
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:plugin"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 497] = [3, 0, 6, 112, 108, 117, 103, 105, 110, 0, 97, 115, 109, 13, 0, 1, 0, 7, 148, 1, 1, 65, 2, 1, 66, 12, 1, 113, 2, 6, 110, 111, 114, 109, 97, 108, 0, 0, 6, 105, 110, 115, 101, 114, 116, 0, 0, 4, 0, 4, 109, 111, 100, 101, 3, 0, 0, 1, 121, 4, 0, 4, 108, 105, 110, 101, 3, 0, 2, 1, 121, 4, 0, 3, 99, 111, 108, 3, 0, 4, 1, 114, 2, 4, 108, 105, 110, 101, 3, 3, 99, 111, 108, 5, 4, 0, 8, 112, 111, 115, 105, 116, 105, 111, 110, 3, 0, 6, 1, 64, 0, 0, 1, 4, 0, 8, 103, 101, 116, 45, 109, 111, 100, 101, 1, 8, 1, 64, 1, 4, 109, 111, 100, 101, 1, 1, 0, 4, 0, 8, 115, 101, 116, 45, 109, 111, 100, 101, 1, 9, 4, 1, 13, 122, 105, 58, 97, 112, 105, 47, 101, 100, 105, 116, 111, 114, 5, 0, 11, 12, 1, 0, 6, 101, 100, 105, 116, 111, 114, 3, 0, 0, 7, 208, 1, 1, 65, 2, 1, 65, 6, 1, 66, 12, 1, 113, 2, 6, 110, 111, 114, 109, 97, 108, 0, 0, 6, 105, 110, 115, 101, 114, 116, 0, 0, 4, 0, 4, 109, 111, 100, 101, 3, 0, 0, 1, 121, 4, 0, 4, 108, 105, 110, 101, 3, 0, 2, 1, 121, 4, 0, 3, 99, 111, 108, 3, 0, 4, 1, 114, 2, 4, 108, 105, 110, 101, 3, 3, 99, 111, 108, 5, 4, 0, 8, 112, 111, 115, 105, 116, 105, 111, 110, 3, 0, 6, 1, 64, 0, 0, 1, 4, 0, 8, 103, 101, 116, 45, 109, 111, 100, 101, 1, 8, 1, 64, 1, 4, 109, 111, 100, 101, 1, 1, 0, 4, 0, 8, 115, 101, 116, 45, 109, 111, 100, 101, 1, 9, 3, 1, 13, 122, 105, 58, 97, 112, 105, 47, 101, 100, 105, 116, 111, 114, 5, 0, 2, 3, 0, 0, 4, 109, 111, 100, 101, 3, 0, 4, 109, 111, 100, 101, 3, 0, 1, 1, 64, 0, 1, 0, 4, 0, 10, 105, 110, 105, 116, 105, 97, 108, 105, 122, 101, 1, 3, 4, 1, 13, 122, 105, 58, 97, 112, 105, 47, 112, 108, 117, 103, 105, 110, 4, 0, 11, 12, 1, 0, 6, 112, 108, 117, 103, 105, 110, 3, 2, 0, 0, 16, 12, 112, 97, 99, 107, 97, 103, 101, 45, 100, 111, 99, 115, 0, 123, 125, 0, 70, 9, 112, 114, 111, 100, 117, 99, 101, 114, 115, 1, 12, 112, 114, 111, 99, 101, 115, 115, 101, 100, 45, 98, 121, 2, 13, 119, 105, 116, 45, 99, 111, 109, 112, 111, 110, 101, 110, 116, 6, 48, 46, 49, 56, 46, 50, 16, 119, 105, 116, 45, 98, 105, 110, 100, 103, 101, 110, 45, 114, 117, 115, 116, 6, 48, 46, 49, 54, 46, 48];
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 761] = [3, 0, 6, 112, 108, 117, 103, 105, 110, 0, 97, 115, 109, 13, 0, 1, 0, 7, 152, 2, 1, 65, 2, 1, 66, 23, 1, 113, 2, 6, 110, 111, 114, 109, 97, 108, 0, 0, 6, 105, 110, 115, 101, 114, 116, 0, 0, 4, 0, 4, 109, 111, 100, 101, 3, 0, 0, 1, 121, 4, 0, 4, 108, 105, 110, 101, 3, 0, 2, 1, 121, 4, 0, 3, 99, 111, 108, 3, 0, 4, 1, 114, 2, 4, 108, 105, 110, 101, 3, 3, 99, 111, 108, 5, 4, 0, 8, 112, 111, 115, 105, 116, 105, 111, 110, 3, 0, 6, 4, 0, 4, 118, 105, 101, 119, 3, 1, 4, 0, 6, 98, 117, 102, 102, 101, 114, 3, 1, 1, 104, 8, 1, 105, 9, 1, 64, 1, 4, 115, 101, 108, 102, 10, 0, 11, 4, 0, 23, 91, 109, 101, 116, 104, 111, 100, 93, 118, 105, 101, 119, 46, 103, 101, 116, 45, 98, 117, 102, 102, 101, 114, 1, 12, 1, 64, 1, 4, 115, 101, 108, 102, 10, 0, 7, 4, 0, 23, 91, 109, 101, 116, 104, 111, 100, 93, 118, 105, 101, 119, 46, 103, 101, 116, 45, 99, 117, 114, 115, 111, 114, 1, 13, 1, 64, 0, 0, 1, 4, 0, 8, 103, 101, 116, 45, 109, 111, 100, 101, 1, 14, 1, 64, 1, 4, 109, 111, 100, 101, 1, 1, 0, 4, 0, 8, 115, 101, 116, 45, 109, 111, 100, 101, 1, 15, 1, 105, 8, 1, 64, 0, 0, 16, 4, 0, 15, 103, 101, 116, 45, 97, 99, 116, 105, 118, 101, 45, 118, 105, 101, 119, 1, 17, 4, 1, 13, 122, 105, 58, 97, 112, 105, 47, 101, 100, 105, 116, 111, 114, 5, 0, 11, 12, 1, 0, 6, 101, 100, 105, 116, 111, 114, 3, 0, 0, 7, 212, 2, 1, 65, 2, 1, 65, 6, 1, 66, 23, 1, 113, 2, 6, 110, 111, 114, 109, 97, 108, 0, 0, 6, 105, 110, 115, 101, 114, 116, 0, 0, 4, 0, 4, 109, 111, 100, 101, 3, 0, 0, 1, 121, 4, 0, 4, 108, 105, 110, 101, 3, 0, 2, 1, 121, 4, 0, 3, 99, 111, 108, 3, 0, 4, 1, 114, 2, 4, 108, 105, 110, 101, 3, 3, 99, 111, 108, 5, 4, 0, 8, 112, 111, 115, 105, 116, 105, 111, 110, 3, 0, 6, 4, 0, 4, 118, 105, 101, 119, 3, 1, 4, 0, 6, 98, 117, 102, 102, 101, 114, 3, 1, 1, 104, 8, 1, 105, 9, 1, 64, 1, 4, 115, 101, 108, 102, 10, 0, 11, 4, 0, 23, 91, 109, 101, 116, 104, 111, 100, 93, 118, 105, 101, 119, 46, 103, 101, 116, 45, 98, 117, 102, 102, 101, 114, 1, 12, 1, 64, 1, 4, 115, 101, 108, 102, 10, 0, 7, 4, 0, 23, 91, 109, 101, 116, 104, 111, 100, 93, 118, 105, 101, 119, 46, 103, 101, 116, 45, 99, 117, 114, 115, 111, 114, 1, 13, 1, 64, 0, 0, 1, 4, 0, 8, 103, 101, 116, 45, 109, 111, 100, 101, 1, 14, 1, 64, 1, 4, 109, 111, 100, 101, 1, 1, 0, 4, 0, 8, 115, 101, 116, 45, 109, 111, 100, 101, 1, 15, 1, 105, 8, 1, 64, 0, 0, 16, 4, 0, 15, 103, 101, 116, 45, 97, 99, 116, 105, 118, 101, 45, 118, 105, 101, 119, 1, 17, 3, 1, 13, 122, 105, 58, 97, 112, 105, 47, 101, 100, 105, 116, 111, 114, 5, 0, 2, 3, 0, 0, 4, 109, 111, 100, 101, 3, 0, 4, 109, 111, 100, 101, 3, 0, 1, 1, 64, 0, 1, 0, 4, 0, 10, 105, 110, 105, 116, 105, 97, 108, 105, 122, 101, 1, 3, 4, 1, 13, 122, 105, 58, 97, 112, 105, 47, 112, 108, 117, 103, 105, 110, 4, 0, 11, 12, 1, 0, 6, 112, 108, 117, 103, 105, 110, 3, 2, 0, 0, 16, 12, 112, 97, 99, 107, 97, 103, 101, 45, 100, 111, 99, 115, 0, 123, 125, 0, 70, 9, 112, 114, 111, 100, 117, 99, 101, 114, 115, 1, 12, 112, 114, 111, 99, 101, 115, 115, 101, 100, 45, 98, 121, 2, 13, 119, 105, 116, 45, 99, 111, 109, 112, 111, 110, 101, 110, 116, 6, 48, 46, 49, 56, 46, 50, 16, 119, 105, 116, 45, 98, 105, 110, 100, 103, 101, 110, 45, 114, 117, 115, 116, 6, 48, 46, 49, 54, 46, 48];
 
 #[inline(never)]
 #[doc(hidden)]

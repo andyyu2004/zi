@@ -1,38 +1,51 @@
 use std::path::Path;
 
-use wasmtime::component::{Component, Linker};
+use slotmap::{Key as _, KeyData};
+use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
 use crate::zi::api::editor;
 
 pub type Store = wasmtime::Store<Editor>;
 
-use crate::{Editor, Plugin};
+use crate::{Editor, Plugin, Position, ViewId};
 
-// #[async_trait::async_trait]
-// impl editor::HostView for Editor {
-//     async fn buffer(
-//         &mut self,
-//         view: Resource<editor::View>,
-//     ) -> wasmtime::Result<Resource<editor::Buffer>> {
-//         let buf = Editor::buffer(self, BufferId::from(view));
-//     }
-//
-//     fn drop(&mut self, _rep: Resource<editor::View>) -> wasmtime::Result<()> {
-//         Ok(())
-//     }
-// }
-//
-// #[async_trait::async_trait]
-// impl editor::HostBuffer for Editor {
-//     async fn id(&mut self, buf: Resource<editor::Buffer>) -> wasmtime::Result<editor::BufferId> {
-//         Ok(buf.rep())
-//     }
-//
-//     fn drop(&mut self, _rep: Resource<editor::Buffer>) -> wasmtime::Result<()> {
-//         Ok(())
-//     }
-// }
+impl From<Position> for editor::Position {
+    fn from(value: Position) -> Self {
+        Self { line: value.line().idx() as u32, col: value.col().idx() as u32 }
+    }
+}
+
+#[async_trait::async_trait]
+impl editor::HostView for Editor {
+    async fn get_buffer(
+        &mut self,
+        view: Resource<editor::View>,
+    ) -> wasmtime::Result<Resource<editor::Buffer>> {
+        Ok(Resource::new_own(
+            self.view(ViewId::from(KeyData::from_ffi(view.rep() as u64))).buffer().data().as_ffi()
+                as u32,
+        ))
+    }
+
+    async fn get_cursor(
+        &mut self,
+        view: Resource<editor::View>,
+    ) -> wasmtime::Result<editor::Position> {
+        Ok(self.view(ViewId::from(KeyData::from_ffi(view.rep() as u64))).cursor().into())
+    }
+
+    fn drop(&mut self, _rep: Resource<editor::View>) -> wasmtime::Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl editor::HostBuffer for Editor {
+    fn drop(&mut self, _rep: Resource<editor::Buffer>) -> wasmtime::Result<()> {
+        Ok(())
+    }
+}
 
 #[async_trait::async_trait]
 impl editor::Host for Editor {
@@ -43,6 +56,10 @@ impl editor::Host for Editor {
     async fn set_mode(&mut self, mode: editor::Mode) -> wasmtime::Result<()> {
         self.set_mode(mode);
         Ok(())
+    }
+
+    async fn get_active_view(&mut self) -> wasmtime::Result<Resource<editor::View>> {
+        Ok(Resource::new_own(self.active_view().id().data().as_ffi() as u32))
     }
 
     // async fn get_view(&mut self, id: editor::ViewId) -> wasmtime::Result<Resource<editor::View>> {

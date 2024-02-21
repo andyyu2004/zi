@@ -23,6 +23,15 @@ interface editor {
 
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
+    get-active-view: func() -> view;
+
+    resource view {
+        get-buffer: func() -> buffer;
+        get-cursor: func() -> position;
+    }
+
+    resource buffer {
+    }
 }
 
 

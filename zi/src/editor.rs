@@ -77,23 +77,23 @@ impl Editor {
 
     #[inline]
     pub fn active_view(&self) -> &View {
-        self.view(self.active_view).expect("active view not found?")
+        self.view(self.active_view)
     }
 
     #[inline]
-    pub fn view(&self, id: ViewId) -> Option<&View> {
-        self.views.get(id)
+    pub fn view(&self, id: ViewId) -> &View {
+        self.views.get(id).expect("got bad view id?")
     }
 
     #[inline]
-    pub fn buffer(&self, id: BufferId) -> Option<&Buffer> {
-        self.buffers.get(id)
+    pub fn buffer(&self, id: BufferId) -> &Buffer {
+        self.buffers.get(id).expect("got bad buffer id?")
     }
 
     #[inline]
     pub fn active(&self) -> (&View, &Buffer) {
         let view = self.active_view();
-        let buffer = self.buffer(view.buffer()).expect("active buffer not found?");
+        let buffer = self.buffer(view.buffer());
         (view, buffer)
     }
 
