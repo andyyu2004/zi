@@ -1,33 +1,11 @@
 pub(crate) mod cursor;
 
-use std::fmt;
-
 use ropey::{Rope, RopeSlice};
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
-use crate::{Buffer, BufferId, Direction, View, ViewId};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum Mode {
-    #[default]
-    Normal,
-    Insert,
-}
-
-impl fmt::Display for Mode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Mode::Normal => "NORMAL",
-                Mode::Insert => "INSERT",
-            }
-        )
-    }
-}
+use crate::{Buffer, BufferId, Direction, Mode, View, ViewId};
 
 pub struct Editor {
     pub quit: bool, // tmp hack

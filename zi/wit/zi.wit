@@ -4,5 +4,23 @@ world plugin {
     import test: func() -> string;
 
     export greet: func(input: string) -> string;
+
+    import editor;
+}
+
+interface editor {
+    variant mode {
+        normal,
+        insert,
+    }
+
+    record position {
+       line: u32,
+       col: u32,
+    }
+
+    get-mode: func() -> mode;
+    set-mode: func(mode: mode) -> ();
+
 }
 

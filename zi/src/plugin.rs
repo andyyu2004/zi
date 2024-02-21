@@ -1,25 +1,28 @@
 use std::path::Path;
 
-use wasmtime::component::{bindgen, Component, Linker};
+use wasmtime::component::{Component, Linker};
 pub use wasmtime::Engine;
 
-pub type Store = wasmtime::Store<Context>;
+use crate::zi::zi::editor;
 
-use crate::Editor;
+pub type Store = wasmtime::Store<Editor>;
 
-bindgen!({
-    async: true,
-    ownership: Borrowing {
-        duplicate_if_necessary: true
-    },
-});
+use crate::{Editor, Plugin, PluginImports};
 
-pub struct Context {
-    pub(crate) editor: Editor,
+#[async_trait::async_trait]
+impl editor::Host for Editor {
+    async fn get_mode(&mut self) -> wasmtime::Result<editor::Mode> {
+        Ok(self.mode())
+    }
+
+    async fn set_mode(&mut self, mode: editor::Mode) -> wasmtime::Result<()> {
+        self.set_mode(mode);
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
-impl PluginImports for Context {
+impl PluginImports for Editor {
     async fn test(&mut self) -> wasmtime::Result<String> {
         todo!()
     }
@@ -46,7 +49,6 @@ pub async fn load(
 mod test {
     use wasmtime::{Config, Engine, Store};
 
-    use super::Context;
     use crate::Editor;
 
     #[tokio::test]
@@ -54,7 +56,7 @@ mod test {
         let mut config = Config::new();
         config.wasm_component_model(true).async_support(true);
         let engine = Engine::new(&config)?;
-        let mut store = Store::new(&engine, Context { editor: Editor::default() });
+        let mut store = Store::new(&engine, Editor::default());
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         for plugin in &plugins[..] {
             dbg!(plugin.call_greet(&mut store, "wer").await?);
