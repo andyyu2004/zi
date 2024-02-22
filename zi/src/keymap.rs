@@ -43,6 +43,7 @@ impl Keymap {
             KeyCode::Esc if matches!(mode, Mode::Insert) => {
                 return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
             }
+            KeyCode::Enter if matches!(mode, Mode::Insert) => return Some(Insert('\n')),
             KeyCode::Left => return Some(Fn(|editor| editor.move_active_cursor(Direction::Left))),
             KeyCode::Right => {
                 return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));

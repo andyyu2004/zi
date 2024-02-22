@@ -104,7 +104,13 @@ impl Editor {
         let text = buf.text_mut();
         let idx = text.line_to_char(cursor.line().idx()) + cursor.col().idx();
         text.insert_char(idx, c);
-        view.move_cursor(self.mode, buf, Direction::Right);
+        match c {
+            '\n' => {
+                view.move_cursor(self.mode, buf, Direction::Down);
+                view.move_cursor(self.mode, buf, Direction::Left);
+            }
+            _ => view.move_cursor(self.mode, buf, Direction::Right),
+        }
     }
 
     pub fn insert(&mut self, s: &str) {
