@@ -17,7 +17,6 @@ pub enum Action {
     Insert(char),
 }
 
-
 // macro_rules! keymap {
 //     ( $($mode:ident {
 //        $( $key:expr => $value:expr, )*
@@ -51,6 +50,19 @@ impl Keymap {
             KeyCode::Up => return Some(Fn(|editor| editor.move_active_cursor(Direction::Up))),
             KeyCode::Down => return Some(Fn(|editor| editor.move_active_cursor(Direction::Down))),
             KeyCode::Char(c) => match c {
+                'I' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| {
+                        editor.set_active_cursor(editor.active_cursor().with_col(0));
+                        editor.set_mode(Mode::Insert);
+                    }));
+                }
+                'A' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| {
+                        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
+                        editor.set_mode(Mode::Insert);
+                        editor.move_active_cursor(Direction::Right);
+                    }));
+                }
                 'i' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.set_mode(Mode::Insert)));
                 }
