@@ -119,7 +119,7 @@ impl Editor {
         }
     }
 
-    pub fn current_line(&self) -> RopeSlice {
+    pub fn current_line(&self) -> RopeSlice<'_> {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();

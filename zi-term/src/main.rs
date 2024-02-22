@@ -105,7 +105,7 @@ impl<B: Backend + io::Write> App<B> {
     }
 }
 
-fn render(editor: &Editor, frame: &mut Frame) {
+fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
     let el = tui::Lines::new(buf.text().lines());
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
