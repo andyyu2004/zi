@@ -7,8 +7,10 @@ pub mod event;
 mod keymap;
 mod plugin;
 mod position;
+mod syntax;
 mod view;
 
+pub use tree_sitter;
 pub use self::buffer::{Buffer, BufferId};
 pub use self::editor::Editor;
 pub use self::position::{Col, Direction, Line, Position};

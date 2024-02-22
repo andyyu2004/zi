@@ -101,9 +101,7 @@ impl Editor {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = active!(self);
         let cursor = view.cursor();
-        let text = buf.text_mut();
-        let idx = text.line_to_char(cursor.line().idx()) + cursor.col().idx();
-        text.insert_char(idx, c);
+        buf.insert_char(cursor, c);
         match c {
             '\n' => {
                 view.move_cursor(self.mode, buf, Direction::Down);

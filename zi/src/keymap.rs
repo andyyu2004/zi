@@ -60,6 +60,7 @@ impl Keymap {
                 'o' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| {
                         editor.set_mode(Mode::Insert);
+                        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
                         editor.insert_char('\n');
                     }));
                 }

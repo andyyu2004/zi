@@ -13,7 +13,7 @@ use futures_util::{Stream, StreamExt};
 use tokio::select;
 use tracing_subscriber::EnvFilter;
 use tui::{Backend, CrosstermBackend, Frame, Terminal};
-use zi::Editor;
+use zi::{tree_sitter, Editor};
 
 #[derive(Parser)]
 struct Opts {
@@ -107,6 +107,8 @@ impl<B: Backend + io::Write> App<B> {
 
 fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
+    let mut cursor = tree_sitter::QueryCursor::new();
+    let highlights = buf.highlights(&mut cursor);
     let el = tui::Lines::new(buf.text().lines());
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
