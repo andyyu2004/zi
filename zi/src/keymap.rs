@@ -14,8 +14,9 @@ pub(crate) struct Keymap {
 
 pub enum Action {
     Fn(fn(&mut Editor)),
-    Closure(Box<dyn FnOnce(&mut Editor) + Send + Sync>),
+    Insert(char),
 }
+
 
 // macro_rules! keymap {
 //     ( $($mode:ident {
@@ -77,8 +78,8 @@ impl Keymap {
                 'f' if matches!(mode, Mode::Insert) => {
                     return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
                 }
-                char if matches!(mode, Mode::Insert) => {
-                    return Some(Closure(Box::new(move |editor| editor.insert_char(char))));
+                c if matches!(mode, Mode::Insert) => {
+                    return Some(Insert(c));
                 }
                 _ => (),
             },

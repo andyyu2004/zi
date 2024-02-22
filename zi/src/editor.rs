@@ -55,7 +55,7 @@ impl Editor {
         if let Some(f) = self.keymap.on_key(self.mode, key) {
             match f {
                 Action::Fn(f) => f(self),
-                Action::Closure(f) => f(self),
+                Action::Insert(c) => self.insert_char(c),
             }
         }
     }
