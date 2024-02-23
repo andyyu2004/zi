@@ -5,6 +5,7 @@ mod buffer;
 mod editor;
 pub mod event;
 mod keymap;
+mod motion;
 mod plugin;
 mod position;
 mod syntax;

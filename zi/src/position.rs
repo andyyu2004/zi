@@ -58,12 +58,12 @@ impl Position {
 
     #[inline]
     pub fn up(self, amt: u32) -> Self {
-        Self::new(self.line.left(amt), self.col)
+        Self::new(self.line.up(amt), self.col)
     }
 
     #[inline]
     pub fn down(self, amt: u32) -> Self {
-        Self::new(self.line.right(amt), self.col)
+        Self::new(self.line.down(amt), self.col)
     }
 
     #[inline]
@@ -97,14 +97,21 @@ impl From<u32> for Line {
     }
 }
 
+impl From<usize> for Line {
+    fn from(n: usize) -> Self {
+        assert!(n < u32::MAX as usize, "Line number must be less than u32::MAX");
+        Self(n as u32)
+    }
+}
+
 impl Line {
     #[inline]
-    pub fn left(self, amt: u32) -> Self {
+    pub fn up(self, amt: u32) -> Self {
         Self(self.0.saturating_sub(amt))
     }
 
     #[inline]
-    pub fn right(self, amt: u32) -> Self {
+    pub fn down(self, amt: u32) -> Self {
         Self(self.0.saturating_add(amt))
     }
 

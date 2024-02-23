@@ -5,6 +5,7 @@ use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
+use crate::motion::Motion;
 use crate::syntax::Theme;
 use crate::{Buffer, BufferId, Direction, Mode, View, ViewId};
 
@@ -34,6 +35,8 @@ macro_rules! active {
 }
 
 pub(crate) use active;
+
+use self::cursor::SetCursorFlags;
 
 impl Editor {
     pub fn new(content: impl Into<Rope>) -> Self {
@@ -137,6 +140,12 @@ impl Editor {
 
     pub fn theme(&self) -> &Theme {
         &self.theme
+    }
+
+    pub fn motion(&mut self, mut motion: impl Motion) {
+        let (view, buf) = active!(self);
+        let pos = motion.motion(buf.text().slice(..), view.cursor());
+        view.set_cursor(self.mode, buf, pos, SetCursorFlags::empty());
     }
 }
 

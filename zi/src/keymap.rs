@@ -2,7 +2,7 @@ use crossterm::event::KeyCode;
 use rustc_hash::FxHashMap;
 
 use crate::event::KeyEvent;
-use crate::{Direction, Editor, Mode};
+use crate::{motion, Direction, Editor, Mode};
 
 #[derive(Default)]
 pub(crate) struct Keymap {
@@ -56,6 +56,9 @@ impl Keymap {
                         editor.set_active_cursor(editor.active_cursor().with_col(0));
                         editor.set_mode(Mode::Insert);
                     }));
+                }
+                'W' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| editor.motion(motion::NextWord)));
                 }
                 'o' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| {
