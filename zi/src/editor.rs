@@ -1,13 +1,14 @@
 pub(crate) mod cursor;
 
 use ropey::{Rope, RopeSlice};
+use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
 use crate::motion::Motion;
 use crate::syntax::Theme;
-use crate::{Buffer, BufferId, Direction, Mode, View, ViewId};
+use crate::{Buffer, BufferId, Direction, LanguageServerId, Mode, View, ViewId};
 
 pub struct Editor {
     pub quit: bool, // tmp hack
@@ -17,6 +18,7 @@ pub struct Editor {
     views: SlotMap<ViewId, View>,
     active_view: ViewId,
     theme: Theme,
+    language_servers: FxHashMap<LanguageServerId, zi_lsp::Server>,
 }
 
 /// Get the active view and buffer.
@@ -51,6 +53,7 @@ impl Editor {
             views,
             active_view,
             quit: false,
+            language_servers: Default::default(),
             mode: Default::default(),
             keymap: Default::default(),
             theme: Default::default(),

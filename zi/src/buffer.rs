@@ -1,10 +1,8 @@
-use std::ops::Range;
-
 use ropey::Rope;
 use tree_sitter::{Node, QueryCursor};
 
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::Position;
+use crate::{LanguageServerId, Position};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -16,6 +14,7 @@ pub struct Buffer {
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
+    language_servers: Vec<LanguageServerId>,
 }
 
 impl Buffer {
@@ -27,8 +26,9 @@ impl Buffer {
         Self {
             id,
             text,
-            highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), &theme),
+            highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
+            language_servers: Default::default(),
         }
     }
 
