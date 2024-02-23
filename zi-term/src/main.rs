@@ -138,16 +138,17 @@ fn render(editor: &Editor, frame: &mut Frame<'_>) {
             ((start.row, start.column)..(end.row, end.column), style)
         });
 
-    let el = tui::Lines::new(buf.text().lines(), highlights);
+    let lines = tui::Lines::new(buf.text().lines(), highlights);
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
 
     let widget = tui::vstack(
         [tui::Constraint::Fill(1), tui::Constraint::Max(1), tui::Constraint::Max(1)],
-        (el, statusline, cmdline),
+        (lines, statusline, cmdline),
     );
 
     let area = *frame.buffer_mut().area();
+    frame.buffer_mut().set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
     frame.render_widget(widget, area);
 
     let cursor = view.cursor();
