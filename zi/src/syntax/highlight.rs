@@ -1,16 +1,29 @@
 use std::borrow::Cow;
+use std::sync::Arc;
 
-pub struct SyntaxTheme {
+pub struct Theme {
     highlights: Vec<(Cow<'static, str>, Style)>,
 }
 
-impl Default for SyntaxTheme {
+impl Theme {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for Theme {
     fn default() -> Self {
         Self {
-            highlights: [("comment", Style::with_fg(Color::rgba(0x00_80_00_FF)))]
-                .into_iter()
-                .map(|(name, style)| (name.into(), style))
-                .collect(),
+            highlights: [
+                // solarized dark theme
+                ("comment", Style::with_fg(Color::rgba(0x00800000))),
+                ("type", Style::with_fg(Color::rgba(0x268bd200))),
+                ("function", Style::with_fg(Color::rgba(0x298cba00))),
+                ("property", Style::with_fg(Color::rgba(0x41978900))),
+            ]
+            .into_iter()
+            .map(|(name, style)| (name.into(), style))
+            .collect(),
         }
     }
 }
@@ -44,7 +57,7 @@ impl Color {
 }
 
 #[derive(Clone, Debug)]
-pub struct HighlightMap(Box<[HighlightId]>);
+pub struct HighlightMap(Arc<[HighlightId]>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HighlightId(pub u32);
@@ -52,13 +65,16 @@ pub struct HighlightId(pub u32);
 const DEFAULT_SYNTAX_HIGHLIGHT_ID: HighlightId = HighlightId(u32::MAX);
 
 impl HighlightMap {
-    pub(crate) fn new(capture_names: &[&str], theme: &SyntaxTheme) -> Self {
+    pub(crate) fn new(
+        capture_names: impl IntoIterator<Item = impl AsRef<str>>,
+        theme: &Theme,
+    ) -> Self {
         // For each capture name in the highlight query, find the longest
         // key in the theme's syntax styles that matches all of the
         // dot-separated components of the capture name.
         HighlightMap(
             capture_names
-                .iter()
+                .into_iter()
                 .map(|capture_name| {
                     theme
                         .highlights
@@ -66,7 +82,7 @@ impl HighlightMap {
                         .enumerate()
                         .filter_map(|(i, (key, _))| {
                             let mut len = 0;
-                            let mut capture_parts = capture_name.split('.');
+                            let mut capture_parts = capture_name.as_ref().split('.');
                             for key_part in key.split('.') {
                                 if capture_parts.any(|part| part == key_part) {
                                     len += 1;
@@ -89,22 +105,16 @@ impl HighlightMap {
 }
 
 impl HighlightId {
-    pub(crate) fn is_default(self) -> bool {
+    pub fn is_default(self) -> bool {
         self == DEFAULT_SYNTAX_HIGHLIGHT_ID
     }
 
-    pub fn style(self, theme: &SyntaxTheme) -> Option<Style> {
+    pub fn style(self, theme: &Theme) -> Option<Style> {
         theme.highlights.get(self.0 as usize).map(|(_, style)| style).copied()
     }
 
-    pub fn name(self, theme: &SyntaxTheme) -> Option<&str> {
+    pub fn name(self, theme: &Theme) -> Option<&str> {
         theme.highlights.get(self.0 as usize).map(|name| name.0.as_ref())
-    }
-}
-
-impl Default for HighlightMap {
-    fn default() -> Self {
-        Self([].into())
     }
 }
 
@@ -121,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_highlight_map() {
-        let theme = SyntaxTheme {
+        let theme = Theme {
             highlights: [
                 ("function", Style::default()),
                 ("function.method", Style::default()),

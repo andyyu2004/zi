@@ -1,7 +1,9 @@
-use ropey::Rope;
-use tree_sitter::{QueryCapture, QueryCursor};
+use std::ops::Range;
 
-use crate::syntax::{Highlights, Syntax};
+use ropey::Rope;
+use tree_sitter::{Node, QueryCursor};
+
+use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::Position;
 
 slotmap::new_key_type! {
@@ -12,15 +14,22 @@ pub struct Buffer {
     id: BufferId,
     text: Rope,
     syntax: Option<Syntax>,
+    // FIXME highlight map doesn't belong here
+    highlight_map: HighlightMap,
 }
 
 impl Buffer {
     #[inline]
-    pub fn new(id: BufferId, text: Rope) -> Self {
+    pub fn new(id: BufferId, text: Rope, theme: &Theme) -> Self {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
         syntax.apply(text.slice(..));
-        Self { id, text, syntax: Some(syntax) }
+        Self {
+            id,
+            text,
+            highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), &theme),
+            syntax: Some(syntax),
+        }
     }
 
     #[inline]
@@ -45,9 +54,10 @@ impl Buffer {
     pub fn highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> impl IntoIterator<Item = QueryCapture<'a>> {
+    ) -> impl Iterator<Item = (Node<'a>, HighlightId)> + 'a {
         self.syntax
             .as_ref()
             .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
+            .map(|capture| (capture.node, self.highlight_map.get(capture.index)))
     }
 }

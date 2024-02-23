@@ -2,13 +2,15 @@ mod highlight;
 
 use ropey::RopeSlice;
 use tree_sitter::{
-    Language, Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, QueryMatch,
-    TextProvider, Tree,
+    Language, Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, TextProvider, Tree,
 };
+
+pub use self::highlight::{Color, Style};
+pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
 
 pub struct Syntax {
     language: Language,
-    query: Query,
+    highlights_query: Query,
     tree: Option<Tree>,
     parser: Parser,
 }
@@ -20,7 +22,7 @@ impl Syntax {
         let mut parser = Parser::new();
         parser.set_language(language).expect("failed to set tree-sitter parser language");
         parser.set_timeout_micros(5000);
-        Self { language, query, parser, tree: None }
+        Self { language, highlights_query: query, parser, tree: None }
     }
 
     pub fn apply(&mut self, source: RopeSlice<'_>) {
@@ -43,11 +45,20 @@ impl Syntax {
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
-                let captures = cursor.captures(&self.query, tree.root_node(), RopeProvider(source));
+                let captures =
+                    cursor.captures(&self.highlights_query, tree.root_node(), RopeProvider(source));
                 Highlights::Captures(captures)
             }
             None => Highlights::Empty,
         }
+    }
+
+    pub fn language(&self) -> Language {
+        self.language
+    }
+
+    pub fn highlights_query(&self) -> &Query {
+        &self.highlights_query
     }
 }
 

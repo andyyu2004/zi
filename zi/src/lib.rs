@@ -11,9 +11,11 @@ mod syntax;
 mod view;
 
 pub use tree_sitter;
+
 pub use self::buffer::{Buffer, BufferId};
 pub use self::editor::Editor;
 pub use self::position::{Col, Direction, Line, Position};
+pub use self::syntax::{Color, Style};
 pub use self::view::{View, ViewId};
 
 wasmtime::component::bindgen!({

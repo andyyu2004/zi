@@ -5,6 +5,7 @@ use slotmap::SlotMap;
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
+use crate::syntax::Theme;
 use crate::{Buffer, BufferId, Direction, Mode, View, ViewId};
 
 pub struct Editor {
@@ -14,6 +15,7 @@ pub struct Editor {
     buffers: SlotMap<BufferId, Buffer>,
     views: SlotMap<ViewId, View>,
     active_view: ViewId,
+    theme: Theme,
 }
 
 /// Get the active view and buffer.
@@ -35,8 +37,9 @@ pub(crate) use active;
 
 impl Editor {
     pub fn new(content: impl Into<Rope>) -> Self {
+        let theme = Theme::default();
         let mut buffers = SlotMap::default();
-        let buf = buffers.insert_with_key(|id| Buffer::new(id, content.into()));
+        let buf = buffers.insert_with_key(|id| Buffer::new(id, content.into(), &theme));
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
@@ -44,9 +47,10 @@ impl Editor {
             buffers,
             views,
             active_view,
+            quit: false,
             mode: Default::default(),
             keymap: Default::default(),
-            quit: false,
+            theme: Default::default(),
         }
     }
 
@@ -129,6 +133,10 @@ impl Editor {
         let cursor = view.cursor();
         let text = buffer.text();
         text.line(cursor.line().idx()).char(cursor.col().idx())
+    }
+
+    pub fn theme(&self) -> &Theme {
+        &self.theme
     }
 }
 

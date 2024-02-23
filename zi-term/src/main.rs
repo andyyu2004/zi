@@ -108,8 +108,25 @@ impl<B: Backend + io::Write> App<B> {
 fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
     let mut cursor = tree_sitter::QueryCursor::new();
-    let highlights = buf.highlights(&mut cursor);
-    let el = tui::Lines::new(buf.text().lines());
+    let theme = editor.theme();
+
+    let c = |c: zi::Color| match c {
+        zi::Color::Rgb(r, g, b) => tui::Color::Rgb(r, g, b),
+    };
+
+    let s = |s: zi::Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
+
+    let highlights = buf
+        .highlights(&mut cursor)
+        .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
+        .map(|(node, style)| {
+            let range = node.range();
+            let start = range.start_point;
+            let end = range.end_point;
+            ((start.row, start.column)..(end.row, end.column), style)
+        });
+
+    let el = tui::Lines::new(buf.text().lines(), highlights);
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
 

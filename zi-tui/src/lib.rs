@@ -2,14 +2,17 @@ mod element;
 mod sequence;
 
 use std::borrow::Cow;
+use std::iter::Peekable;
 use std::marker::PhantomData;
+use std::ops::Range;
 
 pub use ratatui::backend::{Backend, CrosstermBackend};
 pub use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 pub use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::text::Line;
+pub use ratatui::style::{Color, Style};
 pub use ratatui::text::Text;
+use ratatui::text::{Line, Span};
 pub use ratatui::widgets::Widget;
 pub use ratatui::{Frame, Terminal};
 
@@ -50,29 +53,59 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Lines<'a, I> {
+pub struct Lines<'a, I, H: Iterator> {
     lines: I,
+    highlights: Peekable<H>,
     _marker: PhantomData<&'a ()>,
 }
 
-impl<I> Lines<'_, I> {
-    pub fn new(lines: I) -> Self {
-        Self { lines, _marker: PhantomData }
+impl<I, H: Iterator> Lines<'_, I, H> {
+    pub fn new(lines: I, highlights: H) -> Self {
+        Self { lines, highlights: highlights.peekable(), _marker: PhantomData }
     }
 }
 
-impl<'a, I> Widget for Lines<'a, I>
+impl<'a, I, H> Widget for Lines<'a, I, H>
 where
     I: Iterator,
     I::Item: Into<Cow<'a, str>>,
+    H: Iterator<Item = (Range<(usize, usize)>, Style)>,
 {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render(mut self, area: Rect, buf: &mut Buffer) {
         for (i, line) in self.lines.enumerate() {
             if i >= area.height as usize {
                 break;
             }
-            let line = Line::default().spans([line]);
+
+            let line = line.into();
+            let mut spans = vec![];
+
+            if let Some((range, _)) = self.highlights.peek() {
+                assert!(range.start.0 >= i, "highlights got behind?");
+            }
+
+            let mut j = 0;
+            while let Some((range, _)) = self.highlights.peek() {
+                if range.start.0 > i {
+                    break;
+                }
+
+                let (range, style) = self.highlights.next().expect("just peeked");
+                let start = range.start.1;
+                let end = range.end.1;
+                if start > j {
+                    spans.push(Span::raw(&line[j..start]));
+                }
+
+                spans.push(Span::styled(&line[start..end], style));
+                j = end;
+            }
+
+            if j < line.len() {
+                spans.push(Span::raw(&line[j..]));
+            }
+
+            let line = Line::default().spans(spans);
             // safe cast to u16 as we already checked that i < area.height (which is a u16)
             buf.set_line(area.x, area.y + i as u16, &line, area.width);
         }
