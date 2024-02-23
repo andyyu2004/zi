@@ -119,6 +119,7 @@ impl<B: Backend + io::Write> App<B> {
 fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
     let mut cursor = tree_sitter::QueryCursor::new();
+    cursor.set_match_limit(256);
     let theme = editor.theme();
 
     let c = |c: zi::Color| match c {

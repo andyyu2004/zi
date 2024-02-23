@@ -53,10 +53,6 @@ impl Syntax {
         }
     }
 
-    pub fn language(&self) -> Language {
-        self.language
-    }
-
     pub fn highlights_query(&self) -> &Query {
         &self.highlights_query
     }

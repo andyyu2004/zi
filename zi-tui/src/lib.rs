@@ -93,7 +93,12 @@ where
                 let (range, style) = self.highlights.next().expect("just peeked");
                 let start = range.start.1;
                 let end = range.end.1;
-                assert!(start >= j, "highlight range overlap?");
+
+                if start < j {
+                    // Sometimes highlights can overlap, we just arbitrarily use the first one of that range
+                    continue;
+                }
+
                 if start > j {
                     spans.push(Span::raw(&line[j..start]));
                 }
