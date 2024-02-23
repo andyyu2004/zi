@@ -15,14 +15,34 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             highlights: [
-                // solarized dark theme
-                ("comment", Style::with_fg(Color::rgba(0x00800000))),
-                ("type", Style::with_fg(Color::rgba(0x268bd200))),
-                ("function", Style::with_fg(Color::rgba(0x298cba00))),
-                ("property", Style::with_fg(Color::rgba(0x41978900))),
+                ("namespace", 0x39a6b900),
+                // ("function.macro", 0x298cba00),
+                ("function", 0x298cba00),
+                ("property", 0x41978900),
+                ("field", 0x41978900),
+                ("keyword", 0x527bd200),
+                ("constructor", 0xbf8a4a00),
+                ("type", 0x268bd200),
+                // ("variable.builtin", 0xbf693000),
+                ("variable", 0x39a6b900),
+                // ("function.builtin", 0x298cba00),
+                ("parameter", 0x4698b100),
+                ("constant", 0xbb8b5000),
+                ("constant.builtin", 0x41978900),
+                ("include", 0x527bd200),
+                ("attribute", 0xB8986800),
+                ("preproc", 0xB8986800),
+                ("method", 0x298cba00),
+                ("method.call", 0x298cba00),
+                ("punctuation.bracket", 0x86B1A100),
+                ("punctuation.special", 0x86B1A100),
+                ("punctuation.delimiter", 0x599c9700),
+                ("string", 0x2aa19800),
+                ("number", 0xcb4b1600),
+                ("comment", 0x586e7500),
             ]
             .into_iter()
-            .map(|(name, style)| (name.into(), style))
+            .map(|(name, fg)| (name.into(), Style::with_fg(Color::rgba(fg))))
             .collect(),
         }
     }

@@ -1,7 +1,10 @@
+#![feature(panic_update_hook)]
+
 mod event;
 
 use std::io;
 use std::path::PathBuf;
+use std::sync::mpsc::Receiver;
 
 use clap::Parser;
 use crossterm::cursor::SetCursorStyle;
@@ -38,7 +41,14 @@ async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let editor = zi::Editor::new(content);
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
-    let mut app = App::new(term, editor)?;
+
+    let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
+    std::panic::update_hook(move |prev, info| {
+        let _ = panic_tx.send(info.to_string());
+        prev(info);
+    });
+
+    let mut app = App::new(term, editor, panic_rx)?;
     app.enter()?;
 
     let events =
@@ -51,11 +61,12 @@ async fn main() -> anyhow::Result<()> {
 struct App<B: Backend + io::Write> {
     editor: Editor,
     term: Terminal<B>,
+    panic_rx: Receiver<String>,
 }
 
 impl<B: Backend + io::Write> App<B> {
-    fn new(term: Terminal<B>, editor: Editor) -> io::Result<Self> {
-        Ok(Self { term, editor })
+    fn new(term: Terminal<B>, editor: Editor, panic_rx: Receiver<String>) -> io::Result<Self> {
+        Ok(Self { term, editor, panic_rx })
     }
 
     fn enter(&mut self) -> io::Result<()> {
@@ -148,5 +159,8 @@ impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
         _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
         _ = terminal::disable_raw_mode();
+        if let Ok(panic) = self.panic_rx.try_recv() {
+            eprintln!("{panic}");
+        }
     }
 }
