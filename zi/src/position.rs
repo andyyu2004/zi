@@ -97,6 +97,13 @@ impl From<u32> for Line {
     }
 }
 
+impl From<i32> for Line {
+    fn from(n: i32) -> Self {
+        assert!(n >= 0, "Line number must be non-negative");
+        Self(n as u32)
+    }
+}
+
 impl From<usize> for Line {
     fn from(n: usize) -> Self {
         assert!(n < u32::MAX as usize, "Line number must be less than u32::MAX");

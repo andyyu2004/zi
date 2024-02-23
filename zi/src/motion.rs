@@ -3,13 +3,36 @@ use ropey::RopeSlice;
 use crate::Position;
 
 pub trait Motion {
-    fn motion(&mut self, slice: RopeSlice<'_>, pos: Position) -> Position;
+    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position;
+}
+
+pub struct PrevToken;
+
+impl Motion for PrevToken {
+    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
+        let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
+        let mut chars = slice.chars_at(start_char).reversed();
+
+        let prev = chars.next().unwrap_or('x');
+        let mut i = 0;
+        for c in chars {
+            if c.is_whitespace() && !prev.is_whitespace() {
+                break;
+            }
+            i += 1;
+        }
+
+        let char = start_char - i;
+        let line = slice.char_to_line(char);
+        let col = char - slice.line_to_char(line);
+        Position::new(line, col)
+    }
 }
 
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(&mut self, slice: RopeSlice<'_>, pos: Position) -> Position {
+    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
         let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = slice.chars_at(start_char);
 
@@ -40,7 +63,7 @@ impl Motion for NextWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(&mut self, slice: RopeSlice<'_>, pos: Position) -> Position {
+    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
         let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = slice.chars_at(start_char);
 

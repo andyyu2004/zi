@@ -63,6 +63,13 @@ impl Keymap {
                 'w' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.motion(motion::NextWord)));
                 }
+                'b' if matches!(mode, Mode::Normal) => {
+                    // todo prev word
+                    return Some(Fn(|editor| editor.motion(motion::PrevToken)));
+                }
+                'B' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| editor.motion(motion::PrevToken)));
+                }
                 'o' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| {
                         editor.set_mode(Mode::Insert);

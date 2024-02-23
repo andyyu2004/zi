@@ -142,7 +142,7 @@ impl Editor {
         &self.theme
     }
 
-    pub fn motion(&mut self, mut motion: impl Motion) {
+    pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = active!(self);
         let pos = motion.motion(buf.text().slice(..), view.cursor());
         view.set_cursor(self.mode, buf, pos, SetCursorFlags::empty());
