@@ -58,6 +58,9 @@ impl Keymap {
                     }));
                 }
                 'W' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| editor.motion(motion::NextToken)));
+                }
+                'w' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.motion(motion::NextWord)));
                 }
                 'o' if matches!(mode, Mode::Normal) => {
