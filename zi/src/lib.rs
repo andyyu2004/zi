@@ -22,6 +22,10 @@ pub use self::position::{Col, Direction, Line, Position};
 pub use self::syntax::{Color, Style};
 pub use self::view::{View, ViewId};
 
+// Consider a proper error type
+pub type Error = anyhow::Error;
+pub type Result<T> = std::result::Result<T, Error>;
+
 wasmtime::component::bindgen!({
     async: true,
     // tracing: true,

@@ -19,7 +19,7 @@ use crate::keymap::{Action, Keymap};
 use crate::lsp::LanguageClient;
 use crate::motion::Motion;
 use crate::syntax::Theme;
-use crate::{Buffer, BufferId, Direction, LanguageServerId, Mode, View, ViewId};
+use crate::{Buffer, BufferId, Direction, Error, LanguageServerId, Mode, View, ViewId};
 
 pub struct Editor {
     pub quit: bool, // tmp hack
@@ -30,7 +30,7 @@ pub struct Editor {
     active_view: ViewId,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, zi_lsp::Server>,
-    tx: UnboundedSender<Pin<Box<dyn Future<Output = EditorCallback> + Send>>>,
+    tx: CallbacksSender,
 }
 
 /// Get the active view and buffer.
@@ -54,7 +54,11 @@ use self::cursor::SetCursorFlags;
 
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor)>;
 
-pub type Callbacks = impl Stream<Item = Pin<Box<dyn Future<Output = EditorCallback> + Send>>>;
+pub type Callbacks = impl Stream<Item = CallbackFuture>;
+
+type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
+
+type CallbacksSender = UnboundedSender<CallbackFuture>;
 
 // Adaptor for tokio's channel to be a futures Stream
 struct ChannelStream<T>(UnboundedReceiver<T>);
@@ -110,11 +114,19 @@ impl Editor {
             Rope::new()
         };
 
-        if path.extension() == Some("rs".as_ref()) {
-            let id = LanguageServerId::RUST_ANALYZER;
-            let server = zi_lsp::Server::start(LanguageClient, ".", "rust-analyzer")?;
-            self.language_servers.insert(id, server);
-        }
+        match path.extension() {
+            Some(ext) if ext == "rs" => {
+                let id = LanguageServerId::RUST_ANALYZER;
+                let cmd = "rust-analyzer";
+                if !self.language_servers.contains_key(&id) {
+                    let mut server = zi_lsp::Server::start(LanguageClient, ".", cmd)?;
+                    let fut =
+                        server.initialize(lsp_types::InitializeParams { ..Default::default() });
+                    callback(&self.tx, async move { Ok(fut.await?) }, |editor, res| {});
+                };
+            }
+            _ => {}
+        };
 
         let buf = self.buffers.insert_with_key(|id| Buffer::new(id, path, rope, &self.theme));
         self.active_view = self.views.insert_with_key(|id| View::new(id, buf));
@@ -216,33 +228,45 @@ impl Editor {
         for server in self.language_servers.values_mut() {
             let (view, buf) = active!(self);
             let pos = view.cursor();
-            let fut = server.definition(lsp_types::GotoDefinitionParams {
-                text_document_position_params: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri: buf.url() },
-                    position: pos.into(),
-                },
-                work_done_progress_params: lsp_types::WorkDoneProgressParams {
-                    work_done_token: None,
-                },
-                partial_result_params: lsp_types::PartialResultParams {
-                    partial_result_token: None,
-                },
-            });
+            if let Some(uri) = buf.url() {
+                let fut = server.definition(lsp_types::GotoDefinitionParams {
+                    text_document_position_params: lsp_types::TextDocumentPositionParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        position: pos.into(),
+                    },
+                    work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: lsp_types::PartialResultParams {
+                        partial_result_token: None,
+                    },
+                });
 
-            self.tx
-                .send(Box::pin(async move {
-                    if let Ok(Some(res)) = fut.await {
-                        return Box::new(move |editor: &mut Editor| match res {
-                            lsp_types::GotoDefinitionResponse::Scalar(location) => todo!(),
+                callback(&self.tx, async move { Ok(fut.await?) }, |_editor, res| {
+                    if let Some(res) = res {
+                        match res {
+                            lsp_types::GotoDefinitionResponse::Scalar(_location) => {
+                                todo!();
+                            }
                             // TODO
                             lsp_types::GotoDefinitionResponse::Array(_) => {}
                             lsp_types::GotoDefinitionResponse::Link(_) => {}
-                        }) as Box<dyn FnOnce(&mut Editor)>;
+                        }
                     }
-                    Box::new(|_: &mut Editor| {})
-                }))
-                .expect("send failed");
+                });
+            }
         }
-        todo!()
     }
+}
+
+fn callback<R: 'static>(
+    tx: &CallbacksSender,
+    fut: impl Future<Output = Result<R, Error>> + Send + 'static,
+    f: impl FnOnce(&mut Editor, R) + Send + 'static,
+) {
+    tx.send(Box::pin(async move {
+        let res = fut.await?;
+        Ok(Box::new(move |editor: &mut Editor| f(editor, res)) as Box<dyn FnOnce(&mut Editor)>)
+    }))
+    .expect("send failed");
 }

@@ -14,7 +14,7 @@ slotmap::new_key_type! {
 pub struct Buffer {
     id: BufferId,
     path: PathBuf,
-    url: Url,
+    url: Option<Url>,
     text: Rope,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
@@ -32,7 +32,7 @@ impl Buffer {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
         let path = path.into();
-        let url = Url::from_file_path(&path).unwrap();
+        let url = Url::from_file_path(&path).ok();
         let text = text.into();
         syntax.apply(text.slice(..));
         Self {
@@ -50,7 +50,7 @@ impl Buffer {
         &self.path
     }
 
-    pub fn url(&self) -> Url {
+    pub fn url(&self) -> Option<Url> {
         self.url.clone()
     }
 

@@ -94,7 +94,11 @@ impl<B: Backend + io::Write> App<B> {
             }
 
             select! {
-                f = tasks.select_next_some() => f(&mut self.editor),
+                f = tasks.select_next_some() => match f {
+                    Ok(f) => f(&mut self.editor),
+                    // TODO show error somewhere
+                    Err(err) => tracing::error!("{:?}", err),
+                },
                 Some(event) = events.next() => self.on_event(event?).await,
             }
 

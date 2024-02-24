@@ -12,4 +12,5 @@ pub struct LanguageServerId(Cow<'static, str>);
 
 impl LanguageServerId {
     pub const RUST_ANALYZER: Self = Self(Cow::Borrowed("rust-analyzer"));
+    pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
 }
