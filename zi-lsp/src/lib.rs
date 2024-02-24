@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use std::ops::{Deref, DerefMut};
+use std::ops::{ControlFlow, Deref, DerefMut};
 use std::path::Path;
 use std::process::Stdio;
 
@@ -8,7 +8,8 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
 pub use async_lsp::{
-    lsp_types, Error, LanguageClient, LanguageServer, ResponseError, Result, ServerSocket,
+    lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
+    ServerSocket,
 };
 use tower::ServiceBuilder;
 
@@ -20,17 +21,18 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn start<C: LanguageClient + Send + 'static>(
-        client: C,
-        root: impl AsRef<Path>,
-        cmd: impl AsRef<OsStr>,
-    ) -> Result<Server> {
+    pub fn start<C>(client: C, root: impl AsRef<Path>, cmd: impl AsRef<OsStr>) -> Result<Server>
+    where
+        C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
+            + Send
+            + 'static,
+    {
         let (main_loop, server) = async_lsp::MainLoop::new_client(|_server| {
             ServiceBuilder::new()
                 .layer(TracingLayer::default())
                 .layer(CatchUnwindLayer::default())
                 .layer(ConcurrencyLayer::default())
-                .service(Router::new(client))
+                .service(Router::from_language_client(client))
         });
 
         let mut child = async_process::Command::new(cmd)

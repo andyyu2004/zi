@@ -23,15 +23,12 @@ pub struct Buffer {
 
 impl Buffer {
     #[inline]
-    pub fn new(
-        id: BufferId,
-        path: impl Into<PathBuf>,
-        text: impl Into<Rope>,
-        theme: &Theme,
-    ) -> Self {
+    pub fn new(id: BufferId, path: impl AsRef<Path>, text: impl Into<Rope>, theme: &Theme) -> Self {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
-        let path = path.into();
+
+        let path = path.as_ref();
+        let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
         let text = text.into();
         syntax.apply(text.slice(..));

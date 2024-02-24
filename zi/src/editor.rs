@@ -16,7 +16,7 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
-use crate::lsp::LanguageClient;
+use crate::lsp::{LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::syntax::Theme;
 use crate::{Buffer, BufferId, Direction, Error, LanguageServerId, Mode, View, ViewId};
@@ -29,7 +29,7 @@ pub struct Editor {
     views: SlotMap<ViewId, View>,
     active_view: ViewId,
     theme: Theme,
-    language_servers: FxHashMap<LanguageServerId, zi_lsp::Server>,
+    language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
 }
 
@@ -115,17 +115,35 @@ impl Editor {
         };
 
         match path.extension() {
-            Some(ext) if ext == "rs" => {
+            Some(ext) => {
                 let id = LanguageServerId::RUST_ANALYZER;
                 let cmd = "rust-analyzer";
+
+                // let id = LanguageServerId::GQLT;
+                // let command = "gqlt";
+
                 if !self.language_servers.contains_key(&id) {
-                    let mut server = zi_lsp::Server::start(LanguageClient, ".", cmd)?;
-                    let fut =
-                        server.initialize(lsp_types::InitializeParams { ..Default::default() });
-                    callback(&self.tx, async move { Ok(fut.await?) }, |editor, res| {});
+                    tracing::debug!(?id, command, "initializing language server");
+                    let mut server = zi_lsp::Server::start(LanguageClient, ".", command)?;
+                    callback(
+                        &self.tx,
+                        async move {
+                            let res = server
+                                .initialize(lsp_types::InitializeParams { ..Default::default() })
+                                .await?;
+                            server.initialized(lsp_types::InitializedParams {})?;
+                            Ok((server, res))
+                        },
+                        |editor, (server, res)| {
+                            editor.language_servers.insert(
+                                id,
+                                LanguageServer { server, capabilities: res.capabilities },
+                            );
+                        },
+                    );
                 };
             }
-            _ => {}
+            None => {}
         };
 
         let buf = self.buffers.insert_with_key(|id| Buffer::new(id, path, rope, &self.theme));
@@ -226,9 +244,16 @@ impl Editor {
 
     pub(crate) fn go_to_definition(&mut self) {
         for server in self.language_servers.values_mut() {
+            match &server.capabilities.definition_provider {
+                Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => (),
+                _ => continue,
+            }
+
             let (view, buf) = active!(self);
             let pos = view.cursor();
+
             if let Some(uri) = buf.url() {
+                tracing::debug!(%uri, %pos, "lsp request definition");
                 let fut = server.definition(lsp_types::GotoDefinitionParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -243,17 +268,25 @@ impl Editor {
                 });
 
                 callback(&self.tx, async move { Ok(fut.await?) }, |_editor, res| {
+                    tracing::debug!(?res, "lsp definition response");
                     if let Some(res) = res {
                         match res {
                             lsp_types::GotoDefinitionResponse::Scalar(_location) => {
                                 todo!();
                             }
                             // TODO
-                            lsp_types::GotoDefinitionResponse::Array(_) => {}
-                            lsp_types::GotoDefinitionResponse::Link(_) => {}
+                            lsp_types::GotoDefinitionResponse::Array(_) => {
+                                todo!();
+                            }
+                            lsp_types::GotoDefinitionResponse::Link(_) => {
+                                todo!();
+                            }
                         }
                     }
                 });
+
+                // Send the request to the first server that supports it
+                break;
             }
         }
     }
