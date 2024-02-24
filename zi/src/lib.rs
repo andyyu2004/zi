@@ -1,4 +1,4 @@
-#![feature(try_blocks, type_alias_impl_trait)]
+#![feature(try_blocks, type_alias_impl_trait, trait_upcasting)]
 
 mod boring_impls;
 mod buffer;

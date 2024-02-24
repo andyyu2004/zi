@@ -2723,6 +2723,7 @@ dependencies = [
  "bitflags 2.4.2",
  "crossterm",
  "futures-core",
+ "parking_lot",
  "ropey",
  "rustc-hash",
  "slotmap",

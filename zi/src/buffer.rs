@@ -19,6 +19,7 @@ pub struct Buffer {
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
+    version: u32,
 }
 
 impl Buffer {
@@ -37,6 +38,7 @@ impl Buffer {
             path,
             url,
             text,
+            version: 0,
             highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
         }
@@ -68,6 +70,8 @@ impl Buffer {
         if let Some(syntax) = self.syntax.as_mut() {
             syntax.apply(self.text.slice(..));
         }
+
+        self.version.checked_add(1).unwrap();
     }
 
     pub fn highlights<'a>(
@@ -78,5 +82,9 @@ impl Buffer {
             .as_ref()
             .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
             .map(|capture| (capture.node, self.highlight_map.get(capture.index)))
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
     }
 }

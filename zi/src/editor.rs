@@ -14,7 +14,7 @@ use slotmap::SlotMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::event::KeyEvent;
+use crate::event::{self, Event, KeyEvent};
 use crate::keymap::{Action, Keymap};
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::Motion;
@@ -139,6 +139,33 @@ impl Editor {
                         Ok((server, res))
                     },
                     |editor, (server, res)| {
+                        // TODO check capabilities
+                        event::register(event::handler::<event::BufferDidChange>(
+                            |editor, event| {
+                                let buf = &editor.buffers[event.buffer_id];
+                                if let Some(uri) = buf.url() {
+                                    // TODO only send to relevant language servers
+                                    for server in editor.language_servers.values_mut() {
+                                        let _ = server.did_change(
+                                            lsp_types::DidChangeTextDocumentParams {
+                                                text_document:
+                                                    lsp_types::VersionedTextDocumentIdentifier {
+                                                        uri: uri.clone(),
+                                                        version: buf.version() as i32,
+                                                    },
+                                                content_changes: vec![
+                                                    lsp_types::TextDocumentContentChangeEvent {
+                                                        range: None,
+                                                        range_length: None,
+                                                        text: buf.text().to_string(),
+                                                    },
+                                                ],
+                                            },
+                                        );
+                                    }
+                                }
+                            },
+                        ));
                         editor.language_servers.insert(
                             server_id,
                             LanguageServer { server, capabilities: res.capabilities },
@@ -212,6 +239,13 @@ impl Editor {
             }
             _ => view.move_cursor(self.mode, buf, Direction::Right),
         }
+
+        let event = event::BufferDidChange { buffer_id: buf.id() };
+        self.dispatch(event);
+    }
+
+    fn dispatch(&mut self, event: impl Event) {
+        event::dispatch(self, event);
     }
 
     pub fn insert(&mut self, s: &str) {
