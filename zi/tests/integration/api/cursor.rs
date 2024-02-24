@@ -1,4 +1,4 @@
-use zi::{Direction, Editor};
+use zi::Direction;
 
 use crate::api::new;
 

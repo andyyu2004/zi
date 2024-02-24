@@ -3,6 +3,10 @@ name = "zi-term"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "zi"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 
