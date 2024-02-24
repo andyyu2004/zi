@@ -1,6 +1,10 @@
 pub(crate) mod cursor;
 
-use ropey::{Rope, RopeSlice};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+
+use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 
@@ -41,10 +45,10 @@ pub(crate) use active;
 use self::cursor::SetCursorFlags;
 
 impl Editor {
-    pub fn new(content: impl Into<Rope>) -> Self {
+    pub fn new() -> Self {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
-        let buf = buffers.insert_with_key(|id| Buffer::new(id, content.into(), &theme));
+        let buf = buffers.insert_with_key(|id| Buffer::new(id, "scratch", "", &theme));
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
@@ -58,6 +62,25 @@ impl Editor {
             keymap: Default::default(),
             theme: Default::default(),
         }
+    }
+
+    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<(), std::io::Error> {
+        let path = path.as_ref();
+        let rope = if path.exists() {
+            let reader = BufReader::new(File::open(path)?);
+            let mut builder = RopeBuilder::new();
+            for line in reader.lines() {
+                builder.append(line?.as_str());
+                builder.append("\n");
+            }
+            builder.finish()
+        } else {
+            Rope::new()
+        };
+
+        let buf = self.buffers.insert_with_key(|id| Buffer::new(id, path, rope, &self.theme));
+        self.active_view = self.views.insert_with_key(|id| View::new(id, buf));
+        Ok(())
     }
 
     #[inline]
@@ -154,6 +177,6 @@ impl Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        Self::new("")
+        Self::new()
     }
 }

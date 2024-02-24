@@ -1,8 +1,10 @@
 use zi::{Direction, Editor};
 
+use crate::api::new;
+
 #[test]
 fn set_cursor() {
-    let mut editor = Editor::new("foo\ntest\n");
+    let mut editor = new("foo\ntest\n");
     assert_eq!(editor.active_cursor(), (0, 0), "cursor should start at (1, 0)");
     assert_eq!(editor.current_line(), "foo\n");
     assert_eq!(editor.current_char(), 'f');
@@ -37,7 +39,7 @@ fn set_cursor() {
 
 #[test]
 fn move_cursor_empty() {
-    let mut editor = Editor::new("");
+    let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));
     for _ in 1..10 {
         for &direction in &[Direction::Left, Direction::Right, Direction::Up, Direction::Down] {
@@ -49,7 +51,7 @@ fn move_cursor_empty() {
 
 #[test]
 fn move_cursor_horizontal_no_newline() {
-    let mut editor = Editor::new("abc");
+    let mut editor = new("abc");
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.move_active_cursor(Direction::Right);
     assert_eq!(editor.active_cursor(), (0, 1));
@@ -65,15 +67,13 @@ fn move_cursor_horizontal_no_newline() {
 
 #[test]
 fn vertical_move_cursor_remembers_column() {
-    let mut editor = Editor::new(
-        r#"foo
+    let mut editor = new(r#"foo
 test
 
 longer line!
 short
 
-"#,
-    );
+"#);
 
     use Direction::*;
     assert_eq!(editor.active_cursor(), (0, 0));

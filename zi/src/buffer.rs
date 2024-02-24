@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use ropey::Rope;
 use tree_sitter::{Node, QueryCursor};
 
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{LanguageServerId, Position};
+use crate::Position;
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -10,26 +12,38 @@ slotmap::new_key_type! {
 
 pub struct Buffer {
     id: BufferId,
+    path: PathBuf,
     text: Rope,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
-    language_servers: Vec<LanguageServerId>,
 }
 
 impl Buffer {
     #[inline]
-    pub fn new(id: BufferId, text: Rope, theme: &Theme) -> Self {
+    pub fn new(
+        id: BufferId,
+        path: impl Into<PathBuf>,
+        text: impl Into<Rope>,
+        theme: &Theme,
+    ) -> Self {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
+        let path = path.into();
+        let text = text.into();
         syntax.apply(text.slice(..));
         Self {
             id,
+            path,
             text,
             highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
-            language_servers: Default::default(),
         }
+    }
+
+    #[inline]
+    pub fn path(&self) -> &PathBuf {
+        &self.path
     }
 
     #[inline]

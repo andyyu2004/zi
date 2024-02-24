@@ -1,6 +1,8 @@
+use crate::api::new;
+
 #[test]
 fn test_insert() {
-    let mut editor = zi::Editor::new("");
+    let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.set_mode(zi::Mode::Insert);
     assert_eq!(editor.active_cursor(), (0, 0));

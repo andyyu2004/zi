@@ -1,5 +1,4 @@
 use std::fmt;
-use std::num::NonZeroU32;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
