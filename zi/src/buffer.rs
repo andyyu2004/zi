@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ropey::Rope;
 use tree_sitter::{Node, QueryCursor};
+use zi_lsp::lsp_types::Url;
 
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::Position;
@@ -13,6 +14,7 @@ slotmap::new_key_type! {
 pub struct Buffer {
     id: BufferId,
     path: PathBuf,
+    url: Url,
     text: Rope,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
@@ -30,11 +32,13 @@ impl Buffer {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
         let path = path.into();
+        let url = Url::from_file_path(&path).unwrap();
         let text = text.into();
         syntax.apply(text.slice(..));
         Self {
             id,
             path,
+            url,
             text,
             highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
@@ -42,8 +46,12 @@ impl Buffer {
     }
 
     #[inline]
-    pub fn path(&self) -> &PathBuf {
+    pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn url(&self) -> Url {
+        self.url.clone()
     }
 
     #[inline]

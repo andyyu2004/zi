@@ -20,7 +20,7 @@ impl Guest for Component {
         view.set_cursor(Position { line: 0, col: 1 });
         assert_eq!(view.get_cursor(), Position { line: 0, col: 1 });
 
-        let buf = view.get_buffer();
+        let _buf = view.get_buffer();
         // assert!();
     }
 }

@@ -1,15 +1,22 @@
 pub(crate) mod cursor;
 
 use std::fs::File;
+use std::future::Future;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
+use futures_core::Stream;
 use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
+use crate::lsp::LanguageClient;
 use crate::motion::Motion;
 use crate::syntax::Theme;
 use crate::{Buffer, BufferId, Direction, LanguageServerId, Mode, View, ViewId};
@@ -23,6 +30,7 @@ pub struct Editor {
     active_view: ViewId,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, zi_lsp::Server>,
+    tx: UnboundedSender<Pin<Box<dyn Future<Output = EditorCallback> + Send>>>,
 }
 
 /// Get the active view and buffer.
@@ -44,27 +52,51 @@ pub(crate) use active;
 
 use self::cursor::SetCursorFlags;
 
+pub type EditorCallback = Box<dyn FnOnce(&mut Editor)>;
+
+pub type Callbacks = impl Stream<Item = Pin<Box<dyn Future<Output = EditorCallback> + Send>>>;
+
+// Adaptor for tokio's channel to be a futures Stream
+struct ChannelStream<T>(UnboundedReceiver<T>);
+
+impl<T> Stream for ChannelStream<T> {
+    type Item = T;
+
+    #[inline]
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
 impl Editor {
-    pub fn new() -> Self {
+    /// Create a new editor with a scratch buffer.
+    /// Returns the editor instance and a stream of callbacks.
+    /// The callback stream must be polled and the resulting callback executed on the editor.
+    pub fn new() -> (Self, Callbacks) {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers.insert_with_key(|id| Buffer::new(id, "scratch", "", &theme));
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
-        Self {
+        // Using an unbounded channel as we need `send` to be sync.
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let editor = Self {
             buffers,
             views,
             active_view,
             quit: false,
+            tx,
             language_servers: Default::default(),
             mode: Default::default(),
             keymap: Default::default(),
             theme: Default::default(),
-        }
+        };
+        (editor, ChannelStream(rx))
     }
 
-    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<(), std::io::Error> {
+    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<(), zi_lsp::Error> {
         let path = path.as_ref();
         let rope = if path.exists() {
             let reader = BufReader::new(File::open(path)?);
@@ -77,6 +109,12 @@ impl Editor {
         } else {
             Rope::new()
         };
+
+        if path.extension() == Some("rs".as_ref()) {
+            let id = LanguageServerId::RUST_ANALYZER;
+            let server = zi_lsp::Server::start(LanguageClient, ".", "rust-analyzer")?;
+            self.language_servers.insert(id, server);
+        }
 
         let buf = self.buffers.insert_with_key(|id| Buffer::new(id, path, rope, &self.theme));
         self.active_view = self.views.insert_with_key(|id| View::new(id, buf));
@@ -173,10 +211,38 @@ impl Editor {
         let pos = motion.motion(buf.text().slice(..), view.cursor());
         view.set_cursor(self.mode, buf, pos, SetCursorFlags::empty());
     }
-}
 
-impl Default for Editor {
-    fn default() -> Self {
-        Self::new()
+    pub(crate) fn go_to_definition(&mut self) {
+        for server in self.language_servers.values_mut() {
+            let (view, buf) = active!(self);
+            let pos = view.cursor();
+            let fut = server.definition(lsp_types::GotoDefinitionParams {
+                text_document_position_params: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri: buf.url() },
+                    position: pos.into(),
+                },
+                work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                    work_done_token: None,
+                },
+                partial_result_params: lsp_types::PartialResultParams {
+                    partial_result_token: None,
+                },
+            });
+
+            self.tx
+                .send(Box::pin(async move {
+                    if let Ok(Some(res)) = fut.await {
+                        return Box::new(move |editor: &mut Editor| match res {
+                            lsp_types::GotoDefinitionResponse::Scalar(location) => todo!(),
+                            // TODO
+                            lsp_types::GotoDefinitionResponse::Array(_) => {}
+                            lsp_types::GotoDefinitionResponse::Link(_) => {}
+                        }) as Box<dyn FnOnce(&mut Editor)>;
+                    }
+                    Box::new(|_: &mut Editor| {})
+                }))
+                .expect("send failed");
+        }
+        todo!()
     }
 }

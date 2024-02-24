@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::process::Stdio;
@@ -6,7 +7,9 @@ use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
-use async_lsp::{LanguageClient, Result, ServerSocket};
+pub use async_lsp::{
+    lsp_types, Error, LanguageClient, LanguageServer, ResponseError, Result, ServerSocket,
+};
 use tower::ServiceBuilder;
 
 pub struct Server {
@@ -19,8 +22,8 @@ pub struct Server {
 impl Server {
     pub fn start<C: LanguageClient + Send + 'static>(
         client: C,
-        root: &Path,
-        cmd: &Path,
+        root: impl AsRef<Path>,
+        cmd: impl AsRef<OsStr>,
     ) -> Result<Server> {
         let (main_loop, server) = async_lsp::MainLoop::new_client(|_server| {
             ServiceBuilder::new()
@@ -61,4 +64,3 @@ impl DerefMut for Server {
         &mut self.server
     }
 }
-

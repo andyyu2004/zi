@@ -125,6 +125,11 @@ impl Line {
     pub fn idx(self) -> usize {
         self.0 as usize
     }
+
+    #[inline]
+    pub fn raw(self) -> u32 {
+        self.0
+    }
 }
 
 /// 1-based column index
@@ -171,6 +176,11 @@ impl Col {
     #[inline]
     pub fn idx(self) -> usize {
         self.0 as usize
+    }
+
+    #[inline]
+    pub fn raw(self) -> u32 {
+        self.0
     }
 }
 

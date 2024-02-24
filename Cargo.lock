@@ -2721,6 +2721,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.4.2",
  "crossterm",
+ "futures-core",
  "ropey",
  "rustc-hash",
  "slotmap",

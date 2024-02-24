@@ -4,6 +4,7 @@ mod event;
 
 use std::io;
 use std::path::PathBuf;
+use std::pin::pin;
 use std::sync::mpsc::Receiver;
 
 use clap::Parser;
@@ -38,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let stdout = io::stdout().lock();
-    let mut editor = zi::Editor::new();
+    let (mut editor, callbacks) = zi::Editor::new();
     if let Some(path) = opts.path {
         editor.open(path)?;
     }
@@ -55,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
 
     let events =
         EventStream::new().filter_map(|ev| async { ev.map(Event::from_crossterm).transpose() });
-    app.run(events).await?;
+    app.run(events, callbacks).await?;
 
     Ok(())
 }
@@ -77,16 +78,23 @@ impl<B: Backend + io::Write> App<B> {
         Ok(())
     }
 
-    async fn run(&mut self, mut events: impl Stream<Item = io::Result<Event>>) -> io::Result<()> {
+    async fn run(
+        &mut self,
+        mut events: impl Stream<Item = io::Result<Event>>,
+        tasks: zi::Callbacks,
+    ) -> io::Result<()> {
         self.render()?;
 
-        let mut events = std::pin::pin!(events);
+        let mut tasks = tasks.buffer_unordered(16);
+
+        let mut events = pin!(events);
         loop {
             if self.editor.quit {
                 break;
             }
 
             select! {
+                f = tasks.select_next_some() => f(&mut self.editor),
                 Some(event) = events.next() => self.on_event(event?).await,
             }
 

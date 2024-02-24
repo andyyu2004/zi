@@ -70,6 +70,9 @@ impl Keymap {
                 'B' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.motion(motion::PrevToken)));
                 }
+                'g' if matches!(mode, Mode::Normal) => {
+                    return Some(Fn(|editor| editor.go_to_definition()));
+                }
                 'o' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| {
                         editor.set_mode(Mode::Insert);

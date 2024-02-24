@@ -10,6 +10,6 @@ impl LanguageId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LanguageServerId(Cow<'static, str>);
 
-impl LanguageId {
+impl LanguageServerId {
     pub const RUST_ANALYZER: Self = Self(Cow::Borrowed("rust-analyzer"));
 }
