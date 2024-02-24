@@ -6,7 +6,7 @@ use std::ops::{ControlFlow, Deref, DerefMut};
 use futures_core::future::BoxFuture;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
-use zi_lsp::lsp_types::{self, lsp_notification, lsp_request};
+use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, ResponseError, Result};
 
 pub(crate) struct LanguageClient;
@@ -220,5 +220,15 @@ impl Deref for LanguageServer {
 impl DerefMut for LanguageServer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.server
+    }
+}
+
+pub fn capabilities() -> ClientCapabilities {
+    lsp_types::ClientCapabilities {
+        workspace: None,
+        text_document: Some(lsp_types::TextDocumentClientCapabilities { ..Default::default() }),
+        window: None,
+        general: None,
+        experimental: None,
     }
 }

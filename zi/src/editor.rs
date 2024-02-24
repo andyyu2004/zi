@@ -16,10 +16,12 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::event::KeyEvent;
 use crate::keymap::{Action, Keymap};
-use crate::lsp::{LanguageClient, LanguageServer};
+use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::syntax::Theme;
-use crate::{Buffer, BufferId, Direction, Error, LanguageServerId, Mode, View, ViewId};
+use crate::{
+    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Mode, View, ViewId,
+};
 
 pub struct Editor {
     pub quit: bool, // tmp hack
@@ -31,6 +33,7 @@ pub struct Editor {
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
+    language_config: language::Config,
 }
 
 /// Get the active view and buffer.
@@ -92,6 +95,7 @@ impl Editor {
             active_view,
             quit: false,
             tx,
+            language_config: Default::default(),
             language_servers: Default::default(),
             mode: Default::default(),
             keymap: Default::default(),
@@ -114,37 +118,35 @@ impl Editor {
             Rope::new()
         };
 
-        match path.extension() {
-            Some(ext) => {
-                let id = LanguageServerId::RUST_ANALYZER;
-                let cmd = "rust-analyzer";
-
-                // let id = LanguageServerId::GQLT;
-                // let command = "gqlt";
-
-                if !self.language_servers.contains_key(&id) {
-                    tracing::debug!(?id, command, "initializing language server");
-                    let mut server = zi_lsp::Server::start(LanguageClient, ".", command)?;
-                    callback(
-                        &self.tx,
-                        async move {
-                            let res = server
-                                .initialize(lsp_types::InitializeParams { ..Default::default() })
-                                .await?;
-                            server.initialized(lsp_types::InitializedParams {})?;
-                            Ok((server, res))
-                        },
-                        |editor, (server, res)| {
-                            editor.language_servers.insert(
-                                id,
-                                LanguageServer { server, capabilities: res.capabilities },
-                            );
-                        },
-                    );
-                };
+        let lang = LanguageId::detect(path);
+        if let Some(config) = &self.language_config.languages.get(&lang) {
+            for server_id in config.language_servers.iter().cloned() {
+                let server_config = &self.language_config.language_servers[&server_id];
+                let command = &server_config.command;
+                let args = &server_config.args;
+                tracing::debug!(%server_id, ?command, "initializing language server");
+                let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
+                callback(
+                    &self.tx,
+                    async move {
+                        let res = server
+                            .initialize(lsp_types::InitializeParams {
+                                capabilities: lsp::capabilities(),
+                                ..Default::default()
+                            })
+                            .await?;
+                        server.initialized(lsp_types::InitializedParams {})?;
+                        Ok((server, res))
+                    },
+                    |editor, (server, res)| {
+                        editor.language_servers.insert(
+                            server_id,
+                            LanguageServer { server, capabilities: res.capabilities },
+                        );
+                    },
+                );
             }
-            None => {}
-        };
+        }
 
         let buf = self.buffers.insert_with_key(|id| Buffer::new(id, path, rope, &self.theme));
         self.active_view = self.views.insert_with_key(|id| View::new(id, buf));

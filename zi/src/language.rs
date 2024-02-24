@@ -1,16 +1,115 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::ffi::OsString;
+use std::fmt;
+use std::path::Path;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+use anyhow::bail;
+
+use crate::Result;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LanguageId(Cow<'static, str>);
 
-impl LanguageId {
-    pub const RUST: Self = Self(Cow::Borrowed("rust"));
+impl fmt::Display for LanguageId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+impl LanguageId {
+    pub const TEXT: Self = Self(Cow::Borrowed("text"));
+    pub const RUST: Self = Self(Cow::Borrowed("rust"));
+    pub const GO: Self = Self(Cow::Borrowed("go"));
+
+    pub fn detect(path: &Path) -> Self {
+        match path.extension() {
+            Some(ext) => match ext {
+                x if x == "rs" => Self::RUST,
+                x if x == "go" => Self::GO,
+                _ => Self::TEXT,
+            },
+            None => Self::TEXT,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LanguageServerId(Cow<'static, str>);
+
+impl fmt::Display for LanguageServerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl LanguageServerId {
     pub const RUST_ANALYZER: Self = Self(Cow::Borrowed("rust-analyzer"));
+    pub const GOPLS: Self = Self(Cow::Borrowed("gopls"));
     pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
+}
+
+#[derive(Debug)]
+pub struct Config {
+    pub languages: BTreeMap<LanguageId, LanguageConfig>,
+    pub language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
+}
+
+impl Config {
+    pub fn new(
+        languages: BTreeMap<LanguageId, LanguageConfig>,
+        language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
+    ) -> Result<Self> {
+        for (lang, config) in &languages {
+            for server in &*config.language_servers {
+                if !language_servers.contains_key(server) {
+                    bail!("language server `{server}` for language `{lang}` is not defined",)
+                }
+            }
+        }
+
+        Ok(Self { languages, language_servers })
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let mut languages = BTreeMap::new();
+        languages.insert(
+            LanguageId::RUST,
+            LanguageConfig { language_servers: Box::new([LanguageServerId::RUST_ANALYZER]) },
+        );
+        languages.insert(
+            LanguageId::GO,
+            LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
+        );
+        languages.insert(LanguageId::TEXT, LanguageConfig { language_servers: Box::new([]) });
+
+        let mut language_servers = BTreeMap::new();
+        language_servers.insert(
+            LanguageServerId::RUST_ANALYZER,
+            LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+        );
+        language_servers.insert(
+            LanguageServerId::GOPLS,
+            LanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
+        );
+        language_servers.insert(
+            LanguageServerId::GQLT,
+            LanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
+        );
+
+        Self::new(languages, language_servers).expect("invalid default config")
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct LanguageConfig {
+    pub language_servers: Box<[LanguageServerId]>,
+}
+
+#[derive(Debug)]
+pub struct LanguageServerConfig {
+    pub command: OsString,
+    pub args: Box<[OsString]>,
 }

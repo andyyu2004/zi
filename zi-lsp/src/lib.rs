@@ -21,7 +21,12 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn start<C>(client: C, root: impl AsRef<Path>, cmd: impl AsRef<OsStr>) -> Result<Server>
+    pub fn start<C>(
+        client: C,
+        root: impl AsRef<Path>,
+        cmd: impl AsRef<OsStr>,
+        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+    ) -> Result<Server>
     where
         C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
             + Send
@@ -36,6 +41,7 @@ impl Server {
         });
 
         let mut child = async_process::Command::new(cmd)
+            .args(args)
             .current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
