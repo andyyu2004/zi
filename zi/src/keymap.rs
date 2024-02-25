@@ -49,9 +49,14 @@ where
             TrieResult::Partial => None,
             TrieResult::NotFound => {
                 let key = self.buffer.pop().expect("we just pushed `key`");
+                let push = !self.buffer.is_empty();
                 self.buffer.clear();
-                // The non-existent key should become the start of a new sequence
-                self.buffer.push(key);
+                if push {
+                    // The non-existent key should become the start of a new sequence
+                    // if wasn't the only key in the buffer.
+                    // This is sort of a heuristic to make it dwim.
+                    self.buffer.push(key);
+                }
                 None
             }
         }

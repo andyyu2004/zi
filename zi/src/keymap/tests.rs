@@ -8,6 +8,10 @@ fn test_keymap() {
     assert!(keymap.insert(Mode::Normal, ['i'], 1).is_none());
     assert_eq!(keymap.on_key(Mode::Normal, 'i'), Some(&1));
 
+    // Pressing random key should be an noop and shouldn't affect the next keypress.
+    assert!(keymap.on_key(Mode::Normal, 'x').is_none());
+    assert_eq!(keymap.on_key(Mode::Normal, 'i'), Some(&1));
+
     // overwrite the previous key
     assert_eq!(keymap.insert(Mode::Normal, ['i'], 2), Some(1));
     assert_eq!(keymap.on_key(Mode::Normal, 'i'), Some(&2));
