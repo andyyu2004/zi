@@ -19,7 +19,10 @@ slotmap = "1.0.7"
 tokio = { version = "1.36.0", default-features = false, features = ["sync"] }
 tracing = "0.1.40"
 tree-sitter = "0.20.4"
+tree-sitter-go = "0.20.0"
+tree-sitter-json = "0.20.2"
 tree-sitter-rust = "0.20.4"
+tree-sitter-toml = "0.20.0"
 unicode-width = "0.1.11"
 wasmtime = { version = "17.0.1", features = ["component-model"] }
 wit-bindgen = "0.18.0"

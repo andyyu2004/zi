@@ -33,14 +33,16 @@ impl Buffer {
         text: impl Into<Rope>,
         theme: &Theme,
     ) -> Self {
-        // FIXME, detect language somewhere
-        let mut syntax = Syntax::rust();
-
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
         let text = text.into();
-        syntax.apply(text.slice(..));
+
+        let mut syntax = Syntax::for_language(&language_id);
+        if let Some(syntax) = &mut syntax {
+            syntax.apply(text.slice(..));
+        }
+
         Self {
             id,
             path,
@@ -48,8 +50,11 @@ impl Buffer {
             text,
             language_id,
             version: 0,
-            highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
-            syntax: Some(syntax),
+            highlight_map: HighlightMap::new(
+                syntax.as_ref().map_or(&[][..], |syntax| syntax.highlights_query().capture_names()),
+                theme,
+            ),
+            syntax,
             tab_width: 4,
         }
     }

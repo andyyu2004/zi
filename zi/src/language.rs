@@ -22,12 +22,16 @@ impl LanguageId {
     pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
     pub const RUST: Self = Self(Cow::Borrowed("rust"));
     pub const GO: Self = Self(Cow::Borrowed("go"));
+    pub const TOML: Self = Self(Cow::Borrowed("toml"));
+    pub const JSON: Self = Self(Cow::Borrowed("json"));
 
     pub fn detect(path: &Path) -> Self {
         match path.extension() {
             Some(ext) => match ext {
                 x if x == "rs" => Self::RUST,
                 x if x == "go" => Self::GO,
+                x if x == "toml" => Self::TOML,
+                x if x == "json" => Self::JSON,
                 x if x == "gqlt" => Self::GQLT,
                 _ => Self::TEXT,
             },
@@ -76,34 +80,38 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let mut languages = BTreeMap::new();
-        languages.insert(
-            LanguageId::RUST,
-            LanguageConfig { language_servers: Box::new([LanguageServerId::RUST_ANALYZER]) },
-        );
-        languages.insert(
-            LanguageId::GO,
-            LanguageConfig { language_servers: Box::new([LanguageServerId::GOPLS]) },
-        );
-        languages.insert(
-            LanguageId::GQLT,
-            LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
-        );
-        languages.insert(LanguageId::TEXT, LanguageConfig { language_servers: Box::new([]) });
+        let languages = BTreeMap::from([
+            (
+                LanguageId::RUST,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::RUST_ANALYZER]) },
+            ),
+            (
+                LanguageId::GO,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::GOPLS]) },
+            ),
+            (
+                LanguageId::GQLT,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
+            ),
+            (LanguageId::TEXT, LanguageConfig { language_servers: Box::new([]) }),
+            (LanguageId::TOML, LanguageConfig { language_servers: Box::new([]) }),
+            (LanguageId::JSON, LanguageConfig { language_servers: Box::new([]) }),
+        ]);
 
-        let mut language_servers = BTreeMap::new();
-        language_servers.insert(
-            LanguageServerId::RUST_ANALYZER,
-            LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
-        );
-        language_servers.insert(
-            LanguageServerId::GOPLS,
-            LanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
-        );
-        language_servers.insert(
-            LanguageServerId::GQLT,
-            LanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
-        );
+        let language_servers = BTreeMap::from([
+            (
+                LanguageServerId::RUST_ANALYZER,
+                LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+            ),
+            (
+                LanguageServerId::GOPLS,
+                LanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
+            ),
+            (
+                LanguageServerId::GQLT,
+                LanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
+            ),
+        ]);
 
         Self::new(languages, language_servers).expect("invalid default config")
     }

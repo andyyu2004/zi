@@ -7,6 +7,7 @@ use tree_sitter::{
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
+use crate::LanguageId;
 
 pub struct Syntax {
     language: Language,
@@ -16,13 +17,28 @@ pub struct Syntax {
 }
 
 impl Syntax {
-    pub fn rust() -> Self {
-        let language = tree_sitter_rust::language();
-        let query = Query::new(language, tree_sitter_rust::HIGHLIGHT_QUERY).unwrap();
+    pub fn for_language(id: &LanguageId) -> Option<Self> {
+        let (language, highlights) = match id {
+            id if *id == LanguageId::RUST => {
+                (tree_sitter_rust::language(), tree_sitter_rust::HIGHLIGHT_QUERY)
+            }
+            id if *id == LanguageId::GO => {
+                (tree_sitter_go::language(), tree_sitter_go::HIGHLIGHT_QUERY)
+            }
+            id if *id == LanguageId::TOML => {
+                (tree_sitter_toml::language(), tree_sitter_toml::HIGHLIGHT_QUERY)
+            }
+            id if *id == LanguageId::JSON => {
+                (tree_sitter_json::language(), tree_sitter_json::HIGHLIGHT_QUERY)
+            }
+            _ => return None,
+        };
+
+        let highlights_query = Query::new(language, highlights).unwrap();
         let mut parser = Parser::new();
         parser.set_language(language).expect("failed to set tree-sitter parser language");
         parser.set_timeout_micros(5000);
-        Self { language, highlights_query: query, parser, tree: None }
+        Some(Self { language, highlights_query, parser, tree: None })
     }
 
     pub fn apply(&mut self, source: RopeSlice<'_>) {
