@@ -2,6 +2,7 @@
 
 mod event;
 
+use std::backtrace::Backtrace;
 use std::io;
 use std::path::PathBuf;
 use std::pin::pin;
@@ -47,7 +48,8 @@ async fn main() -> anyhow::Result<()> {
 
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
     std::panic::update_hook(move |prev, info| {
-        let _ = panic_tx.send(info.to_string());
+        let backtrace = Backtrace::capture();
+        let _ = panic_tx.send((info.to_string(), backtrace));
         prev(info);
     });
 
@@ -64,11 +66,15 @@ async fn main() -> anyhow::Result<()> {
 struct App<B: Backend + io::Write> {
     editor: Editor,
     term: Terminal<B>,
-    panic_rx: Receiver<String>,
+    panic_rx: Receiver<(String, Backtrace)>,
 }
 
 impl<B: Backend + io::Write> App<B> {
-    fn new(term: Terminal<B>, editor: Editor, panic_rx: Receiver<String>) -> io::Result<Self> {
+    fn new(
+        term: Terminal<B>,
+        editor: Editor,
+        panic_rx: Receiver<(String, Backtrace)>,
+    ) -> io::Result<Self> {
         Ok(Self { term, editor, panic_rx })
     }
 
@@ -89,7 +95,7 @@ impl<B: Backend + io::Write> App<B> {
 
         let mut events = pin!(events);
         loop {
-            if self.editor.quit {
+            if self.editor.should_quit() {
                 break;
             }
 
@@ -176,8 +182,9 @@ impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
         _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
         _ = terminal::disable_raw_mode();
-        if let Ok(panic) = self.panic_rx.try_recv() {
+        if let Ok((panic, backtrace)) = self.panic_rx.try_recv() {
             eprintln!("{panic}");
+            eprintln!("{backtrace}");
         }
     }
 }

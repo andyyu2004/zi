@@ -19,13 +19,12 @@ use crate::keymap::{Action, Keymap};
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::syntax::Theme;
+use crate::view::HasViewId;
 use crate::{
-    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Location, Mode,
-    View, ViewId,
+    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Mode, View, ViewId,
 };
 
 pub struct Editor {
-    pub quit: bool, // tmp hack
     mode: Mode,
     keymap: Keymap,
     buffers: SlotMap<BufferId, Buffer>,
@@ -88,14 +87,12 @@ impl Editor {
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
-        // Using an unbounded channel as we need `send` to be sync.
-
+        // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let editor = Self {
             buffers,
             views,
             active_view,
-            quit: false,
             tx,
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -219,6 +216,17 @@ impl Editor {
         }
 
         Ok(buf)
+    }
+
+    pub async fn shutdown(&mut self) {
+        for server in self.language_servers.values_mut() {
+            server.shutdown(());
+            server.exit(());
+        }
+    }
+
+    pub fn should_quit(&self) -> bool {
+        self.views.len() == 0
     }
 
     #[inline]
@@ -354,6 +362,15 @@ impl Editor {
                 break;
             }
         }
+    }
+
+    pub fn close_active_view(&mut self) {
+        self.close_view(self.active_view);
+    }
+
+    pub fn close_view(&mut self, id: impl HasViewId) {
+        let id = id.view_id();
+        assert!(self.views.remove(id).is_some(), "tried to close non-existent view");
     }
 
     fn jump_to_definition(

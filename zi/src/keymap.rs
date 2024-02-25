@@ -97,7 +97,7 @@ impl Keymap {
                     }));
                 }
                 'q' if matches!(mode, Mode::Normal) => {
-                    return Some(Fn(|editor| editor.quit = true));
+                    return Some(Fn(|editor| editor.close_active_view()));
                 }
                 'h' if matches!(mode, Mode::Normal) => {
                     return Some(Fn(|editor| editor.move_active_cursor(Direction::Left)));
