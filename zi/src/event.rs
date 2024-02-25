@@ -104,14 +104,14 @@ pub trait Event: Any + Send {}
 
 #[derive(Debug)]
 pub struct DidChangeBuffer {
-    pub buffer_id: BufferId,
+    pub buf: BufferId,
 }
 
 impl Event for DidChangeBuffer {}
 
 #[derive(Debug)]
 pub struct DidOpenBuffer {
-    pub buffer_id: BufferId,
+    pub buf: BufferId,
 }
 
 impl Event for DidOpenBuffer {}

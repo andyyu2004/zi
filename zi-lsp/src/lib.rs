@@ -31,7 +31,7 @@ impl Server {
 
     pub fn start<C>(
         client: C,
-        root: impl AsRef<Path>,
+        cwd: impl AsRef<Path>,
         cmd: impl AsRef<OsStr>,
         args: impl IntoIterator<Item = impl AsRef<OsStr>>,
     ) -> Result<Server>
@@ -50,7 +50,7 @@ impl Server {
 
         let mut child = async_process::Command::new(cmd)
             .args(args)
-            .current_dir(root)
+            .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

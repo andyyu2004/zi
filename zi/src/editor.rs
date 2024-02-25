@@ -3,7 +3,7 @@ pub(crate) mod cursor;
 use std::fs::File;
 use std::future::Future;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -25,6 +25,7 @@ use crate::{
 };
 
 pub struct Editor {
+    cwd: PathBuf,
     mode: Mode,
     keymap: Keymap,
     buffers: SlotMap<BufferId, Buffer>,
@@ -90,6 +91,7 @@ impl Editor {
         // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let editor = Self {
+            cwd: std::env::current_dir().expect("current dir"),
             buffers,
             views,
             active_view,
@@ -100,12 +102,16 @@ impl Editor {
             keymap: Default::default(),
             theme: Default::default(),
         };
+
+        register_lsp_event_handlers();
+
         (editor, ChannelStream(rx))
     }
 
     pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
-        let path = path.as_ref();
+        let path = self.cwd.join(path);
 
+        // If the buffer is already open, switch to it
         for buf in self.buffers.values() {
             if buf.path() == path {
                 self.views[self.active_view].set_buffer(buf.id());
@@ -114,7 +120,7 @@ impl Editor {
         }
 
         let rope = if path.exists() {
-            let reader = BufReader::new(File::open(path)?);
+            let reader = BufReader::new(File::open(&path)?);
             let mut builder = RopeBuilder::new();
             for line in reader.lines() {
                 builder.append(line?.as_str());
@@ -125,95 +131,14 @@ impl Editor {
             Rope::new()
         };
 
-        let lang = LanguageId::detect(path);
+        let lang = LanguageId::detect(&path);
         tracing::debug!(%lang, ?path, "detected language");
         let buf = self
             .buffers
             .insert_with_key(|id| Buffer::new(id, lang.clone(), path, rope, &self.theme));
         self.views[self.active_view].set_buffer(buf);
 
-        if let Some(config) = &self.language_config.languages.get(&lang) {
-            for server_id in config.language_servers.iter().cloned() {
-                let server_config = &self.language_config.language_servers[&server_id];
-                let command = &server_config.command;
-                let args = &server_config.args;
-                tracing::debug!(%server_id, ?command, ?args, "initializing language server");
-                let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
-                callback(
-                    &self.tx,
-                    async move {
-                        let res = server
-                            .initialize(lsp_types::InitializeParams {
-                                capabilities: lsp::capabilities(),
-                                ..Default::default()
-                            })
-                            .await?;
-                        tracing::debug!("lsp initialized");
-                        server.initialized(lsp_types::InitializedParams {})?;
-
-                        Ok((server, res, buf))
-                    },
-                    |editor, (server, res, buf)| {
-                        // TODO check capabilities
-                        event::register(event::handler::<event::DidChangeBuffer>(
-                            |editor, event| {
-                                tracing::debug!(?event, "buffer did change");
-                                let buf = &editor.buffers[event.buffer_id];
-                                if let Some(uri) = buf.url() {
-                                    // TODO only send to relevant language servers
-                                    for (server_id, server) in &mut editor.language_servers {
-                                        tracing::debug!(%uri, ?server_id, "lsp did_change");
-                                        server
-                                            .did_change(lsp_types::DidChangeTextDocumentParams {
-                                                text_document:
-                                                    lsp_types::VersionedTextDocumentIdentifier {
-                                                        uri: uri.clone(),
-                                                        version: buf.version() as i32,
-                                                    },
-                                                content_changes: vec![
-                                                    lsp_types::TextDocumentContentChangeEvent {
-                                                        range: None,
-                                                        range_length: None,
-                                                        text: buf.text().to_string(),
-                                                    },
-                                                ],
-                                            })
-                                            .expect("lsp did_change failed");
-                                    }
-                                }
-                            },
-                        ));
-
-                        event::register(event::handler::<event::DidOpenBuffer>(|editor, event| {
-                            let buf = &editor.buffers[event.buffer_id];
-                            if let Some(uri) = buf.url() {
-                                for (server_id, server) in &mut editor.language_servers {
-                                    tracing::debug!(?event, ?server_id, "lsp buffer did open");
-                                    server
-                                        .did_open(lsp_types::DidOpenTextDocumentParams {
-                                            text_document: lsp_types::TextDocumentItem {
-                                                uri: uri.clone(),
-                                                language_id: buf.language_id().to_string(),
-                                                version: buf.version() as i32,
-                                                text: buf.text().to_string(),
-                                            },
-                                        })
-                                        .expect("lsp did_open failed");
-                                }
-                            }
-                        }));
-
-                        editor.language_servers.insert(
-                            server_id,
-                            LanguageServer { server, capabilities: res.capabilities },
-                        );
-
-                        editor.dispatch(event::DidOpenBuffer { buffer_id: buf });
-                        Ok(())
-                    },
-                );
-            }
-        }
+        self.spawn_language_servers_for_lang(buf, &lang)?;
 
         Ok(buf)
     }
@@ -289,7 +214,7 @@ impl Editor {
             _ => view.move_cursor(self.mode, buf, Direction::Right),
         }
 
-        let event = event::DidChangeBuffer { buffer_id: buf.id() };
+        let event = event::DidChangeBuffer { buf: buf.id() };
         self.dispatch(event);
     }
 
@@ -364,6 +289,60 @@ impl Editor {
         }
     }
 
+    fn spawn_language_servers_for_lang(
+        &mut self,
+        buf: BufferId,
+        lang: &LanguageId,
+    ) -> zi_lsp::Result<()> {
+        if let Some(config) = &self.language_config.languages.get(lang) {
+            for server_id in config.language_servers.iter().cloned() {
+                if self.language_servers.contains_key(&server_id) {
+                    // Language server already running
+                    continue;
+                }
+
+                let server_config = &self.language_config.language_servers[&server_id];
+                let command = &server_config.command;
+                let args = &server_config.args;
+                tracing::debug!(%server_id, ?command, ?args, "initializing language server");
+                let mut server =
+                    zi_lsp::Server::start(LanguageClient, &self.cwd, command, &args[..])?;
+                callback(
+                    &self.tx,
+                    async move {
+                        let res = server
+                            .initialize(lsp_types::InitializeParams {
+                                capabilities: lsp::capabilities(),
+                                ..Default::default()
+                            })
+                            .await?;
+                        tracing::debug!("lsp initialized");
+                        server.initialized(lsp_types::InitializedParams {})?;
+
+                        Ok((server, res))
+                    },
+                    move |editor, (server, res)| {
+                        editor.language_servers.insert(
+                            server_id,
+                            LanguageServer { server, capabilities: res.capabilities },
+                        );
+
+                        // Must dispatch this event after the server is inserted
+                        // FIXME this is wrong to just generate an event and send it to all
+                        // language servers.
+                        // First if there are multiple iterations of this loop they will receive
+                        // the event more than once.
+                        // Second, not all languages have the same capabilities.
+                        editor.dispatch(event::DidOpenBuffer { buf });
+                        Ok(())
+                    },
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn close_active_view(&mut self) {
         self.close_view(self.active_view);
         // TODO don't jump to some random view
@@ -421,6 +400,52 @@ impl Editor {
     ) {
         callback(&self.tx, fut, f);
     }
+}
+
+fn register_lsp_event_handlers() {
+    // TODO check capabilities
+    event::register(event::handler::<event::DidChangeBuffer>(|editor, event| {
+        tracing::debug!(?event, "buffer did change");
+        let buf = &editor.buffers[event.buf];
+        if let Some(uri) = buf.url() {
+            // TODO only send to relevant language servers
+            for (server_id, server) in &mut editor.language_servers {
+                tracing::debug!(%uri, ?server_id, "lsp did_change");
+                server
+                    .did_change(lsp_types::DidChangeTextDocumentParams {
+                        text_document: lsp_types::VersionedTextDocumentIdentifier {
+                            uri: uri.clone(),
+                            version: buf.version() as i32,
+                        },
+                        content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: buf.text().to_string(),
+                        }],
+                    })
+                    .expect("lsp did_change failed");
+            }
+        }
+    }));
+
+    event::register(event::handler::<event::DidOpenBuffer>(|editor, event| {
+        let buf = &editor.buffers[event.buf];
+        if let Some(uri) = buf.url() {
+            for (server_id, server) in &mut editor.language_servers {
+                tracing::debug!(?event, ?server_id, "lsp buffer did open");
+                server
+                    .did_open(lsp_types::DidOpenTextDocumentParams {
+                        text_document: lsp_types::TextDocumentItem {
+                            uri: uri.clone(),
+                            language_id: buf.language_id().to_string(),
+                            version: buf.version() as i32,
+                            text: buf.text().to_string(),
+                        },
+                    })
+                    .expect("lsp did_open failed");
+            }
+        }
+    }));
 }
 
 fn callback<R: 'static>(
