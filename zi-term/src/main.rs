@@ -95,10 +95,6 @@ impl<B: Backend + io::Write> App<B> {
 
         let mut events = pin!(events);
         loop {
-            if self.editor.should_quit() {
-                break;
-            }
-
             select! {
                 f = tasks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(&mut self.editor) {
@@ -108,6 +104,10 @@ impl<B: Backend + io::Write> App<B> {
                     Err(err) => tracing::error!("task failed: {:?}", err),
                 },
                 Some(event) = events.next() => self.on_event(event?).await,
+            }
+
+            if self.editor.should_quit() {
+                break;
             }
 
             // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
@@ -120,6 +120,8 @@ impl<B: Backend + io::Write> App<B> {
 
             self.render()?;
         }
+
+        self.editor.cleanup().await;
 
         Ok(())
     }

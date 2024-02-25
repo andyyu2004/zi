@@ -130,7 +130,7 @@ impl Editor {
         let buf = self
             .buffers
             .insert_with_key(|id| Buffer::new(id, lang.clone(), path, rope, &self.theme));
-        self.active_view = self.views.insert_with_key(|id| View::new(id, buf));
+        self.views[self.active_view].set_buffer(buf);
 
         if let Some(config) = &self.language_config.languages.get(&lang) {
             for server_id in config.language_servers.iter().cloned() {
@@ -218,15 +218,15 @@ impl Editor {
         Ok(buf)
     }
 
-    pub async fn shutdown(&mut self) {
-        for server in self.language_servers.values_mut() {
-            server.shutdown(());
-            server.exit(());
+    pub async fn cleanup(&mut self) {
+        for server in std::mem::take(&mut self.language_servers).into_values() {
+            // TODO shutdown concurrently
+            let _ = server.shutdown().await;
         }
     }
 
     pub fn should_quit(&self) -> bool {
-        self.views.len() == 0
+        self.views.is_empty()
     }
 
     #[inline]
@@ -366,6 +366,8 @@ impl Editor {
 
     pub fn close_active_view(&mut self) {
         self.close_view(self.active_view);
+        // TODO don't jump to some random view
+        self.active_view = self.views.keys().next().unwrap_or_default();
     }
 
     pub fn close_view(&mut self, id: impl HasViewId) {

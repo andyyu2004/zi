@@ -18,9 +18,17 @@ pub struct Server {
     #[allow(dead_code)]
     child: async_process::Child,
     server: ServerSocket,
+    handle: tokio::task::JoinHandle<()>,
 }
 
 impl Server {
+    pub async fn shutdown(mut self) -> crate::Result<()> {
+        self.server.shutdown(()).await?;
+        self.server.exit(())?;
+        self.handle.await.expect("server task failed");
+        Ok(())
+    }
+
     pub fn start<C>(
         client: C,
         root: impl AsRef<Path>,
@@ -51,11 +59,11 @@ impl Server {
         let stdout = child.stdout.take().unwrap();
         let stdin = child.stdin.take().unwrap();
 
-        let _handle = tokio::spawn(async move {
-            main_loop.run_buffered(stdout, stdin).await.expect("main loop failed");
+        let handle = tokio::spawn(async move {
+            let _ = main_loop.run_buffered(stdout, stdin).await;
         });
 
-        Ok(Server { child, server })
+        Ok(Server { child, server, handle })
     }
 }
 

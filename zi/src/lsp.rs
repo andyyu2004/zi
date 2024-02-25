@@ -211,6 +211,12 @@ pub(crate) struct LanguageServer {
     pub capabilities: lsp_types::ServerCapabilities,
 }
 
+impl LanguageServer {
+    pub(crate) async fn shutdown(self) -> Result<()> {
+        self.server.shutdown().await
+    }
+}
+
 impl Deref for LanguageServer {
     type Target = zi_lsp::Server;
 
