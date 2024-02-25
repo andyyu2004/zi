@@ -2,11 +2,9 @@ use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::iter::Peekable;
 
-// use crossterm::event::KeyCode;
 use rustc_hash::FxHashMap;
 
-// use crate::event::KeyEvent;
-// use crate::{motion, Direction, Mode};
+mod macros;
 
 #[derive(Debug)]
 pub(crate) struct Keymap<M, K, V> {
@@ -22,6 +20,10 @@ where
     M: Eq + Hash + Clone,
     K: Eq + Hash,
 {
+    pub fn new(maps: FxHashMap<M, Trie<K, V>>) -> Self {
+        Self { maps, buffer: Default::default(), last_mode: Default::default() }
+    }
+
     pub fn insert(&mut self, mode: M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {
         self.maps.entry(mode).or_default().insert(keys.into_iter().peekable(), value)
     }
@@ -57,10 +59,6 @@ where
         // todo!()
         // temp
         // match key.code {
-        //     KeyCode::Esc if matches!(mode, Mode::Insert) => {
-        //         return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
-        //     }
-        //     KeyCode::Enter if matches!(mode, Mode::Insert) => return Some(Insert('\n')),
         //     KeyCode::Left => return Some(Fn(|editor| editor.move_active_cursor(Direction::Left))),
         //     KeyCode::Right => {
         //         return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));
@@ -148,8 +146,14 @@ impl<M, K, V> Default for Keymap<M, K, V> {
 }
 
 #[derive(Debug)]
-struct Trie<K, V> {
+pub(crate) struct Trie<K, V> {
     children: FxHashMap<K, TrieNode<K, V>>,
+}
+
+impl<K, V> Trie<K, V> {
+    pub(crate) fn new(children: FxHashMap<K, TrieNode<K, V>>) -> Self {
+        Self { children }
+    }
 }
 
 enum TrieResult<'a, V> {
@@ -214,28 +218,16 @@ impl<K, V> Default for Trie<K, V> {
 }
 
 #[derive(Debug)]
-enum TrieNode<K, V> {
+pub(crate) enum TrieNode<K, V> {
     Trie(Trie<K, V>),
     Value(V),
 }
 
-// macro_rules! keymap {
-//     ( $($mode:ident {
-//        $( $key:expr => $value:expr, )*
-//     } )+ ) => {
-//     };
-// }
-
-// keymap! {
-//     Normal {
-//         "i" => |store| {},
-//     }
-//     Insert {
-//         "f" => {
-//             "d" => Mode::Normal,
-//         }
-//     }
-// }
+impl<K, V> TrieNode<K, V> {
+    pub(crate) fn into_trie(self) -> Trie<K, V> {
+        if let Self::Trie(v) = self { v } else { panic!("Expected Trie") }
+    }
+}
 
 #[cfg(test)]
 mod tests;

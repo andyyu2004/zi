@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use crossterm::event::KeyCode;
 use futures_core::Stream;
 use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
@@ -17,11 +18,12 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 use crate::event::{self, Event, KeyEvent};
 use crate::keymap::Keymap;
 use crate::lsp::{self, LanguageClient, LanguageServer};
-use crate::motion::Motion;
+use crate::motion::{self, Motion};
 use crate::syntax::Theme;
 use crate::view::HasViewId;
 use crate::{
-    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Mode, View, ViewId,
+    hashmap, language, trie, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId,
+    Mode, View, ViewId,
 };
 
 pub struct Editor {
@@ -37,10 +39,10 @@ pub struct Editor {
     language_config: language::Config,
 }
 
-pub enum Action {
-    Fn(fn(&mut Editor)),
-    Insert(char),
-}
+pub type Action = fn(&mut Editor);
+//     Fn(fn(&mut Editor)),
+//     Insert(char),
+// }
 
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
@@ -101,10 +103,10 @@ impl Editor {
             views,
             active_view,
             tx,
+            keymap: default_keymap(),
             language_config: Default::default(),
             language_servers: Default::default(),
             mode: Default::default(),
-            keymap: Default::default(),
             theme: Default::default(),
         };
 
@@ -159,10 +161,18 @@ impl Editor {
 
     #[inline]
     pub fn on_key(&mut self, key: KeyEvent) {
-        if let Some(f) = self.keymap.on_key(self.mode, key) {
-            match *f {
-                Action::Fn(f) => f(self),
-                Action::Insert(c) => self.insert_char(c),
+        match &key.code {
+            &KeyCode::Char(c) if self.mode == Mode::Insert => {
+                if let Some(f) = self.keymap.on_key(self.mode, key) {
+                    f(self);
+                } else {
+                    self.insert_char(c);
+                }
+            }
+            _ => {
+                if let Some(f) = self.keymap.on_key(self.mode, key) {
+                    f(self);
+                }
             }
         }
     }
@@ -471,4 +481,62 @@ fn callback<R: 'static>(
             as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
     }))
     .expect("send failed");
+}
+
+fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
+    const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
+    const CLOSE_VIEW: Action = |editor| editor.close_active_view();
+    const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
+    const NORMAL_MODE: Action = |editor| editor.set_mode(Mode::Normal);
+    const MOVE_LEFT: Action = |editor| editor.move_active_cursor(Direction::Left);
+    const MOVE_RIGHT: Action = |editor| editor.move_active_cursor(Direction::Right);
+    const MOVE_UP: Action = |editor| editor.move_active_cursor(Direction::Up);
+    const MOVE_DOWN: Action = |editor| editor.move_active_cursor(Direction::Down);
+    const GO_TO_DEFINITION: Action = |editor| editor.go_to_definition();
+    const OPEN_NEWLINE: Action = |editor| {
+        editor.set_mode(Mode::Insert);
+        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
+        editor.insert_char('\n');
+    };
+    const NEXT_TOKEN: Action = |editor| editor.motion(motion::NextToken);
+    const PREV_TOKEN: Action = |editor| editor.motion(motion::PrevToken);
+    const NEXT_WORD: Action = |editor| editor.motion(motion::NextWord);
+    // const PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
+    const APPEND_EOL: Action = |editor| {
+        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
+        editor.set_mode(Mode::Insert);
+        editor.move_active_cursor(Direction::Right);
+    };
+    const APPEND: Action = |editor| {
+        editor.set_mode(Mode::Insert);
+        editor.move_active_cursor(Direction::Right);
+    };
+
+    Keymap::new(hashmap! {
+        Mode::Normal => trie!({
+            "i" => INSERT_MODE,
+            "q" => CLOSE_VIEW,
+            "h" => MOVE_LEFT,
+            "l" => MOVE_RIGHT,
+            "j" => MOVE_DOWN,
+            "k" => MOVE_UP,
+            "o" => OPEN_NEWLINE,
+            "w" => NEXT_WORD,
+            // "b" => PREV_WORD,
+            "W" => NEXT_TOKEN,
+            "B" => PREV_TOKEN,
+            "a" => APPEND,
+            "A" => APPEND_EOL,
+            "g" => {
+                "d" => GO_TO_DEFINITION,
+            },
+        }).into_trie(),
+        Mode::Insert => trie!({
+            "esc" => NORMAL_MODE,
+            "ret" => INSERT_NEWLINE,
+            "f" => {
+                "d" => NORMAL_MODE,
+            },
+        }).into_trie(),
+    })
 }
