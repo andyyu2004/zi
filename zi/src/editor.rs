@@ -103,8 +103,6 @@ impl Editor {
             theme: Default::default(),
         };
 
-        register_lsp_event_handlers();
-
         (editor, ChannelStream(rx))
     }
 
@@ -322,10 +320,18 @@ impl Editor {
                         Ok((server, res))
                     },
                     move |editor, (server, res)| {
-                        editor.language_servers.insert(
-                            server_id,
-                            LanguageServer { server, capabilities: res.capabilities },
+                        assert!(
+                            editor
+                                .language_servers
+                                .insert(
+                                    server_id.clone(),
+                                    LanguageServer { server, capabilities: res.capabilities },
+                                )
+                                .is_none(),
+                            "inserted duplicate language server"
                         );
+
+                        register_lsp_event_handlers(server_id);
 
                         // Must dispatch this event after the server is inserted
                         // FIXME this is wrong to just generate an event and send it to all
@@ -402,14 +408,16 @@ impl Editor {
     }
 }
 
-fn register_lsp_event_handlers() {
+fn register_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
-    event::register(event::handler::<event::DidChangeBuffer>(|editor, event| {
-        tracing::debug!(?event, "buffer did change");
-        let buf = &editor.buffers[event.buf];
-        if let Some(uri) = buf.url() {
-            // TODO only send to relevant language servers
-            for (server_id, server) in &mut editor.language_servers {
+    event::register(event::handler::<event::DidChangeBuffer>({
+        let server_id = server_id.clone();
+        move |editor, event| {
+            tracing::debug!(?event, "buffer did change");
+            let buf = &editor.buffers[event.buf];
+            if let (Some(server), Some(uri)) =
+                (editor.language_servers.get_mut(&server_id), buf.url())
+            {
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
                 server
                     .did_change(lsp_types::DidChangeTextDocumentParams {
@@ -428,22 +436,21 @@ fn register_lsp_event_handlers() {
         }
     }));
 
-    event::register(event::handler::<event::DidOpenBuffer>(|editor, event| {
+    event::register(event::handler::<event::DidOpenBuffer>(move |editor, event| {
         let buf = &editor.buffers[event.buf];
-        if let Some(uri) = buf.url() {
-            for (server_id, server) in &mut editor.language_servers {
-                tracing::debug!(?event, ?server_id, "lsp buffer did open");
-                server
-                    .did_open(lsp_types::DidOpenTextDocumentParams {
-                        text_document: lsp_types::TextDocumentItem {
-                            uri: uri.clone(),
-                            language_id: buf.language_id().to_string(),
-                            version: buf.version() as i32,
-                            text: buf.text().to_string(),
-                        },
-                    })
-                    .expect("lsp did_open failed");
-            }
+        if let (Some(server), Some(uri)) = (editor.language_servers.get_mut(&server_id), buf.url())
+        {
+            tracing::debug!(?event, ?server_id, "lsp buffer did open");
+            server
+                .did_open(lsp_types::DidOpenTextDocumentParams {
+                    text_document: lsp_types::TextDocumentItem {
+                        uri: uri.clone(),
+                        language_id: buf.language_id().to_string(),
+                        version: buf.version() as i32,
+                        text: buf.text().to_string(),
+                    },
+                })
+                .expect("lsp did_open failed");
         }
     }));
 }
