@@ -1,4 +1,5 @@
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use crate::Mode;
 
@@ -10,6 +11,14 @@ impl PartialEq for Mode {
             Mode::Normal => matches!(other, Mode::Normal),
             Mode::Insert => matches!(other, Mode::Insert),
         }
+    }
+}
+
+impl Eq for Mode {}
+
+impl Hash for Mode {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
     }
 }
 

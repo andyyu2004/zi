@@ -15,7 +15,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::event::{self, Event, KeyEvent};
-use crate::keymap::{Action, Keymap};
+use crate::keymap::Keymap;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::syntax::Theme;
@@ -27,7 +27,7 @@ use crate::{
 pub struct Editor {
     cwd: PathBuf,
     mode: Mode,
-    keymap: Keymap,
+    keymap: Keymap<Mode, KeyEvent, Action>,
     buffers: SlotMap<BufferId, Buffer>,
     views: SlotMap<ViewId, View>,
     active_view: ViewId,
@@ -35,6 +35,11 @@ pub struct Editor {
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
     language_config: language::Config,
+}
+
+pub enum Action {
+    Fn(fn(&mut Editor)),
+    Insert(char),
 }
 
 /// Get the active view and buffer.
@@ -155,7 +160,7 @@ impl Editor {
     #[inline]
     pub fn on_key(&mut self, key: KeyEvent) {
         if let Some(f) = self.keymap.on_key(self.mode, key) {
-            match f {
+            match *f {
                 Action::Fn(f) => f(self),
                 Action::Insert(c) => self.insert_char(c),
             }

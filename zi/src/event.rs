@@ -7,6 +7,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{BufferId, Editor};
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct KeyEvent {
     pub code: KeyCode,
     pub modifiers: KeyModifiers,
