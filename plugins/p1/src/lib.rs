@@ -1,3 +1,5 @@
+#[allow(clippy::all)]
+#[allow(dead_code)]
 mod bindings;
 
 use bindings::Guest;

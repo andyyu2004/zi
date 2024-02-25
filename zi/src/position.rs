@@ -204,12 +204,13 @@ pub enum Direction {
     Up,
     Down,
 }
+
 impl Direction {
-    pub(crate) fn is_vertical(&self) -> bool {
+    pub fn is_vertical(&self) -> bool {
         matches!(self, Self::Up | Self::Down)
     }
 
-    pub(crate) fn is_horizontal(&self) -> bool {
+    pub fn is_horizontal(&self) -> bool {
         matches!(self, Self::Left | Self::Right)
     }
 }

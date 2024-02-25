@@ -1,15 +1,14 @@
 use crossterm::event::KeyCode;
-use rustc_hash::FxHashMap;
 
 use crate::event::KeyEvent;
 use crate::{motion, Direction, Editor, Mode};
 
 #[derive(Default)]
 pub(crate) struct Keymap {
-    maps: FxHashMap<Mode, Trie>,
-    last_mode: Option<Mode>,
+    // maps: FxHashMap<Mode, Trie>,
+    // last_mode: Option<Mode>,
     // commands to execute
-    actions: Vec<Action>,
+    // actions: Vec<Action>,
 }
 
 pub enum Action {
@@ -133,14 +132,14 @@ impl Keymap {
     }
 }
 
-struct Trie {
-    children: FxHashMap<KeyEvent, Trie>,
-}
+// struct Trie {
+//     children: FxHashMap<KeyEvent, Trie>,
+// }
 
-enum KeyTrieNode {
-    Trie(Trie),
-    Action(Action),
-}
+// enum KeyTrieNode {
+//     Trie(Trie),
+//     Action(Action),
+// }
 
 #[cfg(test)]
 mod tests;

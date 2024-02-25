@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::path::Path;
 
 use slotmap::{Key as _, KeyData};
