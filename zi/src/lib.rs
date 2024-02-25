@@ -33,3 +33,6 @@ wasmtime::component::bindgen!({
     //     duplicate_if_necessary: true
     // },
 });
+
+// FIXME make this configurable
+pub const TAB_WIDTH: u32 = 4;

@@ -44,12 +44,6 @@ impl Position {
         self.col
     }
 
-    /// Returns the 0-based (x, y) coordinates of the position
-    #[inline]
-    pub fn coords(&self) -> (u32, u32) {
-        (self.col.0, self.line.0)
-    }
-
     #[inline]
     pub fn left(self, amt: u32) -> Self {
         Self::new(self.line, self.col.left(amt))
@@ -132,7 +126,7 @@ impl Line {
     }
 }
 
-/// 1-based column index
+/// 1-based column index in characters (not bytes)
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Col(u32);
 

@@ -1,3 +1,5 @@
+use unicode_width::UnicodeWidthChar;
+
 use crate::editor::cursor::SetCursorFlags;
 use crate::{Buffer, BufferId, Col, Direction, Mode, Position};
 
@@ -45,6 +47,25 @@ impl View {
     #[inline]
     pub fn cursor(&self) -> Position {
         self.cursor.pos
+    }
+
+    /// Returns the cursor coordinates in the buffer.
+    #[inline]
+    pub fn cursor_coordinates(&self, buf: &Buffer) -> (u32, u32) {
+        assert_eq!(buf.id(), self.buf);
+        let line_idx = self.cursor.pos.line().idx();
+        let line = buf.text().line(line_idx);
+        let byte = line
+            .chars()
+            .take(self.cursor.pos.col().idx())
+            .map(|c| {
+                c.width().unwrap_or_else(|| match c {
+                    '\t' => buf.tab_width() as usize,
+                    c => panic!("unexpected control character: {c}"),
+                })
+            })
+            .sum::<usize>();
+        (byte as u32, line_idx as u32)
     }
 
     pub(crate) fn move_cursor(&mut self, mode: Mode, buf: &Buffer, direction: Direction) {

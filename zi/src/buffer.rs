@@ -21,6 +21,7 @@ pub struct Buffer {
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
     version: u32,
+    tab_width: u8,
 }
 
 impl Buffer {
@@ -49,6 +50,7 @@ impl Buffer {
             version: 0,
             highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
+            tab_width: 4,
         }
     }
 
@@ -70,6 +72,10 @@ impl Buffer {
     #[inline]
     pub fn language_id(&self) -> &LanguageId {
         &self.language_id
+    }
+
+    pub fn tab_width(&self) -> u8 {
+        self.tab_width
     }
 
     #[inline]

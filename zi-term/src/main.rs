@@ -152,7 +152,7 @@ fn render(editor: &Editor, frame: &mut Frame<'_>) {
             ((start.row, start.column)..(end.row, end.column), style)
         });
 
-    let lines = tui::Lines::new(buf.text().lines(), highlights);
+    let lines = tui::Lines::new(buf.tab_width(), buf.text().lines(), highlights);
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
 
@@ -165,8 +165,7 @@ fn render(editor: &Editor, frame: &mut Frame<'_>) {
     frame.buffer_mut().set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
     frame.render_widget(widget, area);
 
-    let cursor = view.cursor();
-    let (x, y) = cursor.coords();
+    let (x, y) = view.cursor_coordinates(buf);
     // FIXME this only works if the entire buffer fits in view
     frame.set_cursor(x as u16, y as u16);
 }

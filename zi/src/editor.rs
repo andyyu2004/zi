@@ -334,19 +334,19 @@ impl Editor {
                     },
                 });
 
-                callback(&self.tx, async move { Ok(fut.await?) }, |_editor, res| {
+                self.callback(async move { Ok(fut.await?) }, |_editor, res| {
                     tracing::debug!(?res, "lsp definition response");
                     if let Some(res) = res {
                         match res {
-                            lsp_types::GotoDefinitionResponse::Scalar(_location) => {
-                                todo!();
+                            lsp_types::GotoDefinitionResponse::Scalar(location) => {
+                                todo!("{location:?}");
                             }
                             // TODO
-                            lsp_types::GotoDefinitionResponse::Array(_) => {
-                                todo!();
+                            lsp_types::GotoDefinitionResponse::Array(locations) => {
+                                todo!("{locations:?}");
                             }
-                            lsp_types::GotoDefinitionResponse::Link(_) => {
-                                todo!();
+                            lsp_types::GotoDefinitionResponse::Link(links) => {
+                                todo!("{links:?}");
                             }
                         }
                     }
@@ -356,6 +356,14 @@ impl Editor {
                 break;
             }
         }
+    }
+
+    fn callback<R: 'static>(
+        &mut self,
+        fut: impl Future<Output = Result<R, Error>> + Send + 'static,
+        f: impl FnOnce(&mut Editor, R) + Send + 'static,
+    ) {
+        callback(&self.tx, fut, f);
     }
 }
 

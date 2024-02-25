@@ -54,14 +54,15 @@ where
 }
 
 pub struct Lines<'a, I, H: Iterator> {
+    tab_width: u8,
     lines: I,
     highlights: Peekable<H>,
     _marker: PhantomData<&'a ()>,
 }
 
 impl<I, H: Iterator> Lines<'_, I, H> {
-    pub fn new(lines: I, highlights: H) -> Self {
-        Self { lines, highlights: highlights.peekable(), _marker: PhantomData }
+    pub fn new(tab_width: u8, lines: I, highlights: H) -> Self {
+        Self { tab_width, lines, highlights: highlights.peekable(), _marker: PhantomData }
     }
 }
 
@@ -111,6 +112,16 @@ where
                 spans.push(Span::raw(&line[j..]));
             }
 
+            // Tabs are currently not rendered at all. We replace them with 4 spaces for rendering purposes.
+            // https://github.com/ratatui-org/ratatui/issues/876
+            for span in &mut spans {
+                if span.content.contains('\t') {
+                    span.content = span
+                        .content
+                        .replace('\t', &format!("{:width$}", "", width = self.tab_width as usize))
+                        .into();
+                }
+            }
             let line = Line::default().spans(spans);
             // safe cast to u16 as we already checked that i < area.height (which is a u16)
             buf.set_line(area.x, area.y + i as u16, &line, area.width);
