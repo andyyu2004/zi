@@ -1,13 +1,11 @@
-use std::collections::hash_map::Entry;
 use std::hash::Hash;
-use std::iter::Peekable;
 
 use rustc_hash::FxHashMap;
 
 mod macros;
 
 #[derive(Debug)]
-pub(crate) struct Keymap<M, K, V> {
+pub struct Keymap<M, K, V> {
     maps: FxHashMap<M, Trie<K, V>>,
     /// The keys that have been pressed so far
     buffer: Vec<K>,
@@ -24,6 +22,8 @@ where
         Self { maps, buffer: Default::default(), last_mode: Default::default() }
     }
 
+    // This method should be useful eventually, just cfg it to hide warnings
+    #[cfg(test)]
     pub fn insert(&mut self, mode: M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {
         self.maps.entry(mode).or_default().insert(keys.into_iter().peekable(), value)
     }
@@ -55,87 +55,6 @@ where
                 None
             }
         }
-
-        // todo!()
-        // temp
-        // match key.code {
-        //     KeyCode::Left => return Some(Fn(|editor| editor.move_active_cursor(Direction::Left))),
-        //     KeyCode::Right => {
-        //         return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));
-        //     }
-        //     KeyCode::Up => return Some(Fn(|editor| editor.move_active_cursor(Direction::Up))),
-        //     KeyCode::Down => return Some(Fn(|editor| editor.move_active_cursor(Direction::Down))),
-        //     KeyCode::Char(c) => match c {
-        //         'I' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| {
-        //                 editor.set_active_cursor(editor.active_cursor().with_col(0));
-        //                 editor.set_mode(Mode::Insert);
-        //             }));
-        //         }
-        //         'W' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.motion(motion::NextToken)));
-        //         }
-        //         'w' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.motion(motion::NextWord)));
-        //         }
-        //         'b' if matches!(mode, Mode::Normal) => {
-        //             // todo prev word
-        //             return Some(Fn(|editor| editor.motion(motion::PrevToken)));
-        //         }
-        //         'B' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.motion(motion::PrevToken)));
-        //         }
-        //         'g' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.go_to_definition()));
-        //         }
-        //         'o' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| {
-        //                 editor.set_mode(Mode::Insert);
-        //                 editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
-        //                 editor.insert_char('\n');
-        //             }));
-        //         }
-        //         'A' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| {
-        //                 editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
-        //                 editor.set_mode(Mode::Insert);
-        //                 editor.move_active_cursor(Direction::Right);
-        //             }));
-        //         }
-        //         'i' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.set_mode(Mode::Insert)));
-        //         }
-        //         'a' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| {
-        //                 editor.set_mode(Mode::Insert);
-        //                 editor.move_active_cursor(Direction::Right);
-        //             }));
-        //         }
-        //         'q' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.close_active_view()));
-        //         }
-        //         'h' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.move_active_cursor(Direction::Left)));
-        //         }
-        //         'l' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.move_active_cursor(Direction::Right)));
-        //         }
-        //         'j' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.move_active_cursor(Direction::Down)));
-        //         }
-        //         'k' if matches!(mode, Mode::Normal) => {
-        //             return Some(Fn(|editor| editor.move_active_cursor(Direction::Up)));
-        //         }
-        //         'f' if matches!(mode, Mode::Insert) => {
-        //             return Some(Fn(|editor| editor.set_mode(Mode::Normal)));
-        //         }
-        //         c if matches!(mode, Mode::Insert) => {
-        //             return Some(Insert(c));
-        //         }
-        //         _ => (),
-        //     },
-        //     _ => (),
-        // }
     }
 }
 
@@ -182,10 +101,16 @@ where
         }
     }
 
-    fn insert<I: Iterator<Item = K>>(&mut self, mut keys: Peekable<I>, value: V) -> Option<V> {
+    #[cfg(test)]
+    fn insert<I: Iterator<Item = K>>(
+        &mut self,
+        mut keys: std::iter::Peekable<I>,
+        value: V,
+    ) -> Option<V> {
+        use std::collections::hash_map::Entry;
         let k = keys.next().expect("cannot insert empty sequence of keys");
 
-        let mk_new_node = |mut keys: Peekable<I>, value: V| {
+        let mk_new_node = |mut keys: std::iter::Peekable<I>, value: V| {
             if keys.peek().is_some() {
                 let mut trie = Trie::default();
                 trie.insert(keys, value);
