@@ -5,7 +5,7 @@ use tree_sitter::{Node, QueryCursor};
 use zi_lsp::lsp_types::Url;
 
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::Position;
+use crate::{LanguageId, Position};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -16,6 +16,7 @@ pub struct Buffer {
     path: PathBuf,
     url: Option<Url>,
     text: Rope,
+    language_id: LanguageId,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
@@ -24,7 +25,13 @@ pub struct Buffer {
 
 impl Buffer {
     #[inline]
-    pub fn new(id: BufferId, path: impl AsRef<Path>, text: impl Into<Rope>, theme: &Theme) -> Self {
+    pub fn new(
+        id: BufferId,
+        language_id: LanguageId,
+        path: impl AsRef<Path>,
+        text: impl Into<Rope>,
+        theme: &Theme,
+    ) -> Self {
         // FIXME, detect language somewhere
         let mut syntax = Syntax::rust();
 
@@ -38,6 +45,7 @@ impl Buffer {
             path,
             url,
             text,
+            language_id,
             version: 0,
             highlight_map: HighlightMap::new(syntax.highlights_query().capture_names(), theme),
             syntax: Some(syntax),
@@ -49,6 +57,7 @@ impl Buffer {
         &self.path
     }
 
+    #[inline]
     pub fn url(&self) -> Option<Url> {
         self.url.clone()
     }
@@ -56,6 +65,11 @@ impl Buffer {
     #[inline]
     pub fn id(&self) -> BufferId {
         self.id
+    }
+
+    #[inline]
+    pub fn language_id(&self) -> &LanguageId {
+        &self.language_id
     }
 
     #[inline]
@@ -86,5 +100,9 @@ impl Buffer {
 
     pub fn version(&self) -> u32 {
         self.version
+    }
+
+    pub fn lang(&self) -> &LanguageId {
+        &self.language_id
     }
 }

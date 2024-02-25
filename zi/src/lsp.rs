@@ -9,6 +9,8 @@ use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, ResponseError, Result};
 
+use crate::LanguageServerId;
+
 pub(crate) struct LanguageClient;
 
 type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;

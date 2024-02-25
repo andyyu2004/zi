@@ -19,6 +19,7 @@ impl fmt::Display for LanguageId {
 
 impl LanguageId {
     pub const TEXT: Self = Self(Cow::Borrowed("text"));
+    pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
     pub const RUST: Self = Self(Cow::Borrowed("rust"));
     pub const GO: Self = Self(Cow::Borrowed("go"));
 
@@ -27,6 +28,7 @@ impl LanguageId {
             Some(ext) => match ext {
                 x if x == "rs" => Self::RUST,
                 x if x == "go" => Self::GO,
+                x if x == "gqlt" => Self::GQLT,
                 _ => Self::TEXT,
             },
             None => Self::TEXT,
@@ -81,6 +83,10 @@ impl Default for Config {
         );
         languages.insert(
             LanguageId::GO,
+            LanguageConfig { language_servers: Box::new([LanguageServerId::GOPLS]) },
+        );
+        languages.insert(
+            LanguageId::GQLT,
             LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
         );
         languages.insert(LanguageId::TEXT, LanguageConfig { language_servers: Box::new([]) });

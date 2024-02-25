@@ -102,8 +102,16 @@ where
 
 pub trait Event: Any + Send {}
 
-pub struct BufferDidChange {
+#[derive(Debug)]
+pub struct DidChangeBuffer {
     pub buffer_id: BufferId,
 }
 
-impl Event for BufferDidChange {}
+impl Event for DidChangeBuffer {}
+
+#[derive(Debug)]
+pub struct DidOpenBuffer {
+    pub buffer_id: BufferId,
+}
+
+impl Event for DidOpenBuffer {}

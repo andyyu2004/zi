@@ -97,7 +97,7 @@ impl<B: Backend + io::Write> App<B> {
                 f = tasks.select_next_some() => match f {
                     Ok(f) => f(&mut self.editor),
                     // TODO show error somewhere
-                    Err(err) => tracing::error!("{:?}", err),
+                    Err(err) => tracing::error!("task failed: {:?}", err),
                 },
                 Some(event) = events.next() => self.on_event(event?).await,
             }
