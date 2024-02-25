@@ -18,7 +18,7 @@ pub use tree_sitter;
 pub use self::buffer::{Buffer, BufferId};
 pub use self::editor::{Callbacks, Editor};
 pub use self::language::{LanguageId, LanguageServerId};
-pub use self::position::{Col, Direction, Line, Position};
+pub use self::position::{Col, Direction, Line, Location, Position, Range};
 pub use self::syntax::{Color, Style};
 pub use self::view::{View, ViewId};
 

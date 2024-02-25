@@ -1,5 +1,24 @@
 use std::fmt;
 
+use crate::BufferId;
+
+pub struct Location {
+    pub buffer: BufferId,
+    pub range: Range,
+}
+
+impl Location {
+    pub fn new(buffer: BufferId, range: Range) -> Self {
+        Self { buffer, range }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Range {
+    pub start: Position,
+    pub end: Position,
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     line: Line,

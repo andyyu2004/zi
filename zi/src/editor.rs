@@ -20,7 +20,8 @@ use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::syntax::Theme;
 use crate::{
-    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Mode, View, ViewId,
+    language, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId, Location, Mode,
+    View, ViewId,
 };
 
 pub struct Editor {
@@ -55,7 +56,7 @@ pub(crate) use active;
 
 use self::cursor::SetCursorFlags;
 
-pub type EditorCallback = Box<dyn FnOnce(&mut Editor)>;
+pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
 pub type Callbacks = impl Stream<Item = CallbackFuture>;
 
@@ -105,8 +106,16 @@ impl Editor {
         (editor, ChannelStream(rx))
     }
 
-    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<(), zi_lsp::Error> {
+    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
         let path = path.as_ref();
+
+        for buf in self.buffers.values() {
+            if buf.path() == path {
+                self.views[self.active_view].set_buffer(buf.id());
+                return Ok(buf.id());
+            }
+        }
+
         let rope = if path.exists() {
             let reader = BufReader::new(File::open(path)?);
             let mut builder = RopeBuilder::new();
@@ -203,12 +212,13 @@ impl Editor {
                         );
 
                         editor.dispatch(event::DidOpenBuffer { buffer_id: buf });
+                        Ok(())
                     },
                 );
             }
         }
 
-        Ok(())
+        Ok(buf)
     }
 
     #[inline]
@@ -334,22 +344,10 @@ impl Editor {
                     },
                 });
 
-                self.callback(async move { Ok(fut.await?) }, |_editor, res| {
+                self.callback(async move { Ok(fut.await?) }, |editor, res| {
                     tracing::debug!(?res, "lsp definition response");
-                    if let Some(res) = res {
-                        match res {
-                            lsp_types::GotoDefinitionResponse::Scalar(location) => {
-                                todo!("{location:?}");
-                            }
-                            // TODO
-                            lsp_types::GotoDefinitionResponse::Array(locations) => {
-                                todo!("{locations:?}");
-                            }
-                            lsp_types::GotoDefinitionResponse::Link(links) => {
-                                todo!("{links:?}");
-                            }
-                        }
-                    }
+                    editor.jump_to_definition(res)?;
+                    Ok(())
                 });
 
                 // Send the request to the first server that supports it
@@ -358,10 +356,49 @@ impl Editor {
         }
     }
 
+    fn jump_to_definition(
+        &mut self,
+        res: Option<lsp_types::GotoDefinitionResponse>,
+    ) -> Result<(), Error> {
+        let locations = match res {
+            None => vec![],
+            Some(lsp_types::GotoDefinitionResponse::Scalar(location)) => vec![location],
+            Some(lsp_types::GotoDefinitionResponse::Array(locations)) => locations,
+            Some(lsp_types::GotoDefinitionResponse::Link(links)) => links
+                .into_iter()
+                .map(|link| lsp_types::Location { uri: link.target_uri, range: link.target_range })
+                .collect(),
+        };
+
+        match &locations[..] {
+            [] => (),
+            [location] => self.jump_to_location(location)?,
+            _ => {
+                tracing::warn!("multiple definitions not supported yet");
+            }
+        };
+
+        Ok(())
+    }
+
+    fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {
+        let path = location
+            .uri
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
+
+        let buf_id = self.open(path)?;
+        let (_view, buf) = active!(self);
+        assert_eq!(buf.id(), buf_id, "opened buffer should have been set as active");
+        self.set_active_cursor(location.range.start);
+
+        Ok(())
+    }
+
     fn callback<R: 'static>(
         &mut self,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
-        f: impl FnOnce(&mut Editor, R) + Send + 'static,
+        f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
         callback(&self.tx, fut, f);
     }
@@ -370,11 +407,12 @@ impl Editor {
 fn callback<R: 'static>(
     tx: &CallbacksSender,
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
-    f: impl FnOnce(&mut Editor, R) + Send + 'static,
+    f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
     tx.send(Box::pin(async move {
         let res = fut.await?;
-        Ok(Box::new(move |editor: &mut Editor| f(editor, res)) as Box<dyn FnOnce(&mut Editor)>)
+        Ok(Box::new(move |editor: &mut Editor| f(editor, res))
+            as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
     }))
     .expect("send failed");
 }

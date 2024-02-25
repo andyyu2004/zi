@@ -95,7 +95,9 @@ impl<B: Backend + io::Write> App<B> {
 
             select! {
                 f = tasks.select_next_some() => match f {
-                    Ok(f) => f(&mut self.editor),
+                    Ok(f) => if let Err(err) = f(&mut self.editor) {
+                        tracing::error!("task callback failed: {:?}", err);
+                    }
                     // TODO show error somewhere
                     Err(err) => tracing::error!("task failed: {:?}", err),
                 },
@@ -165,7 +167,7 @@ fn render(editor: &Editor, frame: &mut Frame<'_>) {
     frame.buffer_mut().set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
     frame.render_widget(widget, area);
 
-    let (x, y) = view.cursor_coordinates(buf);
+    let (x, y) = view.cursor_cells(buf);
     // FIXME this only works if the entire buffer fits in view
     frame.set_cursor(x as u16, y as u16);
 }

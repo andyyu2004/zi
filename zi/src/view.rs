@@ -44,14 +44,19 @@ impl View {
         self.buf
     }
 
+    pub fn set_buffer(&mut self, buf: BufferId) {
+        self.buf = buf;
+    }
+
     #[inline]
     pub fn cursor(&self) -> Position {
         self.cursor.pos
     }
 
-    /// Returns the cursor coordinates in the buffer.
+    /// Returns the cursor coordinates in the buffer in cells (not characters).
+    /// For example, '\t' is one character but is 4 cells wide (by default).
     #[inline]
-    pub fn cursor_coordinates(&self, buf: &Buffer) -> (u32, u32) {
+    pub fn cursor_cells(&self, buf: &Buffer) -> (u32, u32) {
         assert_eq!(buf.id(), self.buf);
         let line_idx = self.cursor.pos.line().idx();
         let line = buf.text().line(line_idx);
