@@ -159,7 +159,7 @@ impl View {
                     .offset
                     .line
                     .saturating_add(amt)
-                    .min(buf.text().len_lines().saturating_sub(1) as u32)
+                    .min(buf.text().len_lines().saturating_sub(2) as u32)
             }
             Direction::Left => self.offset.col = self.offset.col.saturating_sub(amt),
             Direction::Right => self.offset.col = self.offset.col.saturating_add(amt),

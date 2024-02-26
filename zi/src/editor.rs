@@ -522,14 +522,17 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
         editor.move_active_cursor(Direction::Right);
     };
 
-    const SCROLL_AMOUNT: u32 = 20;
-    const SCROLL_DOWN: Action = |editor| editor.scroll(Direction::Down, SCROLL_AMOUNT);
-    const SCROLL_UP: Action = |editor| editor.scroll(Direction::Up, SCROLL_AMOUNT);
+    const SCROLL_LINE_DOWN: Action = |editor| editor.scroll(Direction::Down, 1);
+    const SCROLL_LINE_UP: Action = |editor| editor.scroll(Direction::Up, 1);
+    const SCROLL_DOWN: Action = |editor| editor.scroll(Direction::Down, 20);
+    const SCROLL_UP: Action = |editor| editor.scroll(Direction::Up, 20);
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
             "C-d" => SCROLL_DOWN,
             "C-u" => SCROLL_UP,
+            "C-e" => SCROLL_LINE_DOWN,
+            "C-y" => SCROLL_LINE_UP,
             "i" => INSERT_MODE,
             "q" => CLOSE_VIEW,
             "h" => MOVE_LEFT,
