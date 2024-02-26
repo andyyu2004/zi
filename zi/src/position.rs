@@ -1,6 +1,20 @@
 use std::fmt;
+use std::ops::Add;
 
 use crate::BufferId;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Offset {
+    pub line: u32,
+    pub col: u32,
+}
+
+impl PartialEq<(u32, u32)> for Offset {
+    #[inline]
+    fn eq(&self, &(line, col): &(u32, u32)) -> bool {
+        self.line == line && self.col == col
+    }
+}
 
 pub struct Location {
     pub buffer: BufferId,
@@ -23,6 +37,14 @@ pub struct Range {
 pub struct Position {
     line: Line,
     col: Col,
+}
+
+impl Add<Offset> for Position {
+    type Output = Self;
+
+    fn add(self, offset: Offset) -> Self {
+        Self::new(self.line + offset.line, self.col + offset.col)
+    }
 }
 
 impl fmt::Display for Position {
@@ -103,6 +125,14 @@ impl fmt::Display for Line {
     }
 }
 
+impl Add<u32> for Line {
+    type Output = Self;
+
+    fn add(self, amt: u32) -> Self {
+        Self(self.0 + amt)
+    }
+}
+
 impl From<u32> for Line {
     fn from(n: u32) -> Self {
         Self(n)
@@ -152,6 +182,14 @@ pub struct Col(u32);
 impl fmt::Display for Col {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl Add<u32> for Col {
+    type Output = Self;
+
+    fn add(self, amt: u32) -> Self {
+        Self(self.0 + amt)
     }
 }
 

@@ -103,7 +103,7 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
 
     let s = |s: zi::Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
 
-    let line = view.offset().line();
+    let line = view.offset().line as usize;
 
     // FIXME compute highlights only for the necessary range
     let highlights = buf

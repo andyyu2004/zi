@@ -380,6 +380,11 @@ impl Editor {
         assert!(self.views.remove(id).is_some(), "tried to close non-existent view");
     }
 
+    pub fn scroll(&mut self, direction: Direction, amount: u32) {
+        let (view, buf) = active!(self);
+        view.scroll(buf, direction, amount);
+    }
+
     fn jump_to_definition(
         &mut self,
         res: Option<lsp_types::GotoDefinitionResponse>,
@@ -517,11 +522,9 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
         editor.move_active_cursor(Direction::Right);
     };
 
-    const SCROLL_AMOUNT: usize = 20;
-    const SCROLL_DOWN: Action =
-        |editor| editor.active_view_mut().scroll(Direction::Down, SCROLL_AMOUNT);
-    const SCROLL_UP: Action =
-        |editor| editor.active_view_mut().scroll(Direction::Up, SCROLL_AMOUNT);
+    const SCROLL_AMOUNT: u32 = 20;
+    const SCROLL_DOWN: Action = |editor| editor.scroll(Direction::Down, SCROLL_AMOUNT);
+    const SCROLL_UP: Action = |editor| editor.scroll(Direction::Up, SCROLL_AMOUNT);
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({

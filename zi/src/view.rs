@@ -1,39 +1,21 @@
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
+use crate::position::Offset;
 use crate::{Buffer, BufferId, Col, Direction, Mode, Position};
 
 slotmap::new_key_type! {
     pub struct ViewId;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Offset {
-    line: usize,
-    col: usize,
-}
-
-impl Offset {
-    #[inline]
-    pub fn new(line: usize, col: usize) -> Self {
-        Self { line, col }
-    }
-
-    #[inline]
-    pub fn line(&self) -> usize {
-        self.line
-    }
-
-    #[inline]
-    pub fn col(&self) -> usize {
-        self.col
-    }
-}
-
 pub struct View {
     id: ViewId,
-    offset: Offset,
+    /// The buffer that this view is displaying.
     buf: BufferId,
+    /// The offset of the view in the buffer.
+    /// i.e. this changes on scroll.
+    offset: Offset,
+    /// The cursor position in the buffer (relative to the offset).
     cursor: Cursor,
 }
 
@@ -74,7 +56,7 @@ impl View {
 
     #[inline]
     pub fn cursor(&self) -> Position {
-        self.cursor.pos
+        self.cursor.pos + self.offset
     }
 
     /// Returns the cursor coordinates in the buffer in cells (not characters).
@@ -167,10 +149,16 @@ impl View {
         }
     }
 
-    pub fn scroll(&mut self, direction: Direction, amt: usize) {
+    pub fn scroll(&mut self, buf: &Buffer, direction: Direction, amt: u32) {
         match direction {
             Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),
-            Direction::Down => self.offset.line = self.offset.line.saturating_add(amt),
+            Direction::Down => {
+                self.offset.line = self
+                    .offset
+                    .line
+                    .saturating_add(amt)
+                    .min(buf.text().len_lines().saturating_sub(1) as u32)
+            }
             Direction::Left => self.offset.col = self.offset.col.saturating_sub(amt),
             Direction::Right => self.offset.col = self.offset.col.saturating_add(amt),
         }
