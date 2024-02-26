@@ -122,10 +122,11 @@ short
 fn cursor_with_scroll() {
     let mut editor = new("foo\nbar\nbaz\n");
 
-    // TODO complete this test
-    // editor.scroll(zi::Direction::Down, 3);
-    // assert_eq!(editor.active_cursor(), (3, 0));
-    // assert_eq!(editor.current_line(), "");
-    // editor.move_active_cursor(Down);
-    // assert_eq!(editor.active_cursor(), (3, 0));
+    editor.scroll(zi::Direction::Down, 2);
+    assert_eq!(editor.active_cursor(), (2, 0));
+    assert_eq!(editor.current_line(), "baz\n");
+    editor.move_active_cursor(Down);
+
+    // Cursor is already at the bottom, should not be able to move anymore.
+    assert_eq!(editor.active_cursor(), (2, 0));
 }

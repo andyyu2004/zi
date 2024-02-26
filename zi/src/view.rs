@@ -112,7 +112,7 @@ impl View {
         let text = buf.text();
 
         // Check line is in-bounds
-        let line_idx = pos.line().idx();
+        let line_idx = pos.line().idx() + self.offset.line as usize;
         let line = match text.get_line(line_idx) {
             // disallow putting cursor on the final empty line
             Some(line) if line != "" || line_idx < text.len_lines() - 1 => line,
@@ -142,7 +142,7 @@ impl View {
         }
 
         // check column is in-bounds for the line
-        self.cursor.pos = match line.get_char(pos.col().idx()) {
+        self.cursor.pos = match line.get_char(pos.col().idx() + self.offset.col as usize) {
             // Cursor is in-bounds for the line
             Some(char) if char != '\n' => pos,
             // Cursor is out of bounds for the line, but the line exists.
