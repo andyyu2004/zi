@@ -112,9 +112,11 @@ impl View {
         let text = buf.text();
 
         // Check line is in-bounds
-        let line = match text.get_line(pos.line().idx()) {
-            Some(line) => line,
-            None => return,
+        let line_idx = pos.line().idx();
+        let line = match text.get_line(line_idx) {
+            // disallow putting cursor on the final empty line
+            Some(line) if line != "" || line_idx < text.len_lines() - 1 => line,
+            _ => return,
         };
 
         // Pretending CRLF doesn't exist.
