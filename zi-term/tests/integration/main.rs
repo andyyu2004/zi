@@ -46,6 +46,21 @@ async fn test_scroll() -> anyhow::Result<()> {
     })
     .await?;
 
+    // The above doesn't test highlighting works with scroll
+    snapshot("scroll rust minimal", |editor| {
+        editor.open("tests/integration/testdata/minimal.rs")?;
+        editor.active_view_mut().scroll(zi::Direction::Down, 1);
+        Ok(())
+    })
+    .await?;
+
+    snapshot("scroll go", |editor| {
+        editor.open("tests/integration/testdata/main.go")?;
+        editor.active_view_mut().scroll(zi::Direction::Down, 9);
+        Ok(())
+    })
+    .await?;
+
     Ok(())
 }
 

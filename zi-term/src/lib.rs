@@ -104,15 +104,18 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let s = |s: zi::Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
 
     let line = view.offset().line();
-    // let line = 0;
+
+    // FIXME compute highlights only for the necessary range
     let highlights = buf
-        .highlights(&mut cursor, line)
+        .highlights(&mut cursor)
+        .skip_while(|(node, _)| node.range().end_point.row < line)
         .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
         .map(|(node, style)| {
             let range = node.range();
             let start = range.start_point;
             let end = range.end_point;
-            ((start.row, start.column)..(end.row, end.column), style)
+            // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming
+            ((start.row - line, start.column)..(end.row - line, end.column), style)
         });
 
     let lines = tui::Lines::new(buf.tab_width(), buf.text().lines_at(line), highlights);
