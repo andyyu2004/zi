@@ -1,4 +1,4 @@
-use zi::Direction;
+use zi::Direction::*;
 
 use crate::api::new;
 
@@ -42,7 +42,7 @@ fn move_cursor_empty() {
     let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));
     for _ in 1..10 {
-        for &direction in &[Direction::Left, Direction::Right, Direction::Up, Direction::Down] {
+        for &direction in &[Left, Right, Up, Down] {
             editor.move_active_cursor(direction);
             assert_eq!(editor.active_cursor(), (0, 0));
         }
@@ -53,15 +53,15 @@ fn move_cursor_empty() {
 fn move_cursor_horizontal_no_newline() {
     let mut editor = new("abc");
     assert_eq!(editor.active_cursor(), (0, 0));
-    editor.move_active_cursor(Direction::Right);
+    editor.move_active_cursor(Right);
     assert_eq!(editor.active_cursor(), (0, 1));
-    editor.move_active_cursor(Direction::Right);
+    editor.move_active_cursor(Right);
     assert_eq!(editor.active_cursor(), (0, 2));
-    editor.move_active_cursor(Direction::Right);
+    editor.move_active_cursor(Right);
     assert_eq!(editor.active_cursor(), (0, 2));
 
     editor.set_mode(zi::Mode::Insert);
-    editor.move_active_cursor(Direction::Right);
+    editor.move_active_cursor(Right);
     assert_eq!(editor.active_cursor(), (0, 3), "insert mode can move one character further");
 }
 
@@ -75,7 +75,6 @@ short
 
 "#);
 
-    use Direction::*;
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.set_active_cursor((1, 2));
     assert_eq!(editor.active_cursor(), (1, 2));
@@ -106,4 +105,15 @@ short
     assert_eq!(editor.active_cursor(), (4, 4));
     editor.move_active_cursor(Up);
     assert_eq!(editor.active_cursor(), (3, 4));
+}
+
+#[test]
+fn cursor_with_scroll() {
+    let mut editor = new("foo\nbar\nbaz\n");
+
+    editor.scroll(zi::Direction::Down, 3);
+    assert_eq!(editor.active_cursor(), (3, 0));
+    assert_eq!(editor.current_line(), "");
+    editor.move_active_cursor(Down);
+    assert_eq!(editor.active_cursor(), (3, 0));
 }
