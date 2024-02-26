@@ -8,8 +8,7 @@ use std::ops::Range;
 
 pub use ratatui::backend::{Backend, CrosstermBackend};
 pub use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-pub use ratatui::layout::{Constraint, Direction, Layout};
+pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Style};
 pub use ratatui::text::Text;
 use ratatui::text::{Line, Span};

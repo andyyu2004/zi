@@ -102,10 +102,12 @@ impl Buffer {
     pub fn highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
+        line: usize,
     ) -> impl Iterator<Item = (Node<'a>, HighlightId)> + 'a {
+        let c = self.text.line_to_char(line);
         self.syntax
             .as_ref()
-            .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
+            .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(c..)))
             .map(|capture| (capture.node, self.highlight_map.get(capture.index)))
     }
 

@@ -198,6 +198,11 @@ impl Editor {
     }
 
     #[inline]
+    pub fn active_view_mut(&mut self) -> &mut View {
+        &mut self.views[self.active_view]
+    }
+
+    #[inline]
     pub fn view(&self, id: ViewId) -> &View {
         self.views.get(id).expect("got bad view id?")
     }
@@ -512,8 +517,13 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
         editor.move_active_cursor(Direction::Right);
     };
 
+    const SCROLL_DOWN: Action = |editor| {
+        editor.active_view_mut().scroll(Direction::Down, 20);
+    };
+
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
+            "C-d" => SCROLL_DOWN,
             "i" => INSERT_MODE,
             "q" => CLOSE_VIEW,
             "h" => MOVE_LEFT,

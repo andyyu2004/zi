@@ -3,6 +3,10 @@ name = "zi-term"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "zi_term"
+path = "src/lib.rs"
+
 [[bin]]
 name = "zi"
 path = "src/main.rs"
@@ -23,3 +27,5 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 zi = { path = "../zi" }
 tui = { path = "../zi-tui", package = "zi-tui" }
+
+[dev-dependencies]

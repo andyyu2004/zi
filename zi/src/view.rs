@@ -7,8 +7,32 @@ slotmap::new_key_type! {
     pub struct ViewId;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Offset {
+    line: usize,
+    col: usize,
+}
+
+impl Offset {
+    #[inline]
+    pub fn new(line: usize, col: usize) -> Self {
+        Self { line, col }
+    }
+
+    #[inline]
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    #[inline]
+    pub fn col(&self) -> usize {
+        self.col
+    }
+}
+
 pub struct View {
     id: ViewId,
+    offset: Offset,
     buf: BufferId,
     cursor: Cursor,
 }
@@ -143,8 +167,22 @@ impl View {
         }
     }
 
+    pub fn scroll(&mut self, direction: Direction, amt: usize) {
+        match direction {
+            Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),
+            Direction::Down => self.offset.line = self.offset.line.saturating_add(amt),
+            Direction::Left => self.offset.col = self.offset.col.saturating_sub(amt),
+            Direction::Right => self.offset.col = self.offset.col.saturating_add(amt),
+        }
+    }
+
+    #[inline]
+    pub fn offset(&self) -> Offset {
+        self.offset
+    }
+
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
-        Self { id, buf, cursor: Cursor::default() }
+        Self { id, buf, cursor: Cursor::default(), offset: Default::default() }
     }
 }
 
