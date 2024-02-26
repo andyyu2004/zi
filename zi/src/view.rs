@@ -72,7 +72,7 @@ impl View {
             .map(|c| {
                 c.width().unwrap_or_else(|| match c {
                     '\t' => buf.tab_width() as usize,
-                    c => panic!("unexpected control character: {c}"),
+                    c => panic!("unexpected control character: `{c}`"),
                 })
             })
             .sum::<usize>();
