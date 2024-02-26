@@ -103,8 +103,8 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
 
     let s = |s: zi::Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
 
-    // let line = view.offset().line();
-    let line = 0;
+    let line = view.offset().line();
+    // let line = 0;
     let highlights = buf
         .highlights(&mut cursor, line)
         .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
@@ -115,7 +115,7 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
             ((start.row, start.column)..(end.row, end.column), style)
         });
 
-    let lines = tui::Lines::new(buf.tab_width(), buf.text().lines_at(0), highlights);
+    let lines = tui::Lines::new(buf.tab_width(), buf.text().lines_at(line), highlights);
     let statusline = tui::Text::raw(format!("{}", editor.mode()));
     let cmdline = tui::Text::raw("cmdline");
 

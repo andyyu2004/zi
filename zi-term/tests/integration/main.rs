@@ -37,6 +37,18 @@ async fn test_syntax_highlight() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_scroll() -> anyhow::Result<()> {
+    snapshot("scroll text", |editor| {
+        editor.open("tests/integration/testdata/numbers.txt")?;
+        editor.active_view_mut().scroll(zi::Direction::Down, 50);
+        Ok(())
+    })
+    .await?;
+
+    Ok(())
+}
+
 async fn snapshot(
     name: &'static str,
     f: impl FnOnce(&mut Editor) -> anyhow::Result<()>,
@@ -54,6 +66,7 @@ async fn snapshot(
         term.draw(|f| zi_term::render(&editor, f))?;
     }
 
+    let name = name.replace(|c: char| c.is_whitespace(), "-");
     let dir = PathBuf::from("tests/integration/snapshots");
     let path = dir.join(format!("{name}.ansi"));
 
