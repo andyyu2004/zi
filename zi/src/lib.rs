@@ -6,6 +6,7 @@ mod editor;
 pub mod event;
 mod keymap;
 mod language;
+mod layout;
 mod lsp;
 mod motion;
 mod plugin;

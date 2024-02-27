@@ -10,7 +10,6 @@ slotmap::new_key_type! {
 
 pub struct View {
     id: ViewId,
-    size: Size,
     /// The buffer that this view is displaying.
     buf: BufferId,
     /// The offset of the view in the buffer.
@@ -89,7 +88,14 @@ impl View {
         (byte as u32, line_idx as u32)
     }
 
-    pub(crate) fn move_cursor(&mut self, mode: Mode, buf: &Buffer, direction: Direction, amt: u32) {
+    pub(crate) fn move_cursor(
+        &mut self,
+        mode: Mode,
+        size: Size,
+        buf: &Buffer,
+        direction: Direction,
+        amt: u32,
+    ) {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
@@ -107,13 +113,14 @@ impl View {
             SetCursorFlags::empty()
         };
 
-        self.set_cursor(mode, buf, pos, flags);
+        self.set_cursor(mode, size, buf, pos, flags);
     }
 
     #[inline]
     pub(crate) fn set_cursor(
         &mut self,
         mode: Mode,
+        size: Size,
         buf: &Buffer,
         pos: Position,
         flags: SetCursorFlags,
@@ -160,15 +167,22 @@ impl View {
             _ => pos.with_col(max_col),
         };
 
+        // Scroll the view if the cursor moves out of bounds
         if self.cursor.pos.line().raw() < self.offset.line {
             self.offset.line = self.cursor.pos.line().idx() as u32;
+        } else if self.cursor.pos.line().raw() >= self.offset.line + size.height as u32 {
+            self.offset.line = self.cursor.pos.line().idx() as u32 - size.height as u32 + 1;
         }
-        // } else if self.cursor.pos.line() >= self.offset.line + buf.height() {
-        //     self.offset.line = self.cursor.pos.line().idx() as u32 - buf.height() + 1;
-        // }
     }
 
-    pub(crate) fn scroll(&mut self, mode: Mode, buf: &Buffer, direction: Direction, amt: u32) {
+    pub(crate) fn scroll(
+        &mut self,
+        mode: Mode,
+        size: Size,
+        buf: &Buffer,
+        direction: Direction,
+        amt: u32,
+    ) {
         let prev = self.offset;
         match direction {
             Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),
@@ -190,7 +204,8 @@ impl View {
             Direction::Left => prev.col - self.offset.col,
             Direction::Right => self.offset.col - prev.col,
         };
-        self.move_cursor(mode, buf, direction, amt);
+
+        self.move_cursor(mode, size, buf, direction, amt);
     }
 
     #[inline]
@@ -198,8 +213,8 @@ impl View {
         self.offset
     }
 
-    pub(crate) fn new(id: ViewId, buf: BufferId, size: Size) -> Self {
-        Self { id, buf, size, cursor: Cursor::default(), offset: Default::default() }
+    pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
+        Self { id, buf, cursor: Cursor::default(), offset: Default::default() }
     }
 }
 

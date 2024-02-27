@@ -1,10 +1,10 @@
 use zi::Direction::*;
 
-use crate::api::new;
+use crate::api::{new, new_with_size};
 
 #[test]
 fn test_cursor_scrolls_when_out_of_bounds() {
-    let mut editor = new("foo\nbar\n");
+    let mut editor = new_with_size("foo\nbar\n", zi::Size::new(10, 2));
     editor.scroll_active_view(Down, 1);
     assert_eq!(editor.active_view().offset(), (1, 0));
     assert_eq!(editor.active_view().cursor(), (1, 0));
@@ -13,6 +13,15 @@ fn test_cursor_scrolls_when_out_of_bounds() {
     editor.move_active_cursor(Up, 1);
     assert_eq!(editor.active_view().offset(), (0, 0));
     assert_eq!(editor.active_view().cursor(), (0, 0));
+
+    editor.move_active_cursor(Down, 1);
+    assert_eq!(editor.active_view().offset(), (0, 0));
+    assert_eq!(editor.active_view().cursor(), (1, 0));
+
+    // scrolling down past the editor size
+    editor.move_active_cursor(Down, 1);
+    assert_eq!(editor.active_view().offset(), (1, 0));
+    assert_eq!(editor.active_view().cursor(), (2, 0));
 }
 
 #[test]

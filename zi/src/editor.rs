@@ -23,8 +23,8 @@ use crate::position::Size;
 use crate::syntax::Theme;
 use crate::view::HasViewId;
 use crate::{
-    hashmap, language, trie, Buffer, BufferId, Direction, Error, LanguageId, LanguageServerId,
-    Mode, View, ViewId,
+    hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, LanguageId,
+    LanguageServerId, Mode, View, ViewId,
 };
 
 pub struct Editor {
@@ -38,6 +38,7 @@ pub struct Editor {
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
     language_config: language::Config,
+    tree: layout::Tree,
 }
 
 pub type Action = fn(&mut Editor);
@@ -94,7 +95,7 @@ impl Editor {
         let buf =
             buffers.insert_with_key(|id| Buffer::new(id, LanguageId::TEXT, "scratch", "", &theme));
         let mut views = SlotMap::default();
-        let active_view = views.insert_with_key(|id| View::new(id, buf, size));
+        let active_view = views.insert_with_key(|id| View::new(id, buf));
 
         // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -104,6 +105,7 @@ impl Editor {
             views,
             active_view,
             tx,
+            tree: layout::Tree::new(size, active_view),
             keymap: default_keymap(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -187,7 +189,7 @@ impl Editor {
     pub fn set_mode(&mut self, mode: Mode) {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = active!(self);
-            view.move_cursor(mode, buf, Direction::Left, 1);
+            view.move_cursor(mode, self.tree.size(view.id()), buf, Direction::Left, 1);
         }
 
         self.mode = mode;
@@ -223,14 +225,15 @@ impl Editor {
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = active!(self);
+        let size = self.tree.size(view.id());
         let cursor = view.cursor();
         buf.insert_char(cursor, c);
         match c {
             '\n' => {
-                view.move_cursor(self.mode, buf, Direction::Down, 1);
-                view.move_cursor(self.mode, buf, Direction::Left, 1);
+                view.move_cursor(self.mode, size, buf, Direction::Down, 1);
+                view.move_cursor(self.mode, size, buf, Direction::Left, 1);
             }
-            _ => view.move_cursor(self.mode, buf, Direction::Right, 1),
+            _ => view.move_cursor(self.mode, size, buf, Direction::Right, 1),
         }
 
         let event = event::DidChangeBuffer { buf: buf.id() };
@@ -267,8 +270,9 @@ impl Editor {
 
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = active!(self);
+        let size = self.tree.size(view.id());
         let pos = motion.motion(buf.text().slice(..), view.cursor());
-        view.set_cursor(self.mode, buf, pos, SetCursorFlags::empty());
+        view.set_cursor(self.mode, size, buf, pos, SetCursorFlags::empty());
     }
 
     pub(crate) fn go_to_definition(&mut self) {
@@ -383,7 +387,8 @@ impl Editor {
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
         let (view, buf) = active!(self);
-        view.scroll(self.mode, buf, direction, amount);
+        let size = self.tree.size(view.id());
+        view.scroll(self.mode, size, buf, direction, amount);
     }
 
     fn jump_to_definition(
