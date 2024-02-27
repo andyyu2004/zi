@@ -120,8 +120,17 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
         });
 
     let lines = tui::Lines::new(buf.tab_width(), buf.text().lines_at(line), highlights);
-    let statusline = tui::Text::raw(format!("{}", editor.mode()));
-    let cmdline = tui::Text::raw("cmdline");
+    let statusline = tui::Text::styled(
+        format!("{}:{}:{}", buf.path().display(), view.cursor().line() + 1, view.cursor().col()),
+        tui::Style::new()
+            .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
+            .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
+    );
+    // guifg=#07364
+    let cmdline = tui::Text::styled(
+        format!("-- {} --", editor.mode()),
+        tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+    );
 
     let widget = tui::vstack(
         [tui::Constraint::Fill(1), tui::Constraint::Max(1), tui::Constraint::Max(1)],
