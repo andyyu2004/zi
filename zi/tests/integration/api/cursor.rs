@@ -122,7 +122,7 @@ short
 fn cursor_with_scroll() {
     let mut editor = new("foo\nbar\nbaz\n");
 
-    editor.scroll(zi::Direction::Down, 2);
+    editor.scroll_active_view(zi::Direction::Down, 2);
     assert_eq!(editor.active_cursor(), (2, 0));
     assert_eq!(editor.current_line(), "baz\n");
     editor.move_active_cursor(Down, 1);

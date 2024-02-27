@@ -19,6 +19,7 @@ use crate::event::{self, Event, KeyEvent};
 use crate::keymap::Keymap;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
+use crate::position::Size;
 use crate::syntax::Theme;
 use crate::view::HasViewId;
 use crate::{
@@ -87,13 +88,13 @@ impl Editor {
     /// Create a new editor with a scratch buffer.
     /// Returns the editor instance and a stream of callbacks.
     /// The callback stream must be polled and the resulting callback executed on the editor.
-    pub fn new() -> (Self, Callbacks) {
+    pub fn new(size: Size) -> (Self, Callbacks) {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf =
             buffers.insert_with_key(|id| Buffer::new(id, LanguageId::TEXT, "scratch", "", &theme));
         let mut views = SlotMap::default();
-        let active_view = views.insert_with_key(|id| View::new(id, buf));
+        let active_view = views.insert_with_key(|id| View::new(id, buf, size));
 
         // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -380,7 +381,7 @@ impl Editor {
         assert!(self.views.remove(id).is_some(), "tried to close non-existent view");
     }
 
-    pub fn scroll(&mut self, direction: Direction, amount: u32) {
+    pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
         let (view, buf) = active!(self);
         view.scroll(self.mode, buf, direction, amount);
     }
@@ -522,10 +523,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
         editor.move_active_cursor(Direction::Right, 1);
     };
 
-    const SCROLL_LINE_DOWN: Action = |editor| editor.scroll(Direction::Down, 1);
-    const SCROLL_LINE_UP: Action = |editor| editor.scroll(Direction::Up, 1);
-    const SCROLL_DOWN: Action = |editor| editor.scroll(Direction::Down, 20);
-    const SCROLL_UP: Action = |editor| editor.scroll(Direction::Up, 20);
+    const SCROLL_LINE_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 1);
+    const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
+    const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
+    const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({

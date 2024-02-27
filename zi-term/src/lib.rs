@@ -91,6 +91,7 @@ impl<B: Backend + io::Write> App<B> {
         }
     }
 }
+
 pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
     let mut cursor = tree_sitter::QueryCursor::new();

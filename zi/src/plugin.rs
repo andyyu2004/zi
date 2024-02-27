@@ -120,7 +120,7 @@ mod test {
         let mut config = Config::new();
         config.wasm_component_model(true).async_support(true);
         let engine = Engine::new(&config)?;
-        let (editor, _) = Editor::new();
+        let (editor, _) = Editor::new(crate::Size::new(80, 24));
         let mut store = Store::new(&engine, editor);
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
         for plugin in &plugins[..] {

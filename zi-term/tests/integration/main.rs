@@ -41,7 +41,7 @@ async fn test_syntax_highlight() -> anyhow::Result<()> {
 async fn test_scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |editor| {
         editor.open("tests/integration/testdata/numbers.txt")?;
-        editor.scroll(zi::Direction::Down, 50);
+        editor.scroll_active_view(zi::Direction::Down, 50);
         Ok(())
     })
     .await?;
@@ -49,14 +49,14 @@ async fn test_scroll() -> anyhow::Result<()> {
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |editor| {
         editor.open("tests/integration/testdata/minimal.rs")?;
-        editor.scroll(zi::Direction::Down, 1);
+        editor.scroll_active_view(zi::Direction::Down, 1);
         Ok(())
     })
     .await?;
 
     snapshot("scroll go", |editor| {
         editor.open("tests/integration/testdata/main.go")?;
-        editor.scroll(zi::Direction::Down, 9);
+        editor.scroll_active_view(zi::Direction::Down, 9);
         Ok(())
     })
     .await?;
@@ -76,7 +76,7 @@ async fn snapshot(
 
     {
         let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
-        let (mut editor, _tasks) = Editor::new();
+        let (mut editor, _tasks) = Editor::new(zi::Size::new(80, 24));
         f(&mut editor)?;
         term.draw(|f| zi_term::render(&editor, f))?;
     }

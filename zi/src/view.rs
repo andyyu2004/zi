@@ -1,7 +1,7 @@
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
-use crate::position::Offset;
+use crate::position::{Offset, Size};
 use crate::{Buffer, BufferId, Col, Direction, Mode, Position};
 
 slotmap::new_key_type! {
@@ -10,6 +10,7 @@ slotmap::new_key_type! {
 
 pub struct View {
     id: ViewId,
+    size: Size,
     /// The buffer that this view is displaying.
     buf: BufferId,
     /// The offset of the view in the buffer.
@@ -157,7 +158,14 @@ impl View {
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
+        };
+
+        if self.cursor.pos.line().raw() < self.offset.line {
+            self.offset.line = self.cursor.pos.line().idx() as u32;
         }
+        // } else if self.cursor.pos.line() >= self.offset.line + buf.height() {
+        //     self.offset.line = self.cursor.pos.line().idx() as u32 - buf.height() + 1;
+        // }
     }
 
     pub(crate) fn scroll(&mut self, mode: Mode, buf: &Buffer, direction: Direction, amt: u32) {
@@ -190,8 +198,8 @@ impl View {
         self.offset
     }
 
-    pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
-        Self { id, buf, cursor: Cursor::default(), offset: Default::default() }
+    pub(crate) fn new(id: ViewId, buf: BufferId, size: Size) -> Self {
+        Self { id, buf, size, cursor: Cursor::default(), offset: Default::default() }
     }
 }
 

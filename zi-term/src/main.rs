@@ -30,11 +30,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let stdout = io::stdout().lock();
-    let (mut editor, callbacks) = zi::Editor::new();
+    let term = Terminal::new(CrosstermBackend::new(stdout))?;
+    let size = term.size()?;
+    let (mut editor, callbacks) = zi::Editor::new(zi::Size::new(size.width, size.height));
     if let Some(path) = opts.path {
         editor.open(path)?;
     }
-    let term = Terminal::new(CrosstermBackend::new(stdout))?;
 
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
     std::panic::update_hook(move |prev, info| {
