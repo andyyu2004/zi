@@ -49,6 +49,19 @@ fn cursor_is_not_allowed_on_final_empty_line() {
 }
 
 #[test]
+fn cursor_viewport_coords() {
+    let mut editor = new("fn main() {\n\tbar()\n}");
+    editor.move_active_cursor(Down, 1);
+    editor.move_active_cursor(Right, 1);
+    let buf = editor.buffer(editor.active_view().buffer());
+    assert_eq!(
+        editor.active_view().cursor_viewport_coords(buf),
+        (4, 1),
+        "tab should count as 4 cells (by default)"
+    );
+}
+
+#[test]
 fn move_cursor_empty() {
     let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));
