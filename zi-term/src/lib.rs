@@ -94,8 +94,8 @@ impl<B: Backend + io::Write> App<B> {
 
 pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     let (view, buf) = editor.active();
-    let mut cursor = tree_sitter::QueryCursor::new();
-    cursor.set_match_limit(256);
+    let mut query_cursor = tree_sitter::QueryCursor::new();
+    query_cursor.set_match_limit(256);
     let theme = editor.theme();
 
     let c = |c: zi::Color| match c {
@@ -108,7 +108,7 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
 
     // FIXME compute highlights only for the necessary range
     let highlights = buf
-        .highlights(&mut cursor)
+        .highlights(&mut query_cursor)
         .skip_while(|(node, _)| node.range().end_point.row < line)
         .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
         .map(|(node, style)| {
@@ -127,13 +127,14 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
         buf.text().lines_at(line),
         highlights,
     );
+
     let statusline = tui::Text::styled(
         format!("{}:{}:{}", buf.path().display(), view.cursor().line() + 1, view.cursor().col()),
         tui::Style::new()
             .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
             .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
     );
-    // guifg=#07364
+
     let cmdline = tui::Text::styled(
         format!("-- {} --", editor.mode()),
         tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
@@ -149,6 +150,7 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     frame.render_widget(widget, area);
 
     let (x, y) = view.cursor_viewport_coords(buf);
+    tracing::debug!("cursor: ({}, {})", x, y);
     // + 1 for a blank space between line number and text
     frame.set_cursor(((LINE_NR_WIDTH as u32) + x + 1) as u16, y as u16);
 }

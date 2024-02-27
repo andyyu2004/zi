@@ -73,11 +73,11 @@ impl View {
             "cursor is to the left of the viewport"
         );
 
-        let line_idx = self.cursor.pos.line().idx() - self.offset.line as usize;
+        let line_idx = self.cursor.pos.line().idx();
         let line = buf.text().line(line_idx);
         let byte = line
             .chars()
-            .take(self.cursor.pos.col().idx() - self.offset.col as usize)
+            .take(self.cursor.pos.col().idx())
             .map(|c| {
                 c.width().unwrap_or_else(|| match c {
                     '\t' => buf.tab_width() as usize,
@@ -85,7 +85,8 @@ impl View {
                 })
             })
             .sum::<usize>();
-        (byte as u32, line_idx as u32)
+        // TODO need tests for the column adjustment
+        (byte as u32 - self.offset.col, line_idx as u32 - self.offset.line)
     }
 
     pub(crate) fn move_cursor(

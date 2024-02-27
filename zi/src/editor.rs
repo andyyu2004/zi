@@ -61,6 +61,19 @@ macro_rules! active {
     }};
 }
 
+macro_rules! active_ref {
+    ($editor:ident) => {
+        active_ref!($editor: $editor.active_view)
+    };
+    ($editor:ident: $view:expr) => {{
+        #[allow(unused_imports)]
+        use $crate::view::HasViewId as _;
+        let view = &$editor.views[$view.view_id()];
+        let buf = &$editor.buffers[view.buffer()];
+        (view, buf)
+    }};
+}
+
 pub(crate) use active;
 
 use self::cursor::SetCursorFlags;
@@ -167,6 +180,11 @@ impl Editor {
 
     pub fn should_quit(&self) -> bool {
         self.views.is_empty()
+    }
+
+    pub fn active_cursor_viewport_coords(&self) -> (u32, u32) {
+        let (view, buf) = active_ref!(self);
+        view.cursor_viewport_coords(buf)
     }
 
     #[inline]
