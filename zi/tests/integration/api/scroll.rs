@@ -6,14 +6,17 @@ fn test_scroll() {
     editor.scroll(zi::Direction::Down, 1);
     assert_eq!(editor.current_line(), "");
     assert_eq!(editor.active_view().offset(), (0, 0));
+    assert_eq!(editor.active_view().cursor(), (0, 0));
 
     let mut editor = new("foo\nbar\n");
     assert_eq!(editor.current_line(), "foo\n");
     assert_eq!(editor.active_view().offset(), (0, 0));
+    assert_eq!(editor.active_view().cursor(), (0, 0));
 
     editor.scroll(zi::Direction::Down, 1);
-    assert_eq!(editor.current_line(), "bar\n");
     assert_eq!(editor.active_view().offset(), (1, 0));
+    assert_eq!(editor.active_view().cursor(), (1, 0));
+    assert_eq!(editor.current_line(), "bar\n");
 
     editor.scroll(zi::Direction::Up, 1);
     assert_eq!(editor.current_line(), "foo\n");

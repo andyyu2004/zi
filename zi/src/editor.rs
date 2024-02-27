@@ -186,7 +186,7 @@ impl Editor {
     pub fn set_mode(&mut self, mode: Mode) {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = active!(self);
-            view.move_cursor(mode, buf, Direction::Left);
+            view.move_cursor(mode, buf, Direction::Left, 1);
         }
 
         self.mode = mode;
@@ -226,10 +226,10 @@ impl Editor {
         buf.insert_char(cursor, c);
         match c {
             '\n' => {
-                view.move_cursor(self.mode, buf, Direction::Down);
-                view.move_cursor(self.mode, buf, Direction::Left);
+                view.move_cursor(self.mode, buf, Direction::Down, 1);
+                view.move_cursor(self.mode, buf, Direction::Left, 1);
             }
-            _ => view.move_cursor(self.mode, buf, Direction::Right),
+            _ => view.move_cursor(self.mode, buf, Direction::Right, 1),
         }
 
         let event = event::DidChangeBuffer { buf: buf.id() };
@@ -382,7 +382,7 @@ impl Editor {
 
     pub fn scroll(&mut self, direction: Direction, amount: u32) {
         let (view, buf) = active!(self);
-        view.scroll(buf, direction, amount);
+        view.scroll(self.mode, buf, direction, amount);
     }
 
     fn jump_to_definition(
@@ -498,10 +498,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const CLOSE_VIEW: Action = |editor| editor.close_active_view();
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
     const NORMAL_MODE: Action = |editor| editor.set_mode(Mode::Normal);
-    const MOVE_LEFT: Action = |editor| editor.move_active_cursor(Direction::Left);
-    const MOVE_RIGHT: Action = |editor| editor.move_active_cursor(Direction::Right);
-    const MOVE_UP: Action = |editor| editor.move_active_cursor(Direction::Up);
-    const MOVE_DOWN: Action = |editor| editor.move_active_cursor(Direction::Down);
+    const MOVE_LEFT: Action = |editor| editor.move_active_cursor(Direction::Left, 1);
+    const MOVE_RIGHT: Action = |editor| editor.move_active_cursor(Direction::Right, 1);
+    const MOVE_UP: Action = |editor| editor.move_active_cursor(Direction::Up, 1);
+    const MOVE_DOWN: Action = |editor| editor.move_active_cursor(Direction::Down, 1);
     const GO_TO_DEFINITION: Action = |editor| editor.go_to_definition();
     const OPEN_NEWLINE: Action = |editor| {
         editor.set_mode(Mode::Insert);
@@ -515,11 +515,11 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const APPEND_EOL: Action = |editor| {
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.set_mode(Mode::Insert);
-        editor.move_active_cursor(Direction::Right);
+        editor.move_active_cursor(Direction::Right, 1);
     };
     const APPEND: Action = |editor| {
         editor.set_mode(Mode::Insert);
-        editor.move_active_cursor(Direction::Right);
+        editor.move_active_cursor(Direction::Right, 1);
     };
 
     const SCROLL_LINE_DOWN: Action = |editor| editor.scroll(Direction::Down, 1);

@@ -16,14 +16,14 @@ impl Editor {
     }
 
     #[inline]
-    pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction) {
+    pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction, amt: u32) {
         let (view, buf) = active!(self: view);
-        view.move_cursor(self.mode, buf, direction);
+        view.move_cursor(self.mode, buf, direction, amt);
     }
 
     #[inline]
-    pub fn move_active_cursor(&mut self, direction: Direction) {
-        self.move_cursor(self.active_view, direction);
+    pub fn move_active_cursor(&mut self, direction: Direction, amt: u32) {
+        self.move_cursor(self.active_view, direction, amt);
     }
 
     #[inline]
