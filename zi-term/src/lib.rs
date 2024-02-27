@@ -119,7 +119,14 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
             ((start.row - line, start.column)..(end.row - line, end.column), style)
         });
 
-    let lines = tui::Lines::new(buf.tab_width(), buf.text().lines_at(line), highlights);
+    const LINE_NR_WIDTH: usize = 4;
+    let lines = tui::Lines::new(
+        line,
+        LINE_NR_WIDTH,
+        buf.tab_width(),
+        buf.text().lines_at(line),
+        highlights,
+    );
     let statusline = tui::Text::styled(
         format!("{}:{}:{}", buf.path().display(), view.cursor().line() + 1, view.cursor().col()),
         tui::Style::new()
@@ -142,8 +149,8 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     frame.render_widget(widget, area);
 
     let (x, y) = view.cursor_viewport_coords(buf);
-    // FIXME this only works if the entire buffer fits in view
-    frame.set_cursor(x as u16, y as u16);
+    // + 1 for a blank space between line number and text
+    frame.set_cursor(((LINE_NR_WIDTH as u32) + x + 1) as u16, y as u16);
 }
 
 impl<W: Backend + io::Write> Drop for App<W> {

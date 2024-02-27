@@ -53,6 +53,10 @@ where
 }
 
 pub struct Lines<'a, I, H: Iterator> {
+    /// The 0-indexed line number to start with
+    line_start: usize,
+    /// The width of the line number column
+    line_nr_width: usize,
     tab_width: u8,
     lines: I,
     highlights: Peekable<H>,
@@ -60,8 +64,21 @@ pub struct Lines<'a, I, H: Iterator> {
 }
 
 impl<I, H: Iterator> Lines<'_, I, H> {
-    pub fn new(tab_width: u8, lines: I, highlights: H) -> Self {
-        Self { tab_width, lines, highlights: highlights.peekable(), _marker: PhantomData }
+    pub fn new(
+        line_start: usize,
+        line_nr_width: usize,
+        tab_width: u8,
+        lines: I,
+        highlights: H,
+    ) -> Self {
+        Self {
+            line_start,
+            line_nr_width,
+            tab_width,
+            lines,
+            highlights: highlights.peekable(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -78,7 +95,10 @@ where
             }
 
             let line = line.into();
-            let mut spans = vec![];
+            let mut spans = vec![Span::styled(
+                format!("{:width$} ", self.line_start + i + 1, width = self.line_nr_width),
+                Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
+            )];
 
             if let Some((range, _)) = self.highlights.peek() {
                 assert!(range.start.0 >= i, "highlights got behind?");
@@ -121,6 +141,7 @@ where
                         .into();
                 }
             }
+
             let line = Line::default().spans(spans);
             // safe cast to u16 as we already checked that i < area.height (which is a u16)
             buf.set_line(area.x, area.y + i as u16, &line, area.width);
