@@ -86,10 +86,17 @@ impl<T> Stream for ChannelStream<T> {
 }
 
 impl Editor {
+    // status line + command line
+    pub const BOTTOM_BAR_HEIGHT: u16 = 1 + 1;
+
     /// Create a new editor with a scratch buffer.
     /// Returns the editor instance and a stream of callbacks.
     /// The callback stream must be polled and the resulting callback executed on the editor.
     pub fn new(size: Size) -> (Self, Callbacks) {
+        assert!(size.height > Self::BOTTOM_BAR_HEIGHT, "height must be at least 3");
+        // Subtract 2 from the height to leave room for the status line and command line.
+        let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
+
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf =
