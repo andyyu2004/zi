@@ -66,7 +66,9 @@ impl View {
         assert_eq!(buf.id(), self.buf);
         assert!(
             self.offset.line <= self.cursor.pos.line().idx() as u32,
-            "cursor is above the viewport"
+            "cursor is above the viewport: offset={} cursor={}",
+            self.offset,
+            self.cursor.pos,
         );
         assert!(
             self.offset.col <= self.cursor.pos.col().idx() as u32,
@@ -108,11 +110,14 @@ impl View {
             Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
         };
 
-        let flags = if direction.is_vertical() {
+        let mut flags = if direction.is_vertical() {
             SetCursorFlags::NO_COLUMN_BOUNDS_CHECK
         } else {
             SetCursorFlags::empty()
         };
+
+        // If we're moving down and we overshoot, move to the last line instead of doing nothing.
+        flags |= SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS;
 
         self.set_cursor(mode, size, buf, pos, flags);
     }
@@ -130,12 +135,18 @@ impl View {
         let text = buf.text();
 
         // Check line is in-bounds
-        let line_idx = pos.line().idx();
+        let mut line_idx = pos.line().idx();
         let line = match text.get_line(line_idx) {
             // disallow putting cursor on the final empty line
             Some(line) if line != "" || line_idx < text.len_lines() - 1 => line,
+            _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
+                line_idx = text.len_lines().saturating_sub(2);
+                text.line(line_idx)
+            }
             _ => return,
         };
+
+        let pos = Position::new(line_idx, pos.col());
 
         // Pretending CRLF doesn't exist.
         // We don't allow the cursor on the newline character.
@@ -207,6 +218,14 @@ impl View {
         };
 
         self.move_cursor(mode, size, buf, direction, amt);
+        assert!(
+            self.cursor.pos.line().raw() >= self.offset.line
+                && self.cursor.pos.line().raw() < self.offset.line + size.height as u32,
+            "cursor is out of bounds: cursor={} offset={} size={}",
+            self.cursor.pos,
+            self.offset,
+            size
+        );
     }
 
     #[inline]

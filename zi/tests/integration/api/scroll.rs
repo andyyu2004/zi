@@ -69,9 +69,28 @@ fn test_scroll() {
 
     editor.scroll_active_view(Up, 50);
     assert_eq!(editor.active_view().offset(), (0, 0));
+    assert_eq!(editor.active_view().cursor(), (0, 0));
     assert_eq!(editor.current_line(), "foo\n");
 
     editor.scroll_active_view(Down, 50);
     assert_eq!(editor.active_view().offset(), (1, 0));
+    assert_eq!(editor.active_view().cursor(), (1, 0));
     assert_eq!(editor.current_line(), "bar\n");
+}
+
+#[test]
+fn test_scroll_bounds_check() {
+    let mut editor = new("1\n2\n3\n4\n5\n");
+
+    // Move cursor down one so it's desyned from the scroll
+    editor.move_active_cursor(Down, 1);
+    assert_eq!(editor.active_view().offset(), (0, 0));
+    assert_eq!(editor.active_view().cursor(), (1, 0));
+
+    // Scroll as far as possible
+    editor.scroll_active_view(Down, 20);
+
+    // Ensure the cursor is still following the scroll
+    assert_eq!(editor.active_view().offset(), (4, 0));
+    assert_eq!(editor.active_view().cursor(), (4, 0));
 }

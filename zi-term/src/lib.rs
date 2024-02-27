@@ -150,7 +150,6 @@ pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
     frame.render_widget(widget, area);
 
     let (x, y) = view.cursor_viewport_coords(buf);
-    tracing::debug!("cursor: ({}, {})", x, y);
     // + 1 for a blank space between line number and text
     frame.set_cursor(((LINE_NR_WIDTH as u32) + x + 1) as u16, y as u16);
 }

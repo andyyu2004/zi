@@ -9,6 +9,12 @@ pub struct Size {
     pub height: u16,
 }
 
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}x{}", self.width, self.height)
+    }
+}
+
 impl Size {
     pub fn new(width: u16, height: u16) -> Self {
         Self { width, height }
@@ -19,6 +25,12 @@ impl Size {
 pub struct Offset {
     pub line: u32,
     pub col: u32,
+}
+
+impl fmt::Display for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
 }
 
 impl PartialEq<(u32, u32)> for Offset {
