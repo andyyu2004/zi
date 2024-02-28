@@ -28,6 +28,7 @@ unicode-width = "0.1.11"
 wasmtime = { version = "17.0.1", features = ["component-model"] }
 wit-bindgen = "0.18.0"
 zi-lsp = { version = "0.1.0", path = "../zi-lsp" }
+tui = { version = "0.1.0", path = "../zi-tui", package = "zi-tui" }
 
 [dev-dependencies]
 tempfile = "3.10.0"

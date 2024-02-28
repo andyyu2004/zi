@@ -2,6 +2,7 @@
 
 mod boring_impls;
 mod buffer;
+mod component;
 mod editor;
 pub mod event;
 mod keymap;

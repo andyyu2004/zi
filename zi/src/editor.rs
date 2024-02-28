@@ -13,10 +13,13 @@ use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
+use crate::component::{Component as _, Picker, Surface};
 use crate::event::{self, Event, KeyEvent};
 use crate::keymap::Keymap;
+use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
 use crate::position::Size;
@@ -180,6 +183,10 @@ impl Editor {
 
     pub fn should_quit(&self) -> bool {
         self.views.is_empty()
+    }
+
+    pub fn render(&self, area: Rect, surface: &mut Surface) {
+        self.tree.render(self, area, surface);
     }
 
     pub fn active_cursor_viewport_coords(&self) -> (u32, u32) {
@@ -416,6 +423,10 @@ impl Editor {
         view.scroll(self.mode, size, buf, direction, amount);
     }
 
+    pub fn open_picker(&mut self) {
+        self.tree.push_layer(Layer::new(Picker::new()));
+    }
+
     fn jump_to_definition(
         &mut self,
         res: Option<lsp_types::GotoDefinitionResponse>,
@@ -557,6 +568,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
+    const OPEN_FILE_PICKER: Action = |editor| editor.open_picker();
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
@@ -577,6 +589,9 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "B" => PREV_TOKEN,
             "a" => APPEND,
             "A" => APPEND_EOL,
+            "space" => {
+                "o" => OPEN_FILE_PICKER,
+            },
             "g" => {
                 "d" => GO_TO_DEFINITION,
             },

@@ -1,8 +1,10 @@
+use tui::{Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
+use crate::component::{Component, Surface};
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, Size};
-use crate::{Buffer, BufferId, Col, Direction, Mode, Position};
+use crate::{Buffer, BufferId, Col, Color, Direction, Editor, Mode, Position, Style};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -260,5 +262,69 @@ impl HasViewId for View {
     #[inline]
     fn view_id(&self) -> ViewId {
         self.id
+    }
+}
+
+impl Component for View {
+    fn render(&self, editor: &Editor, area: Rect, surface: &mut Surface) {
+        let (view, buf) = editor.active();
+        let mut query_cursor = tree_sitter::QueryCursor::new();
+        query_cursor.set_match_limit(256);
+        let theme = editor.theme();
+
+        let c = |c: Color| match c {
+            Color::Rgb(r, g, b) => tui::Color::Rgb(r, g, b),
+        };
+
+        let s = |s: Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
+
+        let line = view.offset().line as usize;
+
+        // FIXME compute highlights only for the necessary range
+        let highlights = buf
+            .highlights(&mut query_cursor)
+            .skip_while(|(node, _)| node.range().end_point.row < line)
+            .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
+            .map(|(node, style)| {
+                let range = node.range();
+                let start = range.start_point;
+                let end = range.end_point;
+                // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming
+                ((start.row - line, start.column)..(end.row - line, end.column), style)
+            });
+
+        const LINE_NR_WIDTH: usize = 4;
+        let lines = tui::Lines::new(
+            line,
+            LINE_NR_WIDTH,
+            buf.tab_width(),
+            buf.text().lines_at(line),
+            highlights,
+        );
+
+        let statusline = tui::Text::styled(
+            format!(
+                "{}:{}:{}",
+                buf.path().display(),
+                view.cursor().line() + 1,
+                view.cursor().col()
+            ),
+            tui::Style::new()
+                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
+                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
+        );
+
+        let cmdline = tui::Text::styled(
+            format!("-- {} --", editor.mode()),
+            tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+        );
+
+        let widget = tui::vstack(
+            [tui::Constraint::Fill(1), tui::Constraint::Max(1), tui::Constraint::Max(1)],
+            (lines, statusline, cmdline),
+        );
+
+        surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
+        widget.render(area, surface);
     }
 }
