@@ -1,5 +1,3 @@
-mod event;
-
 use std::backtrace::Backtrace;
 use std::io;
 use std::pin::pin;
@@ -9,10 +7,10 @@ use crossterm::cursor::SetCursorStyle;
 use crossterm::event::DisableMouseCapture;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{cursor, execute, terminal};
-pub use event::*;
 use futures_util::{Stream, StreamExt};
 use tokio::select;
 use tui::{Backend, Frame, Terminal};
+use zi::input::Event;
 use zi::Editor;
 
 pub struct App<B: Backend + io::Write> {
@@ -55,7 +53,7 @@ impl<B: Backend + io::Write> App<B> {
                     // TODO show error somewhere
                     Err(err) => tracing::error!("task failed: {:?}", err),
                 },
-                Some(event) = events.next() => self.on_event(event?).await,
+                Some(event) = events.next() => self.on_event(event?),
             }
 
             if self.editor.should_quit() {
@@ -84,9 +82,9 @@ impl<B: Backend + io::Write> App<B> {
         Ok(())
     }
 
-    async fn on_event(&mut self, event: Event) {
+    fn on_event(&mut self, event: Event) {
         match event {
-            Event::Key(key) => self.editor.on_key(key),
+            Event::Key(key) => self.editor.handle_key_event(key),
             Event::Resize(_, _) => {}
         }
     }

@@ -1,4 +1,4 @@
-use zi::event::KeyEvent;
+use zi::input::KeyEvent;
 
 use crate::api::new;
 
@@ -9,11 +9,11 @@ fn k(s: &str) -> KeyEvent {
 #[test]
 fn test_composite_escape() {
     let mut editor = new("");
-    editor.on_key(k("i"));
+    editor.handle_key_event(k("i"));
     for i in 0..5 {
-        editor.on_key(k("f"));
+        editor.handle_key_event(k("f"));
         assert_eq!(editor.current_line(), format!("{}", "f".repeat(i + 1)));
     }
-    editor.on_key(k("d"));
+    editor.handle_key_event(k("d"));
     assert_eq!(editor.current_line(), "fffff");
 }

@@ -5,6 +5,7 @@ mod buffer;
 mod component;
 mod editor;
 pub mod event;
+pub mod input;
 mod keymap;
 mod language;
 mod layout;

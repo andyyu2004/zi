@@ -9,6 +9,7 @@ use crossterm::event::EventStream;
 use futures_util::StreamExt;
 use tracing_subscriber::EnvFilter;
 use tui::{CrosstermBackend, Terminal};
+use zi::input::Event;
 
 #[derive(Parser)]
 struct Opts {
@@ -48,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     app.enter()?;
 
     let events = EventStream::new()
-        .filter_map(|ev| async { ev.map(zi_term::Event::from_crossterm).transpose() });
+        .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
     app.run(events, callbacks).await?;
 
     Ok(())

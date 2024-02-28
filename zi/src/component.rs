@@ -16,5 +16,7 @@ impl Picker {
 }
 
 impl Component for Picker {
-    fn render(&self, _editor: &Editor, _area: Rect, _surface: &mut Surface) {}
+    fn render(&self, _editor: &Editor, area: Rect, surface: &mut Surface) {
+        surface.set_style(area, tui::Style::new().bg(tui::Color::Yellow));
+    }
 }

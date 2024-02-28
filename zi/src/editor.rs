@@ -17,7 +17,7 @@ use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::component::{Component as _, Picker, Surface};
-use crate::event::{self, Event, KeyEvent};
+use crate::input::{Event, KeyEvent};
 use crate::keymap::Keymap;
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
@@ -26,7 +26,7 @@ use crate::position::Size;
 use crate::syntax::Theme;
 use crate::view::HasViewId;
 use crate::{
-    hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, LanguageId,
+    event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, LanguageId,
     LanguageServerId, Mode, View, ViewId,
 };
 
@@ -194,8 +194,15 @@ impl Editor {
         view.cursor_viewport_coords(buf)
     }
 
+    pub fn handle_input(&mut self, event: Event) {
+        match event {
+            Event::Key(key) => self.handle_key_event(key),
+            Event::Resize(_, _) => (),
+        }
+    }
+
     #[inline]
-    pub fn on_key(&mut self, key: KeyEvent) {
+    pub fn handle_key_event(&mut self, key: KeyEvent) {
         match &key.code {
             &KeyCode::Char(c) if self.mode == Mode::Insert => {
                 if let Some(f) = self.keymap.on_key(self.mode, key) {
@@ -272,7 +279,7 @@ impl Editor {
         self.dispatch(event);
     }
 
-    fn dispatch(&mut self, event: impl Event) {
+    fn dispatch(&mut self, event: impl event::Event) {
         event::dispatch(self, event);
     }
 
