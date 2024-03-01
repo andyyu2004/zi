@@ -13,6 +13,7 @@ use futures_core::Stream;
 use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
+use stdx::path::PathExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Notify;
 use tui::Rect;
@@ -483,7 +484,7 @@ impl Editor {
                             Err(_) => return ignore::WalkState::Continue,
                         };
 
-                        match injector.push(entry.into_path()) {
+                        match injector.push(entry.into_path().display_owned()) {
                             Ok(()) => ignore::WalkState::Continue,
                             Err(()) => ignore::WalkState::Quit,
                         }

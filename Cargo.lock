@@ -1723,6 +1723,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stdx"
+version = "0.1.0"
+
+[[package]]
 name = "str_indices"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2838,6 +2842,7 @@ dependencies = [
  "ropey",
  "rustc-hash",
  "slotmap",
+ "stdx",
  "tempfile",
  "tokio",
  "tracing",

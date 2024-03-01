@@ -7,10 +7,9 @@ use nucleo::Nucleo;
 
 use super::*;
 
-// FIXME don't use Debug
-pub trait Item: fmt::Debug + Clone + Sync + Send + 'static {}
+pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
 
-impl<T> Item for T where T: fmt::Debug + Clone + Sync + Send + 'static {}
+impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
 
 /// Wrapper around a `nucleo::Injector`
 pub struct Injector<T> {
@@ -27,7 +26,7 @@ impl<T: Item> Injector<T> {
     /// Push an item into the injector
     /// Returns `Err` if the injector has been cancelled
     pub fn push(&self, item: T) -> Result<(), ()> {
-        self.injector.push(item.clone(), |dst| dst[0] = format!("{item:?}").into());
+        self.injector.push(item.clone(), |dst| dst[0] = format!("{item}").into());
         if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
     }
 }
@@ -148,7 +147,7 @@ impl<T: Item> Buffer for PickerBuffer<T> {
 
         let n = snapshot.matched_item_count().min(100);
         for item in snapshot.matched_items(..n) {
-            rope.insert(rope.len_chars(), &format!("\n{:?}", item.data));
+            rope.insert(rope.len_chars(), &format!("\n{:}", item.data));
         }
         self.text.append(rope);
     }
