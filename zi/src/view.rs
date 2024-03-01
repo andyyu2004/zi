@@ -63,7 +63,7 @@ impl View {
     /// Returns the cursor coordinates in the buffer in cells (not characters) relative to the viewport.
     /// For example, '\t' is one character but is 4 cells wide (by default).
     #[inline]
-    pub fn cursor_viewport_coords(&self, buf: &Buffer) -> (u32, u32) {
+    pub fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u32, u32) {
         assert_eq!(buf.id(), self.buf);
         assert!(
             self.offset.line <= self.cursor.pos.line().idx() as u32,
@@ -96,7 +96,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: Size,
-        buf: &Buffer,
+        buf: &dyn Buffer,
         direction: Direction,
         amt: u32,
     ) {
@@ -128,7 +128,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: Size,
-        buf: &Buffer,
+        buf: &dyn Buffer,
         pos: Position,
         flags: SetCursorFlags,
     ) {
@@ -192,7 +192,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: Size,
-        buf: &Buffer,
+        buf: &dyn Buffer,
         direction: Direction,
         amt: u32,
     ) {
@@ -282,10 +282,9 @@ impl View {
         // FIXME compute highlights only for the necessary range
         let highlights = buf
             .highlights(&mut query_cursor)
-            .skip_while(|(node, _)| node.range().end_point.row < line)
+            .skip_while(|(range, _)| range.end_point.row < line)
             .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
-            .map(|(node, style)| {
-                let range = node.range();
+            .map(|(range, style)| {
                 let start = range.start_point;
                 let end = range.end_point;
                 // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming

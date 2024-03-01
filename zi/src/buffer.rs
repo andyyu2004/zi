@@ -1,9 +1,12 @@
+mod text;
+
 use std::path::{Path, PathBuf};
 
 use ropey::Rope;
-use tree_sitter::{Node, QueryCursor};
+use tree_sitter::{QueryCursor, Range};
 use zi_lsp::lsp_types::Url;
 
+pub use self::text::TextBuffer;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{LanguageId, Position};
 
@@ -11,109 +14,61 @@ slotmap::new_key_type! {
     pub struct BufferId;
 }
 
-pub struct Buffer {
-    id: BufferId,
-    path: PathBuf,
-    url: Option<Url>,
-    text: Rope,
-    language_id: LanguageId,
-    syntax: Option<Syntax>,
-    // FIXME highlight map doesn't belong here
-    highlight_map: HighlightMap,
-    version: u32,
-    tab_width: u8,
-}
+pub trait Buffer {
+    fn id(&self) -> BufferId;
+    fn path(&self) -> &Path;
+    fn url(&self) -> Option<Url>;
+    fn language_id(&self) -> &LanguageId;
+    fn tab_width(&self) -> u8;
+    fn text(&self) -> &Rope;
+    fn version(&self) -> u32;
 
-impl Buffer {
-    #[inline]
-    pub fn new(
-        id: BufferId,
-        language_id: LanguageId,
-        path: impl AsRef<Path>,
-        text: impl Into<Rope>,
-        theme: &Theme,
-    ) -> Self {
-        let path = path.as_ref();
-        let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
-        let url = Url::from_file_path(&path).ok();
-        let text = text.into();
+    // TODO this should be a more general mutate operation
+    fn insert_char(&mut self, pos: Position, c: char);
 
-        let mut syntax = Syntax::for_language(&language_id);
-        if let Some(syntax) = &mut syntax {
-            syntax.apply(text.slice(..));
-        }
-
-        Self {
-            id,
-            path,
-            url,
-            text,
-            language_id,
-            version: 0,
-            highlight_map: HighlightMap::new(
-                syntax.as_ref().map_or(&[][..], |syntax| syntax.highlights_query().capture_names()),
-                theme,
-            ),
-            syntax,
-            tab_width: 4,
-        }
-    }
-
-    #[inline]
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    #[inline]
-    pub fn url(&self) -> Option<Url> {
-        self.url.clone()
-    }
-
-    #[inline]
-    pub fn id(&self) -> BufferId {
-        self.id
-    }
-
-    #[inline]
-    pub fn language_id(&self) -> &LanguageId {
-        &self.language_id
-    }
-
-    pub fn tab_width(&self) -> u8 {
-        self.tab_width
-    }
-
-    #[inline]
-    pub fn text(&self) -> &Rope {
-        &self.text
-    }
-
-    #[inline]
-    pub(crate) fn insert_char(&mut self, pos: Position, c: char) {
-        let idx = self.text.line_to_char(pos.line().idx()) + pos.col().idx();
-        self.text.insert_char(idx, c);
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.apply(self.text.slice(..));
-        }
-
-        self.version.checked_add(1).unwrap();
-    }
-
-    pub fn highlights<'a>(
+    fn highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> impl Iterator<Item = (Node<'a>, HighlightId)> + 'a {
-        self.syntax
-            .as_ref()
-            .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
-            .map(|capture| (capture.node, self.highlight_map.get(capture.index)))
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a>;
+}
+
+impl Buffer for Box<dyn Buffer> {
+    fn id(&self) -> BufferId {
+        self.as_ref().id()
     }
 
-    pub fn version(&self) -> u32 {
-        self.version
+    fn path(&self) -> &Path {
+        self.as_ref().path()
     }
 
-    pub fn lang(&self) -> &LanguageId {
-        &self.language_id
+    fn url(&self) -> Option<Url> {
+        self.as_ref().url()
+    }
+
+    fn language_id(&self) -> &LanguageId {
+        self.as_ref().language_id()
+    }
+
+    fn tab_width(&self) -> u8 {
+        self.as_ref().tab_width()
+    }
+
+    fn text(&self) -> &Rope {
+        self.as_ref().text()
+    }
+
+    fn version(&self) -> u32 {
+        self.as_ref().version()
+    }
+
+    fn insert_char(&mut self, pos: Position, c: char) {
+        self.as_mut().insert_char(pos, c);
+    }
+
+    fn highlights<'a>(
+        &'a self,
+        cursor: &'a mut QueryCursor,
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
+        self.as_ref().highlights(cursor)
     }
 }

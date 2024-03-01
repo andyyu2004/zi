@@ -16,6 +16,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
+use crate::buffer::TextBuffer;
 use crate::input::{Event, KeyEvent};
 use crate::keymap::Keymap;
 use crate::layout::Layer;
@@ -32,7 +33,7 @@ pub struct Editor {
     cwd: PathBuf,
     mode: Mode,
     keymap: Keymap<Mode, KeyEvent, Action>,
-    buffers: SlotMap<BufferId, Buffer>,
+    buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     views: SlotMap<ViewId, View>,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
@@ -113,8 +114,8 @@ impl Editor {
 
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
-        let buf =
-            buffers.insert_with_key(|id| Buffer::new(id, LanguageId::TEXT, "scratch", "", &theme));
+        let buf = buffers
+            .insert_with_key(|id| TextBuffer::make(id, LanguageId::TEXT, "scratch", "", &theme));
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
@@ -163,7 +164,7 @@ impl Editor {
         tracing::debug!(%lang, ?path, "detected language");
         let buf = self
             .buffers
-            .insert_with_key(|id| Buffer::new(id, lang.clone(), path, rope, &self.theme));
+            .insert_with_key(|id| TextBuffer::make(id, lang.clone(), path, rope, &self.theme));
         self.views[self.tree.active()].set_buffer(buf);
 
         self.spawn_language_servers_for_lang(buf, &lang)?;
@@ -240,7 +241,7 @@ impl Editor {
     }
 
     #[inline]
-    pub fn active_buffer(&self) -> &Buffer {
+    pub fn active_buffer(&self) -> &dyn Buffer {
         self.buffer(self.active_view().buffer())
     }
 
@@ -256,8 +257,8 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer> {
-        self.buffers.values()
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &dyn Buffer> {
+        self.buffers.values().map(|b| b.as_ref())
     }
 
     #[inline]
@@ -266,12 +267,12 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffer(&self, id: BufferId) -> &Buffer {
+    pub fn buffer(&self, id: BufferId) -> &dyn Buffer {
         self.buffers.get(id).expect("got bad buffer id?")
     }
 
     #[inline]
-    pub fn active(&self) -> (&View, &Buffer) {
+    pub fn active(&self) -> (&View, &dyn Buffer) {
         let view = self.active_view();
         let buffer = self.buffer(view.buffer());
         (view, buffer)
@@ -442,7 +443,7 @@ impl Editor {
 
     pub fn open_picker(&mut self) {
         let buf = self.buffers.insert_with_key(|id| {
-            Buffer::new(id, LanguageId::TEXT, "file picker", "file picker", &self.theme)
+            TextBuffer::make(id, LanguageId::TEXT, "file picker", "file picker", &self.theme)
         });
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));
