@@ -36,7 +36,12 @@ async fn main() -> anyhow::Result<()> {
     let (mut editor, callbacks, notify_redraw) =
         zi::Editor::new(zi::Size::new(size.width, size.height));
     if let Some(path) = opts.path {
-        editor.open(path)?;
+        if path.exists() && path.is_dir() {
+            std::env::set_current_dir(&path)?;
+            editor.open_file_picker(".");
+        } else {
+            editor.open(path)?;
+        }
     }
 
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);

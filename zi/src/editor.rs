@@ -3,9 +3,9 @@ pub(crate) mod cursor;
 use std::fs::File;
 use std::future::Future;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use std::task::{Context, Poll};
 
 use crossterm::event::KeyCode;
@@ -32,7 +32,6 @@ use crate::{
 };
 
 pub struct Editor {
-    cwd: PathBuf,
     mode: Mode,
     keymap: Keymap<Mode, KeyEvent, Action>,
     buffers: SlotMap<BufferId, Box<dyn Buffer>>,
@@ -131,7 +130,6 @@ impl Editor {
         // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let editor = Self {
-            cwd: std::env::current_dir().expect("current dir"),
             buffers,
             views,
             tx,
@@ -148,7 +146,7 @@ impl Editor {
     }
 
     pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
-        let path = self.cwd.join(path);
+        let path = path.as_ref();
 
         // If the buffer is already open, switch to it
         for buf in self.buffers.values() {
@@ -159,7 +157,7 @@ impl Editor {
         }
 
         let rope = if path.exists() {
-            let reader = BufReader::new(File::open(&path)?);
+            let reader = BufReader::new(File::open(path)?);
             let mut builder = RopeBuilder::new();
             for line in reader.lines() {
                 builder.append(line?.as_str());
@@ -170,7 +168,7 @@ impl Editor {
             Rope::new()
         };
 
-        let lang = FileType::detect(&path);
+        let lang = FileType::detect(path);
         tracing::debug!(%lang, ?path, "detected language");
         let buf = self.buffers.insert_with_key(|id| {
             TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
@@ -397,8 +395,7 @@ impl Editor {
                 let command = &server_config.command;
                 let args = &server_config.args;
                 tracing::debug!(%server_id, ?command, ?args, "initializing language server");
-                let mut server =
-                    zi_lsp::Server::start(LanguageClient, &self.cwd, command, &args[..])?;
+                let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
                 callback(
                     &self.tx,
                     async move {
@@ -455,40 +452,45 @@ impl Editor {
         view.scroll(self.mode, size, buf, direction, amount);
     }
 
-    pub fn open_file_picker(&mut self) {
-        let mut injector = None;
-        let buf = self.buffers.insert_with_key(|id| {
-            let (picker, inj) = PickerBuffer::new_streamed(
-                id,
-                nucleo::Config::DEFAULT.match_paths(),
-                request_redraw,
-            );
-            injector = Some(inj);
-            picker.boxed()
-        });
+    pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
+        inner(self, path.as_ref());
 
-        let injector = injector.unwrap();
-        let view = self.views.insert_with_key(|id| View::new(id, buf));
-        self.tree.push(Layer::new(view));
-
-        self.pool.spawn(move || {
-            ignore::WalkBuilder::new(".").build_parallel().run(|| {
-                Box::new(|entry| {
-                    let entry = match entry {
-                        Ok(entry) => match entry.file_type() {
-                            Some(ft) if ft.is_file() => entry,
-                            _ => return ignore::WalkState::Continue,
-                        },
-                        Err(_) => return ignore::WalkState::Continue,
-                    };
-
-                    match injector.push(entry.into_path()) {
-                        Ok(()) => ignore::WalkState::Continue,
-                        Err(()) => ignore::WalkState::Quit,
-                    }
-                })
+        fn inner(editor: &mut Editor, path: &Path) {
+            let mut injector = None;
+            let buf = editor.buffers.insert_with_key(|id| {
+                let (picker, inj) = PickerBuffer::new_streamed(
+                    id,
+                    nucleo::Config::DEFAULT.match_paths(),
+                    request_redraw,
+                );
+                injector = Some(inj);
+                picker.boxed()
             });
-        })
+
+            let injector = injector.unwrap();
+            let view = editor.views.insert_with_key(|id| View::new(id, buf));
+            editor.tree.push(Layer::new(view));
+
+            let walk = ignore::WalkBuilder::new(path).build_parallel();
+            editor.pool.spawn(move || {
+                walk.run(|| {
+                    Box::new(|entry| {
+                        let entry = match entry {
+                            Ok(entry) => match entry.file_type() {
+                                Some(ft) if ft.is_file() => entry,
+                                _ => return ignore::WalkState::Continue,
+                            },
+                            Err(_) => return ignore::WalkState::Continue,
+                        };
+
+                        match injector.push(entry.into_path()) {
+                            Ok(()) => ignore::WalkState::Continue,
+                            Err(()) => ignore::WalkState::Quit,
+                        }
+                    })
+                })
+            })
+        }
     }
 
     fn jump_to_definition(
@@ -632,7 +634,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
-    const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker();
+    const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({

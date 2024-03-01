@@ -4,7 +4,7 @@ use super::new;
 fn test_picker() {
     let mut editor = new("");
     let current_buf = editor.active_buffer().id();
-    editor.open_file_picker();
+    editor.open_file_picker(".");
     assert_ne!(
         editor.active_buffer().id(),
         current_buf,

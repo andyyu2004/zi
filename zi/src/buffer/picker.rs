@@ -70,18 +70,18 @@ impl<T: Item> PickerBuffer<T> {
         (Self { id, cancel, text: Rope::new(), nucleo, end: 0 }, injector)
     }
 
-    pub fn new(
-        id: BufferId,
-        config: nucleo::Config,
-        options: impl IntoIterator<Item = T>,
-        notify: impl Fn() + Send + Sync + 'static,
-    ) -> Self {
-        let (this, injector) = Self::new_streamed(id, config, notify);
-        for item in options {
-            injector.push(item).expect("can't be cancelled");
-        }
-        this
-    }
+    // pub fn new(
+    //     id: BufferId,
+    //     config: nucleo::Config,
+    //     options: impl IntoIterator<Item = T>,
+    //     notify: impl Fn() + Send + Sync + 'static,
+    // ) -> Self {
+    //     let (this, injector) = Self::new_streamed(id, config, notify);
+    //     for item in options {
+    //         injector.push(item).expect("can't be cancelled");
+    //     }
+    //     this
+    // }
 }
 
 impl<T: Item> Buffer for PickerBuffer<T> {
