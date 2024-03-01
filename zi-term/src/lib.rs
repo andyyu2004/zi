@@ -78,12 +78,12 @@ impl<B: Backend + io::Write> App<B> {
 
     #[tracing::instrument(skip(self), level = "debug")]
     fn render(&mut self) -> io::Result<()> {
-        self.term.draw(|frame| render(&self.editor, frame))?;
+        self.term.draw(|frame| render(&mut self.editor, frame))?;
         Ok(())
     }
 }
 
-pub fn render(editor: &Editor, frame: &mut Frame<'_>) {
+pub fn render(editor: &mut Editor, frame: &mut Frame<'_>) {
     let area = frame.size();
     editor.render(area, frame.buffer_mut());
 

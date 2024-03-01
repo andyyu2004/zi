@@ -133,7 +133,7 @@ impl View {
         flags: SetCursorFlags,
     ) {
         assert_eq!(buf.id(), self.buf);
-        let text = buf.text();
+        let text = buf.writable_text();
 
         // Check line is in-bounds
         let mut line_idx = pos.line().idx();

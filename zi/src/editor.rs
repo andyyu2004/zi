@@ -16,7 +16,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::TextBuffer;
+use crate::buffer::{PickerBuffer, TextBuffer};
 use crate::input::{Event, KeyEvent};
 use crate::keymap::Keymap;
 use crate::layout::Layer;
@@ -183,7 +183,10 @@ impl Editor {
         self.tree.is_empty()
     }
 
-    pub fn render(&self, area: Rect, surface: &mut tui::Buffer) {
+    pub fn render(&mut self, area: Rect, surface: &mut tui::Buffer) {
+        for buf in self.buffers.values_mut() {
+            buf.pre_render();
+        }
         self.tree.render(self, area, surface);
     }
 
@@ -443,7 +446,10 @@ impl Editor {
 
     pub fn open_picker(&mut self) {
         let buf = self.buffers.insert_with_key(|id| {
-            TextBuffer::make(id, FileType::TEXT, "file picker", "file picker", &self.theme)
+            PickerBuffer::<&'static str>::make(
+                id,
+                ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
+            )
         });
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));

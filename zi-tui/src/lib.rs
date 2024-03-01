@@ -10,8 +10,7 @@ pub use ratatui::backend::{Backend, CrosstermBackend};
 pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Style};
-pub use ratatui::text::Text;
-use ratatui::text::{Line, Span};
+pub use ratatui::text::{Line, Span, Text};
 pub use ratatui::widgets::Widget;
 pub use ratatui::{Frame, Terminal};
 

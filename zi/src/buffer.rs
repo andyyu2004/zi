@@ -1,11 +1,14 @@
+mod picker;
 mod text;
 
+use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use tree_sitter::{QueryCursor, Range};
 use zi_lsp::lsp_types::Url;
 
+pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{FileType, Position};
@@ -20,7 +23,7 @@ pub trait Buffer {
     fn url(&self) -> Option<Url>;
     fn language_id(&self) -> &FileType;
     fn tab_width(&self) -> u8;
-    fn text(&self) -> &Rope;
+    fn text(&self) -> RopeSlice<'_>;
     fn version(&self) -> u32;
 
     // TODO this should be a more general mutate operation
@@ -30,6 +33,16 @@ pub trait Buffer {
         &'a self,
         cursor: &'a mut QueryCursor,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a>;
+
+    fn writable_text(&self) -> RopeSlice<'_> {
+        self.text().slice(self.writable_range())
+    }
+
+    fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
+        (Bound::Unbounded, Bound::Unbounded)
+    }
+
+    fn pre_render(&mut self) {}
 }
 
 impl Buffer for Box<dyn Buffer> {
@@ -53,8 +66,8 @@ impl Buffer for Box<dyn Buffer> {
         self.as_ref().tab_width()
     }
 
-    fn text(&self) -> &Rope {
-        self.as_ref().text()
+    fn text(&self) -> RopeSlice<'_> {
+        self.as_ref().text().slice(..)
     }
 
     fn version(&self) -> u32 {
@@ -70,5 +83,13 @@ impl Buffer for Box<dyn Buffer> {
         cursor: &'a mut QueryCursor,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         self.as_ref().highlights(cursor)
+    }
+
+    fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
+        self.as_ref().writable_range()
+    }
+
+    fn pre_render(&mut self) {
+        self.as_mut().pre_render();
     }
 }
