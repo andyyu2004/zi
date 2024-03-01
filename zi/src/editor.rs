@@ -40,12 +40,10 @@ pub struct Editor {
     tx: CallbacksSender,
     language_config: language::Config,
     tree: layout::ViewTree,
+    pool: rayon::ThreadPool,
 }
 
 pub type Action = fn(&mut Editor);
-//     Fn(fn(&mut Editor)),
-//     Insert(char),
-// }
 
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
@@ -127,6 +125,7 @@ impl Editor {
             buffers,
             views,
             tx,
+            pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
             keymap: default_keymap(),
             language_config: Default::default(),
@@ -435,8 +434,9 @@ impl Editor {
     }
 
     pub fn close_active_view(&mut self) {
-        let view = self.tree.close_active();
-        assert!(self.views.remove(view).is_some());
+        let id = self.tree.close_active();
+        let view = self.views.remove(id).expect("closed view not found");
+        self.buffers[view.buffer()].on_leave();
     }
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
@@ -448,28 +448,34 @@ impl Editor {
     pub fn open_file_picker(&mut self) {
         let mut injector = None;
         let buf = self.buffers.insert_with_key(|id| {
-            let (picker, inj) = PickerBuffer::new_streamed(id);
+            let (picker, inj) =
+                PickerBuffer::new_streamed(id, nucleo::Config::DEFAULT.match_paths());
             injector = Some(inj);
             picker.boxed()
         });
+
         let injector = injector.unwrap();
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));
 
-        ignore::WalkBuilder::new(".").build_parallel().run(|| {
-            Box::new(|entry| {
-                let entry = match entry {
-                    Ok(entry) => match entry.file_type() {
-                        Some(ft) if ft.is_file() => entry,
-                        _ => return ignore::WalkState::Continue,
-                    },
-                    Err(_) => return ignore::WalkState::Continue,
-                };
+        self.pool.spawn(move || {
+            ignore::WalkBuilder::new(".").build_parallel().run(|| {
+                Box::new(|entry| {
+                    let entry = match entry {
+                        Ok(entry) => match entry.file_type() {
+                            Some(ft) if ft.is_file() => entry,
+                            _ => return ignore::WalkState::Continue,
+                        },
+                        Err(_) => return ignore::WalkState::Continue,
+                    };
 
-                injector.push(entry.into_path());
-                ignore::WalkState::Continue
-            })
-        });
+                    match injector.push(entry.into_path()) {
+                        Ok(()) => ignore::WalkState::Continue,
+                        Err(()) => ignore::WalkState::Quit,
+                    }
+                })
+            });
+        })
     }
 
     fn jump_to_definition(

@@ -49,9 +49,14 @@ pub trait Buffer {
         Box::new(self)
     }
 
+    /// Called just before rendering the buffer
     fn pre_render(&mut self) {}
+
+    /// Called when a view is closed that was displaying this buffer
+    fn on_leave(&mut self) {}
 }
 
+// NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
 impl Buffer for Box<dyn Buffer> {
     fn id(&self) -> BufferId {
         self.as_ref().id()
@@ -96,14 +101,18 @@ impl Buffer for Box<dyn Buffer> {
         self.as_ref().writable_range()
     }
 
-    fn pre_render(&mut self) {
-        self.as_mut().pre_render();
-    }
-
     fn boxed(self) -> Box<dyn Buffer>
     where
         Self: Sized + 'static,
     {
         self
+    }
+
+    fn pre_render(&mut self) {
+        self.as_mut().pre_render();
+    }
+
+    fn on_leave(&mut self) {
+        self.as_mut().on_leave();
     }
 }

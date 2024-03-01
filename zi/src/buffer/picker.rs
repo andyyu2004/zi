@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
@@ -14,15 +15,39 @@ impl<T> Item for T where T: fmt::Debug + Clone + Sync + Send + 'static {}
 /// Wrapper around a `nucleo::Injector`
 pub struct Injector<T> {
     injector: nucleo::Injector<T>,
+    cancel: Cancel,
 }
 
 impl<T: Item> Injector<T> {
-    pub fn new(injector: nucleo::Injector<T>) -> Self {
-        Self { injector }
+    pub fn new(injector: nucleo::Injector<T>) -> (Self, Cancel) {
+        let cancel = Cancel::new();
+        (Self { injector, cancel: cancel.clone() }, cancel)
     }
 
-    pub fn push(&self, item: T) {
+    /// Push an item into the injector
+    /// Returns `Err` if the injector has been cancelled
+    pub fn push(&self, item: T) -> Result<(), ()> {
         self.injector.push(item.clone(), |dst| dst[0] = format!("{item:?}").into());
+        if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Cancel {
+    cancel: Arc<AtomicBool>,
+}
+
+impl Cancel {
+    pub fn new() -> Self {
+        Self { cancel: Arc::new(AtomicBool::new(false)) }
+    }
+
+    pub fn cancel(&self) {
+        self.cancel.store(true, atomic::Ordering::Relaxed);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.load(atomic::Ordering::Relaxed)
     }
 }
 
@@ -31,23 +56,22 @@ pub struct PickerBuffer<T: Item> {
     text: Rope,
     nucleo: Nucleo<T>,
     end: usize,
+    cancel: Cancel,
 }
 
 impl<T: Item> PickerBuffer<T> {
-    pub fn new_streamed(id: BufferId) -> (Self, Injector<T>) {
-        let nucleo = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(|| {}), None, 1);
-        let injector = nucleo.injector();
-        (Self { id, text: Rope::new(), nucleo, end: 0 }, Injector::new(injector))
+    pub fn new_streamed(id: BufferId, config: nucleo::Config) -> (Self, Injector<T>) {
+        let nucleo = Nucleo::new(config, Arc::new(|| {}), None, 1);
+        let (injector, cancel) = Injector::new(nucleo.injector());
+        (Self { id, cancel, text: Rope::new(), nucleo, end: 0 }, injector)
     }
 
-    pub fn new(id: BufferId, options: impl IntoIterator<Item = T>) -> Self {
-        let nucleo = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(|| {}), None, 1);
-        let injector = Injector::new(nucleo.injector());
-        for option in options {
-            injector.push(option.clone());
+    pub fn new(id: BufferId, config: nucleo::Config, options: impl IntoIterator<Item = T>) -> Self {
+        let (this, injector) = Self::new_streamed(id, config);
+        for item in options {
+            injector.push(item).expect("can't be cancelled");
         }
-
-        Self { id, text: Rope::new(), nucleo, end: 0 }
+        this
     }
 }
 
@@ -112,9 +136,15 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
         rope.insert(0, "\n-----");
-        for item in snapshot.matched_items(..) {
+
+        let n = snapshot.matched_item_count().min(100);
+        for item in snapshot.matched_items(..n) {
             rope.insert(rope.len_chars(), &format!("\n{:?}", item.data));
         }
         self.text.append(rope);
+    }
+
+    fn on_leave(&mut self) {
+        self.cancel.cancel()
     }
 }
