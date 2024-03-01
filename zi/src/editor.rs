@@ -18,6 +18,7 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::input::{Event, KeyEvent};
 use crate::keymap::Keymap;
+use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
 use crate::position::Size;
@@ -239,6 +240,11 @@ impl Editor {
     }
 
     #[inline]
+    pub fn active_buffer(&self) -> &Buffer {
+        self.buffer(self.active_view().buffer())
+    }
+
+    #[inline]
     pub fn active_view_mut(&mut self) -> &mut View {
         let id = self.tree.active();
         &mut self.views[id]
@@ -247,6 +253,16 @@ impl Editor {
     #[inline]
     pub fn view(&self, id: ViewId) -> &View {
         self.views.get(id).expect("got bad view id?")
+    }
+
+    #[inline]
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer> {
+        self.buffers.values()
+    }
+
+    #[inline]
+    pub fn views(&self) -> impl ExactSizeIterator<Item = &View> {
+        self.views.values()
     }
 
     #[inline]
@@ -425,7 +441,11 @@ impl Editor {
     }
 
     pub fn open_picker(&mut self) {
-        // self.tree.push_layer(Layer::new());
+        let buf = self.buffers.insert_with_key(|id| {
+            Buffer::new(id, LanguageId::TEXT, "file picker", "file picker", &self.theme)
+        });
+        let view = self.views.insert_with_key(|id| View::new(id, buf));
+        self.tree.push(Layer::new(view));
     }
 
     fn jump_to_definition(

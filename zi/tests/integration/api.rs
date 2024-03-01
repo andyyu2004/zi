@@ -1,6 +1,7 @@
 use std::io::Write;
 mod cursor;
 mod insert;
+mod picker;
 mod scroll;
 
 /// Create a new editor with a buffer open with the given content.
