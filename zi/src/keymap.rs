@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use std::iter;
 
 use rustc_hash::FxHashMap;
 
@@ -16,7 +17,8 @@ pub struct Keymap<M, K, V> {
 impl<M, K, V> Keymap<M, K, V>
 where
     M: Eq + Hash + Clone,
-    K: Eq + Hash,
+    K: Eq + Hash + Clone,
+    V: Clone,
 {
     pub fn new(maps: FxHashMap<M, Trie<K, V>>) -> Self {
         Self { maps, buffer: Default::default(), last_mode: Default::default() }
@@ -28,7 +30,8 @@ where
         self.maps.entry(mode).or_default().insert(keys.into_iter().peekable(), value)
     }
 
-    pub fn on_key(&mut self, mode: M, key: K) -> Option<&V> {
+    /// Returns the result of the key sequence and the keys that were discarded
+    pub fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
         if let Some(last_mode) = &self.last_mode {
             if last_mode != &mode {
                 self.buffer.clear();
@@ -38,26 +41,39 @@ where
             self.last_mode = Some(mode.clone());
         }
 
+        let trie = match self.maps.get(&mode) {
+            Some(trie) => trie,
+            None => return (TrieResult::Nothing, vec![key]),
+        };
+
         self.buffer.push(key);
 
-        let v = self.maps.get(&mode)?.get(self.buffer.iter());
+        let v = trie.get(self.buffer.iter());
         match v {
             TrieResult::Found(v) => {
                 self.buffer.clear();
-                Some(v)
+                (TrieResult::Found(v.clone()), vec![])
             }
-            TrieResult::Partial => None,
-            TrieResult::NotFound => {
-                let key = self.buffer.pop().expect("we just pushed `key`");
-                let push = !self.buffer.is_empty();
-                self.buffer.clear();
-                if push {
-                    // The non-existent key should become the start of a new sequence
-                    // if wasn't the only key in the buffer.
-                    // This is sort of a heuristic to make it dwim.
-                    self.buffer.push(key);
+            TrieResult::Partial => (TrieResult::Partial, vec![]),
+            TrieResult::Nothing => {
+                let mut cancelled = std::mem::take(&mut self.buffer);
+                let key = cancelled.last().expect("buffer can't be empty");
+
+                // Start a new sequence with the key that wasn't found
+                let trie = self.maps.get(&mode).expect("we wouldn't be here if this didn't exist");
+                // We check if the key could potentially be the start of a new sequence
+                if let TrieResult::Nothing = trie.get(iter::once(key)) {
+                    // If not, we don't recurse. (necessarily to avoid infinite loop)
+                    return (TrieResult::Nothing, cancelled);
                 }
-                None
+
+                // We now pop off the key from the discard as it's being used
+                let key = cancelled.pop().expect("we just checked `last` exists");
+                match self.on_key(mode, key).0 {
+                    TrieResult::Found(v) => (TrieResult::Found(v), cancelled),
+                    TrieResult::Partial => (TrieResult::Partial, cancelled),
+                    TrieResult::Nothing => unreachable!("just checked it above"),
+                }
             }
         }
     }
@@ -80,17 +96,18 @@ impl<K, V> Trie<K, V> {
     }
 }
 
-enum TrieResult<'a, V> {
-    Found(&'a V),
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TrieResult<V> {
+    Found(V),
     Partial,
-    NotFound,
+    Nothing,
 }
 
 impl<K, V> Trie<K, V>
 where
     K: Eq + Hash,
 {
-    fn get<'a>(&self, mut keys: impl Iterator<Item = &'a K>) -> TrieResult<'_, V>
+    fn get<'a>(&self, mut keys: impl Iterator<Item = &'a K>) -> TrieResult<&V>
     where
         K: 'a,
     {
@@ -102,7 +119,7 @@ where
         match self.children.get(k) {
             Some(TrieNode::Trie(trie)) => trie.get(keys),
             Some(TrieNode::Value(v)) => TrieResult::Found(v),
-            None => TrieResult::NotFound,
+            None => TrieResult::Nothing,
         }
     }
 

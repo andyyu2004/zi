@@ -8,12 +8,19 @@ fn k(s: &str) -> KeyEvent {
 
 #[test]
 fn test_composite_escape() {
-    let mut editor = new("");
-    editor.handle_input(k("i"));
-    for i in 0..5 {
-        editor.handle_input(k("f"));
-        assert_eq!(editor.current_line(), format!("{}", "f".repeat(i + 1)));
+    #[track_caller]
+    fn check(seq: &str, expectation: &str) {
+        let mut editor = new("");
+        for c in seq.chars() {
+            let ev = k(&c.to_string());
+            editor.handle_input(ev);
+        }
+
+        assert_eq!(editor.current_line(), expectation);
     }
-    editor.handle_input(k("d"));
-    assert_eq!(editor.current_line(), "fffff");
+
+    check("ifd", "");
+    check("iffk", "ffk");
+    check("iffd", "f");
+    check("ifffx", "fffx");
 }

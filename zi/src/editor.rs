@@ -21,7 +21,7 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{PickerBuffer, TextBuffer};
 use crate::input::{Event, KeyEvent};
-use crate::keymap::Keymap;
+use crate::keymap::{Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
@@ -217,15 +217,22 @@ impl Editor {
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
         match &key.code {
-            &KeyCode::Char(c) if self.mode == Mode::Insert => {
-                if let Some(f) = self.keymap.on_key(self.mode, key) {
-                    f(self);
-                } else {
-                    self.insert_char(c);
+            &KeyCode::Char(_c) if self.mode == Mode::Insert => {
+                let (res, buffered) = self.keymap.on_key(self.mode, key);
+                match res {
+                    TrieResult::Found(f) => f(self),
+                    TrieResult::Partial | TrieResult::Nothing => (),
+                }
+
+                for event in buffered {
+                    match event.code {
+                        KeyCode::Char(c) => self.insert_char(c),
+                        _ => unreachable!(),
+                    }
                 }
             }
             _ => {
-                if let Some(f) = self.keymap.on_key(self.mode, key) {
+                if let (TrieResult::Found(f), _) = self.keymap.on_key(self.mode, key) {
                     f(self);
                 }
             }
