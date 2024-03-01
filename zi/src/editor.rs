@@ -216,6 +216,7 @@ impl Editor {
 
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
+        tracing::debug!(?key, "handling key");
         match &key.code {
             &KeyCode::Char(_c) if self.mode == Mode::Insert => {
                 let (res, buffered) = self.keymap.on_key(self.mode, key);
@@ -662,7 +663,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "W" => NEXT_TOKEN,
             "B" => PREV_TOKEN,
             "a" => APPEND,
-            "A" => APPEND_EOL,
+            "S-A" => APPEND_EOL,
             "space" => {
                 "o" => OPEN_FILE_PICKER,
             },
