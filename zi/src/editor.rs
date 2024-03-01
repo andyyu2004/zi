@@ -114,8 +114,9 @@ impl Editor {
 
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
-        let buf = buffers
-            .insert_with_key(|id| TextBuffer::make(id, FileType::TEXT, "scratch", "", &theme));
+        let buf = buffers.insert_with_key(|id| {
+            TextBuffer::new(id, FileType::TEXT, "scratch", "", &theme).boxed()
+        });
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
@@ -162,9 +163,9 @@ impl Editor {
 
         let lang = FileType::detect(&path);
         tracing::debug!(%lang, ?path, "detected language");
-        let buf = self
-            .buffers
-            .insert_with_key(|id| TextBuffer::make(id, lang.clone(), path, rope, &self.theme));
+        let buf = self.buffers.insert_with_key(|id| {
+            TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
+        });
         self.views[self.tree.active()].set_buffer(buf);
 
         self.spawn_language_servers_for_lang(buf, &lang)?;
@@ -446,10 +447,11 @@ impl Editor {
 
     pub fn open_picker(&mut self) {
         let buf = self.buffers.insert_with_key(|id| {
-            PickerBuffer::<&'static str>::make(
+            PickerBuffer::<&'static str>::new(
                 id,
                 ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
             )
+            .boxed()
         });
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));

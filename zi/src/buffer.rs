@@ -42,6 +42,13 @@ pub trait Buffer {
         (Bound::Unbounded, Bound::Unbounded)
     }
 
+    fn boxed(self) -> Box<dyn Buffer>
+    where
+        Self: Sized + 'static,
+    {
+        Box::new(self)
+    }
+
     fn pre_render(&mut self) {}
 }
 
@@ -91,5 +98,12 @@ impl Buffer for Box<dyn Buffer> {
 
     fn pre_render(&mut self) {
         self.as_mut().pre_render();
+    }
+
+    fn boxed(self) -> Box<dyn Buffer>
+    where
+        Self: Sized + 'static,
+    {
+        self
     }
 }

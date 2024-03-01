@@ -18,14 +18,14 @@ pub struct PickerBuffer<T: Item> {
 }
 
 impl<T: Item> PickerBuffer<T> {
-    pub fn make(id: BufferId, options: impl IntoIterator<Item = T>) -> Box<dyn Buffer> {
+    pub fn new(id: BufferId, options: impl IntoIterator<Item = T>) -> Self {
         let nucleo = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(|| {}), None, 1);
         let injector = nucleo.injector();
         for option in options {
             injector.push(option.clone(), |dst| dst[0] = option.to_string().into());
         }
 
-        Box::new(Self { id, text: Rope::new(), nucleo, end: 0 })
+        Self { id, text: Rope::new(), nucleo, end: 0 }
     }
 }
 

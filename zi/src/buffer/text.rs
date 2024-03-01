@@ -70,13 +70,13 @@ impl Buffer for TextBuffer {
 
 impl TextBuffer {
     #[inline]
-    pub fn make(
+    pub fn new(
         id: BufferId,
         language_id: FileType,
         path: impl AsRef<Path>,
         text: impl Into<Rope>,
         theme: &Theme,
-    ) -> Box<dyn Buffer> {
+    ) -> Self {
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
@@ -87,7 +87,7 @@ impl TextBuffer {
             syntax.apply(text.slice(..));
         }
 
-        Box::new(Self {
+        Self {
             id,
             path,
             url,
@@ -100,6 +100,6 @@ impl TextBuffer {
             ),
             syntax,
             tab_width: 4,
-        })
+        }
     }
 }
