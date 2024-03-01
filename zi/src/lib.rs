@@ -29,7 +29,7 @@ pub type Error = anyhow::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 wasmtime::component::bindgen!({
-    async: true,
+    // async: true,
     // tracing: true,
     // ownership: Borrowing {
     //     duplicate_if_necessary: true

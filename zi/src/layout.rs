@@ -13,7 +13,7 @@ impl ViewTree {
         ViewTree { size, layers: vec![Layer::new(root)] }
     }
 
-    pub fn size(&self, view: impl HasViewId) -> Size {
+    pub fn size(&self, _view: impl HasViewId) -> Size {
         self.size
     }
 
