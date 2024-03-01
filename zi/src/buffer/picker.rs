@@ -6,9 +6,25 @@ use nucleo::Nucleo;
 
 use super::*;
 
-pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
+// FIXME don't use Debug
+pub trait Item: fmt::Debug + Clone + Sync + Send + 'static {}
 
-impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
+impl<T> Item for T where T: fmt::Debug + Clone + Sync + Send + 'static {}
+
+/// Wrapper around a `nucleo::Injector`
+pub struct Injector<T> {
+    injector: nucleo::Injector<T>,
+}
+
+impl<T: Item> Injector<T> {
+    pub fn new(injector: nucleo::Injector<T>) -> Self {
+        Self { injector }
+    }
+
+    pub fn push(&self, item: T) {
+        self.injector.push(item.clone(), |dst| dst[0] = format!("{item:?}").into());
+    }
+}
 
 pub struct PickerBuffer<T: Item> {
     id: BufferId,
@@ -18,11 +34,17 @@ pub struct PickerBuffer<T: Item> {
 }
 
 impl<T: Item> PickerBuffer<T> {
-    pub fn new(id: BufferId, options: impl IntoIterator<Item = T>) -> Self {
+    pub fn new_streamed(id: BufferId) -> (Self, Injector<T>) {
         let nucleo = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(|| {}), None, 1);
         let injector = nucleo.injector();
+        (Self { id, text: Rope::new(), nucleo, end: 0 }, Injector::new(injector))
+    }
+
+    pub fn new(id: BufferId, options: impl IntoIterator<Item = T>) -> Self {
+        let nucleo = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(|| {}), None, 1);
+        let injector = Injector::new(nucleo.injector());
         for option in options {
-            injector.push(option.clone(), |dst| dst[0] = option.to_string().into());
+            injector.push(option.clone());
         }
 
         Self { id, text: Rope::new(), nucleo, end: 0 }
@@ -91,7 +113,7 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         let mut rope = Rope::new();
         rope.insert(0, "\n-----");
         for item in snapshot.matched_items(..) {
-            rope.insert(rope.len_chars(), &format!("\n{}", item.data));
+            rope.insert(rope.len_chars(), &format!("\n{:?}", item.data));
         }
         self.text.append(rope);
     }

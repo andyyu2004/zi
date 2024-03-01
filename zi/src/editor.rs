@@ -445,16 +445,31 @@ impl Editor {
         view.scroll(self.mode, size, buf, direction, amount);
     }
 
-    pub fn open_picker(&mut self) {
+    pub fn open_file_picker(&mut self) {
+        let mut injector = None;
         let buf = self.buffers.insert_with_key(|id| {
-            PickerBuffer::<&'static str>::new(
-                id,
-                ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
-            )
-            .boxed()
+            let (picker, inj) = PickerBuffer::new_streamed(id);
+            injector = Some(inj);
+            picker.boxed()
         });
+        let injector = injector.unwrap();
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));
+
+        ignore::WalkBuilder::new(".").build_parallel().run(|| {
+            Box::new(|entry| {
+                let entry = match entry {
+                    Ok(entry) => match entry.file_type() {
+                        Some(ft) if ft.is_file() => entry,
+                        _ => return ignore::WalkState::Continue,
+                    },
+                    Err(_) => return ignore::WalkState::Continue,
+                };
+
+                injector.push(entry.into_path());
+                ignore::WalkState::Continue
+            })
+        });
     }
 
     fn jump_to_definition(
@@ -598,7 +613,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
-    const OPEN_FILE_PICKER: Action = |editor| editor.open_picker();
+    const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker();
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
