@@ -9,15 +9,15 @@ use anyhow::bail;
 use crate::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LanguageId(Cow<'static, str>);
+pub struct FileType(Cow<'static, str>);
 
-impl fmt::Display for LanguageId {
+impl fmt::Display for FileType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl LanguageId {
+impl FileType {
     pub const TEXT: Self = Self(Cow::Borrowed("text"));
     pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
     pub const RUST: Self = Self(Cow::Borrowed("rust"));
@@ -57,13 +57,13 @@ impl LanguageServerId {
 
 #[derive(Debug)]
 pub struct Config {
-    pub languages: BTreeMap<LanguageId, LanguageConfig>,
+    pub languages: BTreeMap<FileType, LanguageConfig>,
     pub language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
 }
 
 impl Config {
     pub fn new(
-        languages: BTreeMap<LanguageId, LanguageConfig>,
+        languages: BTreeMap<FileType, LanguageConfig>,
         language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
     ) -> Result<Self> {
         for (lang, config) in &languages {
@@ -82,20 +82,20 @@ impl Default for Config {
     fn default() -> Self {
         let languages = BTreeMap::from([
             (
-                LanguageId::RUST,
+                FileType::RUST,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::RUST_ANALYZER]) },
             ),
             (
-                LanguageId::GO,
+                FileType::GO,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::GOPLS]) },
             ),
             (
-                LanguageId::GQLT,
+                FileType::GQLT,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
             ),
-            (LanguageId::TEXT, LanguageConfig { language_servers: Box::new([]) }),
-            (LanguageId::TOML, LanguageConfig { language_servers: Box::new([]) }),
-            (LanguageId::JSON, LanguageConfig { language_servers: Box::new([]) }),
+            (FileType::TEXT, LanguageConfig { language_servers: Box::new([]) }),
+            (FileType::TOML, LanguageConfig { language_servers: Box::new([]) }),
+            (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),
         ]);
 
         let language_servers = BTreeMap::from([

@@ -25,7 +25,7 @@ use crate::motion::{self, Motion};
 use crate::position::Size;
 use crate::syntax::Theme;
 use crate::{
-    event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, LanguageId,
+    event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
     LanguageServerId, Mode, View, ViewId,
 };
 
@@ -115,7 +115,7 @@ impl Editor {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers
-            .insert_with_key(|id| TextBuffer::make(id, LanguageId::TEXT, "scratch", "", &theme));
+            .insert_with_key(|id| TextBuffer::make(id, FileType::TEXT, "scratch", "", &theme));
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
@@ -160,7 +160,7 @@ impl Editor {
             Rope::new()
         };
 
-        let lang = LanguageId::detect(&path);
+        let lang = FileType::detect(&path);
         tracing::debug!(%lang, ?path, "detected language");
         let buf = self
             .buffers
@@ -371,7 +371,7 @@ impl Editor {
     fn spawn_language_servers_for_lang(
         &mut self,
         buf: BufferId,
-        lang: &LanguageId,
+        lang: &FileType,
     ) -> zi_lsp::Result<()> {
         if let Some(config) = &self.language_config.languages.get(lang) {
             for server_id in config.language_servers.iter().cloned() {
@@ -443,7 +443,7 @@ impl Editor {
 
     pub fn open_picker(&mut self) {
         let buf = self.buffers.insert_with_key(|id| {
-            TextBuffer::make(id, LanguageId::TEXT, "file picker", "file picker", &self.theme)
+            TextBuffer::make(id, FileType::TEXT, "file picker", "file picker", &self.theme)
         });
         let view = self.views.insert_with_key(|id| View::new(id, buf));
         self.tree.push(Layer::new(view));

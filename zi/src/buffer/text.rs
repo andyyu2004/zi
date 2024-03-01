@@ -5,7 +5,7 @@ pub struct TextBuffer {
     path: PathBuf,
     url: Option<Url>,
     text: Rope,
-    language_id: LanguageId,
+    language_id: FileType,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
@@ -28,7 +28,7 @@ impl Buffer for TextBuffer {
     }
 
     #[inline]
-    fn language_id(&self) -> &LanguageId {
+    fn language_id(&self) -> &FileType {
         &self.language_id
     }
 
@@ -72,7 +72,7 @@ impl TextBuffer {
     #[inline]
     pub fn make(
         id: BufferId,
-        language_id: LanguageId,
+        language_id: FileType,
         path: impl AsRef<Path>,
         text: impl Into<Rope>,
         theme: &Theme,

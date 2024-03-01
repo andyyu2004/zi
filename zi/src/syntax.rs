@@ -7,7 +7,7 @@ use tree_sitter::{
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::LanguageId;
+use crate::FileType;
 
 pub struct Syntax {
     highlights_query: Query,
@@ -16,18 +16,18 @@ pub struct Syntax {
 }
 
 impl Syntax {
-    pub fn for_language(id: &LanguageId) -> Option<Self> {
+    pub fn for_language(id: &FileType) -> Option<Self> {
         let (language, highlights) = match id {
-            id if *id == LanguageId::RUST => {
+            id if *id == FileType::RUST => {
                 (tree_sitter_rust::language(), tree_sitter_rust::HIGHLIGHT_QUERY)
             }
-            id if *id == LanguageId::GO => {
+            id if *id == FileType::GO => {
                 (tree_sitter_go::language(), tree_sitter_go::HIGHLIGHT_QUERY)
             }
-            id if *id == LanguageId::TOML => {
+            id if *id == FileType::TOML => {
                 (tree_sitter_toml::language(), tree_sitter_toml::HIGHLIGHT_QUERY)
             }
-            id if *id == LanguageId::JSON => {
+            id if *id == FileType::JSON => {
                 (tree_sitter_json::language(), tree_sitter_json::HIGHLIGHT_QUERY)
             }
             _ => return None,

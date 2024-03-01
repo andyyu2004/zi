@@ -8,7 +8,7 @@ use zi_lsp::lsp_types::Url;
 
 pub use self::text::TextBuffer;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{LanguageId, Position};
+use crate::{FileType, Position};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -18,7 +18,7 @@ pub trait Buffer {
     fn id(&self) -> BufferId;
     fn path(&self) -> &Path;
     fn url(&self) -> Option<Url>;
-    fn language_id(&self) -> &LanguageId;
+    fn language_id(&self) -> &FileType;
     fn tab_width(&self) -> u8;
     fn text(&self) -> &Rope;
     fn version(&self) -> u32;
@@ -45,7 +45,7 @@ impl Buffer for Box<dyn Buffer> {
         self.as_ref().url()
     }
 
-    fn language_id(&self) -> &LanguageId {
+    fn language_id(&self) -> &FileType {
         self.as_ref().language_id()
     }
 
