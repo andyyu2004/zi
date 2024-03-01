@@ -5,6 +5,7 @@ use std::future::Future;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
 use crossterm::event::KeyCode;
@@ -13,6 +14,7 @@ use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::Notify;
 use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
@@ -44,6 +46,12 @@ pub struct Editor {
 }
 
 pub type Action = fn(&mut Editor);
+
+static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
+
+fn request_redraw() {
+    NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
+}
 
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
@@ -105,7 +113,9 @@ impl Editor {
     /// Create a new editor with a scratch buffer.
     /// Returns the editor instance and a stream of callbacks.
     /// The callback stream must be polled and the resulting callback executed on the editor.
-    pub fn new(size: Size) -> (Self, Callbacks) {
+    /// The `notify` instance is used to signal the main thread to redraw the screen.
+    /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
+    pub fn new(size: Size) -> (Self, Callbacks, &'static Notify) {
         assert!(size.height > Self::BOTTOM_BAR_HEIGHT, "height must be at least 3");
         // Subtract 2 from the height to leave room for the status line and command line.
         let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
@@ -134,7 +144,7 @@ impl Editor {
             theme: Default::default(),
         };
 
-        (editor, ChannelStream(rx))
+        (editor, ChannelStream(rx), NOTIFY_REDRAW.get_or_init(Default::default))
     }
 
     pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
@@ -448,8 +458,11 @@ impl Editor {
     pub fn open_file_picker(&mut self) {
         let mut injector = None;
         let buf = self.buffers.insert_with_key(|id| {
-            let (picker, inj) =
-                PickerBuffer::new_streamed(id, nucleo::Config::DEFAULT.match_paths());
+            let (picker, inj) = PickerBuffer::new_streamed(
+                id,
+                nucleo::Config::DEFAULT.match_paths(),
+                request_redraw,
+            );
             injector = Some(inj);
             picker.boxed()
         });

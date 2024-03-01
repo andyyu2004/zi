@@ -15,6 +15,7 @@ mod position;
 mod syntax;
 mod view;
 
+pub use tokio::sync::Notify;
 pub use tree_sitter;
 
 pub use self::buffer::{Buffer, BufferId};

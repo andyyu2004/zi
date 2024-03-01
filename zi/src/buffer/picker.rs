@@ -60,14 +60,23 @@ pub struct PickerBuffer<T: Item> {
 }
 
 impl<T: Item> PickerBuffer<T> {
-    pub fn new_streamed(id: BufferId, config: nucleo::Config) -> (Self, Injector<T>) {
-        let nucleo = Nucleo::new(config, Arc::new(|| {}), None, 1);
+    pub fn new_streamed(
+        id: BufferId,
+        config: nucleo::Config,
+        notify: impl Fn() + Send + Sync + 'static,
+    ) -> (Self, Injector<T>) {
+        let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
         let (injector, cancel) = Injector::new(nucleo.injector());
         (Self { id, cancel, text: Rope::new(), nucleo, end: 0 }, injector)
     }
 
-    pub fn new(id: BufferId, config: nucleo::Config, options: impl IntoIterator<Item = T>) -> Self {
-        let (this, injector) = Self::new_streamed(id, config);
+    pub fn new(
+        id: BufferId,
+        config: nucleo::Config,
+        options: impl IntoIterator<Item = T>,
+        notify: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
+        let (this, injector) = Self::new_streamed(id, config, notify);
         for item in options {
             injector.push(item).expect("can't be cancelled");
         }

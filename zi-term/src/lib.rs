@@ -38,6 +38,7 @@ impl<B: Backend + io::Write> App<B> {
         &mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
         tasks: zi::Callbacks,
+        redraw: &zi::Notify,
     ) -> io::Result<()> {
         self.render()?;
 
@@ -53,6 +54,7 @@ impl<B: Backend + io::Write> App<B> {
                     // TODO show error somewhere
                     Err(err) => tracing::error!("task failed: {:?}", err),
                 },
+                () = redraw.notified() => tracing::info!("redrawing due to request"),
                 Some(event) = events.next() => self.editor.handle_input(event?),
             }
 

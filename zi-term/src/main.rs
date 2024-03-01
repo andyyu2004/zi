@@ -33,7 +33,8 @@ async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
     let size = term.size()?;
-    let (mut editor, callbacks) = zi::Editor::new(zi::Size::new(size.width, size.height));
+    let (mut editor, callbacks, notify_redraw) =
+        zi::Editor::new(zi::Size::new(size.width, size.height));
     if let Some(path) = opts.path {
         editor.open(path)?;
     }
@@ -50,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
 
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
-    app.run(events, callbacks).await?;
+    app.run(events, callbacks, notify_redraw).await?;
 
     Ok(())
 }
