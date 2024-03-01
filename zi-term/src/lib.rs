@@ -53,7 +53,7 @@ impl<B: Backend + io::Write> App<B> {
                     // TODO show error somewhere
                     Err(err) => tracing::error!("task failed: {:?}", err),
                 },
-                Some(event) = events.next() => self.on_event(event?),
+                Some(event) = events.next() => self.editor.handle_input(event?),
             }
 
             if self.editor.should_quit() {
@@ -80,13 +80,6 @@ impl<B: Backend + io::Write> App<B> {
     fn render(&mut self) -> io::Result<()> {
         self.term.draw(|frame| render(&self.editor, frame))?;
         Ok(())
-    }
-
-    fn on_event(&mut self, event: Event) {
-        match event {
-            Event::Key(key) => self.editor.handle_key_event(key),
-            Event::Resize(_, _) => {}
-        }
     }
 }
 

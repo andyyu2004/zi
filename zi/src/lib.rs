@@ -2,7 +2,6 @@
 
 mod boring_impls;
 mod buffer;
-mod component;
 mod editor;
 pub mod event;
 pub mod input;

@@ -1,7 +1,6 @@
 use tui::{Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
-use crate::component::{Component, Surface};
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, Size};
 use crate::{Buffer, BufferId, Col, Color, Direction, Editor, Mode, Position, Style};
@@ -265,8 +264,8 @@ impl HasViewId for View {
     }
 }
 
-impl Component for View {
-    fn render(&self, editor: &Editor, area: Rect, surface: &mut Surface) {
+impl View {
+    pub(crate) fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
         let (view, buf) = editor.active();
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);

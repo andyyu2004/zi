@@ -2,9 +2,17 @@ use std::str::FromStr;
 
 use crossterm::event::{KeyCode, KeyModifiers, MediaKeyCode, ModifierKeyCode};
 
+use crate::Size;
+
 pub enum Event {
     Key(KeyEvent),
-    Resize(u16, u16),
+    Resize(Size),
+}
+
+impl From<KeyEvent> for Event {
+    fn from(v: KeyEvent) -> Self {
+        Self::Key(v)
+    }
 }
 
 impl TryFrom<crossterm::event::Event> for Event {
@@ -15,7 +23,9 @@ impl TryFrom<crossterm::event::Event> for Event {
             crossterm::event::Event::Key(event) => {
                 Ok(Event::Key(KeyEvent { code: event.code, modifiers: event.modifiers }))
             }
-            crossterm::event::Event::Resize(width, height) => Ok(Event::Resize(width, height)),
+            crossterm::event::Event::Resize(width, height) => {
+                Ok(Event::Resize(Size::new(width, height)))
+            }
             _ => Err(()),
         }
     }

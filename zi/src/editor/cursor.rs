@@ -27,7 +27,7 @@ impl Editor {
 
     #[inline]
     pub fn move_active_cursor(&mut self, direction: Direction, amt: u32) {
-        self.move_cursor(self.active_view, direction, amt);
+        self.move_cursor(self.tree.active(), direction, amt);
     }
 
     #[inline]
@@ -37,6 +37,6 @@ impl Editor {
 
     #[inline]
     pub fn set_active_cursor(&mut self, cursor: impl Into<Position>) {
-        self.set_cursor(self.active_view, cursor);
+        self.set_cursor(self.tree.active(), cursor);
     }
 }

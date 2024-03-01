@@ -16,15 +16,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::component::{Component as _, Picker, Surface};
 use crate::input::{Event, KeyEvent};
 use crate::keymap::Keymap;
-use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
 use crate::position::Size;
 use crate::syntax::Theme;
-use crate::view::HasViewId;
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, LanguageId,
     LanguageServerId, Mode, View, ViewId,
@@ -36,12 +33,11 @@ pub struct Editor {
     keymap: Keymap<Mode, KeyEvent, Action>,
     buffers: SlotMap<BufferId, Buffer>,
     views: SlotMap<ViewId, View>,
-    active_view: ViewId,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
     language_config: language::Config,
-    tree: layout::Tree,
+    tree: layout::ViewTree,
 }
 
 pub type Action = fn(&mut Editor);
@@ -53,12 +49,13 @@ pub type Action = fn(&mut Editor);
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
 macro_rules! active {
     ($editor:ident) => {
-        active!($editor: $editor.active_view)
+        active!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
         #[allow(unused_imports)]
         use $crate::view::HasViewId as _;
-        let view = &mut $editor.views[$view.view_id()];
+        let view_id = $view.view_id();
+        let view = &mut $editor.views[view_id];
         let buf = &mut $editor.buffers[view.buffer()];
         (view, buf)
     }};
@@ -66,7 +63,7 @@ macro_rules! active {
 
 macro_rules! active_ref {
     ($editor:ident) => {
-        active_ref!($editor: $editor.active_view)
+        active_ref!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
         #[allow(unused_imports)]
@@ -126,9 +123,8 @@ impl Editor {
             cwd: std::env::current_dir().expect("current dir"),
             buffers,
             views,
-            active_view,
             tx,
-            tree: layout::Tree::new(size, active_view),
+            tree: layout::ViewTree::new(size, active_view),
             keymap: default_keymap(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -145,7 +141,7 @@ impl Editor {
         // If the buffer is already open, switch to it
         for buf in self.buffers.values() {
             if buf.path() == path {
-                self.views[self.active_view].set_buffer(buf.id());
+                self.views[self.tree.active()].set_buffer(buf.id());
                 return Ok(buf.id());
             }
         }
@@ -167,7 +163,7 @@ impl Editor {
         let buf = self
             .buffers
             .insert_with_key(|id| Buffer::new(id, lang.clone(), path, rope, &self.theme));
-        self.views[self.active_view].set_buffer(buf);
+        self.views[self.tree.active()].set_buffer(buf);
 
         self.spawn_language_servers_for_lang(buf, &lang)?;
 
@@ -182,10 +178,10 @@ impl Editor {
     }
 
     pub fn should_quit(&self) -> bool {
-        self.views.is_empty()
+        self.tree.is_empty()
     }
 
-    pub fn render(&self, area: Rect, surface: &mut Surface) {
+    pub fn render(&self, area: Rect, surface: &mut tui::Buffer) {
         self.tree.render(self, area, surface);
     }
 
@@ -194,15 +190,18 @@ impl Editor {
         view.cursor_viewport_coords(buf)
     }
 
-    pub fn handle_input(&mut self, event: Event) {
-        match event {
+    pub fn handle_input(&mut self, event: impl Into<Event>) {
+        match event.into() {
             Event::Key(key) => self.handle_key_event(key),
-            Event::Resize(_, _) => (),
+            Event::Resize(_size) => {
+                // let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
+                // self.tree.resize(size);
+            }
         }
     }
 
     #[inline]
-    pub fn handle_key_event(&mut self, key: KeyEvent) {
+    fn handle_key_event(&mut self, key: KeyEvent) {
         match &key.code {
             &KeyCode::Char(c) if self.mode == Mode::Insert => {
                 if let Some(f) = self.keymap.on_key(self.mode, key) {
@@ -236,12 +235,13 @@ impl Editor {
 
     #[inline]
     pub fn active_view(&self) -> &View {
-        self.view(self.active_view)
+        self.view(self.tree.active())
     }
 
     #[inline]
     pub fn active_view_mut(&mut self) -> &mut View {
-        &mut self.views[self.active_view]
+        let id = self.tree.active();
+        &mut self.views[id]
     }
 
     #[inline]
@@ -414,14 +414,8 @@ impl Editor {
     }
 
     pub fn close_active_view(&mut self) {
-        self.close_view(self.active_view);
-        // TODO don't jump to some random view
-        self.active_view = self.views.keys().next().unwrap_or_default();
-    }
-
-    pub fn close_view(&mut self, id: impl HasViewId) {
-        let id = id.view_id();
-        assert!(self.views.remove(id).is_some(), "tried to close non-existent view");
+        let view = self.tree.close_active();
+        assert!(self.views.remove(view).is_some());
     }
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
@@ -431,7 +425,7 @@ impl Editor {
     }
 
     pub fn open_picker(&mut self) {
-        self.tree.push_layer(Layer::new(Picker::new()));
+        // self.tree.push_layer(Layer::new());
     }
 
     fn jump_to_definition(
