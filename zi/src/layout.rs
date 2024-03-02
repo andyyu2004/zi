@@ -81,7 +81,7 @@ impl Layer {
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
-        self.root.split(view, new, direction);
+        self.root.split_root(view, new, direction);
         self.active = new;
     }
 
@@ -121,46 +121,46 @@ impl Node {
         }
     }
 
-    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+    fn split_root(&mut self, view: ViewId, new: ViewId, direction: Direction) {
         match self {
             Node::View(v) => {
-                assert_eq!(*v, view, "true for now");
+                assert_eq!(*v, view);
                 let children = match direction {
                     Direction::Left | Direction::Up => vec![Node::View(new), Node::View(view)],
-                    Direction::Right | Direction::Down => vec![Node::View(view), Node::View(new)],
+                    Direction::Right | Direction::Down => {
+                        vec![Node::View(view), Node::View(new)]
+                    }
                 };
 
-                *self = Node::Container(Container {
-                    layout: Layout::new(
-                        direction.into(),
-                        [Constraint::Fill(1), Constraint::Fill(1)],
-                    ),
-                    children,
-                })
+                *self = Node::Container(Container::new(
+                    direction,
+                    children.into_iter().map(|n| (Constraint::Fill(1), n)),
+                ));
             }
-            Node::Container(_) => todo!(),
+            Node::Container(container) => container.split(view, new, direction),
         }
     }
 }
 
 #[derive(Debug)]
 struct Container {
-    layout: Layout,
+    // can't store tui::Layout directly because there's no way to access it's fields
+    constraints: Vec<Constraint>,
+    direction: tui::Direction,
     children: Vec<Node>,
 }
 
 impl Container {
-    pub fn new(
+    fn new(
         direction: impl Into<tui::Direction>,
         children: impl IntoIterator<Item = (Constraint, Node)>,
     ) -> Self {
         let (constraints, children): (Vec<_>, Vec<_>) = children.into_iter().unzip();
-        let layout = Layout::new(direction.into(), constraints);
-        Container { layout, children }
+        Container { direction: direction.into(), constraints, children }
     }
 
-    pub fn area(&self, view: ViewId, area: Rect) -> Rect {
-        let areas = self.layout.split(area);
+    fn area(&self, view: ViewId, area: Rect) -> Rect {
+        let areas = self.layout().split(area);
         assert_eq!(areas.len(), self.children.len());
         for (&area, child) in areas.iter().zip(&self.children) {
             if let Some(area) = child.area(view, area) {
@@ -171,12 +171,51 @@ impl Container {
         panic!("view not found")
     }
 
-    pub fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        let areas = self.layout.split(area);
+    fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
+        let areas = self.layout().split(area);
         assert_eq!(areas.len(), self.children.len());
-        for (&area, child) in areas.into_iter().zip(&self.children) {
+        for (&area, child) in areas.iter().zip(&self.children) {
             child.render(editor, area, surface);
         }
+    }
+
+    fn layout(&self) -> Layout {
+        Layout::new(self.direction, self.constraints.clone())
+    }
+
+    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+        let mut index = None;
+        for (i, child) in self.children.iter_mut().enumerate() {
+            match child {
+                Node::View(v) if *v == view => {
+                    // FIXME this is wrong if the direction is different to the current container's direction
+                    index = Some(i);
+                    break;
+                }
+                Node::Container(c) => c.split(view, new, direction),
+                _ => continue,
+            }
+        }
+
+        let index = index.expect("view not found");
+        let node = Node::View(new);
+        let constraint = Constraint::Fill(1);
+        match direction {
+            Direction::Left | Direction::Up => {
+                self.children.insert(index, node);
+                self.constraints.insert(index, constraint);
+            }
+            Direction::Right | Direction::Down => {
+                if index + 1 < self.children.len() {
+                    self.children.insert(index + 1, node);
+                    self.constraints.insert(index + 1, constraint);
+                } else {
+                    self.children.push(node);
+                    self.constraints.push(constraint);
+                }
+            }
+        }
+        assert_eq!(self.children.len(), self.constraints.len());
     }
 }
 

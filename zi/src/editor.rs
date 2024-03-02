@@ -656,6 +656,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
         editor.split(Direction::Right);
     };
 
+    const SPLIT_HORIZONTAL: Action = |editor| {
+        editor.split(Direction::Down);
+    };
+
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
             "<C-d>" => SCROLL_DOWN,
@@ -684,6 +688,8 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "<C-w>" => {
                 "v" => SPLIT_VERTICAL,
                 "<C-v>" => SPLIT_VERTICAL,
+                "s" => SPLIT_HORIZONTAL,
+                "<C-s>" => SPLIT_HORIZONTAL,
             },
         }).into_trie(),
         Mode::Insert => trie!({
