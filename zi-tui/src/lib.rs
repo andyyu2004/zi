@@ -83,17 +83,23 @@ impl<I, H: Iterator> Lines<'_, I, H> {
 
 impl<'a, I, H> Widget for Lines<'a, I, H>
 where
-    I: Iterator,
+    I: ExactSizeIterator,
     I::Item: Into<Cow<'a, str>>,
     H: Iterator<Item = (Range<(usize, usize)>, Style)>,
 {
     fn render(mut self, area: Rect, buf: &mut Buffer) {
+        let n = self.lines.len();
         for (i, line) in self.lines.enumerate() {
             if i >= area.height as usize {
                 break;
             }
 
             let line = line.into();
+            if i == n - 1 && line.is_empty() {
+                // Don't render the final empty line
+                break;
+            }
+
             let mut spans = vec![Span::styled(
                 format!("{:width$} ", self.line_start + i + 1, width = self.line_nr_width),
                 Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
