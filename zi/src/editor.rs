@@ -230,11 +230,19 @@ impl Editor {
             },
             frame.buffer_mut(),
         );
+
+        let (x, y) = self.cursor_viewport_coords();
+        // + 1 for a blank space between line number and text
+        const LINE_NR_WIDTH: u16 = 4;
+        // FIXME this const is duplicated
+        frame.set_cursor(LINE_NR_WIDTH + x + 1, y);
     }
 
-    pub fn active_cursor_viewport_coords(&self) -> (u32, u32) {
+    pub fn cursor_viewport_coords(&self) -> (u16, u16) {
         let (view, buf) = active_ref!(self);
-        view.cursor_viewport_coords(buf)
+        let area = self.tree.view_area(view.id());
+        let (x, y) = view.cursor_viewport_coords(buf);
+        (x + area.x, y + area.y)
     }
 
     pub fn handle_input(&mut self, event: impl Into<Event>) {

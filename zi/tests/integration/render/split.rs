@@ -6,19 +6,19 @@ use super::new_with_snapshot;
 
 #[test]
 fn test_split() -> io::Result<()> {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "x");
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x                                            "
+            "   1 abc|                                         "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
-            "-- NORMAL --                                      "
+            "scratch:1:3                                       "
+            "-- INSERT --                                      "
         "#]],
     );
 
@@ -27,14 +27,14 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x                      1 x                   "
+            "   1 abc                    1 |bc                 "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "scratch:1:0                                       "
-            "-- NORMAL --                                      "
+            "-- INSERT --                                      "
         "#]],
     );
 
@@ -42,14 +42,14 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x              1 x             1 x           "
+            "   1 abc            1 abc           1 |bc         "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "scratch:1:0                                       "
-            "-- NORMAL --                                      "
+            "-- INSERT --                                      "
         "#]],
     );
 
@@ -57,14 +57,14 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x              1 x             1 x           "
+            "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                                  "
-            "                                    1 x           "
+            "                                      |           "
+            "                                    1 abc         "
             "                                                  "
             "scratch:1:0                                       "
-            "-- NORMAL --                                      "
+            "-- INSERT --                                      "
         "#]],
     );
 
@@ -72,14 +72,14 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x              1 x             1 x           "
+            "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                                  "
-            "                                    1 x      1 x  "
+            "                                      |           "
+            "                                    1 abc    1 abc"
             "                                                  "
             "scratch:1:0                                       "
-            "-- NORMAL --                                      "
+            "-- INSERT --                                      "
         "#]],
     );
 
@@ -87,14 +87,14 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 x              1 x             1 x           "
+            "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
+            "                                      |           "
+            "                                    1 abc    1 abc"
             "                                                  "
-            "                                    1 x      1 x  "
-            "                                                  "
-            "scratch:1:0                         1 x           "
-            "-- NORMAL --                                      "
+            "scratch:1:0                         1 abc         "
+            "-- INSERT --                                      "
         "#]],
     );
 

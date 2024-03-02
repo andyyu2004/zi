@@ -78,7 +78,7 @@ async fn snapshot(
         let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
         let (mut editor, _tasks, _) = Editor::new(zi::Size::new(80, 24));
         f(&mut editor)?;
-        term.draw(|f| zi_term::render(&mut editor, f))?;
+        term.draw(|f| editor.render(f))?;
     }
 
     let name = name.replace(|c: char| c.is_whitespace(), "-");

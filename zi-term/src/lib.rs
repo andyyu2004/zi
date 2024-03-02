@@ -9,7 +9,7 @@ use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{cursor, execute, terminal};
 use futures_util::{Stream, StreamExt};
 use tokio::select;
-use tui::{Backend, Frame, Terminal};
+use tui::{Backend, Terminal};
 use zi::input::Event;
 use zi::Editor;
 
@@ -80,20 +80,9 @@ impl<B: Backend + io::Write> App<B> {
 
     #[tracing::instrument(skip(self), level = "debug")]
     fn render(&mut self) -> io::Result<()> {
-        self.term.draw(|frame| render(&mut self.editor, frame))?;
+        self.term.draw(|frame| self.editor.render(frame))?;
         Ok(())
     }
-}
-
-pub fn render(editor: &mut Editor, frame: &mut Frame<'_>) {
-    editor.render(frame);
-
-    let (view, buf) = editor.active();
-    let (x, y) = view.cursor_viewport_coords(buf);
-    // + 1 for a blank space between line number and text
-    const LINE_NR_WIDTH: usize = 4;
-    // FIXME this const is duplicated
-    frame.set_cursor(((LINE_NR_WIDTH as u32) + x + 1) as u16, y as u16);
 }
 
 impl<W: Backend + io::Write> Drop for App<W> {

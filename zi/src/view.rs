@@ -63,7 +63,7 @@ impl View {
     /// Returns the cursor coordinates in the buffer in cells (not characters) relative to the viewport.
     /// For example, '\t' is one character but is 4 cells wide (by default).
     #[inline]
-    pub fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u32, u32) {
+    pub(crate) fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u16, u16) {
         assert_eq!(buf.id(), self.buf);
         assert!(
             self.offset.line <= self.cursor.pos.line().idx() as u32,
@@ -89,7 +89,9 @@ impl View {
             })
             .sum::<usize>();
         // TODO need tests for the column adjustment
-        (byte as u32 - self.offset.col, line_idx as u32 - self.offset.line)
+        let x = byte as u32 - self.offset.col;
+        let y = line_idx as u32 - self.offset.line;
+        (x.try_into().unwrap(), y.try_into().unwrap())
     }
 
     pub(crate) fn move_cursor(
