@@ -276,7 +276,7 @@ impl HasViewId for View {
 
 impl View {
     pub(crate) fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        let (view, buf) = editor.active();
+        let buf = editor.buffer(self.buf);
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
         let theme = editor.theme();
@@ -287,7 +287,7 @@ impl View {
 
         let s = |s: Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
 
-        let line = view.offset().line as usize;
+        let line = self.offset().line as usize;
 
         // FIXME compute highlights only for the necessary range
         let highlights = buf

@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 
+use std::fmt;
 use std::fs::File;
 use std::future::Future;
 use std::io::{BufRead, BufReader};
@@ -201,6 +202,7 @@ impl Editor {
                 ..self.tree.area()
             },
         );
+
         for buf in self.buffers.values_mut() {
             buf.pre_render();
         }
@@ -333,7 +335,7 @@ impl Editor {
     }
 
     #[inline]
-    pub fn views(&self) -> impl ExactSizeIterator<Item = &View> {
+    pub fn views(&self) -> impl ExactSizeIterator<Item = &View> + fmt::Debug + Clone {
         self.views.values()
     }
 

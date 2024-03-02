@@ -53,7 +53,7 @@ impl ViewTree {
         active
     }
 
-    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+    pub(crate) fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
         self.layers.iter().flat_map(|layer| layer.views())
     }
 
