@@ -53,5 +53,50 @@ fn test_split() -> io::Result<()> {
         "#]],
     );
 
+    editor.split(zi::Direction::Down);
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 x              1 x             1 x           "
+            "                                                  "
+            "                                                  "
+            "                                                  "
+            "                                    1 x           "
+            "                                                  "
+            "scratch:1:0                                       "
+            "-- NORMAL --                                      "
+        "#]],
+    );
+
+    editor.split(zi::Direction::Left);
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 x              1 x             1 x           "
+            "                                                  "
+            "                                                  "
+            "                                                  "
+            "                                    1 x      1 x  "
+            "                                                  "
+            "scratch:1:0                                       "
+            "-- NORMAL --                                      "
+        "#]],
+    );
+
+    editor.split(zi::Direction::Up);
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 x              1 x             1 x           "
+            "                                                  "
+            "                                                  "
+            "                                                  "
+            "                                    1 x      1 x  "
+            "                                                  "
+            "scratch:1:0                         1 x           "
+            "-- NORMAL --                                      "
+        "#]],
+    );
+
     Ok(())
 }

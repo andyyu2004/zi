@@ -1,4 +1,4 @@
-mod view;
+mod split;
 
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
