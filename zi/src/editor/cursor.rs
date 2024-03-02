@@ -14,14 +14,14 @@ impl Editor {
     #[inline]
     pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Position>) {
         let (view, buf) = active!(self: view);
-        let area = self.tree.area(view.id());
+        let area = self.tree.view_area(view.id());
         view.set_cursor(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
     }
 
     #[inline]
     pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction, amt: u32) {
         let (view, buf) = active!(self: view);
-        let area = self.tree.area(view.id());
+        let area = self.tree.view_area(view.id());
         view.move_cursor(self.mode, area, buf, direction, amt);
     }
 

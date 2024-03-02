@@ -1,4 +1,4 @@
-use tui::Rect;
+use tui::{Constraint, Layout, Rect};
 
 use crate::view::HasViewId;
 use crate::{Direction, Editor, Size, ViewId};
@@ -10,7 +10,7 @@ pub struct ViewTree {
 
 impl ViewTree {
     pub fn new(size: Size, view: ViewId) -> Self {
-        ViewTree { size, layers: vec![Layer::new(size, view)] }
+        ViewTree { size, layers: vec![Layer::new(Rect::new(0, 0, size.width, size.height), view)] }
     }
 
     fn top(&self) -> &Layer {
@@ -21,11 +21,11 @@ impl ViewTree {
         self.layers.last_mut().expect("layers was empty")
     }
 
-    pub fn size(&self) -> Size {
-        self.size
+    pub fn area(&self) -> Rect {
+        Rect::new(0, 0, self.size.width, self.size.height)
     }
 
-    pub fn area(&self, view: impl HasViewId) -> Rect {
+    pub fn view_area(&self, view: impl HasViewId) -> Rect {
         self.top().area(view)
     }
 
@@ -64,27 +64,25 @@ impl ViewTree {
     }
 }
 
+#[derive(Debug)]
 pub struct Layer {
     active: ViewId,
-    size: Size,
+    area: Rect,
     root: Node,
 }
 
 impl Layer {
-    pub fn new(size: Size, active: ViewId) -> Self {
-        Layer { size, active, root: Node::View(active) }
-    }
-
-    pub fn size(&self) -> Size {
-        self.size
+    pub fn new(area: Rect, active: ViewId) -> Self {
+        Layer { area, active, root: Node::View(active) }
     }
 
     pub fn area(&self, view: impl HasViewId) -> Rect {
-        self.root.area(view.view_id(), self.size)
+        self.root.area(view.view_id(), self.area).expect("view not found in layer")
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
-        todo!()
+        self.root.split(view, new, direction);
+        self.active = new;
     }
 
     pub fn active_view(&self) -> ViewId {
@@ -96,33 +94,91 @@ impl Layer {
     }
 }
 
+#[derive(Debug)]
 enum Node {
     View(ViewId),
     Container(Container),
 }
 
 impl Node {
-    fn area(&self, view: ViewId, size: Size) -> Rect {
+    fn area(&self, view: ViewId, area: Rect) -> Option<Rect> {
         match self {
             Node::View(id) => {
-                assert_eq!(*id, view, "true for now");
-                Rect::new(0, 0, size.width, size.height)
+                if *id == view {
+                    return Some(area);
+                }
             }
-            Node::Container(_container) => todo!(),
+            Node::Container(container) => return Some(container.area(view, area)),
         }
+
+        None
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
         match self {
             Node::View(id) => editor.view(*id).render(editor, area, surface),
-            Node::Container(_container) => {
-                todo!()
+            Node::Container(container) => container.render(editor, area, surface),
+        }
+    }
+
+    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+        match self {
+            Node::View(v) => {
+                assert_eq!(*v, view, "true for now");
+                let children = match direction {
+                    Direction::Left | Direction::Up => vec![Node::View(new), Node::View(view)],
+                    Direction::Right | Direction::Down => vec![Node::View(view), Node::View(new)],
+                };
+
+                *self = Node::Container(Container {
+                    layout: Layout::new(
+                        direction.into(),
+                        [Constraint::Fill(1), Constraint::Fill(1)],
+                    ),
+                    children,
+                })
             }
+            Node::Container(_) => todo!(),
         }
     }
 }
 
+#[derive(Debug)]
 struct Container {
-    direction: Direction,
+    layout: Layout,
     children: Vec<Node>,
 }
+
+impl Container {
+    pub fn new(
+        direction: impl Into<tui::Direction>,
+        children: impl IntoIterator<Item = (Constraint, Node)>,
+    ) -> Self {
+        let (constraints, children): (Vec<_>, Vec<_>) = children.into_iter().unzip();
+        let layout = Layout::new(direction.into(), constraints);
+        Container { layout, children }
+    }
+
+    pub fn area(&self, view: ViewId, area: Rect) -> Rect {
+        let areas = self.layout.split(area);
+        assert_eq!(areas.len(), self.children.len());
+        for (&area, child) in areas.iter().zip(&self.children) {
+            if let Some(area) = child.area(view, area) {
+                return area;
+            }
+        }
+
+        panic!("view not found")
+    }
+
+    pub fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
+        let areas = self.layout.split(area);
+        assert_eq!(areas.len(), self.children.len());
+        for (&area, child) in areas.into_iter().zip(&self.children) {
+            child.render(editor, area, surface);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

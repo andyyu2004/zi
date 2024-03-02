@@ -277,12 +277,24 @@ pub enum Direction {
 }
 
 impl Direction {
+    #[inline]
     pub fn is_vertical(&self) -> bool {
         matches!(self, Self::Up | Self::Down)
     }
 
+    #[inline]
     pub fn is_horizontal(&self) -> bool {
         matches!(self, Self::Left | Self::Right)
+    }
+}
+
+impl From<Direction> for tui::Direction {
+    #[inline]
+    fn from(value: Direction) -> Self {
+        match value {
+            Direction::Left | Direction::Right => tui::Direction::Horizontal,
+            Direction::Up | Direction::Down => tui::Direction::Vertical,
+        }
     }
 }
 
