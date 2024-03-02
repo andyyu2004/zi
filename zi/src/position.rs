@@ -1,6 +1,8 @@
 use std::fmt;
 use std::ops::Add;
 
+use tui::Rect;
+
 use crate::BufferId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -18,6 +20,13 @@ impl fmt::Display for Size {
 impl Size {
     pub fn new(width: u16, height: u16) -> Self {
         Self { width, height }
+    }
+}
+
+impl From<Rect> for Size {
+    #[inline]
+    fn from(rect: Rect) -> Self {
+        Self::new(rect.width, rect.height)
     }
 }
 

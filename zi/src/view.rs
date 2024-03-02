@@ -95,7 +95,7 @@ impl View {
     pub(crate) fn move_cursor(
         &mut self,
         mode: Mode,
-        size: Size,
+        size: impl Into<Size>,
         buf: &dyn Buffer,
         direction: Direction,
         amt: u32,
@@ -127,13 +127,14 @@ impl View {
     pub(crate) fn set_cursor(
         &mut self,
         mode: Mode,
-        size: Size,
+        size: impl Into<Size>,
         buf: &dyn Buffer,
         pos: Position,
         flags: SetCursorFlags,
     ) {
         assert_eq!(buf.id(), self.buf);
         let text = buf.writable_text();
+        let size = size.into();
 
         // Check line is in-bounds
         let mut line_idx = pos.line().idx();
@@ -191,11 +192,12 @@ impl View {
     pub(crate) fn scroll(
         &mut self,
         mode: Mode,
-        size: Size,
+        size: impl Into<Size>,
         buf: &dyn Buffer,
         direction: Direction,
         amt: u32,
     ) {
+        let size = size.into();
         let prev = self.offset;
         match direction {
             Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),

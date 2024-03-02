@@ -9,12 +9,16 @@ pub struct ViewTree {
 }
 
 impl ViewTree {
-    pub fn new(size: Size, root: ViewId) -> Self {
-        ViewTree { size, layers: vec![Layer::new(root)] }
+    pub fn new(size: Size, view: ViewId) -> Self {
+        ViewTree { size, layers: vec![Layer::new(size, view)] }
     }
 
-    pub fn size(&self, _view: impl HasViewId) -> Size {
+    pub fn size(&self) -> Size {
         self.size
+    }
+
+    pub fn area(&self, view: impl HasViewId) -> Rect {
+        self.layers.last().expect("layers was empty").area(view)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -50,11 +54,20 @@ impl ViewTree {
 
 pub struct Layer {
     view: ViewId,
+    size: Size,
 }
 
 impl Layer {
-    pub fn new(view: ViewId) -> Self {
-        Layer { view }
+    pub fn new(size: Size, view: ViewId) -> Self {
+        Layer { size, view }
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    pub fn area(&self, view: impl HasViewId) -> Rect {
+        todo!()
     }
 
     pub fn active_view(&self) -> ViewId {

@@ -248,7 +248,7 @@ impl Editor {
     pub fn set_mode(&mut self, mode: Mode) {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = active!(self);
-            view.move_cursor(mode, self.tree.size(view.id()), buf, Direction::Left, 1);
+            view.move_cursor(mode, self.tree.area(view.id()), buf, Direction::Left, 1);
         }
 
         self.mode = mode;
@@ -300,15 +300,15 @@ impl Editor {
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = active!(self);
-        let size = self.tree.size(view.id());
+        let area = self.tree.area(view.id());
         let cursor = view.cursor();
         buf.insert_char(cursor, c);
         match c {
             '\n' => {
-                view.move_cursor(self.mode, size, buf, Direction::Down, 1);
-                view.move_cursor(self.mode, size, buf, Direction::Left, 1);
+                view.move_cursor(self.mode, area, buf, Direction::Down, 1);
+                view.move_cursor(self.mode, area, buf, Direction::Left, 1);
             }
-            _ => view.move_cursor(self.mode, size, buf, Direction::Right, 1),
+            _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
         }
 
         let event = event::DidChangeBuffer { buf: buf.id() };
@@ -345,9 +345,9 @@ impl Editor {
 
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = active!(self);
-        let size = self.tree.size(view.id());
+        let area = self.tree.area(view.id());
         let pos = motion.motion(buf.text().slice(..), view.cursor());
-        view.set_cursor(self.mode, size, buf, pos, SetCursorFlags::empty());
+        view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
     }
 
     pub(crate) fn go_to_definition(&mut self) {
@@ -456,8 +456,8 @@ impl Editor {
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
         let (view, buf) = active!(self);
-        let size = self.tree.size(view.id());
-        view.scroll(self.mode, size, buf, direction, amount);
+        let area = self.tree.area(view.id());
+        view.scroll(self.mode, area, buf, direction, amount);
     }
 
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
@@ -477,7 +477,7 @@ impl Editor {
 
             let injector = injector.unwrap();
             let view = editor.views.insert_with_key(|id| View::new(id, buf));
-            editor.tree.push(Layer::new(view));
+            editor.tree.push(Layer::new(editor.tree.size(), view));
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();
             editor.pool.spawn(move || {
