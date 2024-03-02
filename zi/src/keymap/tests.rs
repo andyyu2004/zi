@@ -3,7 +3,7 @@ use crate::keymap::TrieResult::*;
 use crate::Mode;
 
 #[test]
-fn test_keymap() {
+fn keymap() {
     let mut keymap = Keymap::<Mode, char, u32>::default();
 
     assert!(keymap.insert(Mode::Normal, ['i'], 1).is_none());

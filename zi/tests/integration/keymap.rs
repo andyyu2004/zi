@@ -3,7 +3,7 @@ use zi::input::KeySequence;
 use crate::api::new;
 
 #[test]
-fn test_composite_escape() {
+fn composite_escape() {
     #[track_caller]
     fn check(seq: &str, expectation: &str) {
         let mut editor = new("");

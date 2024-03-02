@@ -21,7 +21,7 @@ async fn it_works() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn test_syntax_highlight() -> anyhow::Result<()> {
+async fn syntax_highlight() -> anyhow::Result<()> {
     snapshot("go", |editor| {
         editor.open("tests/integration/testdata/main.go")?;
         Ok(())
@@ -38,7 +38,7 @@ async fn test_syntax_highlight() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn test_scroll() -> anyhow::Result<()> {
+async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |editor| {
         editor.open("tests/integration/testdata/numbers.txt")?;
         editor.scroll_active_view(zi::Direction::Down, 50);

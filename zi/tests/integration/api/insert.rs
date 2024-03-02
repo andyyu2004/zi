@@ -1,7 +1,7 @@
 use crate::api::new;
 
 #[test]
-fn test_insert() {
+fn insert() {
     let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.set_mode(zi::Mode::Insert);

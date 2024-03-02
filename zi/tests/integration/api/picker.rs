@@ -1,7 +1,7 @@
 use super::new;
 
 #[test]
-fn test_picker() {
+fn picker() {
     let mut editor = new("");
     let current_buf = editor.active_buffer().id();
     editor.open_file_picker(".");

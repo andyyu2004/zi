@@ -3,7 +3,7 @@ use zi::Direction::*;
 use crate::api::{new, new_with_size};
 
 #[test]
-fn test_cursor_scrolls_when_out_of_bounds() {
+fn cursor_scrolls_when_out_of_bounds() {
     let mut editor = new_with_size("1\n2\n3\n4\n5\n", zi::Size::new(10, 2));
     editor.scroll_active_view(Down, 1);
     assert_eq!(editor.active_view().offset(), (1, 0));
@@ -29,7 +29,7 @@ fn test_cursor_scrolls_when_out_of_bounds() {
 }
 
 #[test]
-fn test_scroll() {
+fn scroll() {
     let mut editor = new("");
     editor.scroll_active_view(Down, 1);
     assert_eq!(editor.current_line(), "");
@@ -79,7 +79,7 @@ fn test_scroll() {
 }
 
 #[test]
-fn test_scroll_bounds_check() {
+fn scroll_bounds_check() {
     let mut editor = new("1\n2\n3\n4\n5\n");
 
     // Move cursor down one so it's desyned from the scroll

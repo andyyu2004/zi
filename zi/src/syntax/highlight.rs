@@ -150,7 +150,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_highlight_map() {
+    fn highlight_map() {
         let theme = Theme {
             highlights: [
                 ("function", Style::default()),
