@@ -350,9 +350,10 @@ impl Editor {
     }
 
     pub fn split(&mut self, direction: Direction) -> ViewId {
-        let (view, buf) = active_ref!(self);
+        let (view, _) = active_ref!(self);
         let id = view.id();
-        let split_view = self.views.insert_with_key(|id| View::new(id, buf.id()));
+        let view = view.clone();
+        let split_view = self.views.insert_with_key(|id| View::new_from(id, view));
         self.tree.split(id, split_view, direction);
         split_view
     }

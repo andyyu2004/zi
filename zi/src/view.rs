@@ -9,6 +9,7 @@ slotmap::new_key_type! {
     pub struct ViewId;
 }
 
+#[derive(Debug, Clone)]
 pub struct View {
     id: ViewId,
     /// The buffer that this view is displaying.
@@ -20,7 +21,7 @@ pub struct View {
     cursor: Cursor,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Cursor {
     pos: Position,
     // When we move the cursor down we may go to a shorter line, virtual column stores the column
@@ -240,6 +241,11 @@ impl View {
 
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
         Self { id, buf, cursor: Cursor::default(), offset: Default::default() }
+    }
+
+    pub(crate) fn new_from(id: ViewId, view: View) -> Self {
+        assert_ne!(id, view.id);
+        Self { id, ..view }
     }
 }
 

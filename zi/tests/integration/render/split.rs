@@ -16,10 +16,10 @@ fn test_split() -> io::Result<()> {
             "   1 abc                                          "
             "                                                  "
             "                                                  "
-            "   1 |bc                                          "
+            "   1 abc|                                         "
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
@@ -31,13 +31,13 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc                    1 |bc                 "
+            "   1 abc                    1 abc|                "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
@@ -46,13 +46,13 @@ fn test_split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc            1 abc           1 |bc         "
+            "   1 abc            1 abc           1 abc|        "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
@@ -64,10 +64,10 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                    1 |bc         "
+            "                                    1 abc|        "
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
@@ -79,10 +79,10 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                    1 |bc    1 abc"
+            "                                    1 abc|   1 abc"
             "                                                  "
             "                                                  "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
@@ -94,10 +94,10 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                    1 |bc    1 abc"
+            "                                    1 abc|   1 abc"
             "                                                  "
             "                                    1 abc         "
-            "scratch:1:0                                       "
+            "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
     );
