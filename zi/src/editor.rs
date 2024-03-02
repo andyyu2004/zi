@@ -297,6 +297,14 @@ impl Editor {
         (view, buffer)
     }
 
+    pub fn split(&mut self, direction: Direction) -> ViewId {
+        let (view, buf) = active_ref!(self);
+        let id = view.id();
+        let split_view = self.views.insert_with_key(|id| View::new(id, buf.id()));
+        self.tree.split(id, split_view, direction);
+        split_view
+    }
+
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = active!(self);
@@ -644,6 +652,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
     const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
 
+    const SPLIT_VERTICAL: Action = |editor| {
+        editor.split(Direction::Right);
+    };
+
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
             "<C-d>" => SCROLL_DOWN,
@@ -668,6 +680,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             },
             "g" => {
                 "d" => GO_TO_DEFINITION,
+            },
+            "<C-w>" => {
+                "v" => SPLIT_VERTICAL,
+                "<C-v>" => SPLIT_VERTICAL,
             },
         }).into_trie(),
         Mode::Insert => trie!({
