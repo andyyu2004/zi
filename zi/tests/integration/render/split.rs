@@ -8,19 +8,23 @@ use super::new_with_snapshot;
 fn test_split() -> io::Result<()> {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
+    editor.split(zi::Direction::Down);
+
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc|                                         "
+            "   1 abc                                          "
             "                                                  "
             "                                                  "
+            "   1 |bc                                          "
             "                                                  "
             "                                                  "
-            "                                                  "
-            "scratch:1:3                                       "
+            "scratch:1:0                                       "
             "-- INSERT --                                      "
         "#]],
     );
+
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
     editor.split(zi::Direction::Right);
 
@@ -60,8 +64,8 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                      |           "
-            "                                    1 abc         "
+            "                                    1 |bc         "
+            "                                                  "
             "                                                  "
             "scratch:1:0                                       "
             "-- INSERT --                                      "
@@ -75,8 +79,8 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                      |           "
-            "                                    1 abc    1 abc"
+            "                                    1 |bc    1 abc"
+            "                                                  "
             "                                                  "
             "scratch:1:0                                       "
             "-- INSERT --                                      "
@@ -90,10 +94,10 @@ fn test_split() -> io::Result<()> {
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
-            "                                      |           "
-            "                                    1 abc    1 abc"
+            "                                    1 |bc    1 abc"
             "                                                  "
-            "scratch:1:0                         1 abc         "
+            "                                    1 abc         "
+            "scratch:1:0                                       "
             "-- INSERT --                                      "
         "#]],
     );

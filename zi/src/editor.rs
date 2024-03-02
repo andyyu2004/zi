@@ -193,11 +193,19 @@ impl Editor {
 
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
         let area = frame.size();
+
+        assert_eq!(
+            area,
+            tui::Rect {
+                height: self.tree.area().height + Self::BOTTOM_BAR_HEIGHT,
+                ..self.tree.area()
+            },
+        );
         for buf in self.buffers.values_mut() {
             buf.pre_render();
         }
 
-        self.tree.render(self, area, frame.buffer_mut());
+        self.tree.render(self, frame.buffer_mut());
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
         let (view, buf) = active_ref!(self);
@@ -215,7 +223,9 @@ impl Editor {
 
         let cmdline = tui::Text::styled(
             format!("-- {} --", self.mode()),
-            tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+            tui::Style::new()
+                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
+                .bg(tui::Color::Rgb(0x00, 0x2b, 0x36)),
         );
 
         let widget =

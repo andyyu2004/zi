@@ -76,7 +76,7 @@ async fn snapshot(
 
     {
         let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
-        let (mut editor, _tasks, _) = Editor::new(zi::Size::new(80, 24));
+        let (mut editor, _tasks, _) = Editor::new(term.size()?.into());
         f(&mut editor)?;
         term.draw(|f| editor.render(f))?;
     }

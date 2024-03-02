@@ -53,9 +53,9 @@ impl ViewTree {
         active
     }
 
-    pub fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
+    pub fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
         for layer in &self.layers {
-            layer.render(editor, area, surface);
+            layer.render(editor, surface);
         }
     }
 
@@ -77,7 +77,7 @@ impl Layer {
     }
 
     pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        self.root.area(view.view_id(), self.area).expect("view not found in layer")
+        self.root.view_area(view.view_id(), self.area).expect("view not found in layer")
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
@@ -89,8 +89,8 @@ impl Layer {
         self.active
     }
 
-    fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        self.root.render(editor, area, surface);
+    fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
+        self.root.render(editor, self.area, surface);
     }
 }
 
@@ -101,7 +101,7 @@ enum Node {
 }
 
 impl Node {
-    fn area(&self, view: ViewId, area: Rect) -> Option<Rect> {
+    fn view_area(&self, view: ViewId, area: Rect) -> Option<Rect> {
         match self {
             Node::View(id) => {
                 if *id == view {
@@ -163,7 +163,7 @@ impl Container {
         let areas = self.layout().split(area);
         assert_eq!(areas.len(), self.children.len());
         for (&area, child) in areas.iter().zip(&self.children) {
-            if let Some(area) = child.area(view, area) {
+            if let Some(area) = child.view_area(view, area) {
                 return area;
             }
         }
