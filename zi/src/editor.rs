@@ -195,6 +195,7 @@ impl Editor {
         for buf in self.buffers.values_mut() {
             buf.pre_render();
         }
+
         self.tree.render(self, area, surface);
     }
 

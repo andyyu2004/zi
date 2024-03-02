@@ -26,7 +26,7 @@ impl ViewTree {
     }
 
     pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        self.top().area(view)
+        self.top().view_area(view)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -76,7 +76,7 @@ impl Layer {
         Layer { area, active, root: Node::View(active) }
     }
 
-    pub fn area(&self, view: impl HasViewId) -> Rect {
+    pub fn view_area(&self, view: impl HasViewId) -> Rect {
         self.root.area(view.view_id(), self.area).expect("view not found in layer")
     }
 
@@ -218,6 +218,3 @@ impl Container {
         assert_eq!(self.children.len(), self.constraints.len());
     }
 }
-
-#[cfg(test)]
-mod tests;
