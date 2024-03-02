@@ -302,29 +302,7 @@ impl View {
             highlights,
         );
 
-        let statusline = tui::Text::styled(
-            format!(
-                "{}:{}:{}",
-                buf.path().display(),
-                view.cursor().line() + 1,
-                view.cursor().col()
-            ),
-            tui::Style::new()
-                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
-                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
-        );
-
-        let cmdline = tui::Text::styled(
-            format!("-- {} --", editor.mode()),
-            tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
-        );
-
-        let widget = tui::vstack(
-            [tui::Constraint::Fill(1), tui::Constraint::Max(1), tui::Constraint::Max(1)],
-            (lines, statusline, cmdline),
-        );
-
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
-        widget.render(area, surface);
+        lines.render(area, surface);
     }
 }

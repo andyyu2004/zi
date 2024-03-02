@@ -35,7 +35,7 @@ pub fn new_with_snapshot(
 
     let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
     (editor, move |editor, expect| {
-        term.draw(|f| editor.render(f.size(), f.buffer_mut())).unwrap();
+        term.draw(|f| editor.render(f)).unwrap();
         expect.assert_eq(&term.backend().to_string())
     })
 }

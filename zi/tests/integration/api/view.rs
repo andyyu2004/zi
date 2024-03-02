@@ -33,8 +33,8 @@ fn test_split() -> io::Result<()> {
             "                                                  "
             "                                                  "
             "                                                  "
-            "scratch:1:0              scratch:1:0              "
-            "-- NORMAL --             -- NORMAL --             "
+            "scratch:1:0                                       "
+            "-- NORMAL --                                      "
         "#]],
     );
 
@@ -48,8 +48,8 @@ fn test_split() -> io::Result<()> {
             "                                                  "
             "                                                  "
             "                                                  "
-            "scratch:1:0      scratch:1:0     scratch:1:0      "
-            "-- NORMAL --     -- NORMAL --    -- NORMAL --     "
+            "scratch:1:0                                       "
+            "-- NORMAL --                                      "
         "#]],
     );
 

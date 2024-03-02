@@ -15,7 +15,7 @@ use slotmap::SlotMap;
 use stdx::path::PathExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Notify;
-use tui::Rect;
+use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{PickerBuffer, TextBuffer};
@@ -191,12 +191,45 @@ impl Editor {
         self.tree.is_empty()
     }
 
-    pub fn render(&mut self, area: Rect, surface: &mut tui::Buffer) {
+    pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
+        let area = frame.size();
         for buf in self.buffers.values_mut() {
             buf.pre_render();
         }
 
-        self.tree.render(self, area, surface);
+        self.tree.render(self, area, frame.buffer_mut());
+
+        // HACK probably there is a nicer way to not special case the cmd and statusline
+        let (view, buf) = active_ref!(self);
+        let statusline = tui::Text::styled(
+            format!(
+                "{}:{}:{}",
+                buf.path().display(),
+                view.cursor().line() + 1,
+                view.cursor().col()
+            ),
+            tui::Style::new()
+                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
+                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
+        );
+
+        let cmdline = tui::Text::styled(
+            format!("-- {} --", self.mode()),
+            tui::Style::new().fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+        );
+
+        let widget =
+            tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (statusline, cmdline));
+
+        widget.render(
+            tui::Rect {
+                x: 0,
+                y: area.height - Self::BOTTOM_BAR_HEIGHT,
+                width: area.width,
+                height: Self::BOTTOM_BAR_HEIGHT,
+            },
+            frame.buffer_mut(),
+        );
     }
 
     pub fn active_cursor_viewport_coords(&self) -> (u32, u32) {

@@ -86,8 +86,7 @@ impl<B: Backend + io::Write> App<B> {
 }
 
 pub fn render(editor: &mut Editor, frame: &mut Frame<'_>) {
-    let area = frame.size();
-    editor.render(area, frame.buffer_mut());
+    editor.render(frame);
 
     let (view, buf) = editor.active();
     let (x, y) = view.cursor_viewport_coords(buf);
