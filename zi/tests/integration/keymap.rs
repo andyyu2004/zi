@@ -1,19 +1,15 @@
-use zi::input::KeyEvent;
+use zi::input::KeySequence;
 
 use crate::api::new;
-
-fn k(s: &str) -> KeyEvent {
-    s.parse().unwrap()
-}
 
 #[test]
 fn test_composite_escape() {
     #[track_caller]
     fn check(seq: &str, expectation: &str) {
         let mut editor = new("");
-        for c in seq.chars() {
-            let ev = k(&c.to_string());
-            editor.handle_input(ev);
+        let seq = seq.parse::<KeySequence>().unwrap();
+        for key in seq {
+            editor.handle_input(key);
         }
 
         assert_eq!(editor.current_line(), expectation);

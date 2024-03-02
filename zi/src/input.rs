@@ -1,12 +1,113 @@
+use std::fmt;
 use std::str::FromStr;
 
-use crossterm::event::{KeyCode, KeyModifiers, MediaKeyCode, ModifierKeyCode};
+use chumsky::Parser;
 
 use crate::Size;
-
 pub enum Event {
     Key(KeyEvent),
     Resize(Size),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum KeyCode {
+    Backspace,
+    Enter,
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    Tab,
+    Delete,
+    Insert,
+    Esc,
+    F(u8),
+    Char(char),
+}
+
+impl KeyCode {
+    pub fn is_special(&self) -> bool {
+        !matches!(self, KeyCode::Char(_))
+    }
+}
+
+#[cfg(feature = "crossterm")]
+impl TryFrom<crossterm::event::KeyCode> for KeyCode {
+    type Error = ();
+
+    fn try_from(code: crossterm::event::KeyCode) -> Result<Self, Self::Error> {
+        match code {
+            crossterm::event::KeyCode::Backspace => Ok(KeyCode::Backspace),
+            crossterm::event::KeyCode::Enter => Ok(KeyCode::Enter),
+            crossterm::event::KeyCode::Left => Ok(KeyCode::Left),
+            crossterm::event::KeyCode::Right => Ok(KeyCode::Right),
+            crossterm::event::KeyCode::Up => Ok(KeyCode::Up),
+            crossterm::event::KeyCode::Down => Ok(KeyCode::Down),
+            crossterm::event::KeyCode::Home => Ok(KeyCode::Home),
+            crossterm::event::KeyCode::End => Ok(KeyCode::End),
+            crossterm::event::KeyCode::PageUp => Ok(KeyCode::PageUp),
+            crossterm::event::KeyCode::PageDown => Ok(KeyCode::PageDown),
+            crossterm::event::KeyCode::Tab => Ok(KeyCode::Tab),
+            crossterm::event::KeyCode::Delete => Ok(KeyCode::Delete),
+            crossterm::event::KeyCode::Insert => Ok(KeyCode::Insert),
+            crossterm::event::KeyCode::Esc => Ok(KeyCode::Esc),
+            crossterm::event::KeyCode::F(n) => Ok(KeyCode::F(n)),
+            crossterm::event::KeyCode::Char(c) => Ok(KeyCode::Char(c)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for KeyCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            KeyCode::Backspace => write!(f, "{}", keys::BACKSPACE),
+            KeyCode::Enter => write!(f, "{}", keys::ENTER),
+            KeyCode::Left => write!(f, "{}", keys::LEFT),
+            KeyCode::Right => write!(f, "{}", keys::RIGHT),
+            KeyCode::Up => write!(f, "{}", keys::UP),
+            KeyCode::Down => write!(f, "{}", keys::DOWN),
+            KeyCode::Home => write!(f, "{}", keys::HOME),
+            KeyCode::End => write!(f, "{}", keys::END),
+            KeyCode::PageUp => write!(f, "{}", keys::PAGEUP),
+            KeyCode::PageDown => write!(f, "{}", keys::PAGEDOWN),
+            KeyCode::Tab => write!(f, "{}", keys::TAB),
+            KeyCode::Delete => write!(f, "{}", keys::DELETE),
+            KeyCode::Insert => write!(f, "{}", keys::INSERT),
+            KeyCode::Esc => write!(f, "{}", keys::ESC),
+            KeyCode::F(n) => write!(f, "f{n}"),
+            KeyCode::Char(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+    pub struct KeyModifiers: u8 {
+        const NONE = 0b0000_0000;
+        const SHIFT = 0b0000_0001;
+        const CONTROL = 0b0000_0010;
+        const ALT = 0b0000_0100;
+    }
+}
+
+#[cfg(feature = "crossterm")]
+impl TryFrom<crossterm::event::KeyModifiers> for KeyModifiers {
+    type Error = ();
+
+    fn try_from(modifiers: crossterm::event::KeyModifiers) -> Result<Self, Self::Error> {
+        Ok(match modifiers {
+            crossterm::event::KeyModifiers::NONE => KeyModifiers::NONE,
+            crossterm::event::KeyModifiers::SHIFT => KeyModifiers::SHIFT,
+            crossterm::event::KeyModifiers::CONTROL => KeyModifiers::CONTROL,
+            crossterm::event::KeyModifiers::ALT => KeyModifiers::ALT,
+            _ => return Err(()),
+        })
+    }
 }
 
 impl From<KeyEvent> for Event {
@@ -15,14 +116,24 @@ impl From<KeyEvent> for Event {
     }
 }
 
+#[cfg(feature = "crossterm")]
 impl TryFrom<crossterm::event::Event> for Event {
     type Error = ();
 
     fn try_from(event: crossterm::event::Event) -> Result<Self, Self::Error> {
         match event {
-            crossterm::event::Event::Key(event) => {
-                Ok(Event::Key(KeyEvent { code: event.code, modifiers: event.modifiers }))
-            }
+            crossterm::event::Event::Key(event) => match event.code {
+                // weird crossterm case, we just convert this to `<S-Tab>`
+                crossterm::event::KeyCode::BackTab => Ok(Event::Key(KeyEvent {
+                    code: KeyCode::Tab,
+                    modifiers: KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
+                })),
+                _ => Ok(Event::Key(KeyEvent {
+                    code: event.code.try_into()?,
+                    modifiers: event.modifiers.try_into()?,
+                })),
+            },
+
             crossterm::event::Event::Resize(width, height) => {
                 Ok(Event::Resize(Size::new(width, height)))
             }
@@ -37,110 +148,165 @@ pub struct KeyEvent {
     pub modifiers: KeyModifiers,
 }
 
-impl FromStr for KeyEvent {
-    type Err = anyhow::Error;
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct KeySequence(Box<[KeyEvent]>);
+
+impl IntoIterator for KeySequence {
+    type Item = KeyEvent;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_vec().into_iter()
+    }
+}
+
+impl fmt::Display for KeySequence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for key in self.0.iter() {
+            write!(f, "{key}")?;
+        }
+        Ok(())
+    }
+}
+
+impl FromStr for KeySequence {
+    type Err = Vec<chumsky::error::Simple<char>>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut tokens: Vec<_> = s.split('-').collect();
-        let mut code = match tokens.pop().ok_or_else(|| anyhow::anyhow!("Missing key code"))? {
-            keys::BACKSPACE => KeyCode::Backspace,
-            keys::ENTER => KeyCode::Enter,
-            keys::LEFT => KeyCode::Left,
-            keys::RIGHT => KeyCode::Right,
-            keys::UP => KeyCode::Up,
-            keys::DOWN => KeyCode::Down,
-            keys::HOME => KeyCode::Home,
-            keys::END => KeyCode::End,
-            keys::PAGEUP => KeyCode::PageUp,
-            keys::PAGEDOWN => KeyCode::PageDown,
-            keys::TAB => KeyCode::Tab,
-            keys::DELETE => KeyCode::Delete,
-            keys::INSERT => KeyCode::Insert,
-            keys::NULL => KeyCode::Null,
-            keys::ESC => KeyCode::Esc,
-            keys::SPACE => KeyCode::Char(' '),
-            keys::MINUS => KeyCode::Char('-'),
-            keys::LESS_THAN => KeyCode::Char('<'),
-            keys::GREATER_THAN => KeyCode::Char('>'),
-            keys::CAPS_LOCK => KeyCode::CapsLock,
-            keys::SCROLL_LOCK => KeyCode::ScrollLock,
-            keys::NUM_LOCK => KeyCode::NumLock,
-            keys::PRINT_SCREEN => KeyCode::PrintScreen,
-            keys::PAUSE => KeyCode::Pause,
-            keys::MENU => KeyCode::Menu,
-            keys::KEYPAD_BEGIN => KeyCode::KeypadBegin,
-            keys::PLAY => KeyCode::Media(MediaKeyCode::Play),
-            keys::PAUSE_MEDIA => KeyCode::Media(MediaKeyCode::Pause),
-            keys::PLAY_PAUSE => KeyCode::Media(MediaKeyCode::PlayPause),
-            keys::STOP => KeyCode::Media(MediaKeyCode::Stop),
-            keys::REVERSE => KeyCode::Media(MediaKeyCode::Reverse),
-            keys::FAST_FORWARD => KeyCode::Media(MediaKeyCode::FastForward),
-            keys::REWIND => KeyCode::Media(MediaKeyCode::Rewind),
-            keys::TRACK_NEXT => KeyCode::Media(MediaKeyCode::TrackNext),
-            keys::TRACK_PREVIOUS => KeyCode::Media(MediaKeyCode::TrackPrevious),
-            keys::RECORD => KeyCode::Media(MediaKeyCode::Record),
-            keys::LOWER_VOLUME => KeyCode::Media(MediaKeyCode::LowerVolume),
-            keys::RAISE_VOLUME => KeyCode::Media(MediaKeyCode::RaiseVolume),
-            keys::MUTE_VOLUME => KeyCode::Media(MediaKeyCode::MuteVolume),
-            keys::LEFT_SHIFT => KeyCode::Modifier(ModifierKeyCode::LeftShift),
-            keys::LEFT_CONTROL => KeyCode::Modifier(ModifierKeyCode::LeftControl),
-            keys::LEFT_ALT => KeyCode::Modifier(ModifierKeyCode::LeftAlt),
-            keys::LEFT_SUPER => KeyCode::Modifier(ModifierKeyCode::LeftSuper),
-            keys::LEFT_HYPER => KeyCode::Modifier(ModifierKeyCode::LeftHyper),
-            keys::LEFT_META => KeyCode::Modifier(ModifierKeyCode::LeftMeta),
-            keys::RIGHT_SHIFT => KeyCode::Modifier(ModifierKeyCode::RightShift),
-            keys::RIGHT_CONTROL => KeyCode::Modifier(ModifierKeyCode::RightControl),
-            keys::RIGHT_ALT => KeyCode::Modifier(ModifierKeyCode::RightAlt),
-            keys::RIGHT_SUPER => KeyCode::Modifier(ModifierKeyCode::RightSuper),
-            keys::RIGHT_HYPER => KeyCode::Modifier(ModifierKeyCode::RightHyper),
-            keys::RIGHT_META => KeyCode::Modifier(ModifierKeyCode::RightMeta),
-            keys::ISO_LEVEL_3_SHIFT => KeyCode::Modifier(ModifierKeyCode::IsoLevel3Shift),
-            keys::ISO_LEVEL_5_SHIFT => KeyCode::Modifier(ModifierKeyCode::IsoLevel5Shift),
-            single if single.chars().count() == 1 => KeyCode::Char(single.chars().next().unwrap()),
-            function if function.len() > 1 && function.starts_with('F') => {
-                let function: String = function.chars().skip(1).collect();
-                let function = str::parse::<u8>(&function)?;
-                (function > 0 && function < 25)
-                    .then_some(KeyCode::F(function))
-                    .ok_or_else(|| anyhow::anyhow!("Invalid function key '{function}'"))?
-            }
-            invalid => return Err(anyhow::anyhow!("Invalid key code '{invalid}'")),
-        };
+        key_event()
+            .repeated()
+            .at_least(1)
+            .then_ignore(chumsky::primitive::end())
+            .parse(s)
+            .map(|x| KeySequence(x.into_boxed_slice()))
+    }
+}
 
-        let mut modifiers = KeyModifiers::empty();
-        for token in tokens {
-            let flag = match token {
-                "S" => KeyModifiers::SHIFT,
-                "A" => KeyModifiers::ALT,
-                "C" => KeyModifiers::CONTROL,
-                _ => return Err(anyhow::anyhow!("Invalid key modifier '{}-'", token)),
-            };
-
-            if modifiers.contains(flag) {
-                return Err(anyhow::anyhow!("Repeated key modifier '{}-'", token));
+impl fmt::Display for KeyEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.modifiers.is_empty() {
+            if self.code.is_special() {
+                write!(f, "<{}>", self.code)
+            } else {
+                write!(f, "{}", self.code)
             }
-            modifiers.insert(flag);
+        } else {
+            write!(f, "<")?;
+            for modifier in self.modifiers.iter() {
+                write!(
+                    f,
+                    "{}-",
+                    match modifier {
+                        KeyModifiers::CONTROL => "C",
+                        KeyModifiers::SHIFT => "S",
+                        KeyModifiers::ALT => "A",
+                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
+                    }
+                )?;
+            }
+
+            write!(f, "{}>", self.code)
         }
+    }
+}
 
-        // Normalize character keys so that characters like C-S-r and C-R
-        // are represented by equal KeyEvents.
-        match code {
-            KeyCode::Char(ch)
-                if ch.is_ascii_lowercase() && modifiers.contains(KeyModifiers::SHIFT) =>
+fn key_event() -> impl Parser<char, KeyEvent, Error = chumsky::error::Simple<char>> {
+    use chumsky::prelude::*;
+    use chumsky::text::ident;
+
+    // case insensitive variant of `keyword`
+    fn kw(
+        keyword: &'static str,
+    ) -> impl Parser<char, (), Error = chumsky::error::Simple<char>> + Copy {
+        ident()
+            .try_map(move |s: String, span| {
+                if s.eq_ignore_ascii_case(keyword) {
+                    Ok(())
+                } else {
+                    Err(chumsky::error::Simple::expected_input_found(
+                        span,
+                        keyword.to_string().chars().map(Some),
+                        s[..].chars().next(),
+                    ))
+                }
+            })
+            .ignored()
+    }
+
+    let special_key = choice((
+        kw(keys::BACKSPACE).to(KeyCode::Backspace),
+        kw(keys::ENTER).to(KeyCode::Enter),
+        kw(keys::LEFT).to(KeyCode::Left),
+        kw(keys::RIGHT).to(KeyCode::Right),
+        kw(keys::UP).to(KeyCode::Up),
+        kw(keys::DOWN).to(KeyCode::Down),
+        kw(keys::HOME).to(KeyCode::Home),
+        kw(keys::END).to(KeyCode::End),
+        kw(keys::PAGEUP).to(KeyCode::PageUp),
+        kw(keys::PAGEDOWN).to(KeyCode::PageDown),
+        kw(keys::TAB).to(KeyCode::Tab),
+        kw(keys::DELETE).to(KeyCode::Delete),
+        kw(keys::INSERT).to(KeyCode::Insert),
+        kw(keys::ESC).to(KeyCode::Esc),
+        kw(keys::SPACE).to(KeyCode::Char(' ')),
+        kw(keys::MINUS).to(KeyCode::Char('-')),
+        kw(keys::LESS_THAN).to(KeyCode::Char('<')),
+        kw(keys::GREATER_THAN).to(KeyCode::Char('>')),
+    ));
+
+    let key =
+        filter(|c: &char| c.is_ascii_alphanumeric() || c.is_ascii_punctuation()).map(KeyCode::Char);
+
+    let modifier = choice((
+        kw("c").to(KeyModifiers::CONTROL),
+        kw("s").to(KeyModifiers::SHIFT),
+        kw("a").to(KeyModifiers::ALT),
+    ));
+
+    let modifiers = modifier
+        .then_ignore(just("-"))
+        .repeated()
+        .at_least(1)
+        .map(|x| x.into_iter().fold(KeyModifiers::empty(), |a, b| a | b));
+
+    let modified_key = modifiers
+        .then(choice((special_key, key)))
+        .map(|(modifiers, code)| KeyEvent { modifiers, code })
+        .delimited_by(just("<"), just(">"));
+
+    let unmodified_key = choice((special_key.delimited_by(just("<"), just(">")), key))
+        .map(|code| KeyEvent { code, modifiers: KeyModifiers::empty() });
+
+    choice((modified_key, unmodified_key))
+}
+
+impl FromStr for KeyEvent {
+    type Err = Vec<chumsky::error::Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let event = key_event().then_ignore(chumsky::primitive::end()).parse(s)?;
+        // normalize
+        Ok(match event.code {
+            // ensure capital letters have the shift modifier
+            KeyCode::Char(c) if c.is_uppercase() => KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers: event.modifiers | KeyModifiers::SHIFT,
+            },
+            // <C-S-x> should be the same as <C-S-X>
+            KeyCode::Char(c)
+                if c.is_ascii_lowercase() && event.modifiers.contains(KeyModifiers::SHIFT) =>
             {
-                code = KeyCode::Char(ch.to_ascii_uppercase());
-                modifiers.remove(KeyModifiers::SHIFT);
+                KeyEvent { code: KeyCode::Char(c.to_ascii_uppercase()), modifiers: event.modifiers }
             }
-            _ => (),
-        }
 
-        Ok(KeyEvent { code, modifiers })
+            _ => event,
+        })
     }
 }
 
 pub(crate) mod keys {
-    pub(crate) const BACKSPACE: &str = "backspace";
-    pub(crate) const ENTER: &str = "ret";
+    pub(crate) const BACKSPACE: &str = "bs";
+    pub(crate) const ENTER: &str = "cr";
     pub(crate) const LEFT: &str = "left";
     pub(crate) const RIGHT: &str = "right";
     pub(crate) const UP: &str = "up";
@@ -152,44 +318,12 @@ pub(crate) mod keys {
     pub(crate) const TAB: &str = "tab";
     pub(crate) const DELETE: &str = "del";
     pub(crate) const INSERT: &str = "ins";
-    pub(crate) const NULL: &str = "null";
     pub(crate) const ESC: &str = "esc";
     pub(crate) const SPACE: &str = "space";
     pub(crate) const MINUS: &str = "minus";
     pub(crate) const LESS_THAN: &str = "lt";
     pub(crate) const GREATER_THAN: &str = "gt";
-    pub(crate) const CAPS_LOCK: &str = "capslock";
-    pub(crate) const SCROLL_LOCK: &str = "scrolllock";
-    pub(crate) const NUM_LOCK: &str = "numlock";
-    pub(crate) const PRINT_SCREEN: &str = "printscreen";
-    pub(crate) const PAUSE: &str = "pause";
-    pub(crate) const MENU: &str = "menu";
-    pub(crate) const KEYPAD_BEGIN: &str = "keypadbegin";
-    pub(crate) const PLAY: &str = "play";
-    pub(crate) const PAUSE_MEDIA: &str = "pausemedia";
-    pub(crate) const PLAY_PAUSE: &str = "playpause";
-    pub(crate) const REVERSE: &str = "reverse";
-    pub(crate) const STOP: &str = "stop";
-    pub(crate) const FAST_FORWARD: &str = "fastforward";
-    pub(crate) const REWIND: &str = "rewind";
-    pub(crate) const TRACK_NEXT: &str = "tracknext";
-    pub(crate) const TRACK_PREVIOUS: &str = "trackprevious";
-    pub(crate) const RECORD: &str = "record";
-    pub(crate) const LOWER_VOLUME: &str = "lowervolume";
-    pub(crate) const RAISE_VOLUME: &str = "raisevolume";
-    pub(crate) const MUTE_VOLUME: &str = "mutevolume";
-    pub(crate) const LEFT_SHIFT: &str = "leftshift";
-    pub(crate) const LEFT_CONTROL: &str = "leftcontrol";
-    pub(crate) const LEFT_ALT: &str = "leftalt";
-    pub(crate) const LEFT_SUPER: &str = "leftsuper";
-    pub(crate) const LEFT_HYPER: &str = "lefthyper";
-    pub(crate) const LEFT_META: &str = "leftmeta";
-    pub(crate) const RIGHT_SHIFT: &str = "rightshift";
-    pub(crate) const RIGHT_CONTROL: &str = "rightcontrol";
-    pub(crate) const RIGHT_ALT: &str = "rightalt";
-    pub(crate) const RIGHT_SUPER: &str = "rightsuper";
-    pub(crate) const RIGHT_HYPER: &str = "righthyper";
-    pub(crate) const RIGHT_META: &str = "rightmeta";
-    pub(crate) const ISO_LEVEL_3_SHIFT: &str = "isolevel3shift";
-    pub(crate) const ISO_LEVEL_5_SHIFT: &str = "isolevel5shift";
 }
+
+#[cfg(test)]
+mod tests;

@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 
-use crossterm::event::KeyCode;
 use futures_core::Stream;
 use ropey::{Rope, RopeBuilder, RopeSlice};
 use rustc_hash::FxHashMap;
@@ -20,7 +19,7 @@ use tui::Rect;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{PickerBuffer, TextBuffer};
-use crate::input::{Event, KeyEvent};
+use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
@@ -647,10 +646,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
-            "C-d" => SCROLL_DOWN,
-            "C-u" => SCROLL_UP,
-            "C-e" => SCROLL_LINE_DOWN,
-            "C-y" => SCROLL_LINE_UP,
+            "<C-d>" => SCROLL_DOWN,
+            "<C-u>" => SCROLL_UP,
+            "<C-e>" => SCROLL_LINE_DOWN,
+            "<C-y>" => SCROLL_LINE_UP,
             "i" => INSERT_MODE,
             "q" => CLOSE_VIEW,
             "h" => MOVE_LEFT,
@@ -663,8 +662,8 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "W" => NEXT_TOKEN,
             "B" => PREV_TOKEN,
             "a" => APPEND,
-            "S-A" => APPEND_EOL,
-            "space" => {
+            "A" => APPEND_EOL,
+            "<space>" => {
                 "o" => OPEN_FILE_PICKER,
             },
             "g" => {
@@ -672,8 +671,8 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             },
         }).into_trie(),
         Mode::Insert => trie!({
-            "esc" => NORMAL_MODE,
-            "ret" => INSERT_NEWLINE,
+            "<ESC>" => NORMAL_MODE,
+            "<CR>" => INSERT_NEWLINE,
             "f" => {
                 "d" => NORMAL_MODE,
             },

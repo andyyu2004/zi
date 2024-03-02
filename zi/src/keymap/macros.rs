@@ -36,12 +36,12 @@ macro_rules! trie {
             let mut map = ::std::collections::HashMap::with_capacity_and_hasher(cap, ::std::hash::BuildHasherDefault::<rustc_hash::FxHasher>::default());
             $(
                 $(
-                    let key = $key.parse::<$crate::input::KeyEvent>().unwrap();
+                    let key = $key.parse::<$crate::input::KeyEvent>().expect("failed to parse key event");
                     let duplicate = map.insert(
-                        key,
+                        key.clone(),
                         trie!(@trie $value)
                     );
-                    assert!(duplicate.is_none(), "Duplicate key found");
+                    assert!(duplicate.is_none(), "duplicate key found: {key}");
                 )+
             )*
             let trie = $crate::keymap::Trie::new(map);

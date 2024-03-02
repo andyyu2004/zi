@@ -1,7 +1,6 @@
 use std::any::{Any, TypeId};
 use std::sync::OnceLock;
 
-pub use crossterm::event::{KeyCode, KeyModifiers};
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 

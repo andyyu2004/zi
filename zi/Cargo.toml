@@ -9,14 +9,16 @@ workspace = true
 [dependencies]
 anyhow = "1.0.80"
 bitflags = "2.4.2"
-crossterm = "0.27.0"
 futures-core = "0.3.30"
 parking_lot = "0.12.1"
 ratatui = { version = "0.26.1", default-features = false }
 ropey = "1.6.1"
 rustc-hash = "1.1.0"
 slotmap = "1.0.7"
-tokio = { version = "1.36.0", default-features = false, features = ["sync"] }
+tokio = { version = "1.36.0", default-features = false, features = [
+    "sync",
+    "rt-multi-thread",
+] }
 tracing = "0.1.40"
 tree-sitter = "0.20.4"
 tree-sitter-go = "0.20.0"
@@ -32,10 +34,8 @@ nucleo = "0.4.0"
 ignore = "0.4.22"
 rayon = "1.9.0"
 stdx = { version = "0.1.0", path = "../stdx" }
+chumsky = "0.9.3"
+crossterm = { version = "0.27.0", optional = true }
 
 [dev-dependencies]
 tempfile = "3.10.0"
-tokio = { version = "1.36.0", default-features = false, features = [
-    "rt-multi-thread",
-    "macros",
-] }
