@@ -53,6 +53,10 @@ impl ViewTree {
         active
     }
 
+    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+        self.layers.iter().flat_map(|layer| layer.views())
+    }
+
     pub fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
         for layer in &self.layers {
             layer.render(editor, surface);
@@ -60,6 +64,8 @@ impl ViewTree {
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+        assert_ne!(view, new, "cannot split a view into itself");
+        assert!(self.views().all(|v| v != new), "cannot split into an existing view");
         self.top_mut().split(view, new, direction)
     }
 }
@@ -87,6 +93,10 @@ impl Layer {
 
     pub fn active_view(&self) -> ViewId {
         self.active
+    }
+
+    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+        self.root.views()
     }
 
     fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
@@ -138,6 +148,13 @@ impl Node {
                 ));
             }
             Node::Container(container) => container.split(view, new, direction),
+        }
+    }
+
+    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+        match self {
+            Node::View(id) => Box::new(std::iter::once(*id)) as Box<dyn Iterator<Item = ViewId>>,
+            Node::Container(container) => Box::new(container.views()),
         }
     }
 }
@@ -229,5 +246,9 @@ impl Container {
                 _ => continue,
             }
         }
+    }
+
+    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+        self.children.iter().flat_map(|child| child.views())
     }
 }
