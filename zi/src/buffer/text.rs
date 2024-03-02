@@ -80,7 +80,12 @@ impl TextBuffer {
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
-        let text = text.into();
+        let mut text: Rope = text.into();
+        let idx = text.len_chars().saturating_sub(1);
+        // ensure the buffer ends with a newline
+        if text.get_char(idx) != Some('\n') {
+            text.insert_char(idx, '\n');
+        }
 
         let mut syntax = Syntax::for_language(&language_id);
         if let Some(syntax) = &mut syntax {

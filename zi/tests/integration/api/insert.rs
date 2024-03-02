@@ -12,7 +12,7 @@ fn insert() {
     assert_eq!(editor.active_cursor(), (0, 1));
     editor.insert_char('b');
     assert_eq!(editor.active_cursor(), (0, 2));
-    assert_eq!(editor.current_line(), "ab");
+    assert_eq!(editor.current_line(), "ab\n");
 
     editor.set_mode(zi::Mode::Normal);
     assert_eq!(editor.active_cursor(), (0, 1), "insert mode should move cursor left on exit");

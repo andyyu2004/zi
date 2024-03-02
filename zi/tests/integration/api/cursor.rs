@@ -147,3 +147,9 @@ fn cursor_with_scroll() {
     // Cursor is already at the bottom, should not be able to move anymore.
     assert_eq!(editor.active_cursor(), (2, 0));
 }
+#[test]
+fn cursor_newline() {
+    let mut editor = new("");
+    editor.insert_char('\n');
+    assert_eq!(editor.active_cursor(), (1, 0));
+}

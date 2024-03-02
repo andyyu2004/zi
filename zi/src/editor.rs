@@ -365,10 +365,7 @@ impl Editor {
         let cursor = view.cursor();
         buf.insert_char(cursor, c);
         match c {
-            '\n' => {
-                view.move_cursor(self.mode, area, buf, Direction::Down, 1);
-                view.move_cursor(self.mode, area, buf, Direction::Left, 1);
-            }
+            '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
         }
 

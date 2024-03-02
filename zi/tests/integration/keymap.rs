@@ -15,8 +15,8 @@ fn composite_escape() {
         assert_eq!(editor.current_line(), expectation);
     }
 
-    check("ifd", "");
-    check("iffk", "ffk");
-    check("iffd", "f");
-    check("ifffx", "fffx");
+    check("ifd", "\n");
+    check("iffk", "ffk\n");
+    check("iffd", "f\n");
+    check("ifffx", "fffx\n");
 }

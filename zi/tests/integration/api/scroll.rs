@@ -32,7 +32,7 @@ fn cursor_scrolls_when_out_of_bounds() {
 fn scroll() {
     let mut editor = new("");
     editor.scroll_active_view(Down, 1);
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.current_line(), "\n");
     assert_eq!(editor.active_view().offset(), (0, 0));
     assert_eq!(editor.active_view().cursor(), (0, 0));
 
