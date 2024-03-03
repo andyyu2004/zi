@@ -11,7 +11,7 @@ use zi_lsp::lsp_types::Url;
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{FileType, Position, Range};
+use crate::{FileType, Position, Range, Size, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -36,7 +36,11 @@ pub trait Buffer {
         Box::new(std::iter::empty())
     }
 
-    fn overlay_highlights(&self) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+    fn overlay_highlights(
+        &self,
+        _view: &View,
+        _size: Size,
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
         Box::new(std::iter::empty())
     }
 
@@ -104,8 +108,12 @@ impl Buffer for Box<dyn Buffer> {
         self.as_ref().syntax_highlights(cursor)
     }
 
-    fn overlay_highlights(&self) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
-        self.as_ref().overlay_highlights()
+    fn overlay_highlights(
+        &self,
+        view: &View,
+        size: Size,
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+        self.as_ref().overlay_highlights(view, size)
     }
 
     fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {

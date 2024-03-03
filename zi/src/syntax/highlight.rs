@@ -17,34 +17,44 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             highlights: [
-                ("namespace", 0x39a6b900),
-                ("function.macro", 0x298cba00),
-                ("function", 0x298cba00),
-                ("property", 0x41978900),
-                ("field", 0x41978900),
-                ("keyword", 0x527bd200),
-                ("constructor", 0xbf8a4a00),
-                ("type", 0x268bd200),
-                ("variable.builtin", 0xbf693000),
-                ("variable", 0x39a6b900),
-                ("function.builtin", 0x298cba00),
-                ("parameter", 0x4698b100),
-                ("constant", 0xbb8b5000),
-                ("constant.builtin", 0x41978900),
-                ("include", 0x527bd200),
-                ("attribute", 0xB8986800),
-                ("preproc", 0xB8986800),
-                ("method", 0x298cba00),
-                ("method.call", 0x298cba00),
-                ("punctuation.bracket", 0x86B1A100),
-                ("punctuation.special", 0x86B1A100),
-                ("punctuation.delimiter", 0x599c9700),
-                ("string", 0x2aa19800),
-                ("number", 0xcb4b1600),
-                ("comment", 0x586e7500),
+                ("line", None, Some(0x07364200)),
+                ("namespace", Some(0x39a6b900), None),
+                ("function.macro", Some(0x298cba00), None),
+                ("function", Some(0x298cba00), None),
+                ("property", Some(0x41978900), None),
+                ("field", Some(0x41978900), None),
+                ("keyword", Some(0x527bd200), None),
+                ("constructor", Some(0xbf8a4a00), None),
+                ("type", Some(0x268bd200), None),
+                ("variable.builtin", Some(0xbf693000), None),
+                ("variable", Some(0x39a6b900), None),
+                ("function.builtin", Some(0x298cba00), None),
+                ("parameter", Some(0x4698b100), None),
+                ("constant", Some(0xbb8b5000), None),
+                ("constant.builtin", Some(0x41978900), None),
+                ("include", Some(0x527bd200), None),
+                ("attribute", Some(0xB8986800), None),
+                ("preproc", Some(0xB8986800), None),
+                ("method", Some(0x298cba00), None),
+                ("method.call", Some(0x298cba00), None),
+                ("punctuation.bracket", Some(0x86B1A100), None),
+                ("punctuation.special", Some(0x86B1A100), None),
+                ("punctuation.delimiter", Some(0x599c9700), None),
+                ("string", Some(0x2aa19800), None),
+                ("number", Some(0xcb4b1600), None),
+                ("comment", Some(0x586e7500), None),
             ]
             .into_iter()
-            .map(|(name, fg)| (name.into(), Style::with_fg(Color::rgba(fg))))
+            .map(|(name, fg, bg)| {
+                let mut style = Style::default();
+                if let Some(fg) = fg {
+                    style.with_fg(Color::rgba(fg));
+                }
+                if let Some(bg) = bg {
+                    style.with_bg(Color::rgba(bg));
+                }
+                (name.into(), style)
+            })
             .collect(),
         }
     }
@@ -57,8 +67,14 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn with_fg(fg: Color) -> Self {
-        Self { fg: Some(fg), ..Default::default() }
+    pub fn with_fg(&mut self, fg: Color) -> &mut Self {
+        self.fg = Some(fg);
+        self
+    }
+
+    pub fn with_bg(&mut self, bg: Color) -> &mut Self {
+        self.bg = Some(bg);
+        self
     }
 }
 

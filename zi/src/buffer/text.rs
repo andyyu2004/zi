@@ -66,6 +66,21 @@ impl Buffer for TextBuffer {
                 .map(|capture| (capture.node, self.highlight_map.get(capture.index))),
         )
     }
+
+    fn overlay_highlights(
+        &self,
+        view: &View,
+        size: Size,
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+        assert_eq!(view.buffer(), self.id);
+        let cursor = view.cursor();
+        // The current_line highlight
+        Box::new(std::iter::once((
+            Range::new(cursor.with_col(0), cursor.with_col(size.width as u32)),
+            // FIXME don't use random highlight id
+            HighlightId(0),
+        )))
+    }
 }
 
 impl TextBuffer {

@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
 
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
-    let (mut editor, callbacks, notify_redraw) = zi::Editor::new(term.size()?.into());
+    let (mut editor, callbacks, notify_redraw) = zi::Editor::new(term.size()?);
     if let Some(path) = opts.path {
         if path.exists() && path.is_dir() {
             std::env::set_current_dir(&path)?;

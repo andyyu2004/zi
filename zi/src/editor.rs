@@ -115,7 +115,8 @@ impl Editor {
     /// The callback stream must be polled and the resulting callback executed on the editor.
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
-    pub fn new(size: Size) -> (Self, Callbacks, &'static Notify) {
+    pub fn new(size: impl Into<Size>) -> (Self, Callbacks, &'static Notify) {
+        let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers.insert_with_key(|id| {
@@ -205,7 +206,7 @@ impl Editor {
             format!(
                 "{}:{}:{}",
                 buf.path().display(),
-                view.cursor().line() + 1 as usize,
+                view.cursor().line() + 1_usize,
                 view.cursor().col()
             ),
             tui::Style::new()

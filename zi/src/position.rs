@@ -41,6 +41,14 @@ impl Offset {
     pub fn new(line: u32, col: u32) -> Self {
         Self { line, col }
     }
+
+    pub fn new_line(line: u32) -> Self {
+        Self::new(line, 0)
+    }
+
+    pub fn new_col(col: u32) -> Self {
+        Self::new(0, col)
+    }
 }
 
 impl fmt::Display for Offset {
@@ -76,7 +84,7 @@ pub struct Range {
 impl Range {
     #[inline]
     pub fn new(start: Position, end: Position) -> Self {
-        assert!(start < end, "start must be strictly less than end");
+        assert!(start <= end, "start must be less than end: {} !<= {}", start, end);
         Self { start, end }
     }
 

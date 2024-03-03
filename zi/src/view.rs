@@ -6,7 +6,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, Size};
-use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Range, Style};
+use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Range};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -20,7 +20,7 @@ pub struct View {
     /// The offset of the view in the buffer.
     /// i.e. this changes on scroll.
     offset: Offset,
-    /// The cursor position in the buffer (relative to the offset).
+    /// The cursor position in the buffer
     cursor: Cursor,
 }
 
@@ -55,6 +55,7 @@ impl View {
         self.buf
     }
 
+    #[inline]
     pub fn set_buffer(&mut self, buf: BufferId) {
         self.buf = buf;
     }
@@ -298,7 +299,7 @@ impl View {
             });
 
         let overlay_highlights = buf
-            .overlay_highlights()
+            .overlay_highlights(self, area.into())
             .skip_while(|(range, _)| range.end.line().idx() < line)
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
@@ -320,6 +321,7 @@ impl View {
     }
 }
 
+/// An iterator that merges two iterators of highlights, prioritizing the second iterator on overlap (as per [`Merge`])
 struct MergeHighlightIter<I: Iterator, J: Iterator> {
     xs: Peekable<I>,
     ys: Peekable<J>,
@@ -352,7 +354,8 @@ where
         };
 
         if xr.intersects(yr) {
-            todo!()
+            // FIXME, do this properly
+            self.ys.next()
         } else if xr.start < yr.start {
             self.xs.next()
         } else {

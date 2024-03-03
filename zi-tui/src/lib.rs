@@ -128,7 +128,18 @@ where
                     spans.push(Span::raw(&line[j..start]));
                 }
 
-                spans.push(Span::styled(&line[start..end], style));
+                if end >= line.len() {
+                    // We're allowed to highlight places with no text, so the range end might be out of bounds
+                    // In which case, we add another span with the remaining space
+                    spans.push(Span::styled(&line[start..], style));
+                    spans.push(Span::styled(
+                        format!("{:width$}", "", width = end - line.len()),
+                        style,
+                    ));
+                } else {
+                    spans.push(Span::styled(&line[start..end], style));
+                }
+
                 j = end;
             }
 

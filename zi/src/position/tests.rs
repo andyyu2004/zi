@@ -17,15 +17,10 @@ fn intersection() {
         }
     }
 
+    check("1:1..1:1", "1:1..1:1", false);
     check("1:1..1:5", "1:5..1:10", false);
     check("1:1..1:5", "1:6..1:10", false);
     check("1:1..1:5", "1:3..1:10", true);
-}
-
-#[test]
-#[should_panic]
-fn invalid_empty_range() {
-    r("1:1..1:1");
 }
 
 #[test]
