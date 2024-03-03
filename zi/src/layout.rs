@@ -154,7 +154,7 @@ impl Node {
     fn view_area(&self, view: ViewId, area: Rect) -> Option<Rect> {
         match self {
             Node::View(id) if *id == view => Some(area),
-            Node::Container(container) => Some(container.area(view, area)),
+            Node::Container(container) => container.area(view, area),
             _ => None,
         }
     }
@@ -241,16 +241,16 @@ impl Container {
         Container { direction: direction.into(), constraints, children }
     }
 
-    fn area(&self, view: ViewId, area: Rect) -> Rect {
+    fn area(&self, view: ViewId, area: Rect) -> Option<Rect> {
         let areas = self.layout().split(area);
         assert_eq!(areas.len(), self.children.len());
         for (&area, child) in areas.iter().zip(&self.children) {
             if let Some(area) = child.view_area(view, area) {
-                return area;
+                return Some(area);
             }
         }
 
-        panic!("area for view not found")
+        None
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
@@ -262,6 +262,7 @@ impl Container {
     }
 
     fn layout(&self) -> Layout {
+        assert_eq!(self.constraints.len(), self.children.len());
         Layout::new(self.direction, self.constraints.clone())
     }
 

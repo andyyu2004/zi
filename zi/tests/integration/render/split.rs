@@ -231,3 +231,62 @@ fn more_splits() {
         "#]],
     );
 }
+
+#[test]
+fn test_directional_focus() {
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(24, 6), "abc");
+    let a = editor.active_view().id();
+    let b = editor.split_active_view(Right);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 abc       1 abc|   "
+            "                        "
+            "                        "
+            "                        "
+            "scratch:1:3             "
+            "-- INSERT --            "
+        "#]],
+    );
+
+    assert_eq!(editor.move_focus(Left), a);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 abc|      1 abc    "
+            "                        "
+            "                        "
+            "                        "
+            "scratch:1:3             "
+            "-- INSERT --            "
+        "#]],
+    );
+
+    let _c = editor.split_active_view(Down);
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 abc       1 abc    "
+            "                        "
+            "   1 abc|               "
+            "                        "
+            "scratch:1:3             "
+            "-- INSERT --            "
+        "#]],
+    );
+
+    assert_eq!(editor.move_focus(Right), b);
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 abc       1 abc|   "
+            "                        "
+            "   1 abc                "
+            "                        "
+            "scratch:1:3             "
+            "-- INSERT --            "
+        "#]],
+    );
+}
