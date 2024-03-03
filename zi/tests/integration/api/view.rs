@@ -16,3 +16,46 @@ fn test_split() {
     editor.scroll_active_view(zi::Direction::Down, 1);
     assert_ne!(editor.view(left).offset(), editor.view(right).offset());
 }
+
+#[test]
+fn test_move_focus_simple() {
+    use zi::Direction::*;
+    let mut editor = new("");
+    let a = editor.active_view().id();
+    assert_eq!(editor.move_focus(Up), a);
+    assert_eq!(editor.move_focus(Down), a);
+    assert_eq!(editor.move_focus(Right), a);
+    assert_eq!(editor.move_focus(Left), a);
+
+    // Setting up the following layout
+    // +--------------------+
+    // |          |         |
+    // |   (a)    |  (b)    |
+    // |----------|         |
+    // +   (d)    |---------+
+    // |----------|         |
+    // |          |  (c)    |
+    // |   (e)    |         |
+    // +--------------------+
+
+    let b = editor.split_active_view(Right);
+    let c = editor.split_active_view(Down);
+    editor.focus_view(a);
+    assert_eq!(editor.active_view().id(), a);
+    let d = editor.split_active_view(Down);
+    let e = editor.split_active_view(Down);
+
+    assert_eq!(editor.active_view().id(), e);
+
+    let mut check = #[track_caller]
+    |direction, expected| {
+        assert_eq!(editor.move_focus(direction), expected);
+        assert_eq!(editor.active_view().id(), expected);
+    };
+
+    check(Up, d);
+    check(Right, b);
+    check(Down, c);
+    check(Down, c);
+    check(Left, a);
+}

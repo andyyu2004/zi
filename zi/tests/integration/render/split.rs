@@ -1,13 +1,14 @@
 use std::io;
 
 use expect_test::expect;
+use zi::Direction::*;
 
 use super::new_with_snapshot;
 
 #[test]
-fn test_close_view() {
+fn close_view() {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
-    editor.split_active_view(zi::Direction::Right);
+    editor.split_active_view(Right);
     editor.close_active_view();
     assert!(!editor.should_quit());
 
@@ -25,8 +26,8 @@ fn test_close_view() {
     "#]],
     );
 
-    editor.split_active_view(zi::Direction::Right);
-    editor.split_active_view(zi::Direction::Down);
+    editor.split_active_view(Right);
+    editor.split_active_view(Down);
 
     snapshot(
         &mut editor,
@@ -66,10 +67,10 @@ fn test_close_view() {
 }
 
 #[test]
-fn test_splits_have_independent_scroll() -> io::Result<()> {
+fn splits_have_independent_scroll() -> io::Result<()> {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
 
-    editor.split_active_view(zi::Direction::Right);
+    editor.split_active_view(Right);
 
     snapshot(
         &mut editor,
@@ -85,7 +86,7 @@ fn test_splits_have_independent_scroll() -> io::Result<()> {
         "#]],
     );
 
-    editor.scroll_active_view(zi::Direction::Down, 1);
+    editor.scroll_active_view(Down, 1);
 
     snapshot(
         &mut editor,
@@ -108,7 +109,7 @@ fn test_splits_have_independent_scroll() -> io::Result<()> {
 fn split() -> io::Result<()> {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
-    editor.split_active_view(zi::Direction::Down);
+    editor.split_active_view(Down);
 
     snapshot(
         &mut editor,
@@ -126,7 +127,7 @@ fn split() -> io::Result<()> {
 
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
-    editor.split_active_view(zi::Direction::Right);
+    editor.split_active_view(Right);
 
     snapshot(
         &mut editor,
@@ -142,7 +143,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(zi::Direction::Right);
+    editor.split_active_view(Right);
     snapshot(
         &mut editor,
         expect![[r#"
@@ -157,7 +158,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(zi::Direction::Down);
+    editor.split_active_view(Down);
     snapshot(
         &mut editor,
         expect![[r#"
@@ -172,7 +173,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(zi::Direction::Left);
+    editor.split_active_view(Left);
     snapshot(
         &mut editor,
         expect![[r#"
@@ -187,7 +188,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(zi::Direction::Up);
+    editor.split_active_view(Up);
     snapshot(
         &mut editor,
         expect![[r#"
@@ -203,4 +204,30 @@ fn split() -> io::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn more_splits() {
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(20, 8), "abc");
+
+    let a = editor.active_view().id();
+    editor.split_active_view(Right);
+    editor.split_active_view(Down);
+    editor.focus_view(a);
+    editor.split_active_view(Down);
+    editor.split_active_view(Down);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 abc     1 abc  "
+            "                    "
+            "   1 abc            "
+            "             1 abc  "
+            "   1 abc|           "
+            "                    "
+            "scratch:1:3         "
+            "-- INSERT --        "
+        "#]],
+    );
 }

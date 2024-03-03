@@ -360,6 +360,14 @@ impl Editor {
         split_view
     }
 
+    pub fn focus_view(&mut self, id: ViewId) {
+        self.tree.focus(id);
+    }
+
+    pub fn move_focus(&mut self, direction: Direction) -> ViewId {
+        self.tree.move_focus(direction)
+    }
+
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = active!(self);
@@ -670,6 +678,10 @@ fn callback<R: 'static>(
 }
 
 fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
+    // Same as `mem::drop` without the lints.
+    // Used to avoid needing braces to ignore values.
+    fn void<T>(_: T) {}
+
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
     const CLOSE_VIEW: Action = |editor| editor.close_active_view();
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
@@ -703,14 +715,12 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
     const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
-
-    const SPLIT_VERTICAL: Action = |editor| {
-        editor.split_active_view(Direction::Right);
-    };
-
-    const SPLIT_HORIZONTAL: Action = |editor| {
-        editor.split_active_view(Direction::Down);
-    };
+    const SPLIT_VERTICAL: Action = |editor| void(editor.split_active_view(Direction::Right));
+    const SPLIT_HORIZONTAL: Action = |editor| void(editor.split_active_view(Direction::Down));
+    const FOCUS_LEFT: Action = |editor| void(editor.move_focus(Direction::Left));
+    const FOCUS_RIGHT: Action = |editor| void(editor.move_focus(Direction::Right));
+    const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));
+    const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
 
     Keymap::new(hashmap! {
         Mode::Normal => trie!({
@@ -731,6 +741,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "B" => PREV_TOKEN,
             "a" => APPEND,
             "A" => APPEND_EOL,
+            "<C-h>" => FOCUS_LEFT,
+            "<C-j>" => FOCUS_DOWN,
+            "<C-k>" => FOCUS_UP,
+            "<C-l>" => FOCUS_RIGHT,
             "<space>" => {
                 "o" => OPEN_FILE_PICKER,
             },
@@ -739,9 +753,18 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             },
             "<C-w>" => {
                 "v" => SPLIT_VERTICAL,
-                "<C-v>" => SPLIT_VERTICAL,
                 "s" => SPLIT_HORIZONTAL,
+                "<C-v>" => SPLIT_VERTICAL,
                 "<C-s>" => SPLIT_HORIZONTAL,
+                "h" => FOCUS_LEFT,
+                "l" => FOCUS_RIGHT,
+                "j" => FOCUS_DOWN,
+                "k" => FOCUS_UP,
+                "<C-h>" => FOCUS_LEFT,
+                "<C-j>" => FOCUS_DOWN,
+                "<C-k>" => FOCUS_UP,
+                "<C-l>" => FOCUS_RIGHT,
+
             },
         }).into_trie(),
         Mode::Insert => trie!({

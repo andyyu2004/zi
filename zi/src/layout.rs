@@ -3,7 +3,7 @@ use tui::{Constraint, Layout, Rect};
 use crate::view::HasViewId;
 use crate::{Direction, Editor, Size, ViewId};
 
-pub struct ViewTree {
+pub(crate) struct ViewTree {
     size: Size,
     layers: Vec<Layer>,
 }
@@ -11,14 +11,6 @@ pub struct ViewTree {
 impl ViewTree {
     pub fn new(size: Size, view: ViewId) -> Self {
         ViewTree { size, layers: vec![Layer::new(Rect::new(0, 0, size.width, size.height), view)] }
-    }
-
-    fn top(&self) -> &Layer {
-        self.layers.last().expect("layers was empty")
-    }
-
-    fn top_mut(&mut self) -> &mut Layer {
-        self.layers.last_mut().expect("layers was empty")
     }
 
     pub fn area(&self) -> Rect {
@@ -49,16 +41,14 @@ impl ViewTree {
         let layer = self.top_mut();
         let view = layer.active_view();
         match layer.close_view(view) {
-            CloseResult::Continue => unreachable!("close_active_view should always remove a view"),
-            CloseResult::Done(..) => (),
+            TraverseResult::Continue => {
+                unreachable!("close_active_view should always remove a view")
+            }
+            TraverseResult::Done(..) => (),
             // pop the entire layer as it's empty
-            CloseResult::RemoveFromParent => self.pop(),
+            TraverseResult::Propogate => self.pop(),
         };
         view
-    }
-
-    pub(crate) fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
-        self.layers.iter().flat_map(|layer| layer.views())
     }
 
     pub fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
@@ -71,6 +61,26 @@ impl ViewTree {
         assert_ne!(view, new, "cannot split a view into itself");
         assert!(self.views().all(|v| v != new), "cannot split into an existing view");
         self.top_mut().split(view, new, direction)
+    }
+
+    pub fn move_focus(&mut self, direction: Direction) -> ViewId {
+        self.top_mut().move_focus(direction)
+    }
+
+    pub fn focus(&mut self, view: ViewId) {
+        self.top_mut().focus(view)
+    }
+
+    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+        self.layers.iter().flat_map(|layer| layer.views())
+    }
+
+    fn top(&self) -> &Layer {
+        self.layers.last().expect("layers was empty")
+    }
+
+    fn top_mut(&mut self) -> &mut Layer {
+        self.layers.last_mut().expect("layers was empty")
     }
 }
 
@@ -107,16 +117,34 @@ impl Layer {
         self.root.render(editor, self.area, surface);
     }
 
-    fn close_view(&mut self, view: ViewId) -> CloseResult {
+    fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
         let res = self.root.close_view(view);
-        if let CloseResult::Done(next_active) = res {
+        if let TraverseResult::Done(next_active) = res {
             self.active = next_active;
         }
         res
     }
+
+    fn move_focus(&mut self, direction: Direction) -> ViewId {
+        self.active = match self.root.next_view(self.active, direction) {
+            TraverseResult::Continue => panic!("active_view not found"),
+            // This case only occurs when the root is a view, so the next view is always itself
+            TraverseResult::Propogate => self.active,
+            TraverseResult::Done(v) => v,
+        };
+        self.active
+    }
+
+    fn focus(&mut self, view: ViewId) {
+        assert!(
+            self.views().any(|v| v == view),
+            "cannot focus on a view that doesn't exist in layer"
+        );
+        self.active = view
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Node {
     View(ViewId),
     Container(Container),
@@ -125,15 +153,10 @@ enum Node {
 impl Node {
     fn view_area(&self, view: ViewId, area: Rect) -> Option<Rect> {
         match self {
-            Node::View(id) => {
-                if *id == view {
-                    return Some(area);
-                }
-            }
-            Node::Container(container) => return Some(container.area(view, area)),
+            Node::View(id) if *id == view => Some(area),
+            Node::Container(container) => Some(container.area(view, area)),
+            _ => None,
         }
-
-        None
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
@@ -170,11 +193,11 @@ impl Node {
         }
     }
 
-    fn close_view(&mut self, view: ViewId) -> CloseResult {
+    fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
         match self {
-            Node::View(v) if *v == view => CloseResult::RemoveFromParent,
+            Node::View(v) if *v == view => TraverseResult::Propogate,
             Node::Container(c) => c.close_view(view),
-            _ => CloseResult::Continue,
+            _ => TraverseResult::Continue,
         }
     }
 
@@ -184,17 +207,24 @@ impl Node {
             Node::Container(c) => c.first_view(),
         }
     }
+
+    fn next_view(&self, view: ViewId, direction: Direction) -> TraverseResult<ViewId> {
+        match self {
+            Node::View(v) if *v == view => TraverseResult::Propogate,
+            Node::Container(c) => c.next_view(view, direction),
+            _ => TraverseResult::Continue,
+        }
+    }
 }
 
 #[must_use]
-enum CloseResult {
+enum TraverseResult<T> {
     Continue,
-    RemoveFromParent,
-    /// The view was removed, and the next active view is the given one
-    Done(ViewId),
+    Propogate,
+    Done(T),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Container {
     // can't store tui::Layout directly because there's no way to access it's fields
     constraints: Vec<Constraint>,
@@ -220,7 +250,7 @@ impl Container {
             }
         }
 
-        panic!("view not found")
+        panic!("area for view not found")
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
@@ -287,16 +317,16 @@ impl Container {
         self.children.iter().flat_map(|child| child.views())
     }
 
-    fn close_view(&mut self, view: ViewId) -> CloseResult {
+    fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
         for i in 0..self.children.len() {
             let child = &mut self.children[i];
             match child.close_view(view) {
-                CloseResult::Continue => continue,
-                CloseResult::Done(next) => return CloseResult::Done(next),
-                CloseResult::RemoveFromParent => {
+                TraverseResult::Continue => continue,
+                TraverseResult::Done(next) => return TraverseResult::Done(next),
+                TraverseResult::Propogate => {
                     if self.children.len() == 1 {
                         // The container is now empty, so we should remove it
-                        return CloseResult::RemoveFromParent;
+                        return TraverseResult::Propogate;
                     }
 
                     self.children.remove(i);
@@ -304,15 +334,42 @@ impl Container {
 
                     // First idea that came to mind, get the first child of the child before the removed one
                     let next_active = self.children[i.saturating_sub(1)].first_view();
-                    return CloseResult::Done(next_active);
+                    return TraverseResult::Done(next_active);
                 }
             }
         }
 
-        CloseResult::Continue
+        TraverseResult::Continue
     }
 
     fn first_view(&self) -> ViewId {
         self.children.first().expect("container was empty").first_view()
+    }
+
+    fn next_view(&self, view: ViewId, direction: Direction) -> TraverseResult<ViewId> {
+        for (i, child) in self.children.iter().enumerate() {
+            match child.next_view(view, direction) {
+                TraverseResult::Continue => continue,
+                TraverseResult::Done(next) => return TraverseResult::Done(next),
+                TraverseResult::Propogate => {
+                    if self.direction != direction.into() {
+                        // If the container direction is different, we try again in the parent container
+                        return TraverseResult::Propogate;
+                    }
+
+                    // If the direction is the same, we can just move to the next/previous view
+                    let next_idx = match direction {
+                        Direction::Left | Direction::Up => i.saturating_sub(1),
+                        Direction::Right | Direction::Down => {
+                            i.saturating_add(1).min(self.children.len() - 1)
+                        }
+                    };
+
+                    return TraverseResult::Done(self.children[next_idx].first_view());
+                }
+            }
+        }
+
+        TraverseResult::Continue
     }
 }
