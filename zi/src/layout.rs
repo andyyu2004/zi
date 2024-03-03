@@ -37,8 +37,8 @@ impl ViewTree {
         self.layers.push(layer);
     }
 
-    pub fn pop(&mut self) -> Layer {
-        self.layers.pop().expect("no layers to pop")
+    pub fn pop(&mut self) {
+        self.layers.pop().expect("no layers to pop");
     }
 
     pub fn active(&self) -> ViewId {
@@ -47,10 +47,14 @@ impl ViewTree {
 
     pub fn close_active(&mut self) -> ViewId {
         let layer = self.top_mut();
-        // FIXME this implementation is assuming each layer is one view
-        let active = layer.active_view();
-        self.pop();
-        active
+        let view = layer.active_view();
+        match layer.close_view(view) {
+            CloseResult::Continue => unreachable!("close_active_view should always remove a view"),
+            CloseResult::Done(..) => (),
+            // pop the entire layer as it's empty
+            CloseResult::RemoveFromParent => self.pop(),
+        };
+        view
     }
 
     pub(crate) fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
@@ -101,6 +105,14 @@ impl Layer {
 
     fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
         self.root.render(editor, self.area, surface);
+    }
+
+    fn close_view(&mut self, view: ViewId) -> CloseResult {
+        let res = self.root.close_view(view);
+        if let CloseResult::Done(next_active) = res {
+            self.active = next_active;
+        }
+        res
     }
 }
 
@@ -157,6 +169,29 @@ impl Node {
             Node::Container(container) => Box::new(container.views()),
         }
     }
+
+    fn close_view(&mut self, view: ViewId) -> CloseResult {
+        match self {
+            Node::View(v) if *v == view => CloseResult::RemoveFromParent,
+            Node::Container(c) => c.close_view(view),
+            _ => CloseResult::Continue,
+        }
+    }
+
+    fn first_view(&self) -> ViewId {
+        match self {
+            Node::View(id) => *id,
+            Node::Container(c) => c.first_view(),
+        }
+    }
+}
+
+#[must_use]
+enum CloseResult {
+    Continue,
+    RemoveFromParent,
+    /// The view was removed, and the next active view is the given one
+    Done(ViewId),
 }
 
 #[derive(Debug)]
@@ -250,5 +285,34 @@ impl Container {
 
     fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
         self.children.iter().flat_map(|child| child.views())
+    }
+
+    fn close_view(&mut self, view: ViewId) -> CloseResult {
+        for i in 0..self.children.len() {
+            let child = &mut self.children[i];
+            match child.close_view(view) {
+                CloseResult::Continue => continue,
+                CloseResult::Done(next) => return CloseResult::Done(next),
+                CloseResult::RemoveFromParent => {
+                    if self.children.len() == 1 {
+                        // The container is now empty, so we should remove it
+                        return CloseResult::RemoveFromParent;
+                    }
+
+                    self.children.remove(i);
+                    self.constraints.remove(i);
+
+                    // First idea that came to mind, get the first child of the child before the removed one
+                    let next_active = self.children[i.saturating_sub(1)].first_view();
+                    return CloseResult::Done(next_active);
+                }
+            }
+        }
+
+        CloseResult::Continue
+    }
+
+    fn first_view(&self) -> ViewId {
+        self.children.first().expect("container was empty").first_view()
     }
 }

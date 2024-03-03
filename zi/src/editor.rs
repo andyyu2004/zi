@@ -351,7 +351,7 @@ impl Editor {
         (view, buffer)
     }
 
-    pub fn split(&mut self, direction: Direction) -> ViewId {
+    pub fn split_active_view(&mut self, direction: Direction) -> ViewId {
         let (view, _) = active_ref!(self);
         let id = view.id();
         let view = view.clone();
@@ -705,11 +705,11 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
 
     const SPLIT_VERTICAL: Action = |editor| {
-        editor.split(Direction::Right);
+        editor.split_active_view(Direction::Right);
     };
 
     const SPLIT_HORIZONTAL: Action = |editor| {
-        editor.split(Direction::Down);
+        editor.split_active_view(Direction::Down);
     };
 
     Keymap::new(hashmap! {

@@ -5,7 +5,7 @@ fn test_split() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
 
     let left = editor.active_view().id();
-    let right = editor.split(zi::Direction::Right);
+    let right = editor.split_active_view(zi::Direction::Right);
     assert_ne!(left, right, "splitting should create a new view");
     assert_eq!(editor.active_view().id(), right, "new view should be active");
 
