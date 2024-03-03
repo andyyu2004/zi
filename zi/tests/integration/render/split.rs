@@ -15,15 +15,15 @@ fn close_view() {
     snapshot(
         &mut editor,
         expect![[r#"
-        "   1 1                                             "
-        "   2 2                                             "
-        "   3 3                                             "
-        "   4 |                                             "
-        "                                                   "
-        "                                                   "
-        "scratch:4:0                                        "
-        "-- INSERT --                                       "
-    "#]],
+            "   1 1                                             "
+            "   2 2                                             "
+            "   3 3                                             "
+            "   4 |                                             "
+            "                                                   "
+            "                                                   "
+            "scratch:4:0                                        "
+            "-- INSERT --                                       "
+        "#]],
     );
 
     editor.split_active_view(Right);

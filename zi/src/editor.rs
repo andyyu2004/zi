@@ -193,15 +193,7 @@ impl Editor {
     }
 
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
-        let area = frame.size();
-
-        assert_eq!(
-            area,
-            tui::Rect {
-                height: self.tree.area().height + Self::BOTTOM_BAR_HEIGHT,
-                ..self.tree.area()
-            },
-        );
+        let area = self.tree.area();
 
         for buf in self.buffers.values_mut() {
             buf.pre_render();
@@ -234,12 +226,7 @@ impl Editor {
             tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (statusline, cmdline));
 
         widget.render(
-            tui::Rect {
-                x: 0,
-                y: area.height - Self::BOTTOM_BAR_HEIGHT,
-                width: area.width,
-                height: Self::BOTTOM_BAR_HEIGHT,
-            },
+            tui::Rect { x: 0, y: area.height, width: area.width, height: Self::BOTTOM_BAR_HEIGHT },
             frame.buffer_mut(),
         );
 
