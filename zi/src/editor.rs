@@ -116,10 +116,6 @@ impl Editor {
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
     pub fn new(size: Size) -> (Self, Callbacks, &'static Notify) {
-        assert!(size.height > Self::BOTTOM_BAR_HEIGHT, "height must be at least 3");
-        // Subtract 2 from the height to leave room for the status line and command line.
-        let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
-
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers.insert_with_key(|id| {
@@ -130,7 +126,7 @@ impl Editor {
 
         // Using an unbounded channel as we need `tx.send()` to be sync.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let editor = Self {
+        let mut editor = Self {
             buffers,
             views,
             tx,
@@ -143,7 +139,9 @@ impl Editor {
             theme: Default::default(),
         };
 
-        (editor, ChannelStream(rx), NOTIFY_REDRAW.get_or_init(Default::default))
+        let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
+        editor.resize(size);
+        (editor, ChannelStream(rx), notify_redraw)
     }
 
     pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
@@ -247,11 +245,16 @@ impl Editor {
     pub fn handle_input(&mut self, event: impl Into<Event>) {
         match event.into() {
             Event::Key(key) => self.handle_key_event(key),
-            Event::Resize(_size) => {
-                // let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
-                // self.tree.resize(size);
-            }
+            Event::Resize(size) => self.resize(size),
         }
+    }
+
+    fn resize(&mut self, size: Size) {
+        assert!(size.height > Self::BOTTOM_BAR_HEIGHT, "height must be at least 3");
+        // Subtract 2 from the height to leave room for the status line and command line.
+        let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
+        self.tree.resize(size);
+        request_redraw();
     }
 
     #[inline]
@@ -532,7 +535,7 @@ impl Editor {
 
             let injector = injector.unwrap();
             let view = editor.views.insert_with_key(|id| View::new(id, buf));
-            editor.tree.push(Layer::new(editor.tree.area(), view));
+            editor.tree.push(Layer::new(view));
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();
             editor.pool.spawn(move || {

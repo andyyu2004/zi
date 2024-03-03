@@ -10,7 +10,7 @@ pub(crate) struct ViewTree {
 
 impl ViewTree {
     pub fn new(size: Size, view: ViewId) -> Self {
-        ViewTree { size, layers: vec![Layer::new(Rect::new(0, 0, size.width, size.height), view)] }
+        ViewTree { size, layers: vec![Layer::new(view)] }
     }
 
     pub fn area(&self) -> Rect {
@@ -18,7 +18,7 @@ impl ViewTree {
     }
 
     pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        self.top().view_area(view)
+        self.top().view_area(self.area(), view)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -53,7 +53,7 @@ impl ViewTree {
 
     pub fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
         for layer in &self.layers {
-            layer.render(editor, surface);
+            layer.render(editor, self.area(), surface);
         }
     }
 
@@ -82,22 +82,25 @@ impl ViewTree {
     fn top_mut(&mut self) -> &mut Layer {
         self.layers.last_mut().expect("layers was empty")
     }
+
+    pub(crate) fn resize(&mut self, size: Size) {
+        self.size = size;
+    }
 }
 
 #[derive(Debug)]
 pub struct Layer {
     active: ViewId,
-    area: Rect,
     root: Node,
 }
 
 impl Layer {
-    pub fn new(area: Rect, active: ViewId) -> Self {
-        Layer { area, active, root: Node::View(active) }
+    pub fn new(active: ViewId) -> Self {
+        Layer { active, root: Node::View(active) }
     }
 
-    pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        self.root.view_area(view.view_id(), self.area).expect("view not found in layer")
+    pub fn view_area(&self, area: Rect, view: impl HasViewId) -> Rect {
+        self.root.view_area(area, view.view_id()).expect("view not found in layer")
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
@@ -113,8 +116,8 @@ impl Layer {
         self.root.views()
     }
 
-    fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
-        self.root.render(editor, self.area, surface);
+    fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
+        self.root.render(editor, area, surface);
     }
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
@@ -151,10 +154,10 @@ enum Node {
 }
 
 impl Node {
-    fn view_area(&self, view: ViewId, area: Rect) -> Option<Rect> {
+    fn view_area(&self, area: Rect, view: ViewId) -> Option<Rect> {
         match self {
             Node::View(id) if *id == view => Some(area),
-            Node::Container(container) => container.area(view, area),
+            Node::Container(container) => container.area(area, view),
             _ => None,
         }
     }
@@ -241,11 +244,11 @@ impl Container {
         Container { direction: direction.into(), constraints, children }
     }
 
-    fn area(&self, view: ViewId, area: Rect) -> Option<Rect> {
+    fn area(&self, area: Rect, view: ViewId) -> Option<Rect> {
         let areas = self.layout().split(area);
         assert_eq!(areas.len(), self.children.len());
         for (&area, child) in areas.iter().zip(&self.children) {
-            if let Some(area) = child.view_area(view, area) {
+            if let Some(area) = child.view_area(area, view) {
                 return Some(area);
             }
         }
