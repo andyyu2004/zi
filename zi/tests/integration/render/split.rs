@@ -234,6 +234,8 @@ fn more_splits() {
 
 #[test]
 fn test_directional_focus() {
+    // regression test for cb801c66734ff16be921087a982b53fa626a976a
+
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(24, 6), "abc");
     let a = editor.active_view().id();
     let b = editor.split_active_view(Right);
