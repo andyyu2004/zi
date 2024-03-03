@@ -75,7 +75,7 @@ impl Location {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Range {
     pub start: Position,
     pub end: Position,
@@ -89,8 +89,30 @@ impl Range {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
+    #[inline]
     pub fn intersects(&self, other: &Range) -> bool {
         self.start < other.end && self.end > other.start
+    }
+
+    /// Split the range into three segments: before, inside, and after the other range.
+    /// Panics if the ranges do not intersect.
+    #[inline]
+    pub fn segments(&self, other: &Range) -> (Range, Range, Range) {
+        assert!(self.intersects(other), "ranges must intersect");
+
+        let start = self.start.min(other.start);
+        let end = self.end.max(other.end);
+        let inside_start = self.start.max(other.start);
+        let inside_end = self.end.min(other.end);
+
+        let before = Range::new(start, inside_start);
+        let inside = Range::new(inside_start, inside_end);
+        let after = Range::new(inside_end, end);
+        (before, inside, after)
     }
 }
 
@@ -102,6 +124,18 @@ impl FromStr for Range {
             anyhow::anyhow!("invalid range: {s} (expected `<line>:<col>..<line>:<col>`)")
         })?;
         Ok(Self::new(start.parse()?, end.parse()?))
+    }
+}
+
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}..{}", self.start, self.end)
+    }
+}
+
+impl fmt::Debug for Range {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
     }
 }
 
@@ -131,7 +165,7 @@ impl From<Range> for std::ops::Range<(usize, usize)> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
     line: Line,
     col: Col,
@@ -156,6 +190,12 @@ impl Sub<Offset> for Position {
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
+impl fmt::Debug for Position {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
     }
 }
 
