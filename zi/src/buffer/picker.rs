@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
+use tree_sitter::Point;
 
 use super::*;
 
@@ -11,7 +12,7 @@ pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
 
 impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
 
-/// Wrapper around a `nucleo::Injector`
+/// Wrapper around a `nucleo::Injector` with cancellation support
 pub struct Injector<T> {
     injector: nucleo::Injector<T>,
     cancel: Cancel,
@@ -54,7 +55,7 @@ pub struct PickerBuffer<T: Item> {
     id: BufferId,
     text: Rope,
     nucleo: Nucleo<T>,
-    end: usize,
+    end_char_idx: usize,
     cancel: Cancel,
 }
 
@@ -66,7 +67,7 @@ impl<T: Item> PickerBuffer<T> {
     ) -> (Self, Injector<T>) {
         let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
         let (injector, cancel) = Injector::new(nucleo.injector());
-        (Self { id, cancel, text: Rope::new(), nucleo, end: 0 }, injector)
+        (Self { id, cancel, text: Rope::new(), nucleo, end_char_idx: 0 }, injector)
     }
 
     // pub fn new(
@@ -114,8 +115,8 @@ impl<T: Item> Buffer for PickerBuffer<T> {
 
     fn insert_char(&mut self, _pos: Position, c: char) {
         // TODO respect position
-        self.text.insert_char(self.end, c);
-        self.end += 1;
+        self.text.insert_char(self.end_char_idx, c);
+        self.end_char_idx += 1;
         self.nucleo.pattern.reparse(
             0,
             &self.writable_text().to_string(),
@@ -127,15 +128,29 @@ impl<T: Item> Buffer for PickerBuffer<T> {
 
     fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
         // TODO maintain this correctly
-        (Bound::Unbounded, Bound::Excluded(self.end))
+        (Bound::Unbounded, Bound::Excluded(self.end_char_idx))
     }
 
     fn highlights<'a>(
         &'a self,
         _cursor: &'a mut QueryCursor,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
-        // TODO
-        Box::new(std::iter::empty())
+        let res: Result<_, anyhow::Error> = try {
+            let start_byte = self.text.try_char_to_byte(self.end_char_idx + 1)?;
+            let line_idx = self.text.try_char_to_line(self.end_char_idx + 1)?;
+            let line = self.text.line(line_idx);
+            Box::new(std::iter::once((
+                Range {
+                    start_byte,
+                    end_byte: start_byte + line.len_bytes(),
+                    start_point: Point { row: line_idx, column: 0 },
+                    end_point: Point { row: line_idx, column: line.len_chars() },
+                },
+                HighlightId(0),
+            ))) as Box<dyn Iterator<Item = (Range, HighlightId)>>
+        };
+
+        res.unwrap_or_else(|_| Box::new(std::iter::empty()))
     }
 
     fn pre_render(&mut self) {
@@ -143,11 +158,10 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         let snapshot = self.nucleo.snapshot();
         self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
-        rope.insert(0, "\n-----");
 
         let n = snapshot.matched_item_count().min(100);
         for item in snapshot.matched_items(..n) {
-            rope.insert(rope.len_chars(), &format!("\n{:}", item.data));
+            rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }
         self.text.append(rope);
     }

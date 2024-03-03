@@ -38,6 +38,7 @@ pub trait Buffer {
         self.text().slice(self.writable_range())
     }
 
+    /// The range of the buffer that can be written to in character indices
     fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
         (Bound::Unbounded, Bound::Unbounded)
     }
