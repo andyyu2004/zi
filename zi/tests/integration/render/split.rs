@@ -292,3 +292,54 @@ fn test_directional_focus() {
         "#]],
     );
 }
+
+#[test]
+fn test_directional_focus_propagation() {
+    // regression test for cb801c66734ff16be921087a982b53fa626a976a
+
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(32, 6), "ab");
+    editor.split_active_view(Right);
+    editor.split_active_view(Down);
+    editor.split_active_view(Right);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 ab            1 ab         "
+            "                                "
+            "                   1 ab    1 ab|"
+            "                                "
+            "scratch:1:2                     "
+            "-- INSERT --                    "
+        "#]],
+    );
+
+    editor.move_focus(Left);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 ab            1 ab         "
+            "                                "
+            "                   1 ab|   1 ab "
+            "                                "
+            "scratch:1:2                     "
+            "-- INSERT --                    "
+        "#]],
+    );
+
+    // If the focus can't move any further in the requested direction, it should propagate up.
+    editor.move_focus(Left);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 ab|           1 ab         "
+            "                                "
+            "                   1 ab    1 ab "
+            "                                "
+            "scratch:1:2                     "
+            "-- INSERT --                    "
+        "#]],
+    );
+}

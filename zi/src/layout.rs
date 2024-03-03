@@ -360,9 +360,17 @@ impl Container {
 
                     // If the direction is the same, we can just move to the next/previous view
                     let next_idx = match direction {
-                        Direction::Left | Direction::Up => i.saturating_sub(1),
+                        Direction::Left | Direction::Up => {
+                            if i == 0 {
+                                return TraverseResult::Propogate;
+                            }
+                            i - 1
+                        }
                         Direction::Right | Direction::Down => {
-                            i.saturating_add(1).min(self.children.len() - 1)
+                            if i + 1 == self.children.len() {
+                                return TraverseResult::Propogate;
+                            }
+                            i + 1
                         }
                     };
 
