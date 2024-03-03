@@ -55,15 +55,15 @@ impl Buffer for TextBuffer {
         self.version
     }
 
-    fn highlights<'a>(
+    fn syntax_highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (Node<'_>, HighlightId)> + 'a> {
         Box::new(
             self.syntax
                 .as_ref()
                 .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
-                .map(|capture| (capture.node.range(), self.highlight_map.get(capture.index))),
+                .map(|capture| (capture.node, self.highlight_map.get(capture.index))),
         )
     }
 }

@@ -5,13 +5,13 @@ use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
 use ropey::{Rope, RopeSlice};
-use tree_sitter::{QueryCursor, Range};
+use tree_sitter::{Node, QueryCursor};
 use zi_lsp::lsp_types::Url;
 
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{FileType, Position};
+use crate::{FileType, Position, Range};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -29,10 +29,16 @@ pub trait Buffer {
     // TODO this should be a more general mutate operation
     fn insert_char(&mut self, pos: Position, c: char);
 
-    fn highlights<'a>(
+    fn syntax_highlights<'a>(
         &'a self,
-        cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a>;
+        _cursor: &'a mut QueryCursor,
+    ) -> Box<dyn Iterator<Item = (Node<'_>, HighlightId)> + 'a> {
+        Box::new(std::iter::empty())
+    }
+
+    fn overlay_highlights(&self) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+        Box::new(std::iter::empty())
+    }
 
     fn writable_text(&self) -> RopeSlice<'_> {
         self.text().slice(self.writable_range())
@@ -91,11 +97,15 @@ impl Buffer for Box<dyn Buffer> {
         self.as_mut().insert_char(pos, c);
     }
 
-    fn highlights<'a>(
+    fn syntax_highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
-        self.as_ref().highlights(cursor)
+    ) -> Box<dyn Iterator<Item = (Node<'a>, HighlightId)> + 'a> {
+        self.as_ref().syntax_highlights(cursor)
+    }
+
+    fn overlay_highlights(&self) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+        self.as_ref().overlay_highlights()
     }
 
     fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {

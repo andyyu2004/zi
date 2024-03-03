@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use stdx::merge::Merge;
+
 pub struct Theme {
     highlights: Vec<(Cow<'static, str>, Style)>,
 }
@@ -60,9 +62,32 @@ impl Style {
     }
 }
 
+impl From<Style> for tui::Style {
+    #[inline]
+    fn from(s: Style) -> Self {
+        tui::Style { fg: s.fg.map(Into::into), bg: s.bg.map(Into::into), ..Default::default() }
+    }
+}
+
+impl Merge for Style {
+    #[inline]
+    fn merge(self, other: Self) -> Self {
+        Self { fg: other.fg.or(self.fg), bg: other.bg.or(self.bg) }
+    }
+}
+
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Color {
     Rgb(u8, u8, u8),
+}
+
+impl From<Color> for tui::Color {
+    #[inline]
+    fn from(c: Color) -> Self {
+        match c {
+            Color::Rgb(r, g, b) => tui::Color::Rgb(r, g, b),
+        }
+    }
 }
 
 impl Color {

@@ -1,5 +1,6 @@
 use std::fmt;
-use std::ops::Add;
+use std::ops::{Add, Sub};
+use std::str::FromStr;
 
 use tui::Rect;
 
@@ -36,6 +37,12 @@ pub struct Offset {
     pub col: u32,
 }
 
+impl Offset {
+    pub fn new(line: u32, col: u32) -> Self {
+        Self { line, col }
+    }
+}
+
 impl fmt::Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
@@ -66,7 +73,57 @@ pub struct Range {
     pub end: Position,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+impl Range {
+    #[inline]
+    pub fn new(start: Position, end: Position) -> Self {
+        assert!(start < end, "start must be strictly less than end");
+        Self { start, end }
+    }
+
+    #[inline]
+    pub fn intersects(&self, other: &Range) -> bool {
+        self.start < other.end && self.end > other.start
+    }
+}
+
+impl FromStr for Range {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (start, end) = s.split_once("..").ok_or_else(|| {
+            anyhow::anyhow!("invalid range: {s} (expected `<line>:<col>..<line>:<col>`)")
+        })?;
+        Ok(Self::new(start.parse()?, end.parse()?))
+    }
+}
+
+impl Sub<Offset> for Range {
+    type Output = Self;
+
+    fn sub(self, offset: Offset) -> Self {
+        Self::new(self.start - offset, self.end - offset)
+    }
+}
+
+impl From<tree_sitter::Range> for Range {
+    fn from(range: tree_sitter::Range) -> Self {
+        Self::new(range.start_point.into(), range.end_point.into())
+    }
+}
+
+impl From<Range> for std::ops::Range<Position> {
+    fn from(val: Range) -> Self {
+        val.start..val.end
+    }
+}
+
+impl From<Range> for std::ops::Range<(usize, usize)> {
+    fn from(r: Range) -> Self {
+        r.start.into()..r.end.into()
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position {
     line: Line,
     col: Col,
@@ -80,9 +137,48 @@ impl Add<Offset> for Position {
     }
 }
 
+impl Sub<Offset> for Position {
+    type Output = Self;
+
+    fn sub(self, offset: Offset) -> Self {
+        Self::new(self.line - offset.line, self.col - offset.col)
+    }
+}
+
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
+impl FromStr for Position {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (line, col) = s
+            .split_once(':')
+            .ok_or_else(|| anyhow::anyhow!("invalid position: {s} (expected `<line>:<col>`)"))?;
+        Ok(Self::new(line.parse::<u32>()?, col.parse::<u32>()?))
+    }
+}
+
+impl From<tree_sitter::Point> for Position {
+    fn from(point: tree_sitter::Point) -> Self {
+        Self::new(point.row as u32, point.column as u32)
+    }
+}
+
+impl From<Position> for (u32, u32) {
+    #[inline]
+    fn from(val: Position) -> Self {
+        (val.line.0, val.col.0)
+    }
+}
+
+impl From<Position> for (usize, usize) {
+    #[inline]
+    fn from(val: Position) -> Self {
+        (val.line.idx(), val.col.idx())
     }
 }
 
@@ -166,6 +262,30 @@ impl Add<u32> for Line {
     }
 }
 
+impl Add<usize> for Line {
+    type Output = Self;
+
+    fn add(self, amt: usize) -> Self {
+        self + amt as u32
+    }
+}
+
+impl Sub<usize> for Line {
+    type Output = Self;
+
+    fn sub(self, amt: usize) -> Self {
+        self - amt as u32
+    }
+}
+
+impl Sub<u32> for Line {
+    type Output = Self;
+
+    fn sub(self, amt: u32) -> Self {
+        Self(self.0.saturating_sub(amt))
+    }
+}
+
 impl From<u32> for Line {
     fn from(n: u32) -> Self {
         Self(n)
@@ -223,6 +343,14 @@ impl Add<u32> for Col {
 
     fn add(self, amt: u32) -> Self {
         Self(self.0 + amt)
+    }
+}
+
+impl Sub<u32> for Col {
+    type Output = Self;
+
+    fn sub(self, amt: u32) -> Self {
+        Self(self.0 - amt)
     }
 }
 

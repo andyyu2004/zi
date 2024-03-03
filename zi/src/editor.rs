@@ -205,7 +205,7 @@ impl Editor {
             format!(
                 "{}:{}:{}",
                 buf.path().display(),
-                view.cursor().line() + 1,
+                view.cursor().line() + 1 as usize,
                 view.cursor().col()
             ),
             tui::Style::new()

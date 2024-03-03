@@ -1,9 +1,12 @@
+use std::iter::Peekable;
+
+use stdx::merge::Merge;
 use tui::{Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, Size};
-use crate::{Buffer, BufferId, Col, Color, Direction, Editor, Mode, Position, Style};
+use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Range, Style};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -281,25 +284,27 @@ impl View {
         query_cursor.set_match_limit(256);
         let theme = editor.theme();
 
-        let c = |c: Color| match c {
-            Color::Rgb(r, g, b) => tui::Color::Rgb(r, g, b),
-        };
-
-        let s = |s: Style| tui::Style { fg: s.fg.map(c), bg: s.bg.map(c), ..Default::default() };
-
         let line = self.offset().line as usize;
 
         // FIXME compute highlights only for the necessary range
-        let highlights = buf
-            .highlights(&mut query_cursor)
-            .skip_while(|(range, _)| range.end_point.row < line)
-            .filter_map(|(node, id)| Some((node, s(id.style(theme)?))))
-            .map(|(range, style)| {
-                let start = range.start_point;
-                let end = range.end_point;
+        let syntax_highlights = buf
+            .syntax_highlights(&mut query_cursor)
+            .skip_while(|(node, _)| node.range().end_point.row < line)
+            .filter_map(|(node, id)| Some((node, id.style(theme)?)))
+            .map(|(node, style)| {
+                let range = Range::from(node.range());
                 // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming
-                ((start.row - line, start.column)..(end.row - line, end.column), style)
+                (range - Offset::new(line as u32, 0), style)
             });
+
+        let overlay_highlights = buf
+            .overlay_highlights()
+            .skip_while(|(range, _)| range.end.line().idx() < line)
+            .filter_map(|(range, id)| Some((range, id.style(theme)?)))
+            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
+
+        let highlights = MergeHighlightIter::new(syntax_highlights, overlay_highlights)
+            .map(|(range, style)| (range.into(), style.into()));
 
         const LINE_NR_WIDTH: usize = 4;
         let lines = tui::Lines::new(
@@ -312,5 +317,46 @@ impl View {
 
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
         lines.render(area, surface);
+    }
+}
+
+struct MergeHighlightIter<I: Iterator, J: Iterator> {
+    xs: Peekable<I>,
+    ys: Peekable<J>,
+}
+
+impl<I, J> MergeHighlightIter<I, J>
+where
+    I: Iterator,
+    J: Iterator,
+{
+    fn new(xs: I, ys: J) -> Self {
+        Self { xs: xs.peekable(), ys: ys.peekable() }
+    }
+}
+
+impl<I, J, T> Iterator for MergeHighlightIter<I, J>
+where
+    T: Merge,
+    I: Iterator<Item = (Range, T)>,
+    J: Iterator<Item = (Range, T)>,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let ((xr, x), (yr, y)) = match (self.xs.peek(), self.ys.peek()) {
+            (None, None) => return None,
+            (Some(_), None) => return self.xs.next(),
+            (None, Some(_)) => return self.ys.next(),
+            (Some(x), Some(y)) => (x, y),
+        };
+
+        if xr.intersects(yr) {
+            todo!()
+        } else if xr.start < yr.start {
+            self.xs.next()
+        } else {
+            self.ys.next()
+        }
     }
 }

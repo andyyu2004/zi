@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
-use tree_sitter::Point;
 
 use super::*;
 
@@ -131,27 +130,22 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         (Bound::Unbounded, Bound::Excluded(self.end_char_idx))
     }
 
-    fn highlights<'a>(
-        &'a self,
-        _cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
-        let res: Result<_, anyhow::Error> = try {
-            let start_byte = self.text.try_char_to_byte(self.end_char_idx + 1)?;
-            let line_idx = self.text.try_char_to_line(self.end_char_idx + 1)?;
-            let line = self.text.line(line_idx);
-            Box::new(std::iter::once((
-                Range {
-                    start_byte,
-                    end_byte: start_byte + line.len_bytes(),
-                    start_point: Point { row: line_idx, column: 0 },
-                    end_point: Point { row: line_idx, column: line.len_chars() },
-                },
-                HighlightId(0),
-            ))) as Box<dyn Iterator<Item = (Range, HighlightId)>>
-        };
-
-        res.unwrap_or_else(|_| Box::new(std::iter::empty()))
-    }
+    // let res: Result<_, anyhow::Error> = try {
+    //     let start_byte = self.text.try_char_to_byte(self.end_char_idx + 1)?;
+    //     let line_idx = self.text.try_char_to_line(self.end_char_idx + 1)?;
+    //     let line = self.text.line(line_idx);
+    //     Box::new(std::iter::once((
+    //         Range {
+    //             start_byte,
+    //             end_byte: start_byte + line.len_bytes(),
+    //             start_point: Point { row: line_idx, column: 0 },
+    //             end_point: Point { row: line_idx, column: line.len_chars() },
+    //         },
+    //         HighlightId(0),
+    //     ))) as Box<dyn Iterator<Item = (Range, HighlightId)>>
+    // };
+    //
+    // res.unwrap_or_else(|_| Box::new(std::iter::empty()))
 
     fn pre_render(&mut self) {
         self.nucleo.tick(10);
