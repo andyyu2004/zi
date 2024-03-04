@@ -1,18 +1,37 @@
 use std::hash::Hash;
-use std::iter;
+use std::{fmt, iter};
 
 use rustc_hash::FxHashMap;
 use stdx::merge::Merge;
 
+use crate::editor::Action;
+use crate::input::KeyEvent;
+use crate::Mode;
+
 mod macros;
 
-#[derive(Debug)]
-pub struct Keymap<M, K, V> {
+pub trait DynKeymap<M = Mode, K = KeyEvent, V = Action> {
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>);
+}
+
+#[derive(Debug, Clone)]
+pub struct Keymap<M = Mode, K = KeyEvent, V = Action> {
     maps: FxHashMap<M, Trie<K, V>>,
     /// The keys that have been pressed so far
     buffer: Vec<K>,
     /// The last mode that was used
     last_mode: Option<M>,
+}
+
+impl<M, K, V> DynKeymap<M, K, V> for Keymap<M, K, V>
+where
+    M: Eq + Hash + Clone,
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
+        self.on_key(mode, key)
+    }
 }
 
 impl<M, K, V> Keymap<M, K, V>
@@ -78,6 +97,14 @@ where
             }
         }
     }
+
+    /// Operate two keymaps simultaneously with right-bias
+    pub fn pair<'a>(
+        &'a mut self,
+        other: &'a mut dyn DynKeymap<M, K, V>,
+    ) -> PairedKeymap<'a, M, K, V> {
+        PairedKeymap::new(self, other)
+    }
 }
 
 impl<M, K, V> Default for Keymap<M, K, V> {
@@ -87,7 +114,7 @@ impl<M, K, V> Default for Keymap<M, K, V> {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Trie<K, V> {
+pub struct Trie<K, V> {
     children: FxHashMap<K, TrieNode<K, V>>,
 }
 
@@ -190,6 +217,76 @@ impl<K: Eq + Hash, V> Merge for TrieNode<K, V> {
 impl<K, V> TrieNode<K, V> {
     pub(crate) fn into_trie(self) -> Trie<K, V> {
         if let Self::Trie(v) = self { v } else { panic!("Expected Trie") }
+    }
+}
+
+/// This is a keymap that operates on two keymaps simultaneously.
+/// It should behave exactly as if we did a right-biased merge of the two keymaps into one and
+/// operated on that.
+/// However, this doesn't require us to clone the keymaps and is more efficient.
+pub struct PairedKeymap<'a, M, K, V> {
+    a: &'a mut dyn DynKeymap<M, K, V>,
+    b: &'a mut dyn DynKeymap<M, K, V>,
+    state: State,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+enum State {
+    #[default]
+    Both,
+    Left,
+    Right,
+}
+
+impl<'a, M, K, V> PairedKeymap<'a, M, K, V> {
+    pub fn new(a: &'a mut dyn DynKeymap<M, K, V>, b: &'a mut dyn DynKeymap<M, K, V>) -> Self {
+        Self { a, b, state: State::default() }
+    }
+}
+
+impl<'a, M, K, V> DynKeymap<M, K, V> for PairedKeymap<'a, M, K, V>
+where
+    M: Eq + Hash + Clone,
+    K: Eq + Hash + Clone + fmt::Debug,
+    V: Clone,
+{
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
+        use State::*;
+        use TrieResult::*;
+
+        let (lhs, lbuf, rhs, rbuf) = match self.state {
+            State::Both => {
+                let (lhs, lbuf) = self.a.on_key(mode.clone(), key.clone());
+                let (rhs, rbuf) = self.b.on_key(mode, key);
+                (lhs, lbuf, rhs, rbuf)
+            }
+            State::Left => {
+                let (lhs, lbuf) = self.a.on_key(mode.clone(), key.clone());
+                (lhs, lbuf, Nothing, vec![])
+            }
+            State::Right => {
+                let (rhs, rbuf) = self.b.on_key(mode.clone(), key.clone());
+                (Nothing, vec![], rhs, rbuf)
+            }
+        };
+
+        let (v, buf, state) = match (lhs, rhs) {
+            (_, Found(v)) => (Found(v), rbuf, Both),
+            // This case means the right side has a binding that "shadows" the same binding on the left side.
+            // We basically just pretend the left side doesn't exist.
+            (Found(_), Partial) => (Partial, rbuf, Right),
+            (Found(v), Nothing) => (Found(v), lbuf, Both),
+            (Partial, Partial) => {
+                debug_assert_eq!(lbuf, rbuf, "buffers should be the same to reach this state");
+                (Partial, rbuf, Both)
+            }
+            (Partial, Nothing) => (Partial, lbuf, Left),
+            (Nothing, Partial) => (Partial, rbuf, Right),
+            (Nothing, Nothing) => (Nothing, lbuf, Both),
+        };
+
+        self.state = state;
+        (v, buf)
     }
 }
 

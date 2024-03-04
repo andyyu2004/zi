@@ -21,7 +21,7 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{PickerBuffer, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
-use crate::keymap::{Keymap, TrieResult};
+use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
@@ -34,7 +34,7 @@ use crate::{
 
 pub struct Editor {
     mode: Mode,
-    keymap: Keymap<Mode, KeyEvent, Action>,
+    keymap: Keymap,
     buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     views: SlotMap<ViewId, View>,
     theme: Theme,
@@ -260,10 +260,14 @@ impl Editor {
 
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
+        let mut empty = Keymap::default();
+        let (_, buf) = active!(self);
+        let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
+
         tracing::debug!(?key, "handling key");
         match &key.code {
             &KeyCode::Char(_c) if self.mode == Mode::Insert => {
-                let (res, buffered) = self.keymap.on_key(self.mode, key);
+                let (res, buffered) = keymap.on_key(self.mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
                     TrieResult::Partial | TrieResult::Nothing => (),
@@ -277,7 +281,7 @@ impl Editor {
                 }
             }
             _ => {
-                if let (TrieResult::Found(f), _) = self.keymap.on_key(self.mode, key) {
+                if let (TrieResult::Found(f), _) = keymap.on_key(self.mode, key) {
                     f(self);
                 }
             }
@@ -757,13 +761,13 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                 "<C-l>" => FOCUS_RIGHT,
 
             },
-        }).into_trie(),
+        }),
         Mode::Insert => trie!({
             "<ESC>" => NORMAL_MODE,
             "<CR>" => INSERT_NEWLINE,
             "f" => {
                 "d" => NORMAL_MODE,
             },
-        }).into_trie(),
+        }),
     })
 }

@@ -1,4 +1,4 @@
-use super::Keymap;
+use super::{DynKeymap as _, Keymap};
 use crate::keymap::TrieResult::*;
 use crate::Mode;
 
@@ -70,4 +70,48 @@ fn keymap() {
     assert_eq!(keymap.on_key(Mode::Insert, 'f'), (Partial, vec!['f']));
     assert_eq!(keymap.on_key(Mode::Insert, 'f'), (Partial, vec!['f']));
     assert_eq!(keymap.on_key(Mode::Insert, 'd'), (Found(6), vec![]));
+}
+
+#[test]
+fn keymap_pair() {
+    // Need more tests, could consider proptesting it against `a.merge(b)` as it should behave identically.
+    let mut a = Keymap::<Mode, char, u32>::default();
+    assert!(a.insert(Mode::Normal, ['i'], 1).is_none());
+    assert!(a.insert(Mode::Normal, ['f', 'd'], 2).is_none());
+    assert!(a.insert(Mode::Normal, ['g', 'i'], 3).is_none());
+    assert!(a.insert(Mode::Normal, ['a', 'b'], 4).is_none());
+
+    let mut b = Keymap::<Mode, char, u32>::default();
+    assert!(b.insert(Mode::Normal, ['i'], 11).is_none());
+    assert!(b.insert(Mode::Normal, ['f', 'd'], 12).is_none());
+    assert!(b.insert(Mode::Normal, ['f', 'e'], 13).is_none());
+    assert!(b.insert(Mode::Normal, ['h', 'a'], 13).is_none());
+    assert!(b.insert(Mode::Normal, ['a', 'b', 'c'], 14).is_none());
+
+    let mut c = a.pair(&mut b);
+    assert_eq!(c.on_key(Mode::Normal, 'i'), (Found(11), vec![]), "should be right-biased");
+
+    assert_eq!(c.on_key(Mode::Normal, 'f'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'd'), (Found(12), vec![]));
+
+    assert_eq!(c.on_key(Mode::Normal, 'f'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'e'), (Found(13), vec![]));
+
+    assert_eq!(c.on_key(Mode::Normal, 'f'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'f'), (Partial, vec!['f']));
+
+    assert_eq!(c.on_key(Mode::Normal, 'f'), (Partial, vec!['f']));
+    assert_eq!(c.on_key(Mode::Normal, 'x'), (Nothing, vec!['f', 'x']));
+
+    // A keymap should be "paused" once it returns nothing until the other one is done.
+    assert_eq!(c.on_key(Mode::Normal, 'g'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'i'), (Found(3), vec![]));
+
+    assert_eq!(c.on_key(Mode::Normal, 'h'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'a'), (Found(13), vec![]));
+
+    // abc on the right should shadow ab on the left.
+    assert_eq!(c.on_key(Mode::Normal, 'a'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'b'), (Partial, vec![]));
+    assert_eq!(c.on_key(Mode::Normal, 'c'), (Found(14), vec![]));
 }

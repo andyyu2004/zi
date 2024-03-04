@@ -22,14 +22,8 @@ macro_rules! trie {
         $crate::keymap::TrieNode::Value($value)
     };
 
-    (@trie
-        { $($($key:literal)|+ => $value:tt,)+ }
-    ) => {
-        trie!({ $($($key)|+ => $value,)+ })
-    };
-
     (
-        { $($($key:literal)|+ => $value:tt,)+ }
+        @trie { $($($key:literal)|+ => $value:tt,)+ }
     ) => {
         {
             let cap = hashmap!(@count $($($key),+),*);
@@ -47,5 +41,11 @@ macro_rules! trie {
             let trie = $crate::keymap::Trie::new(map);
             $crate::keymap::TrieNode::Trie(trie)
         }
+    };
+
+    (
+        { $($($key:literal)|+ => $value:tt,)+ }
+    ) => {
+        trie!(@trie { $($($key)|+ => $value,)+}).into_trie()
     };
 }

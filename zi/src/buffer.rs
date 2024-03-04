@@ -10,6 +10,7 @@ use zi_lsp::lsp_types::Url;
 
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
+use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{FileType, Position, Range, Size, View};
 
@@ -58,6 +59,10 @@ pub trait Buffer {
         Self: Sized + 'static,
     {
         Box::new(self)
+    }
+
+    fn keymap(&mut self) -> Option<&mut Keymap> {
+        None
     }
 
     /// Called just before rendering the buffer
@@ -118,6 +123,10 @@ impl Buffer for Box<dyn Buffer> {
 
     fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
         self.as_ref().writable_range()
+    }
+
+    fn keymap(&mut self) -> Option<&mut Keymap> {
+        self.as_mut().keymap()
     }
 
     fn boxed(self) -> Box<dyn Buffer>

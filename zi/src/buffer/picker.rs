@@ -6,6 +6,8 @@ use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
 
 use super::*;
+use crate::editor::Action;
+use crate::{hashmap, trie, Mode};
 
 pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
 
@@ -56,6 +58,7 @@ pub struct PickerBuffer<T: Item> {
     nucleo: Nucleo<T>,
     end_char_idx: usize,
     cancel: Cancel,
+    keymap: Keymap,
 }
 
 impl<T: Item> PickerBuffer<T> {
@@ -66,7 +69,24 @@ impl<T: Item> PickerBuffer<T> {
     ) -> (Self, Injector<T>) {
         let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
         let (injector, cancel) = Injector::new(nucleo.injector());
-        (Self { id, cancel, text: Rope::new(), nucleo, end_char_idx: 0 }, injector)
+        (
+            Self {
+                id,
+                cancel,
+                nucleo,
+                text: Rope::new(),
+                keymap: {
+                    const A: Action = |_editor| {};
+                    Keymap::new(hashmap! {
+                        Mode::Insert => trie!({
+                            "<C-j>" => A,
+                        }),
+                    })
+                },
+                end_char_idx: 0,
+            },
+            injector,
+        )
     }
 
     // pub fn new(
@@ -157,6 +177,10 @@ impl<T: Item> Buffer for PickerBuffer<T> {
             rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }
         self.text.append(rope);
+    }
+
+    fn keymap(&mut self) -> Option<&mut Keymap> {
+        Some(&mut self.keymap)
     }
 
     fn on_leave(&mut self) {
