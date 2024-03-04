@@ -53,6 +53,17 @@ fn request_redraw() {
     NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
 }
 
+macro_rules! active_buf {
+    ($editor:ident) => {
+        $editor.active_buffer_mut()
+    };
+    ($editor:ident as $ty:ty) => {
+        active_buf!($editor).as_any_mut().downcast_mut::<$ty>().expect("buffer downcast failed")
+    };
+}
+
+pub(crate) use active_buf;
+
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
 macro_rules! active {
@@ -82,7 +93,7 @@ macro_rules! active_ref {
     }};
 }
 
-pub(crate) use active;
+use active;
 
 use self::cursor::SetCursorFlags;
 
@@ -311,6 +322,12 @@ impl Editor {
     #[inline]
     pub fn active_buffer(&self) -> &dyn Buffer {
         self.buffer(self.active_view().buffer())
+    }
+
+    #[inline]
+    pub fn active_buffer_mut(&mut self) -> &mut dyn Buffer {
+        let id = self.active_view().buffer();
+        &mut self.buffers[id]
     }
 
     #[inline]

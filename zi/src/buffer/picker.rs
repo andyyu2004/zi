@@ -6,8 +6,8 @@ use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::Action;
-use crate::{hashmap, trie, Mode};
+use crate::editor::{active_buf, Action};
+use crate::{hashmap, trie, Editor, Line, Mode};
 
 pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
 
@@ -59,6 +59,7 @@ pub struct PickerBuffer<T: Item> {
     end_char_idx: usize,
     cancel: Cancel,
     keymap: Keymap,
+    selected_line: Line,
 }
 
 impl<T: Item> PickerBuffer<T> {
@@ -75,12 +76,24 @@ impl<T: Item> PickerBuffer<T> {
                 cancel,
                 nucleo,
                 text: Rope::new(),
+                selected_line: Line::default(),
                 keymap: {
-                    const A: Action = |_editor| {};
+                    let select_down: Action =
+                        |editor: &mut Editor| active_buf!(editor as Self).selected_line += 1;
+
+                    let select_up: Action =
+                        |editor: &mut Editor| active_buf!(editor as Self).selected_line -= 1;
+
+                    let trie = trie!({
+                        "<Tab>" => select_down,
+                        "<S-Tab>" => select_up,
+                        "<C-j>" => select_down,
+                        "<C-k>" => select_up,
+                    });
+
                     Keymap::new(hashmap! {
-                        Mode::Insert => trie!({
-                            "<C-j>" => A,
-                        }),
+                        Mode::Insert => trie.clone(),
+                        Mode::Normal => trie,
                     })
                 },
                 end_char_idx: 0,
@@ -156,7 +169,8 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         size: Size,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
         let res: Option<_> = try {
-            let line_idx = self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
+            let line_idx =
+                self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
             Box::new(std::iter::once((
                 Range::new((line_idx, 0), (line_idx, size.width as u32)),
                 HighlightId(0),
@@ -185,5 +199,13 @@ impl<T: Item> Buffer for PickerBuffer<T> {
 
     fn on_leave(&mut self) {
         self.cancel.cancel()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

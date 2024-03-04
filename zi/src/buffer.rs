@@ -1,6 +1,7 @@
 mod picker;
 mod text;
 
+use std::any::Any;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
@@ -26,6 +27,8 @@ pub trait Buffer {
     fn tab_width(&self) -> u8;
     fn text(&self) -> RopeSlice<'_>;
     fn version(&self) -> u32;
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // TODO this should be a more general mutate operation
     fn insert_char(&mut self, pos: Position, c: char);
@@ -142,5 +145,13 @@ impl Buffer for Box<dyn Buffer> {
 
     fn on_leave(&mut self) {
         self.as_mut().on_leave();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self.as_ref().as_any()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self.as_mut().as_any_mut()
     }
 }

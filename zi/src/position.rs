@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt;
 use std::iter::Peekable;
-use std::ops::{Add, Sub};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 
 use stdx::merge::Merge;
@@ -320,22 +320,39 @@ impl fmt::Display for Line {
 impl Add<u32> for Line {
     type Output = Self;
 
+    #[inline]
     fn add(self, amt: u32) -> Self {
-        Self(self.0 + amt)
+        Self(self.0.saturating_add(amt))
     }
 }
 
 impl Add<usize> for Line {
     type Output = Self;
 
+    #[inline]
     fn add(self, amt: usize) -> Self {
         self + amt as u32
+    }
+}
+
+impl AddAssign<usize> for Line {
+    #[inline]
+    fn add_assign(&mut self, amt: usize) {
+        *self = *self + amt;
+    }
+}
+
+impl SubAssign<usize> for Line {
+    #[inline]
+    fn sub_assign(&mut self, amt: usize) {
+        *self = *self - amt;
     }
 }
 
 impl Sub<usize> for Line {
     type Output = Self;
 
+    #[inline]
     fn sub(self, amt: usize) -> Self {
         self - amt as u32
     }
@@ -344,18 +361,21 @@ impl Sub<usize> for Line {
 impl Sub<u32> for Line {
     type Output = Self;
 
+    #[inline]
     fn sub(self, amt: u32) -> Self {
         Self(self.0.saturating_sub(amt))
     }
 }
 
 impl From<u32> for Line {
+    #[inline]
     fn from(n: u32) -> Self {
         Self(n)
     }
 }
 
 impl From<i32> for Line {
+    #[inline]
     fn from(n: i32) -> Self {
         assert!(n >= 0, "Line number must be non-negative");
         Self(n as u32)
@@ -363,6 +383,7 @@ impl From<i32> for Line {
 }
 
 impl From<usize> for Line {
+    #[inline]
     fn from(n: usize) -> Self {
         assert!(n < u32::MAX as usize, "Line number must be less than u32::MAX");
         Self(n as u32)
