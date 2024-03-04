@@ -61,6 +61,7 @@ pub struct PickerBuffer<T: Item, F: 'static> {
     keymap: Keymap,
     selected_line: Line,
     confirm: F,
+    rendered_item_count: u32,
 }
 
 impl<T, F> PickerBuffer<T, F>
@@ -84,8 +85,14 @@ where
                 confirm,
                 text: Rope::new(),
                 selected_line: Line::default(),
+                rendered_item_count: 0,
                 keymap: {
-                    let next: Action = |editor| active_buf!(editor as Self).selected_line += 1;
+                    let next: Action = |editor| {
+                        let buf = active_buf!(editor as Self);
+                        if buf.selected_line.raw() < buf.rendered_item_count - 1 {
+                            buf.selected_line += 1
+                        }
+                    };
                     let prev: Action = |editor| active_buf!(editor as Self).selected_line -= 1;
                     let confirm: Action = |editor| {
                         let buf = active_buf!(editor as Self);
@@ -209,8 +216,8 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
 
-        let n = snapshot.matched_item_count().min(100);
-        for item in snapshot.matched_items(..n) {
+        self.rendered_item_count = snapshot.matched_item_count().min(100);
+        for item in snapshot.matched_items(..self.rendered_item_count) {
             rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }
         self.text.append(rope);
