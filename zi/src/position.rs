@@ -1,7 +1,10 @@
+use std::cmp::Ordering;
 use std::fmt;
+use std::iter::Peekable;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 
+use stdx::merge::Merge;
 use tui::Rect;
 
 use crate::BufferId;
@@ -112,6 +115,7 @@ impl Range {
         let before = Range::new(start, inside_start);
         let inside = Range::new(inside_start, inside_end);
         let after = Range::new(inside_end, end);
+        debug_assert!(!inside.is_empty(), "they intersected so inside can't be empty");
         (before, inside, after)
     }
 }
@@ -470,6 +474,80 @@ impl From<Direction> for tui::Direction {
         match value {
             Direction::Left | Direction::Right => tui::Direction::Horizontal,
             Direction::Up | Direction::Down => tui::Direction::Vertical,
+        }
+    }
+}
+
+/// An iterator that merges two iterators over ([`Range`], T: [`Merge`]), prioritizing the second iterator on overlap (as per [`Merge`])
+pub(crate) struct RangeMergeIter<I: Iterator, J: Iterator, T> {
+    xs: Peekable<I>,
+    ys: Peekable<J>,
+    buffer: Vec<(Range, T)>,
+}
+
+impl<I, J, T> RangeMergeIter<I, J, T>
+where
+    I: Iterator,
+    J: Iterator,
+{
+    pub fn new(xs: I, ys: J) -> Self {
+        Self { xs: xs.peekable(), ys: ys.peekable(), buffer: vec![] }
+    }
+}
+
+impl<I, J, T> Iterator for RangeMergeIter<I, J, T>
+where
+    T: Merge + Copy,
+    I: Iterator<Item = (Range, T)>,
+    J: Iterator<Item = (Range, T)>,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((range, style)) = self.buffer.pop() {
+            return Some((range, style));
+        }
+
+        let ((xr, _), (yr, _)) = match (self.xs.peek(), self.ys.peek()) {
+            (None, None) => return None,
+            (Some(_), None) => return self.xs.next(),
+            (None, Some(_)) => return self.ys.next(),
+            (Some(x), Some(y)) => (x, y),
+        };
+
+        if xr.intersects(yr) {
+            let (xr, x) = self.xs.next().unwrap();
+            let (yr, y) = self.ys.next().unwrap();
+
+            let (before, inside, after) = xr.segments(&yr);
+            debug_assert!(!inside.is_empty());
+
+            if !after.is_empty() {
+                if xr.end < yr.end {
+                    self.buffer.push((after, y));
+                } else {
+                    self.buffer.push((after, x));
+                }
+            }
+
+            match xr.start.cmp(&yr.start) {
+                Ordering::Less => {
+                    self.buffer.push((inside, x.merge(y)));
+                    Some((before, x))
+                }
+                Ordering::Equal => {
+                    assert!(before.is_empty());
+                    Some((inside, x.merge(y)))
+                }
+                Ordering::Greater => {
+                    self.buffer.push((inside, x.merge(y)));
+                    Some((before, y))
+                }
+            }
+        } else if xr.start < yr.start {
+            self.xs.next()
+        } else {
+            self.ys.next()
         }
     }
 }

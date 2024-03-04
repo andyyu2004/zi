@@ -1,12 +1,8 @@
-use std::cmp::Ordering;
-use std::iter::Peekable;
-
-use stdx::merge::Merge;
 use tui::{Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
-use crate::position::{Offset, Size};
+use crate::position::{Offset, RangeMergeIter, Size};
 use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Range};
 
 slotmap::new_key_type! {
@@ -305,7 +301,7 @@ impl View {
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
-        let highlights = MergeHighlightIter::new(syntax_highlights, overlay_highlights)
+        let highlights = RangeMergeIter::new(syntax_highlights, overlay_highlights)
             .map(|(range, style)| (range.into(), style.into()));
 
         const LINE_NR_WIDTH: usize = 4;
@@ -319,71 +315,5 @@ impl View {
 
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
         lines.render(area, surface);
-    }
-}
-
-/// An iterator that merges two iterators of highlights, prioritizing the second iterator on overlap (as per [`Merge`])
-struct MergeHighlightIter<I: Iterator, J: Iterator, T> {
-    xs: Peekable<I>,
-    ys: Peekable<J>,
-    buffer: Vec<(Range, T)>,
-}
-
-impl<I, J, T> MergeHighlightIter<I, J, T>
-where
-    I: Iterator,
-    J: Iterator,
-{
-    fn new(xs: I, ys: J) -> Self {
-        Self { xs: xs.peekable(), ys: ys.peekable(), buffer: vec![] }
-    }
-}
-
-impl<I, J, T> Iterator for MergeHighlightIter<I, J, T>
-where
-    T: Merge + Copy,
-    I: Iterator<Item = (Range, T)>,
-    J: Iterator<Item = (Range, T)>,
-{
-    type Item = I::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some((range, style)) = self.buffer.pop() {
-            return Some((range, style));
-        }
-
-        let ((xr, _), (yr, _)) = match (self.xs.peek(), self.ys.peek()) {
-            (None, None) => return None,
-            (Some(_), None) => return self.xs.next(),
-            (None, Some(_)) => return self.ys.next(),
-            (Some(x), Some(y)) => (x, y),
-        };
-
-        if xr.intersects(yr) {
-            let (xr, x) = self.xs.next().unwrap();
-            let (yr, y) = self.ys.next().unwrap();
-
-            let (before, inside, after) = xr.segments(&yr);
-
-            match xr.start.cmp(&yr.start) {
-                Ordering::Less => {
-                    self.buffer.extend([(after, y), (inside, x.merge(y))]);
-                    Some((before, x))
-                }
-                Ordering::Equal => {
-                    assert!(before.is_empty());
-                    self.buffer.push((after, y));
-                    Some((inside, x.merge(y)))
-                }
-                Ordering::Greater => {
-                    self.buffer.extend([(after, x), (inside, x.merge(y))]);
-                    Some((before, y))
-                }
-            }
-        } else if xr.start < yr.start {
-            self.xs.next()
-        } else {
-            self.ys.next()
-        }
     }
 }

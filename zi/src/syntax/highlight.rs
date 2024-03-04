@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 use std::sync::Arc;
 
 use stdx::merge::Merge;
@@ -60,13 +61,32 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
 }
 
+impl fmt::Debug for Style {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Style {{ ")?;
+        if let Some(fg) = self.fg {
+            write!(f, "fg={fg} ")?;
+        }
+
+        if let Some(bg) = self.bg {
+            write!(f, "bg={bg} ")?;
+        }
+
+        write!(f, "}}")
+    }
+}
+
 impl Style {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn with_fg(&mut self, fg: Color) -> &mut Self {
         self.fg = Some(fg);
         self
@@ -96,6 +116,14 @@ impl Merge for Style {
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Color {
     Rgb(u8, u8, u8),
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Color::Rgb(r, g, b) => write!(f, "#{:02x}{:02x}{:02x}", r, g, b),
+        }
+    }
 }
 
 impl From<Color> for tui::Color {
