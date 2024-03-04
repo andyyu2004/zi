@@ -547,17 +547,20 @@ impl Editor {
         inner(self, path.as_ref());
 
         fn inner(editor: &mut Editor, path: &Path) {
+            let mode = editor.mode;
+            editor.mode = Mode::Insert;
             let mut injector = None;
             let buf = editor.buffers.insert_with_key(|id| {
                 let (picker, inj) = PickerBuffer::new_streamed(
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
-                    |editor, item: stdx::path::Display| {
+                    move |editor, item: stdx::path::Display| {
                         let path = item.into_inner();
                         assert!(path.is_file(), "directories should not be in the selection");
                         // FIXME show error
                         let _ = editor.open(path);
+                        editor.mode = mode;
                     },
                 );
                 injector = Some(inj);
