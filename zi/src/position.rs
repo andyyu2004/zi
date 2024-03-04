@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::VecDeque;
 use std::fmt;
 use std::iter::Peekable;
 use std::ops::{Add, Sub};
@@ -482,16 +483,25 @@ impl From<Direction> for tui::Direction {
 pub(crate) struct RangeMergeIter<I: Iterator, J: Iterator, T> {
     xs: Peekable<I>,
     ys: Peekable<J>,
+    /// Stack of buffered ranges that should be immediately yielded
     buffer: Vec<(Range, T)>,
+    xs_buffer: VecDeque<(Range, T)>,
+    ys_buffer: VecDeque<(Range, T)>,
 }
 
 impl<I, J, T> RangeMergeIter<I, J, T>
 where
-    I: Iterator,
-    J: Iterator,
+    I: Iterator<Item = (Range, T)>,
+    J: Iterator<Item = (Range, T)>,
 {
     pub fn new(xs: I, ys: J) -> Self {
-        Self { xs: xs.peekable(), ys: ys.peekable(), buffer: vec![] }
+        Self {
+            xs: xs.peekable(),
+            ys: ys.peekable(),
+            buffer: Default::default(),
+            xs_buffer: Default::default(),
+            ys_buffer: Default::default(),
+        }
     }
 }
 
@@ -504,29 +514,52 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
+        macro_rules! peek {
+            (x) => {
+                self.xs_buffer.front().or_else(|| self.xs.peek())
+            };
+            (y) => {
+                self.ys_buffer.front().or_else(|| self.ys.peek())
+            };
+            (x, y) => {
+                (peek!(x), peek!(y))
+            };
+        }
+
+        macro_rules! next {
+            (x) => {
+                self.xs_buffer.pop_front().or_else(|| self.xs.next())
+            };
+            (y) => {
+                self.ys_buffer.pop_front().or_else(|| self.ys.next())
+            };
+            (x, y) => {
+                (next!(x), next!(y))
+            };
+        }
+
         if let Some((range, style)) = self.buffer.pop() {
             return Some((range, style));
         }
 
-        let ((xr, _), (yr, _)) = match (self.xs.peek(), self.ys.peek()) {
+        let ((xr, x), (yr, y)) = match peek!(x, y) {
             (None, None) => return None,
-            (Some(_), None) => return self.xs.next(),
-            (None, Some(_)) => return self.ys.next(),
-            (Some(x), Some(y)) => (x, y),
+            (Some(_), None) => return next!(x),
+            (None, Some(_)) => return next!(y),
+            (Some(&x), Some(&y)) => (x, y),
         };
 
-        if xr.intersects(yr) {
-            let (xr, x) = self.xs.next().unwrap();
-            let (yr, y) = self.ys.next().unwrap();
+        if xr.intersects(&yr) {
+            next!(x, y);
 
             let (before, inside, after) = xr.segments(&yr);
             debug_assert!(!inside.is_empty());
 
             if !after.is_empty() {
                 if xr.end < yr.end {
-                    self.buffer.push((after, y));
+                    self.ys_buffer.push_back((after, y));
                 } else {
-                    self.buffer.push((after, x));
+                    self.xs_buffer.push_back((after, x));
                 }
             }
 
@@ -545,9 +578,9 @@ where
                 }
             }
         } else if xr.start < yr.start {
-            self.xs.next()
+            next!(x)
         } else {
-            self.ys.next()
+            next!(y)
         }
     }
 }

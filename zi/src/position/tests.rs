@@ -1,7 +1,7 @@
 use expect_test::{expect, Expect};
 
 use super::*;
-use crate::{Color, Style};
+use crate::Style;
 
 fn r(s: &str) -> Range {
     s.parse().unwrap()
@@ -47,92 +47,139 @@ fn invalid_range() {
 #[test]
 fn range_merge_iter() {
     #[track_caller]
-    fn check<T>(
-        xs: impl IntoIterator<Item = (&'static str, T)>,
-        ys: impl IntoIterator<Item = (&'static str, T)>,
+    fn check(
+        xs: impl IntoIterator<Item = (&'static str, &'static str)>,
+        ys: impl IntoIterator<Item = (&'static str, &'static str)>,
         expect: Expect,
-    ) where
-        T: Merge + Copy + fmt::Debug,
-    {
+    ) {
         use fmt::Write;
-        let ts = RangeMergeIter::<_, _, T>::new(
-            xs.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t)),
-            ys.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t)),
+        let ts = RangeMergeIter::<_, _, Style>::new(
+            xs.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t.parse().unwrap())),
+            ys.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t.parse().unwrap())),
         );
+
         let mut display = String::new();
-        for (range, t) in ts {
-            writeln!(display, "{range} => {t:?}").unwrap();
+        let mut prev: Option<Range> = None;
+        for (range, style) in ts {
+            // help RA out a bit with inference
+            let range: Range = range;
+            let style: Style = style;
+            if let Some(prev_range) = prev {
+                // ranges yielded should be non-overlapping and in order
+                assert!(
+                    !prev_range.intersects(&range),
+                    "prev and current range intersected: {prev_range} {range}"
+                );
+                assert!(
+                    prev_range.end <= range.start,
+                    "prev and current range are not ordered correctly: {prev_range} {range}"
+                );
+            }
+            prev = Some(range);
+
+            writeln!(display, "{range} => {style}").unwrap();
         }
         expect.assert_eq(&display);
     }
 
+    check([], [], expect![]);
+
     check(
-        [("1:1..1:5", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:1..1:5", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:1..1:5", "fg=#000102")],
+        [("1:1..1:5", "bg=#010203")],
         expect![[r#"
-            1:1..1:5 => Style { fg=#000102 bg=#010203 }
+            1:1..1:5 => fg=#000102 bg=#010203
         "#]],
     );
 
     check(
-        [("1:1..1:6", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:1..1:5", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:1..1:5", "fg=#000102")],
+        [("1:1..1:6", "bg=#010203")],
         expect![[r#"
-            1:1..1:5 => Style { fg=#000102 bg=#010203 }
-            1:5..1:6 => Style { fg=#000102 }
+            1:1..1:5 => fg=#000102 bg=#010203
+            1:5..1:6 => bg=#010203
         "#]],
     );
 
     check(
-        [("1:1..1:5", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:1..1:6", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:1..1:5", "fg=#000102")],
+        [("1:2..1:6", "bg=#010203")],
         expect![[r#"
-            1:1..1:5 => Style { fg=#000102 bg=#010203 }
-            1:5..1:6 => Style { bg=#010203 }
+            1:1..1:2 => fg=#000102
+            1:2..1:5 => fg=#000102 bg=#010203
+            1:5..1:6 => bg=#010203
         "#]],
     );
 
     check(
-        [("1:2..1:5", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:1..1:6", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:2..1:5", "fg=#000102")],
+        [("1:1..1:6", "bg=#010203")],
         expect![[r#"
-            1:1..1:2 => Style { bg=#010203 }
-            1:2..1:5 => Style { fg=#000102 bg=#010203 }
-            1:5..1:6 => Style { bg=#010203 }
+            1:1..1:2 => bg=#010203
+            1:2..1:5 => fg=#000102 bg=#010203
+            1:5..1:6 => bg=#010203
         "#]],
     );
 
     check(
-        [("1:2..1:10", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:1..1:6", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:2..1:10", "fg=#000102")],
+        [("1:1..1:6", "bg=#010203")],
         expect![[r#"
-            1:1..1:2 => Style { bg=#010203 }
-            1:2..1:6 => Style { fg=#000102 bg=#010203 }
-            1:6..1:10 => Style { fg=#000102 }
+            1:1..1:2 => bg=#010203
+            1:2..1:6 => fg=#000102 bg=#010203
+            1:6..1:10 => fg=#000102
         "#]],
     );
 
     check(
-        [("1:1..1:6", *Style::new().with_fg(Color::Rgb(0, 1, 2)))],
-        [("1:2..1:10", *Style::new().with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:2..1:10", "fg=#000102")],
+        [("1:2..1:10", "bg=#010203")],
         expect![[r#"
-            1:1..1:2 => Style { fg=#000102 }
-            1:2..1:6 => Style { fg=#000102 bg=#010203 }
-            1:6..1:10 => Style { bg=#010203 }
+            1:2..1:10 => fg=#000102 bg=#010203
         "#]],
     );
 
     check(
-        [
-            ("1:1..1:6", *Style::new().with_fg(Color::Rgb(0, 1, 2))),
-            ("1:8..1:12", *Style::new().with_fg(Color::Rgb(2, 3, 4))),
-        ],
-        [("1:2..1:10", *Style::new().with_fg(Color::Rgb(42, 42, 42)).with_bg(Color::Rgb(1, 2, 3)))],
+        [("1:1..1:6", "fg=#000102"), ("1:8..1:12", "fg=#020304")],
+        [("1:2..1:10", "fg=#424242 bg=#010203")],
         expect![[r#"
-            1:1..1:2 => Style { fg=#000102 }
-            1:2..1:6 => Style { fg=#2a2a2a bg=#010203 }
-            1:6..1:10 => Style { fg=#2a2a2a bg=#010203 }
-            1:8..1:12 => Style { fg=#020304 }
+            1:1..1:2 => fg=#000102
+            1:2..1:6 => fg=#424242 bg=#010203
+            1:6..1:8 => fg=#424242 bg=#010203
+            1:8..1:10 => fg=#424242 bg=#010203
+            1:10..1:12 => fg=#020304
+        "#]],
+    );
+
+    check(
+        [("1:1..1:4", "fg=#123456"), ("1:6..1:10", "fg=#abcdef")],
+        [("1:1..1:100", "bg=#000000")],
+        expect![[r#"
+            1:1..1:4 => fg=#123456 bg=#000000
+            1:4..1:6 => bg=#000000
+            1:6..1:10 => fg=#abcdef bg=#000000
+            1:10..1:100 => bg=#000000
+        "#]],
+    );
+
+    check(
+        [("1:1..1:4", "fg=#123456"), ("1:6..1:10", "fg=#abcdef")],
+        [],
+        expect![[r#"
+            1:1..1:4 => fg=#123456
+            1:6..1:10 => fg=#abcdef
+        "#]],
+    );
+
+    check(
+        [("1:1..1:4", "fg=#123456"), ("1:6..1:10", "fg=#abcdef"), ("2:1..2:5", "fg=#13579a")],
+        [("1:1..1:100", "bg=#000000")],
+        expect![[r#"
+            1:1..1:4 => fg=#123456 bg=#000000
+            1:4..1:6 => bg=#000000
+            1:6..1:10 => fg=#abcdef bg=#000000
+            1:10..1:100 => bg=#000000
+            2:1..2:5 => fg=#13579a
         "#]],
     );
 }

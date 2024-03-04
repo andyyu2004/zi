@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use stdx::merge::Merge;
@@ -61,24 +62,45 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
 }
 
-impl fmt::Debug for Style {
+impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Style {{ ")?;
+        let mut components = Vec::with_capacity(2);
+
         if let Some(fg) = self.fg {
-            write!(f, "fg={fg} ")?;
+            components.push(format!("fg={fg}"));
         }
 
         if let Some(bg) = self.bg {
-            write!(f, "bg={bg} ")?;
+            components.push(format!("bg={bg}"));
         }
 
-        write!(f, "}}")
+        write!(f, "{}", components.join(" "))
+    }
+}
+
+impl FromStr for Style {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut style = Style::default();
+        for part in s.split_whitespace() {
+            let (key, value) = part
+                .split_once('=')
+                .ok_or_else(|| anyhow::anyhow!("invalid style part: {part}"))?;
+
+            match key {
+                "fg" => style.with_fg(value.parse()?),
+                "bg" => style.with_bg(value.parse()?),
+                _ => return Err(anyhow::anyhow!("invalid style field: {part}")),
+            };
+        }
+        Ok(style)
     }
 }
 
@@ -116,6 +138,21 @@ impl Merge for Style {
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Color {
     Rgb(u8, u8, u8),
+}
+
+impl FromStr for Color {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 7 || !s.starts_with('#') {
+            anyhow::bail!("invalid color: {s}");
+        }
+
+        let r = u8::from_str_radix(&s[1..3], 16)?;
+        let g = u8::from_str_radix(&s[3..5], 16)?;
+        let b = u8::from_str_radix(&s[5..7], 16)?;
+        Ok(Color::Rgb(r, g, b))
+    }
 }
 
 impl fmt::Display for Color {
