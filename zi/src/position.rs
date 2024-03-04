@@ -87,7 +87,9 @@ pub struct Range {
 
 impl Range {
     #[inline]
-    pub fn new(start: Position, end: Position) -> Self {
+    pub fn new(start: impl Into<Position>, end: impl Into<Position>) -> Self {
+        let start = start.into();
+        let end = end.into();
         assert!(start <= end, "start must be less than end: {} !<= {}", start, end);
         Self { start, end }
     }
@@ -128,7 +130,7 @@ impl FromStr for Range {
         let (start, end) = s.split_once("..").ok_or_else(|| {
             anyhow::anyhow!("invalid range: {s} (expected `<line>:<col>..<line>:<col>`)")
         })?;
-        Ok(Self::new(start.parse()?, end.parse()?))
+        Ok(Self::new(start.parse::<Position>()?, end.parse::<Position>()?))
     }
 }
 
@@ -154,7 +156,7 @@ impl Sub<Offset> for Range {
 
 impl From<tree_sitter::Range> for Range {
     fn from(range: tree_sitter::Range) -> Self {
-        Self::new(range.start_point.into(), range.end_point.into())
+        Self::new(range.start_point, range.end_point)
     }
 }
 
