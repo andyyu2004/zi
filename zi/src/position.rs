@@ -149,12 +149,14 @@ impl fmt::Debug for Range {
 impl Sub<Offset> for Range {
     type Output = Self;
 
+    #[inline]
     fn sub(self, offset: Offset) -> Self {
         Self::new(self.start - offset, self.end - offset)
     }
 }
 
 impl From<tree_sitter::Range> for Range {
+    #[inline]
     fn from(range: tree_sitter::Range) -> Self {
         Self::new(range.start_point, range.end_point)
     }
@@ -167,6 +169,7 @@ impl From<Range> for std::ops::Range<Position> {
 }
 
 impl From<Range> for std::ops::Range<(usize, usize)> {
+    #[inline]
     fn from(r: Range) -> Self {
         r.start.into()..r.end.into()
     }
@@ -181,6 +184,7 @@ pub struct Position {
 impl Add<Offset> for Position {
     type Output = Self;
 
+    #[inline]
     fn add(self, offset: Offset) -> Self {
         Self::new(self.line + offset.line, self.col + offset.col)
     }
@@ -189,6 +193,7 @@ impl Add<Offset> for Position {
 impl Sub<Offset> for Position {
     type Output = Self;
 
+    #[inline]
     fn sub(self, offset: Offset) -> Self {
         Self::new(self.line - offset.line, self.col - offset.col)
     }
@@ -218,6 +223,7 @@ impl FromStr for Position {
 }
 
 impl From<tree_sitter::Point> for Position {
+    #[inline]
     fn from(point: tree_sitter::Point) -> Self {
         Self::new(point.row as u32, point.column as u32)
     }
@@ -242,12 +248,14 @@ where
     Col: From<C>,
     Line: From<L>,
 {
+    #[inline]
     fn from((line, col): (L, C)) -> Self {
         Self { line: Line::from(line), col: Col::from(col) }
     }
 }
 
 impl PartialEq<(u32, u32)> for Position {
+    #[inline]
     fn eq(&self, &(line, col): &(u32, u32)) -> bool {
         self.line.0 == line && self.col.0 == col
     }

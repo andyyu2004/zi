@@ -2,6 +2,7 @@ use std::hash::Hash;
 use std::iter;
 
 use rustc_hash::FxHashMap;
+use stdx::merge::Merge;
 
 mod macros;
 
@@ -85,9 +86,16 @@ impl<M, K, V> Default for Keymap<M, K, V> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Trie<K, V> {
     children: FxHashMap<K, TrieNode<K, V>>,
+}
+
+impl<K: Eq + Hash, V> Merge for Trie<K, V> {
+    fn merge(self, other: Self) -> Self {
+        let children = self.children.merge(other.children);
+        Self { children }
+    }
 }
 
 impl<K, V> Trie<K, V> {
@@ -164,10 +172,19 @@ impl<K, V> Default for Trie<K, V> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum TrieNode<K, V> {
     Trie(Trie<K, V>),
     Value(V),
+}
+
+impl<K: Eq + Hash, V> Merge for TrieNode<K, V> {
+    fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Trie(a), Self::Trie(b)) => Self::Trie(a.merge(b)),
+            (_, b) => b,
+        }
+    }
 }
 
 impl<K, V> TrieNode<K, V> {

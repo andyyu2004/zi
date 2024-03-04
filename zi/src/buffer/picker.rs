@@ -135,15 +135,15 @@ impl<T: Item> Buffer for PickerBuffer<T> {
         _view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
-        let res: Result<_, anyhow::Error> = try {
-            let line_idx = self.text.try_char_to_line(self.end_char_idx + 1)?;
+        let res: Option<_> = try {
+            let line_idx = self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
             Box::new(std::iter::once((
                 Range::new((line_idx, 0), (line_idx, size.width as u32)),
                 HighlightId(0),
             ))) as Box<dyn Iterator<Item = (Range, HighlightId)>>
         };
 
-        res.unwrap_or_else(|_| Box::new(std::iter::empty()))
+        res.unwrap_or_else(|| Box::new(std::iter::empty()))
     }
 
     fn pre_render(&mut self) {
