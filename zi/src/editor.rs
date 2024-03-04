@@ -67,6 +67,9 @@ pub(crate) use active_buf;
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
 macro_rules! active {
+    ($editor:ident as $ty:ty) => {
+        active!($editor: $editor.tree.active() as $ty)
+    };
     ($editor:ident) => {
         active!($editor: $editor.tree.active())
     };

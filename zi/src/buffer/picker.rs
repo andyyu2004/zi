@@ -100,17 +100,23 @@ where
                         confirm(editor, data);
                     };
 
-                    let trie = trie!({
-                        "<Tab>" => next,
-                        "<S-Tab>" => prev,
-                        "<C-j>" => next,
-                        "<C-k>" => prev,
-                        "<CR>" => confirm,
-                    });
-
                     Keymap::new(hashmap! {
-                        Mode::Insert => trie.clone(),
-                        Mode::Normal => trie,
+                        Mode::Insert => trie! ({
+                            "<Tab>" => next,
+                            "<S-Tab>" => prev,
+                            "<C-j>" => next,
+                            "<C-k>" => prev,
+                            "<CR>" => confirm,
+                        }),
+                        Mode::Normal => trie!({
+                            "<Tab>" => next,
+                            "<S-Tab>" => prev,
+                            "<C-j>" => next,
+                            "<C-k>" => prev,
+                            "j" => next,
+                            "k" => prev,
+                            "<CR>" => confirm,
+                        }),
                     })
                 },
                 end_char_idx: 0,
