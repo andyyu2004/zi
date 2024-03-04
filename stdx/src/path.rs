@@ -14,6 +14,13 @@ impl PathExt for PathBuf {
 #[derive(Clone)]
 pub struct Display(PathBuf);
 
+impl Display {
+    #[inline]
+    pub fn into_inner(self) -> PathBuf {
+        self.0
+    }
+}
+
 impl fmt::Display for Display {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.display().fmt(f)

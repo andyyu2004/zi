@@ -550,6 +550,12 @@ impl Editor {
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
+                    |editor, item: stdx::path::Display| {
+                        let path = item.into_inner();
+                        assert!(path.is_file(), "directories should not be in the selection");
+                        // FIXME show error
+                        let _ = editor.open(path);
+                    },
                 );
                 injector = Some(inj);
                 picker.boxed()

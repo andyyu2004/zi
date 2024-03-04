@@ -52,7 +52,7 @@ impl Cancel {
     }
 }
 
-pub struct PickerBuffer<T: Item> {
+pub struct PickerBuffer<T: Item, F: 'static> {
     id: BufferId,
     text: Rope,
     nucleo: Nucleo<T>,
@@ -60,13 +60,19 @@ pub struct PickerBuffer<T: Item> {
     cancel: Cancel,
     keymap: Keymap,
     selected_line: Line,
+    confirm: F,
 }
 
-impl<T: Item> PickerBuffer<T> {
+impl<T, F> PickerBuffer<T, F>
+where
+    T: Item,
+    F: Fn(&mut Editor, T) + Copy,
+{
     pub fn new_streamed(
         id: BufferId,
         config: nucleo::Config,
         notify: impl Fn() + Send + Sync + 'static,
+        confirm: F,
     ) -> (Self, Injector<T>) {
         let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
         let (injector, cancel) = Injector::new(nucleo.injector());
@@ -75,20 +81,31 @@ impl<T: Item> PickerBuffer<T> {
                 id,
                 cancel,
                 nucleo,
+                confirm,
                 text: Rope::new(),
                 selected_line: Line::default(),
                 keymap: {
-                    let select_down: Action =
-                        |editor: &mut Editor| active_buf!(editor as Self).selected_line += 1;
-
-                    let select_up: Action =
-                        |editor: &mut Editor| active_buf!(editor as Self).selected_line -= 1;
+                    let next: Action = |editor| active_buf!(editor as Self).selected_line += 1;
+                    let prev: Action = |editor| active_buf!(editor as Self).selected_line -= 1;
+                    let confirm: Action = |editor| {
+                        let buf = active_buf!(editor as Self);
+                        let data = buf
+                            .nucleo
+                            .snapshot()
+                            .get_matched_item(buf.selected_line.idx() as u32)
+                            .expect("invalid line index")
+                            .data
+                            .clone();
+                        let confirm = buf.confirm;
+                        confirm(editor, data);
+                    };
 
                     let trie = trie!({
-                        "<Tab>" => select_down,
-                        "<S-Tab>" => select_up,
-                        "<C-j>" => select_down,
-                        "<C-k>" => select_up,
+                        "<Tab>" => next,
+                        "<S-Tab>" => prev,
+                        "<C-j>" => next,
+                        "<C-k>" => prev,
+                        "<CR>" => confirm,
                     });
 
                     Keymap::new(hashmap! {
@@ -116,7 +133,7 @@ impl<T: Item> PickerBuffer<T> {
     // }
 }
 
-impl<T: Item> Buffer for PickerBuffer<T> {
+impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
     fn id(&self) -> BufferId {
         self.id
     }
