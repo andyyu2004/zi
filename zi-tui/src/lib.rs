@@ -164,3 +164,18 @@ where
         }
     }
 }
+
+pub trait BufferExt {
+    fn reset_area(&mut self, area: Rect);
+}
+
+impl BufferExt for Buffer {
+    fn reset_area(&mut self, area: Rect) {
+        let area = self.area().intersection(area);
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                self.get_mut(x, y).reset();
+            }
+        }
+    }
+}

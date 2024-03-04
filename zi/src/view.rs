@@ -1,4 +1,4 @@
-use tui::{Rect, Widget as _};
+use tui::{BufferExt, Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
@@ -277,6 +277,8 @@ impl HasViewId for View {
 
 impl View {
     pub(crate) fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
+        assert_eq!(surface.area.intersection(area), area);
+
         let buf = editor.buffer(self.buf);
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
@@ -313,6 +315,7 @@ impl View {
             highlights,
         );
 
+        surface.reset_area(area);
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
         lines.render(area, surface);
     }
