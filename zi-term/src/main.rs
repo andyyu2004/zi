@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(path) = opts.path {
         if path.exists() && path.is_dir() {
             std::env::set_current_dir(&path)?;
-            editor.open_file_picker(".");
+            editor.open_file_explorer(".");
         } else {
             editor.open(path)?;
         }
