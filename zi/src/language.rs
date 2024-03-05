@@ -25,6 +25,7 @@ impl FileType {
     pub const TOML: Self = Self(Cow::Borrowed("toml"));
     pub const JSON: Self = Self(Cow::Borrowed("json"));
     pub const PICKER: Self = Self(Cow::Borrowed("picker"));
+    pub const EXPLORER: Self = Self(Cow::Borrowed("explorer"));
 
     pub fn detect(path: &Path) -> Self {
         match path.extension() {

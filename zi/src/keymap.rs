@@ -22,6 +22,11 @@ pub struct Keymap<M = Mode, K = KeyEvent, V = Action> {
     /// The last mode that was used
     last_mode: Option<M>,
 }
+impl<M, K, V> From<FxHashMap<M, Trie<K, V>>> for Keymap<M, K, V> {
+    fn from(maps: FxHashMap<M, Trie<K, V>>) -> Self {
+        Self { maps, buffer: Default::default(), last_mode: Default::default() }
+    }
+}
 
 impl<M, K, V> DynKeymap<M, K, V> for Keymap<M, K, V>
 where
@@ -40,8 +45,8 @@ where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    pub fn new(maps: FxHashMap<M, Trie<K, V>>) -> Self {
-        Self { maps, buffer: Default::default(), last_mode: Default::default() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     // This method should be useful eventually, just cfg it to hide warnings

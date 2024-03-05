@@ -4,7 +4,7 @@ use std::fmt;
 use std::fs::File;
 use std::future::Future;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
@@ -19,7 +19,7 @@ use tokio::sync::Notify;
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{PickerBuffer, TextBuffer};
+use crate::buffer::{ExplorerBuffer, PickerBuffer, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -33,10 +33,11 @@ use crate::{
 };
 
 pub struct Editor {
+    // pub(crate) to allow `active!` macro to access it
+    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
+    pub(crate) views: SlotMap<ViewId, View>,
     mode: Mode,
     keymap: Keymap,
-    buffers: SlotMap<BufferId, Box<dyn Buffer>>,
-    views: SlotMap<ViewId, View>,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
     tx: CallbacksSender,
@@ -53,27 +54,30 @@ fn request_redraw() {
     NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
 }
 
-macro_rules! active_buf {
-    ($editor:ident) => {
-        $editor.active_buffer_mut()
-    };
-    ($editor:ident as $ty:ty) => {
-        active_buf!($editor).as_any_mut().downcast_mut::<$ty>().expect("buffer downcast failed")
-    };
-}
-
-pub(crate) use active_buf;
-
 /// Get the active view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
 macro_rules! active {
-    ($editor:ident as $ty:ty) => {
-        active!($editor: $editor.tree.active() as $ty)
-    };
-    ($editor:ident) => {
-        active!($editor: $editor.tree.active())
-    };
-    ($editor:ident: $view:expr) => {{
+    ($editor:ident as $ty:ty) => {{
+        let view_id = $editor.tree().active();
+        active!($editor: view_id as $ty)
+    }};
+    ($editor:ident as $ty:ty) => {{
+        let view_id = $editor.tree.active();
+        active!($editor: view_id as $ty)
+    }};
+    ($editor:ident) => {{
+        let view_id = $editor.tree.active();
+        active!($editor: view_id)
+    }};
+    ($editor:ident: $view:ident as $ty:ty) => {{
+        #[allow(unused_imports)]
+        use $crate::view::HasViewId as _;
+        let view_id = $view.view_id();
+        let view = &mut $editor.views[view_id];
+        let buf = $editor.buffers[view.buffer()].as_any_mut().downcast_mut::<$ty>().expect("buffer downcast failed");
+        (view, buf)
+    }};
+    ($editor:ident: $view:ident) => {{
         #[allow(unused_imports)]
         use $crate::view::HasViewId as _;
         let view_id = $view.view_id();
@@ -82,6 +86,8 @@ macro_rules! active {
         (view, buf)
     }};
 }
+
+pub(crate) use active;
 
 macro_rules! active_ref {
     ($editor:ident) => {
@@ -95,8 +101,6 @@ macro_rules! active_ref {
         (view, buf)
     }};
 }
-
-use active;
 
 use self::cursor::SetCursorFlags;
 
@@ -262,6 +266,10 @@ impl Editor {
             Event::Key(key) => self.handle_key_event(key),
             Event::Resize(size) => self.resize(size),
         }
+    }
+
+    pub(crate) fn tree(&self) -> &layout::ViewTree {
+        &self.tree
     }
 
     fn resize(&mut self, size: Size) {
@@ -543,6 +551,56 @@ impl Editor {
         view.scroll(self.mode, area, buf, direction, amount);
     }
 
+    pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
+        inner(self, path.as_ref());
+
+        fn inner(editor: &mut Editor, path: &Path) {
+            let mut injector = None;
+            let buf = editor.buffers.insert_with_key(|id| {
+                let (explorer, inj) = ExplorerBuffer::new(
+                    id,
+                    nucleo::Config::DEFAULT.match_paths(),
+                    request_redraw,
+                    |editor, path: stdx::path::Display| {
+                        let path = path.into_inner();
+                        if path.is_dir() {
+                            editor.open_file_explorer(path);
+                        } else {
+                            // FIXME show error
+                            let _ = editor.open(path);
+                        }
+                    },
+                );
+                injector = Some(inj);
+                explorer.boxed()
+            });
+
+            let injector = injector.unwrap();
+            let view = editor.views.insert_with_key(|id| View::new(id, buf));
+            editor.tree.push(Layer::new(view));
+
+            // Cannot use parallel iterator as it doesn't sort.
+            let walk = ignore::WalkBuilder::new(path)
+                .max_depth(Some(1))
+                .sort_by_file_name(std::cmp::Ord::cmp)
+                .build();
+
+            editor.pool.spawn(move || {
+                let _ = injector.push(PathBuf::from("..").display_owned());
+                for entry in walk {
+                    let entry = match entry {
+                        Ok(entry) => entry,
+                        Err(_) => continue,
+                    };
+
+                    if let Err(()) = injector.push(entry.into_path().display_owned()) {
+                        break;
+                    }
+                }
+            })
+        }
+    }
+
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
 
@@ -551,7 +609,7 @@ impl Editor {
             editor.mode = Mode::Insert;
             let mut injector = None;
             let buf = editor.buffers.insert_with_key(|id| {
-                let (picker, inj) = PickerBuffer::new_streamed(
+                let (picker, inj) = PickerBuffer::new(
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
@@ -739,6 +797,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
     const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
+    const OPEN_FILE_EXPLORER: Action = |editor| editor.open_file_explorer(".");
     const SPLIT_VERTICAL: Action = |editor| void(editor.split_active_view(Direction::Right));
     const SPLIT_HORIZONTAL: Action = |editor| void(editor.split_active_view(Direction::Down));
     const FOCUS_LEFT: Action = |editor| void(editor.move_focus(Direction::Left));
@@ -746,7 +805,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));
     const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
 
-    Keymap::new(hashmap! {
+    Keymap::from(hashmap! {
         Mode::Normal => trie!({
             "<C-d>" => SCROLL_DOWN,
             "<C-u>" => SCROLL_UP,
@@ -769,7 +828,9 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "<C-j>" => FOCUS_DOWN,
             "<C-k>" => FOCUS_UP,
             "<C-l>" => FOCUS_RIGHT,
+            "-" => OPEN_FILE_EXPLORER,
             "<space>" => {
+                "e" => OPEN_FILE_EXPLORER,
                 "o" => OPEN_FILE_PICKER,
             },
             "g" => {

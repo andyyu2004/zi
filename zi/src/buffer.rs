@@ -1,14 +1,18 @@
+mod explorer;
 mod picker;
 mod text;
 
 use std::any::Any;
+use std::fmt;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
 use ropey::{Rope, RopeSlice};
+use stdx::sync::Cancel;
 use tree_sitter::{Node, QueryCursor};
 use zi_lsp::lsp_types::Url;
 
+pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::keymap::Keymap;
@@ -153,5 +157,28 @@ impl Buffer for Box<dyn Buffer> {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self.as_mut().as_any_mut()
+    }
+}
+
+pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
+
+impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
+
+/// Wrapper around a `nucleo::Injector` with cancellation support
+pub struct Injector<T> {
+    injector: nucleo::Injector<T>,
+    cancel: Cancel,
+}
+
+impl<T: Item> Injector<T> {
+    pub fn new(injector: nucleo::Injector<T>, cancel: Cancel) -> Self {
+        Self { injector, cancel }
+    }
+
+    /// Push an item into the injector
+    /// Returns `Err` if the injector has been cancelled
+    pub fn push(&self, item: T) -> Result<(), ()> {
+        self.injector.push(item.clone(), |dst| dst[0] = format!("{item}").into());
+        if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
     }
 }

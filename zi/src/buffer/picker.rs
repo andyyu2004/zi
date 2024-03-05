@@ -1,56 +1,11 @@
-use std::fmt;
-use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::{active_buf, Action};
+use crate::editor::{active, Action};
 use crate::{hashmap, trie, Editor, Line, Mode};
-
-pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
-
-impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
-
-/// Wrapper around a `nucleo::Injector` with cancellation support
-pub struct Injector<T> {
-    injector: nucleo::Injector<T>,
-    cancel: Cancel,
-}
-
-impl<T: Item> Injector<T> {
-    pub fn new(injector: nucleo::Injector<T>) -> (Self, Cancel) {
-        let cancel = Cancel::new();
-        (Self { injector, cancel: cancel.clone() }, cancel)
-    }
-
-    /// Push an item into the injector
-    /// Returns `Err` if the injector has been cancelled
-    pub fn push(&self, item: T) -> Result<(), ()> {
-        self.injector.push(item.clone(), |dst| dst[0] = format!("{item}").into());
-        if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Cancel {
-    cancel: Arc<AtomicBool>,
-}
-
-impl Cancel {
-    pub fn new() -> Self {
-        Self { cancel: Arc::new(AtomicBool::new(false)) }
-    }
-
-    pub fn cancel(&self) {
-        self.cancel.store(true, atomic::Ordering::Relaxed);
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.cancel.load(atomic::Ordering::Relaxed)
-    }
-}
 
 pub struct PickerBuffer<T: Item, F: 'static> {
     id: BufferId,
@@ -69,14 +24,15 @@ where
     T: Item,
     F: Fn(&mut Editor, T) + Copy,
 {
-    pub fn new_streamed(
+    pub fn new(
         id: BufferId,
         config: nucleo::Config,
         notify: impl Fn() + Send + Sync + 'static,
         confirm: F,
     ) -> (Self, Injector<T>) {
         let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
-        let (injector, cancel) = Injector::new(nucleo.injector());
+        let cancel = Cancel::new();
+        let injector = Injector::new(nucleo.injector(), cancel.clone());
         (
             Self {
                 id,
@@ -88,14 +44,14 @@ where
                 rendered_item_count: 0,
                 keymap: {
                     let next: Action = |editor| {
-                        let buf = active_buf!(editor as Self);
+                        let (_, buf) = active!(editor as Self);
                         if buf.selected_line.raw() < buf.rendered_item_count - 1 {
                             buf.selected_line += 1
                         }
                     };
-                    let prev: Action = |editor| active_buf!(editor as Self).selected_line -= 1;
+                    let prev: Action = |editor| active!(editor as Self).1.selected_line -= 1;
                     let confirm: Action = |editor| {
-                        let buf = active_buf!(editor as Self);
+                        let (_, buf) = active!(editor as Self);
                         let data = buf
                             .nucleo
                             .snapshot()
@@ -107,7 +63,7 @@ where
                         confirm(editor, data);
                     };
 
-                    Keymap::new(hashmap! {
+                    Keymap::from(hashmap! {
                         Mode::Insert => trie! ({
                             "<Tab>" => next,
                             "<S-Tab>" => prev,
@@ -131,19 +87,6 @@ where
             injector,
         )
     }
-
-    // pub fn new(
-    //     id: BufferId,
-    //     config: nucleo::Config,
-    //     options: impl IntoIterator<Item = T>,
-    //     notify: impl Fn() + Send + Sync + 'static,
-    // ) -> Self {
-    //     let (this, injector) = Self::new_streamed(id, config, notify);
-    //     for item in options {
-    //         injector.push(item).expect("can't be cancelled");
-    //     }
-    //     this
-    // }
 }
 
 impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
@@ -220,6 +163,7 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         for item in snapshot.matched_items(..self.rendered_item_count) {
             rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }
+
         self.text.append(rope);
     }
 
