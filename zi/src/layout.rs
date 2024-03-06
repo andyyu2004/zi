@@ -40,8 +40,8 @@ impl ViewTree {
         self.layers.push(layer);
     }
 
-    pub fn pop(&mut self) {
-        self.layers.pop().expect("no layers to pop");
+    pub fn pop(&mut self) -> Layer {
+        self.layers.pop().expect("no layers to pop")
     }
 
     pub fn active(&self) -> ViewId {
@@ -57,7 +57,9 @@ impl ViewTree {
             }
             TraverseResult::Done(..) => (),
             // pop the entire layer as it's empty
-            TraverseResult::Propogate => self.pop(),
+            TraverseResult::Propogate => {
+                self.pop();
+            }
         };
         view
     }
@@ -128,7 +130,7 @@ impl Layer {
         self.active
     }
 
-    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+    pub(crate) fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
         self.root.views()
     }
 

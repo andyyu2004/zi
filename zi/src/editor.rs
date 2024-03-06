@@ -547,10 +547,24 @@ impl Editor {
         Ok(())
     }
 
+    fn pop_layer(&mut self) {
+        let layer = self.tree.pop();
+        for view in layer.views() {
+            let view = self.views.remove(view).expect("view not found during removal");
+            self.buffers[view.buffer()].on_leave();
+            self.close_buffer(view.buffer());
+        }
+    }
+
+    fn close_buffer(&mut self, buf: BufferId) {
+        // can't naively remove the buffer as it might be referenced by multiple views
+        self.buffers[buf].on_leave();
+    }
+
     pub fn close_active_view(&mut self) {
         let id = self.tree.close_active();
         let view = self.views.remove(id).expect("closed view not found");
-        self.buffers[view.buffer()].on_leave();
+        self.close_buffer(view.buffer());
     }
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
@@ -624,7 +638,7 @@ impl Editor {
                     move |editor, item: stdx::path::Display| {
                         let path = item.into_inner();
                         assert!(path.is_file(), "directories should not be in the selection");
-                        editor.close_active_view();
+                        editor.pop_layer();
                         // FIXME show error
                         let _ = editor.open(path);
                         editor.mode = mode;
