@@ -620,6 +620,7 @@ impl Editor {
                     move |editor, item: stdx::path::Display| {
                         let path = item.into_inner();
                         assert!(path.is_file(), "directories should not be in the selection");
+                        editor.close_active_view();
                         // FIXME show error
                         let _ = editor.open(path);
                         editor.mode = mode;
