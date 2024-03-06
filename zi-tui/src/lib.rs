@@ -32,7 +32,7 @@ where
         constraints.len(),
         seq.len()
     );
-    let layout = Layout::new(Direction::Vertical, constraints);
+    let layout = Layout::vertical(constraints);
     Stack { layout, seq }
 }
 
