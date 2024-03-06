@@ -637,7 +637,13 @@ impl Editor {
                 editor.set_active_buffer(buf);
             } else {
                 let view = editor.views.insert_with_key(|id| View::new(id, buf));
-                editor.tree.push(Layer::new(view));
+                editor.tree.push(Layer::new_with_layout(view, |area| {
+                    tui::Layout::new(
+                        tui::Direction::Vertical,
+                        tui::Constraint::from_percentages([50, 50]),
+                    )
+                    .areas::<2>(area)[1]
+                }));
             };
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();

@@ -92,19 +92,26 @@ impl ViewTree {
     }
 }
 
-#[derive(Debug)]
 pub struct Layer {
     active: ViewId,
     root: Node,
+    compute_area: Box<dyn Fn(Rect) -> Rect>,
 }
 
 impl Layer {
     pub fn new(active: ViewId) -> Self {
-        Layer { active, root: Node::View(active) }
+        Self::new_with_layout(active, |area| area)
+    }
+
+    /// Create a new layer with a custom area function
+    pub fn new_with_layout(active: ViewId, compute_area: impl Fn(Rect) -> Rect + 'static) -> Self {
+        Layer { active, root: Node::View(active), compute_area: Box::new(compute_area) }
     }
 
     pub fn view_area(&self, area: Rect, view: impl HasViewId) -> Rect {
-        self.root.view_area(area, view.view_id()).expect("view not found in layer")
+        self.root
+            .view_area((self.compute_area)(area), view.view_id())
+            .expect("view not found in layer")
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
@@ -121,7 +128,7 @@ impl Layer {
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        self.root.render(editor, area, surface);
+        self.root.render(editor, (self.compute_area)(area), surface);
     }
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
