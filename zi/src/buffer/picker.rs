@@ -153,13 +153,13 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         res.unwrap_or_else(|| Box::new(std::iter::empty()))
     }
 
-    fn pre_render(&mut self) {
+    fn pre_render(&mut self, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
         self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
 
-        self.rendered_item_count = snapshot.matched_item_count().min(100);
+        self.rendered_item_count = snapshot.matched_item_count().min(area.width as u32);
         for item in snapshot.matched_items(..self.rendered_item_count) {
             rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }

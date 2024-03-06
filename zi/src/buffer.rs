@@ -73,7 +73,9 @@ pub trait Buffer {
     }
 
     /// Called just before rendering the buffer
-    fn pre_render(&mut self) {}
+    fn pre_render(&mut self, view: &View, _area: tui::Rect) {
+        assert_eq!(self.id(), view.buffer());
+    }
 
     /// Called when a view is closed that was displaying this buffer
     fn on_leave(&mut self) {}
@@ -143,8 +145,8 @@ impl Buffer for Box<dyn Buffer> {
         self
     }
 
-    fn pre_render(&mut self) {
-        self.as_mut().pre_render();
+    fn pre_render(&mut self, view: &View, area: tui::Rect) {
+        self.as_mut().pre_render(view, area);
     }
 
     fn on_leave(&mut self) {

@@ -98,11 +98,11 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         0
     }
 
-    fn pre_render(&mut self) {
+    fn pre_render(&mut self, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
         let mut rope = Rope::new();
-        let n = snapshot.matched_item_count().min(100);
+        let n = snapshot.matched_item_count().min(area.height as u32);
         for item in snapshot.matched_items(..n) {
             rope.insert(rope.len_chars(), &format!("{}\n", item.data));
         }

@@ -216,8 +216,12 @@ impl Editor {
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
         let area = self.tree.area();
 
-        for buf in self.buffers.values_mut() {
-            buf.pre_render();
+        // We only call `pre_render` on buffers that are part of some view as otherwise
+        // there's definitely not visible so there's no point.
+        for view in self.views.values() {
+            let buf = &mut self.buffers[view.buffer()];
+            let area = self.tree.view_area(view.id());
+            buf.pre_render(view, area);
         }
 
         self.tree.render(self, frame.buffer_mut());
