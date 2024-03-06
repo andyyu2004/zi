@@ -191,11 +191,15 @@ impl Editor {
         let buf = self.buffers.insert_with_key(|id| {
             TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
         });
-        self.views[self.tree.active()].set_buffer(buf);
+        self.set_active_buffer(buf);
 
         self.spawn_language_servers_for_lang(buf, &lang)?;
 
         Ok(buf)
+    }
+
+    fn set_active_buffer(&mut self, buf: BufferId) {
+        self.views[self.tree.active()].set_buffer(buf);
     }
 
     pub async fn cleanup(&mut self) {
@@ -576,8 +580,8 @@ impl Editor {
             });
 
             let injector = injector.unwrap();
-            let view = editor.views.insert_with_key(|id| View::new(id, buf));
-            editor.tree.push(Layer::new(view));
+            editor.set_active_buffer(buf);
+            editor.set_mode(Mode::Normal);
 
             // Cannot use parallel iterator as it doesn't sort.
             let walk = ignore::WalkBuilder::new(path)

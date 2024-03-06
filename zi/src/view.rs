@@ -55,6 +55,8 @@ impl View {
     #[inline]
     pub fn set_buffer(&mut self, buf: BufferId) {
         self.buf = buf;
+        self.cursor = Cursor::default();
+        self.offset = Offset::default();
     }
 
     #[inline]
