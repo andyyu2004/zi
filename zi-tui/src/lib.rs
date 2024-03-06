@@ -11,7 +11,7 @@ pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Style};
 pub use ratatui::text::{Line, Span, Text};
-pub use ratatui::widgets::Widget;
+pub use ratatui::widgets::{Clear, Widget};
 pub use ratatui::{Frame, Terminal};
 
 pub use self::element::Element;
@@ -161,21 +161,6 @@ where
             let line = Line::default().spans(spans);
             // safe cast to u16 as we already checked that i < area.height (which is a u16)
             buf.set_line(area.x, area.y + i as u16, &line, area.width);
-        }
-    }
-}
-
-pub trait BufferExt {
-    fn reset_area(&mut self, area: Rect);
-}
-
-impl BufferExt for Buffer {
-    fn reset_area(&mut self, area: Rect) {
-        let area = self.area().intersection(area);
-        for y in area.y..area.bottom() {
-            for x in area.x..area.right() {
-                self.get_mut(x, y).reset();
-            }
         }
     }
 }
