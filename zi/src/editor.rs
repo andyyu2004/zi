@@ -630,8 +630,15 @@ impl Editor {
             });
 
             let injector = injector.unwrap();
-            let view = editor.views.insert_with_key(|id| View::new(id, buf));
-            editor.tree.push(Layer::new(view));
+
+            if editor.tree().len() > 1 {
+                // This is just a heuristic to avoid stacking pickers.
+                // This might have some bad interactions.
+                editor.set_active_buffer(buf);
+            } else {
+                let view = editor.views.insert_with_key(|id| View::new(id, buf));
+                editor.tree.push(Layer::new(view));
+            };
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();
             editor.pool.spawn(move || {

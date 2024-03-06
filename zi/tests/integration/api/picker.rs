@@ -19,4 +19,10 @@ fn picker() {
     );
 
     assert_eq!(editor.views().len(), 1, "the picker view should be gone");
+
+    editor.open_file_picker(".");
+    assert_eq!(editor.views().len(), 2);
+
+    editor.open_file_picker(".");
+    assert_eq!(editor.views().len(), 2, "opening another picker should not create a new view");
 }

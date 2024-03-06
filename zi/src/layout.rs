@@ -25,6 +25,10 @@ impl ViewTree {
         self.layers.is_empty()
     }
 
+    pub fn len(&self) -> usize {
+        self.layers.len()
+    }
+
     pub fn push(&mut self, layer: Layer) {
         self.layers.push(layer);
     }
@@ -75,7 +79,7 @@ impl ViewTree {
         self.layers.iter().flat_map(|layer| layer.views())
     }
 
-    fn top(&self) -> &Layer {
+    pub fn top(&self) -> &Layer {
         self.layers.last().expect("layers was empty")
     }
 
