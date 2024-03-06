@@ -1,4 +1,4 @@
-use tui::{Clear, Rect, Widget as _};
+use tui::{Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
@@ -317,7 +317,6 @@ impl View {
             highlights,
         );
 
-        Clear.render(area, surface);
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
         lines.render(area, surface);
     }

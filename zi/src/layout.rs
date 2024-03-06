@@ -1,4 +1,4 @@
-use tui::{Constraint, Layout, Rect};
+use tui::{Constraint, Layout, Rect, Widget as _};
 
 use crate::view::HasViewId;
 use crate::{Direction, Editor, Size, ViewId};
@@ -128,7 +128,9 @@ impl Layer {
     }
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        self.root.render(editor, (self.compute_area)(area), surface);
+        let area = (self.compute_area)(area);
+        tui::Clear.render(area, surface);
+        self.root.render(editor, area, surface);
     }
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
