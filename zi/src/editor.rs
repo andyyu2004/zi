@@ -32,6 +32,15 @@ use crate::{
     LanguageServerId, Mode, View, ViewId,
 };
 
+bitflags::bitflags! {
+    pub struct OpenFlags: u32 {
+        const NONE = 0;
+        const READONLY = 1 << 0;
+        const SPAWN_LANGUAGE_SERVERS = 1 << 1;
+        const SET_ACTIVE_BUFFER = 1 << 2;
+    }
+}
+
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
@@ -163,7 +172,11 @@ impl Editor {
         (editor, ChannelStream(rx), notify_redraw)
     }
 
-    pub fn open(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
+    pub fn open(
+        &mut self,
+        path: impl AsRef<Path>,
+        flags: OpenFlags,
+    ) -> Result<BufferId, zi_lsp::Error> {
         let path = path.as_ref();
 
         // If the buffer is already open, switch to it
@@ -191,15 +204,28 @@ impl Editor {
         let buf = self.buffers.insert_with_key(|id| {
             TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
         });
-        self.set_active_buffer(buf);
 
-        self.spawn_language_servers_for_lang(buf, &lang)?;
+        if flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+            self.spawn_language_servers_for_lang(buf, &lang)?;
+        }
+
+        if flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
+            self.set_active_buffer(buf);
+        }
 
         Ok(buf)
     }
 
+    pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
+        self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
+    }
+
     fn set_active_buffer(&mut self, buf: BufferId) {
-        self.views[self.tree.active()].set_buffer(buf);
+        self.set_buffer(self.tree.active(), buf);
+    }
+
+    fn set_buffer(&mut self, view: ViewId, buf: BufferId) {
+        self.views[view].set_buffer(buf);
     }
 
     pub async fn cleanup(&mut self) {
@@ -589,7 +615,7 @@ impl Editor {
                             editor.open_file_explorer(path);
                         } else {
                             // FIXME show error
-                            let _ = editor.open(path);
+                            let _ = editor.open_active(path);
                         }
                     },
                 );
@@ -629,8 +655,23 @@ impl Editor {
         fn inner(editor: &mut Editor, path: &Path) {
             let mode = editor.mode;
             editor.mode = Mode::Insert;
+
+            // if editor.tree().len() > 1 {
+            //     // This is just a heuristic to avoid stacking pickers.
+            //     // This might have some bad interactions.
+            //     editor.set_active_buffer(buf);
+            // } else {
+            let placeholder_buf = editor.active_buffer().id();
+            let preview = editor.views.insert_with_key(|id| View::new(id, placeholder_buf));
+            editor.tree.push(Layer::new_with_layout(preview, |area| {
+                tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)
+                    [1]
+            }));
+            let picker_view = editor.split_active_view(Direction::Left);
+            assert!(editor.tree().active() == picker_view);
+
             let mut injector = None;
-            let buf = editor.buffers.insert_with_key(|id| {
+            let picker_buf = editor.buffers.insert_with_key(|id| {
                 let (picker, inj) = PickerBuffer::new(
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
@@ -640,27 +681,29 @@ impl Editor {
                         assert!(path.is_file(), "directories should not be in the selection");
                         editor.pop_layer();
                         // FIXME show error
-                        let _ = editor.open(path);
+                        let _ = editor.open_active(path);
                         editor.mode = mode;
                     },
                 );
                 injector = Some(inj);
-                picker.boxed()
+                picker
+                    .with_select(move |editor, path| {
+                        tracing::debug!(%path, "picker selected item");
+                        let path = path.into_inner();
+                        // FIXME reuse the same buffer
+                        // editor.views[preview].set_buffer(placeholder_buf);
+                        match editor.open(path, OpenFlags::READONLY) {
+                            Ok(buffer) => editor.set_buffer(preview, buffer),
+                            Err(_) => {
+                                // FIXME show error
+                            }
+                        }
+                    })
+                    .boxed()
             });
-
             let injector = injector.unwrap();
 
-            if editor.tree().len() > 1 {
-                // This is just a heuristic to avoid stacking pickers.
-                // This might have some bad interactions.
-                editor.set_active_buffer(buf);
-            } else {
-                let view = editor.views.insert_with_key(|id| View::new(id, buf));
-                editor.tree.push(Layer::new_with_layout(view, |area| {
-                    tui::Layout::vertical(tui::Constraint::from_percentages([50, 50]))
-                        .areas::<2>(area)[1]
-                }));
-            };
+            editor.set_buffer(picker_view, picker_buf);
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();
             editor.pool.spawn(move || {
@@ -715,7 +758,7 @@ impl Editor {
             .to_file_path()
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
-        let buf_id = self.open(path)?;
+        let buf_id = self.open_active(path)?;
         let (_view, buf) = active!(self);
         assert_eq!(buf.id(), buf_id, "opened buffer should have been set as active");
         self.set_active_cursor(location.range.start);

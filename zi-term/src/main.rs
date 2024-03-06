@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
             std::env::set_current_dir(&path)?;
             editor.open_file_explorer(".");
         } else {
-            editor.open(path)?;
+            editor.open_active(path)?;
         }
     }
 

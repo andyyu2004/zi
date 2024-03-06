@@ -12,7 +12,7 @@ async fn it_works() -> anyhow::Result<()> {
     snapshot("empty", |_editor| Ok(())).await?;
 
     snapshot("numbers", |editor| {
-        editor.open("tests/integration/testdata/numbers.txt")?;
+        editor.open_active("tests/integration/testdata/numbers.txt")?;
         Ok(())
     })
     .await?;
@@ -23,25 +23,25 @@ async fn it_works() -> anyhow::Result<()> {
 #[tokio::test]
 async fn syntax_highlight() -> anyhow::Result<()> {
     snapshot("go", |editor| {
-        editor.open("tests/integration/testdata/main.go")?;
+        editor.open_active("tests/integration/testdata/main.go")?;
         Ok(())
     })
     .await?;
 
     snapshot("rust", |editor| {
-        editor.open("tests/integration/testdata/main.rs")?;
+        editor.open_active("tests/integration/testdata/main.rs")?;
         Ok(())
     })
     .await?;
 
     snapshot("multiline highlight", |editor| {
-        editor.open("tests/integration/testdata/multiline-highlight.rs")?;
+        editor.open_active("tests/integration/testdata/multiline-highlight.rs")?;
         Ok(())
     })
     .await?;
 
     snapshot("multiline highlight 2", |editor| {
-        editor.open("tests/integration/testdata/multiline-highlight-2.rs")?;
+        editor.open_active("tests/integration/testdata/multiline-highlight-2.rs")?;
         Ok(())
     })
     .await?;
@@ -52,7 +52,7 @@ async fn syntax_highlight() -> anyhow::Result<()> {
 #[tokio::test]
 async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |editor| {
-        editor.open("tests/integration/testdata/numbers.txt")?;
+        editor.open_active("tests/integration/testdata/numbers.txt")?;
         editor.scroll_active_view(zi::Direction::Down, 50);
         Ok(())
     })
@@ -60,14 +60,14 @@ async fn scroll() -> anyhow::Result<()> {
 
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |editor| {
-        editor.open("tests/integration/testdata/minimal.rs")?;
+        editor.open_active("tests/integration/testdata/minimal.rs")?;
         editor.scroll_active_view(zi::Direction::Down, 1);
         Ok(())
     })
     .await?;
 
     snapshot("scroll go", |editor| {
-        editor.open("tests/integration/testdata/main.go")?;
+        editor.open_active("tests/integration/testdata/main.go")?;
         editor.scroll_active_view(zi::Direction::Down, 9);
         Ok(())
     })

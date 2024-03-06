@@ -7,7 +7,7 @@ use super::*;
 use crate::editor::{active, Action};
 use crate::{hashmap, trie, Editor, Line, Mode};
 
-pub struct PickerBuffer<T: Item, F: 'static> {
+pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     id: BufferId,
     text: Rope,
     nucleo: Nucleo<T>,
@@ -16,12 +16,16 @@ pub struct PickerBuffer<T: Item, F: 'static> {
     keymap: Keymap,
     selected_line: Line,
     confirm: F,
+    // It's a bit unnecessarily restrictive to require the same type for `confirm` and `select`
+    // We can add another type parameter if we need to
+    select: Option<G>,
 }
 
-impl<T, F> PickerBuffer<T, F>
+impl<T, F, G> PickerBuffer<T, F, G>
 where
     T: Item,
-    F: Fn(&mut Editor, T) + Copy,
+    F: Fn(&mut Editor, T) + Copy + 'static,
+    G: Fn(&mut Editor, T) + Copy + 'static,
 {
     pub fn new(
         id: BufferId,
@@ -38,6 +42,7 @@ where
                 cancel,
                 nucleo,
                 confirm,
+                select: None,
                 text: Rope::new(),
                 selected_line: Line::default(),
                 keymap: {
@@ -46,19 +51,25 @@ where
                         if buf.selected_line.raw() < buf.nucleo.snapshot().item_count() - 1 {
                             buf.selected_line += 1
                         }
+
+                        if let Some(select) = buf.select {
+                            let item = buf.selected_item();
+                            select(editor, item);
+                        }
                     };
-                    let prev: Action = |editor| active!(editor as Self).1.selected_line -= 1;
+                    let prev: Action = |editor| {
+                        let (_, buf) = active!(editor as Self);
+                        buf.selected_line -= 1;
+                        if let Some(select) = buf.select {
+                            let item = buf.selected_item();
+                            select(editor, item);
+                        }
+                    };
                     let confirm: Action = |editor| {
                         let (_, buf) = active!(editor as Self);
-                        let data = buf
-                            .nucleo
-                            .snapshot()
-                            .get_matched_item(buf.selected_line.idx() as u32)
-                            .expect("invalid line index")
-                            .data
-                            .clone();
+                        let item = buf.selected_item();
                         let confirm = buf.confirm;
-                        confirm(editor, data);
+                        confirm(editor, item);
                     };
 
                     Keymap::from(hashmap! {
@@ -85,9 +96,24 @@ where
             injector,
         )
     }
+
+    /// Add a callback to be called when the user selects an item
+    pub fn with_select(mut self, select: G) -> Self {
+        self.select = Some(select);
+        self
+    }
+
+    fn selected_item(&self) -> T {
+        self.nucleo
+            .snapshot()
+            .get_matched_item(self.selected_line.idx() as u32)
+            .expect("invalid line index")
+            .data
+            .clone()
+    }
 }
 
-impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
+impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
     fn id(&self) -> BufferId {
         self.id
     }
@@ -120,6 +146,7 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         // TODO respect position
         self.text.insert_char(self.end_char_idx, c);
         self.end_char_idx += 1;
+        self.selected_line = Line::from(0);
         self.nucleo.pattern.reparse(
             0,
             &self.writable_text().to_string(),
@@ -143,10 +170,9 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
             let line_idx =
                 self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
             let line_idx = line_idx.raw().min(size.height as u32 - 1);
-            Box::new(std::iter::once((
-                Range::new((line_idx, 0), (line_idx, size.width as u32)),
-                HighlightId(0),
-            ))) as Box<dyn Iterator<Item = (Range, HighlightId)>>
+            let range = Range::new((line_idx, 0), (line_idx, size.width as u32));
+            Box::new(std::iter::once((range, HighlightId(0))))
+                as Box<dyn Iterator<Item = (Range, HighlightId)>>
         };
 
         res.unwrap_or_else(|| Box::new(std::iter::empty()))
