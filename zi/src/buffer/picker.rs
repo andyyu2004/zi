@@ -16,7 +16,6 @@ pub struct PickerBuffer<T: Item, F: 'static> {
     keymap: Keymap,
     selected_line: Line,
     confirm: F,
-    rendered_item_count: u32,
 }
 
 impl<T, F> PickerBuffer<T, F>
@@ -41,11 +40,10 @@ where
                 confirm,
                 text: Rope::new(),
                 selected_line: Line::default(),
-                rendered_item_count: 0,
                 keymap: {
                     let next: Action = |editor| {
                         let (_, buf) = active!(editor as Self);
-                        if buf.selected_line.raw() < buf.rendered_item_count - 1 {
+                        if buf.selected_line.raw() < buf.nucleo.snapshot().item_count() - 1 {
                             buf.selected_line += 1
                         }
                     };
@@ -144,6 +142,7 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         let res: Option<_> = try {
             let line_idx =
                 self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
+            let line_idx = line_idx.raw().min(size.height as u32 - 1);
             Box::new(std::iter::once((
                 Range::new((line_idx, 0), (line_idx, size.width as u32)),
                 HighlightId(0),
@@ -159,8 +158,15 @@ impl<T: Item, F: 'static> Buffer for PickerBuffer<T, F> {
         self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
 
-        self.rendered_item_count = snapshot.matched_item_count().min(area.width as u32);
-        for item in snapshot.matched_items(..self.rendered_item_count) {
+        // the number of items that will fit on the screen
+        let limit = area.height.saturating_sub(1 + self.writable_text().len_lines() as u16) as u32;
+
+        let offset =
+            snapshot.matched_item_count().min(self.selected_line.raw().saturating_sub(limit));
+
+        let n = snapshot.matched_item_count().min(1 + limit + offset);
+
+        for item in snapshot.matched_items(offset..n) {
             rope.insert(rope.len_chars(), &format!("\n{}", item.data));
         }
 

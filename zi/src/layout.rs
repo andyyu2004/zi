@@ -18,7 +18,14 @@ impl ViewTree {
     }
 
     pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        self.top().view_area(self.area(), view)
+        let id = view.view_id();
+        for layer in self.layers.iter().rev() {
+            if let Some(area) = layer.view_area(self.area(), id) {
+                return area;
+            }
+        }
+
+        panic!("view {id:?} not found in view_tree")
     }
 
     pub fn is_empty(&self) -> bool {
@@ -108,10 +115,8 @@ impl Layer {
         Layer { active, root: Node::View(active), compute_area: Box::new(compute_area) }
     }
 
-    pub fn view_area(&self, area: Rect, view: impl HasViewId) -> Rect {
-        self.root
-            .view_area((self.compute_area)(area), view.view_id())
-            .expect("view not found in layer")
+    pub fn view_area(&self, area: Rect, view: impl HasViewId) -> Option<Rect> {
+        self.root.view_area((self.compute_area)(area), view.view_id())
     }
 
     pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
