@@ -1,6 +1,10 @@
 mod highlight;
 
+use std::sync::OnceLock;
+
+use parking_lot::RwLock;
 use ropey::RopeSlice;
+use rustc_hash::FxHashMap;
 use tree_sitter::{
     Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, TextProvider, Tree,
 };
@@ -10,10 +14,16 @@ pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
 use crate::FileType;
 
 pub struct Syntax {
-    highlights_query: Query,
+    highlights_query: &'static Query,
     tree: Option<Tree>,
     parser: Parser,
 }
+
+/// A cache of tree-sitter queries for each language.
+/// Creating a query is very expensive, so we cache them here forever.
+/// Not concerned about memory usage because the queries are not large, and there are not many languages.
+static QUERY_CACHE: OnceLock<RwLock<FxHashMap<tree_sitter::Language, &'static Query>>> =
+    OnceLock::new();
 
 impl Syntax {
     pub fn for_language(id: &FileType) -> Option<Self> {
@@ -33,7 +43,20 @@ impl Syntax {
             _ => return None,
         };
 
-        let highlights_query = Query::new(language, highlights).unwrap();
+        let cache = QUERY_CACHE.get_or_init(Default::default);
+        let read_guard = cache.read();
+        let highlights_query = match read_guard.get(&language) {
+            Some(&query) => query,
+            None => {
+                drop(read_guard);
+                let query =
+                    Query::new(language, highlights).expect("failed to create tree-sitter query");
+                let query = &*Box::leak(Box::new(query));
+                cache.write().insert(language, query);
+                query
+            }
+        };
+
         let mut parser = Parser::new();
         parser.set_language(language).expect("failed to set tree-sitter parser language");
         parser.set_timeout_micros(5000);
