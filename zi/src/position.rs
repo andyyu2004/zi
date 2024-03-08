@@ -81,8 +81,8 @@ impl Location {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Range {
-    pub start: Position,
-    pub end: Position,
+    start: Position,
+    end: Position,
 }
 
 impl Range {
@@ -102,6 +102,21 @@ impl Range {
     #[inline]
     pub fn intersects(&self, other: &Range) -> bool {
         self.start < other.end && self.end > other.start
+    }
+
+    #[inline]
+    pub fn is_single_line(&self) -> bool {
+        self.start.line == self.end.line
+    }
+
+    #[inline]
+    pub fn start(&self) -> Position {
+        self.start
+    }
+
+    #[inline]
+    pub fn end(&self) -> Position {
+        self.end
     }
 
     /// Split the range into three segments: before, inside, and after the other range.
@@ -579,6 +594,14 @@ where
             (None, Some(_)) => return next!(y),
             (Some(&x), Some(&y)) => (x, y),
         };
+
+        // It's generally not possible to merge non-single-line ranges.
+        // Given ranges 0:0:5:2 and 0:3:0:5, it's ambiguous what the output should be.
+        // In particular, it's ambiguous where the first highlight should end for each line.
+        assert!(
+            xr.is_single_line() && yr.is_single_line(),
+            "can only merge single-line ranges: {xr} {yr}"
+        );
 
         if xr.intersects(&yr) {
             next!(x, y);

@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Range};
+use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -291,17 +291,16 @@ impl View {
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
             .syntax_highlights(&mut query_cursor)
-            .skip_while(|(node, _)| node.range().end_point.row < line)
-            .filter_map(|(node, id)| Some((node, id.style(theme)?)))
-            .map(|(node, style)| {
-                let range = Range::from(node.range());
+            .skip_while(|(range, _)| range.end().line().idx() < line)
+            .filter_map(|(range, id)| Some((range, id.style(theme)?)))
+            .map(|(range, style)| {
                 // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming
                 (range - Offset::new(line as u32, 0), style)
             });
 
         let overlay_highlights = buf
             .overlay_highlights(self, area.into())
-            .skip_while(|(range, _)| range.end.line().idx() < line)
+            .skip_while(|(range, _)| range.end().line().idx() < line)
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 

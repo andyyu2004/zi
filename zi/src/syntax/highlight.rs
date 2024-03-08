@@ -130,7 +130,6 @@ impl From<Style> for tui::Style {
 impl Merge for Style {
     #[inline]
     fn merge(self, other: Self) -> Self {
-        tracing::error!("merging styles: {:?} and {:?}", self, other);
         Self { fg: other.fg.or(self.fg), bg: other.bg.or(self.bg) }
     }
 }

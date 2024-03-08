@@ -58,12 +58,25 @@ impl Buffer for TextBuffer {
     fn syntax_highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Node<'_>, HighlightId)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         Box::new(
             self.syntax
                 .as_ref()
                 .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
-                .map(|capture| (capture.node, self.highlight_map.get(capture.index))),
+                .map(|capture| (capture.node.range(), self.highlight_map.get(capture.index)))
+                .flat_map(move |(range, id)| {
+                    // Split multi-line highlights into single-line highlights
+                    (range.start_point.row..=range.end_point.row).map(move |idx| {
+                        let start =
+                            if idx == range.start_point.row { range.start_point.column } else { 0 };
+                        let end = if idx == range.end_point.row {
+                            range.end_point.column
+                        } else {
+                            self.text.line(idx).len_chars()
+                        };
+                        (Range::new(Position::new(idx, start), Position::new(idx, end)), id)
+                    })
+                }),
         )
     }
 

@@ -34,6 +34,18 @@ async fn syntax_highlight() -> anyhow::Result<()> {
     })
     .await?;
 
+    snapshot("multiline highlight", |editor| {
+        editor.open("tests/integration/testdata/multiline-highlight.rs")?;
+        Ok(())
+    })
+    .await?;
+
+    snapshot("multiline highlight 2", |editor| {
+        editor.open("tests/integration/testdata/multiline-highlight-2.rs")?;
+        Ok(())
+    })
+    .await?;
+
     Ok(())
 }
 

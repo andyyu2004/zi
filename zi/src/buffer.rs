@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use ropey::{Rope, RopeSlice};
 use stdx::sync::Cancel;
-use tree_sitter::{Node, QueryCursor};
+use tree_sitter::QueryCursor;
 use zi_lsp::lsp_types::Url;
 
 pub use self::explorer::ExplorerBuffer;
@@ -37,13 +37,18 @@ pub trait Buffer {
     // TODO this should be a more general mutate operation
     fn insert_char(&mut self, pos: Position, c: char);
 
+    /// Syntax highlights iterator.
+    /// All ranges must be single-line ranges.
     fn syntax_highlights<'a>(
         &'a self,
         _cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Node<'_>, HighlightId)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         Box::new(std::iter::empty())
     }
 
+    /// Overlay highlights iterator that are merged with the syntax highlights.
+    /// Overlay highlights take precedence.
+    /// All ranges must be single-line ranges.
     fn overlay_highlights(
         &self,
         _view: &View,
@@ -118,7 +123,7 @@ impl Buffer for Box<dyn Buffer> {
     fn syntax_highlights<'a>(
         &'a self,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Node<'a>, HighlightId)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         self.as_ref().syntax_highlights(cursor)
     }
 

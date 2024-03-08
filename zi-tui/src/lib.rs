@@ -90,11 +90,12 @@ where
     fn render(mut self, area: Rect, buf: &mut Buffer) {
         let n = self.lines.len();
         for (i, line) in self.lines.enumerate() {
+            let line = line.into();
+
             if i >= area.height as usize {
                 break;
             }
 
-            let line = line.into();
             if i == n - 1 && line.is_empty() {
                 // Don't render the final empty line
                 break;
@@ -105,19 +106,25 @@ where
                 Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
             )];
 
-            if let Some((range, _)) = self.highlights.peek() {
-                assert!(range.start.0 >= i, "highlights got behind?");
-            }
-
             let mut j = 0;
-            while let Some((range, _)) = self.highlights.peek() {
+            while let Some((range, style)) = self.highlights.peek() {
                 if range.start.0 > i {
                     break;
                 }
 
+                let start = if range.start.0 == i { range.start.1 } else { 0 };
+                if range.end.0 > i {
+                    // If the highlight is a multi-line highlight,
+                    // we style the entire line with that style and move on to highlight the next
+                    // line (without next()ing the highlight iterator)
+                    spans.push(Span::styled(&line[..], *style));
+                    // set `j` here so we don't try to highlight the same range again
+                    j = line.len();
+                    break;
+                }
+
                 let (range, style) = self.highlights.next().expect("just peeked");
-                let start = range.start.1;
-                let end = range.end.1;
+                let end = if range.end.0 == i { range.end.1 } else { line.len() };
 
                 if start < j {
                     // Sometimes highlights can overlap, we just arbitrarily use the first one of that range
@@ -143,6 +150,7 @@ where
                 j = end;
             }
 
+            // Add in a span for the rest of the line that wasn't highlighted
             if j < line.len() {
                 spans.push(Span::raw(&line[j..]));
             }
