@@ -1,4 +1,4 @@
-#![feature(try_blocks, type_alias_impl_trait, trait_upcasting)]
+#![feature(try_blocks, type_alias_impl_trait, trait_upcasting, is_sorted)]
 
 mod boring_impls;
 mod buffer;
@@ -18,7 +18,7 @@ mod view;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 
-pub use self::buffer::{Buffer, BufferId, Text};
+pub use self::buffer::{Buffer, BufferId, PickerBuffer, Text, TextBuffer};
 pub use self::editor::{Callbacks, Editor};
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Position, Range, Size};

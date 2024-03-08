@@ -673,7 +673,7 @@ impl Editor {
 
             let mut injector = None;
             let picker_buf = editor.buffers.insert_with_key(|id| {
-                let (picker, inj) = PickerBuffer::new(
+                let (picker, inj) = PickerBuffer::new_with_select(
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
@@ -685,10 +685,7 @@ impl Editor {
                         let _ = editor.open_active(path);
                         editor.mode = mode;
                     },
-                );
-                injector = Some(inj);
-                picker
-                    .with_select(move |editor, path| {
+                    move |editor, path| {
                         tracing::debug!(%path, "picker selected item");
                         let path = path.into_inner();
                         // FIXME reuse the same buffer
@@ -699,8 +696,10 @@ impl Editor {
                                 // FIXME show error
                             }
                         }
-                    })
-                    .boxed()
+                    },
+                );
+                injector = Some(inj);
+                picker.boxed()
             });
             let injector = injector.unwrap();
 
