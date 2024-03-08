@@ -44,8 +44,10 @@ pub trait Text: fmt::Display {
     }
 }
 
+/// Some magic to match the behaviour of `[ropey::Ropey]`
 fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> + '_ {
-    s.lines().chain(std::iter::once("")).map(Cow::Borrowed)
+    // append an empty line if the string ends with a newline or is empty (to match ropey's behaviour)
+    s.split_inclusive('\n').chain((s.is_empty() || s.ends_with('\n')).then_some("")).map(Into::into)
 }
 
 /// Naive implementation of `Text` for `str`.
@@ -63,34 +65,42 @@ impl Text for str {
 
     #[inline]
     fn line_to_char(&self, line_idx: usize) -> usize {
-        str_lines(self).take(line_idx).map(|l| l.len() + 1).sum()
+        str_lines(self).take(line_idx).map(|l| l.len_chars()).sum()
     }
 
     #[inline]
     fn char_to_line(&self, mut char_idx: usize) -> usize {
+        // This should be a real assert, but it's expensive so we just return the last line
+        debug_assert!(char_idx < self.len_chars(), "char_idx out of bounds: {char_idx}");
+
         str_lines(self)
             .take_while(|l| {
-                if l.len() >= char_idx {
+                let n = l.len_chars();
+                if n > char_idx {
                     return false;
                 }
-                char_idx -= l.len() + 1;
+                char_idx -= n;
                 true
             })
             .count()
     }
 
+    #[inline]
     fn len_lines(&self) -> usize {
-        str_lines(self).count()
+        1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
     }
 
+    #[inline]
     fn len_chars(&self) -> usize {
         self.chars().count()
     }
 
+    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         Box::new(str_lines(self).skip(line_idx))
     }
 
+    #[inline]
     fn chars_at(&self, _char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         todo!()
     }
