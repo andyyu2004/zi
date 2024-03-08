@@ -18,7 +18,7 @@ mod view;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 
-pub use self::buffer::{Buffer, BufferId};
+pub use self::buffer::{Buffer, BufferId, Text};
 pub use self::editor::{Callbacks, Editor};
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Position, Range, Size};

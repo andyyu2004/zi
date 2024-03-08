@@ -8,7 +8,8 @@ use clap::Parser;
 use crossterm::event::EventStream;
 use futures_util::StreamExt;
 use tracing_subscriber::EnvFilter;
-use tui::{CrosstermBackend, Terminal};
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 use zi::input::Event;
 
 #[derive(Parser)]

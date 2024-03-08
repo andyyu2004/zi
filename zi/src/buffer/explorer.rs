@@ -61,22 +61,6 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         self.id
     }
 
-    fn text(&self) -> RopeSlice<'_> {
-        self.text.slice(..)
-    }
-
-    fn keymap(&mut self) -> Option<&mut Keymap> {
-        Some(&mut self.keymap)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn path(&self) -> &Path {
         // TODO get the actual directory path we're looking at
         Path::new("explorer")
@@ -94,8 +78,28 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         4
     }
 
+    fn text(&self) -> &dyn Text {
+        &self.text
+    }
+
     fn version(&self) -> u32 {
         0
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn insert_char(&mut self, _: Position, _: char) {
+        unreachable!("explorer buffer is read-only")
+    }
+
+    fn keymap(&mut self) -> Option<&mut Keymap> {
+        Some(&mut self.keymap)
     }
 
     fn pre_render(&mut self, _view: &View, area: tui::Rect) {
@@ -111,9 +115,5 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
 
     fn on_leave(&mut self) {
         self.cancel.cancel();
-    }
-
-    fn insert_char(&mut self, _: Position, _: char) {
-        unreachable!("explorer buffer is read-only")
     }
 }

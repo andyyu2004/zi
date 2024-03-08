@@ -4,7 +4,8 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
-use tui::{CrosstermBackend, Terminal};
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 use zi::Editor;
 
 #[tokio::test]

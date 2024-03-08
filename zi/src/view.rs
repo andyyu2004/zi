@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position};
+use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Text};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -139,7 +139,7 @@ impl View {
         flags: SetCursorFlags,
     ) {
         assert_eq!(buf.id(), self.buf);
-        let text = buf.writable_text();
+        let text = buf.text();
         let size = size.into();
 
         // Check line is in-bounds
@@ -154,11 +154,13 @@ impl View {
             _ => return,
         };
 
+        let line_len = line.chars().count();
+
         let pos = Position::new(line_idx, pos.col());
 
         // Pretending CRLF doesn't exist.
         // We don't allow the cursor on the newline character.
-        let n: usize = match line.get_char(line.len_chars().saturating_sub(1)) {
+        let n: usize = match line.get_char(line_len.saturating_sub(1)) {
             Some('\n') => 1,
             _ => 0,
         };
@@ -169,7 +171,7 @@ impl View {
             Mode::Normal | Mode::Visual => n + 1,
         };
 
-        let max_col = Col::from(line.len_chars().saturating_sub(n));
+        let max_col = Col::from(line_len.saturating_sub(n));
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();

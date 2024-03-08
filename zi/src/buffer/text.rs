@@ -37,8 +37,8 @@ impl Buffer for TextBuffer {
         self.tab_width
     }
 
-    fn text(&self) -> RopeSlice<'_> {
-        self.text.slice(..)
+    fn text(&self) -> &dyn Text {
+        &self.text
     }
 
     fn insert_char(&mut self, pos: Position, c: char) {

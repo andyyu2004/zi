@@ -134,8 +134,8 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         4
     }
 
-    fn text(&self) -> RopeSlice<'_> {
-        self.text.slice(..)
+    fn text(&self) -> &dyn Text {
+        &self.text
     }
 
     fn version(&self) -> u32 {
@@ -149,16 +149,11 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         self.selected_line = Line::from(0);
         self.nucleo.pattern.reparse(
             0,
-            &self.writable_text().to_string(),
+            &self.text.to_string(),
             CaseMatching::Smart,
             Normalization::Smart,
             false,
         );
-    }
-
-    fn writable_range(&self) -> (Bound<usize>, Bound<usize>) {
-        // TODO maintain this correctly
-        (Bound::Unbounded, Bound::Excluded(self.end_char_idx))
     }
 
     fn overlay_highlights(
@@ -181,11 +176,10 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
     fn pre_render(&mut self, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
-        self.text = Rope::from(self.writable_text());
         let mut rope = Rope::new();
 
         // the number of items that will fit on the screen
-        let limit = area.height.saturating_sub(1 + self.writable_text().len_lines() as u16) as u32;
+        let limit = area.height.saturating_sub(1 + self.text.len_lines() as u16) as u32;
 
         let offset =
             snapshot.matched_item_count().min(self.selected_line.raw().saturating_sub(limit));

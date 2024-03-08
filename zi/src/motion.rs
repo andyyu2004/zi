@@ -1,17 +1,18 @@
-use ropey::RopeSlice;
+use stdx::iter::BidirectionalIterator;
 
+use crate::buffer::Text;
 use crate::Position;
 
 pub trait Motion {
-    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position;
+    fn motion(self, text: &dyn Text, pos: Position) -> Position;
 }
 
 pub struct PrevToken;
 
 impl Motion for PrevToken {
-    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
-        let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
-        let mut chars = slice.chars_at(start_char).reversed();
+    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
+        let mut chars = text.chars_at(start_char).reversed();
 
         let prev = chars.next().unwrap_or('x');
         let mut i = 0;
@@ -23,8 +24,8 @@ impl Motion for PrevToken {
         }
 
         let char = start_char - i;
-        let line = slice.char_to_line(char);
-        let col = char - slice.line_to_char(line);
+        let line = text.char_to_line(char);
+        let col = char - text.line_to_char(line);
         Position::new(line, col)
     }
 }
@@ -32,9 +33,9 @@ impl Motion for PrevToken {
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
-        let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = slice.chars_at(start_char);
+    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
+        let chars = text.chars_at(start_char);
 
         let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
 
@@ -53,8 +54,8 @@ impl Motion for NextWord {
         }
 
         let char = start_char + i;
-        let line = slice.char_to_line(char);
-        let col = char - slice.line_to_char(line);
+        let line = text.char_to_line(char);
+        let col = char - text.line_to_char(line);
         Position::new(line, col)
     }
 }
@@ -63,9 +64,9 @@ impl Motion for NextWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(self, slice: RopeSlice<'_>, pos: Position) -> Position {
-        let start_char = slice.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = slice.chars_at(start_char);
+    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
+        let chars = text.chars_at(start_char);
 
         let mut i = 0;
         let mut found_whitespace = false;
@@ -82,8 +83,8 @@ impl Motion for NextToken {
         }
 
         let char = start_char + i;
-        let line = slice.char_to_line(char);
-        let col = char - slice.line_to_char(line);
+        let line = text.char_to_line(char);
+        let col = char - text.line_to_char(line);
         Position::new(line, col)
     }
 }

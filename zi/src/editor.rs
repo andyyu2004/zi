@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 
+use std::borrow::Cow;
 use std::fmt;
 use std::fs::File;
 use std::future::Future;
@@ -10,7 +11,7 @@ use std::sync::OnceLock;
 use std::task::{Context, Poll};
 
 use futures_core::Stream;
-use ropey::{Rope, RopeBuilder, RopeSlice};
+use ropey::{Rope, RopeBuilder};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::PathExt;
@@ -450,7 +451,7 @@ impl Editor {
         }
     }
 
-    pub fn current_line(&self) -> RopeSlice<'_> {
+    pub fn current_line(&self) -> Cow<'_, str> {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
@@ -461,7 +462,7 @@ impl Editor {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        text.line(cursor.line().idx()).char(cursor.col().idx())
+        text.line(cursor.line().idx()).chars().nth(cursor.col().idx()).unwrap()
     }
 
     pub fn theme(&self) -> &Theme {
@@ -471,7 +472,7 @@ impl Editor {
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = active!(self);
         let area = self.tree.view_area(view.id());
-        let pos = motion.motion(buf.text().slice(..), view.cursor());
+        let pos = motion.motion(buf.text(), view.cursor());
         view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
     }
 

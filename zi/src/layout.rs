@@ -32,10 +32,6 @@ impl ViewTree {
         self.layers.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.layers.len()
-    }
-
     pub fn push(&mut self, layer: Layer) {
         self.layers.push(layer);
     }

@@ -6,13 +6,14 @@ use std::iter::Peekable;
 use std::marker::PhantomData;
 use std::ops::Range;
 
-pub use ratatui::backend::{Backend, CrosstermBackend};
+use itertools::Itertools;
+pub use ratatui::backend::Backend;
 pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Style};
 pub use ratatui::text::{Line, Span, Text};
 pub use ratatui::widgets::{Clear, Widget};
-pub use ratatui::{Frame, Terminal};
+pub use ratatui::{backend, Frame, Terminal};
 
 pub use self::element::Element;
 pub use self::sequence::ElementSeq;
@@ -83,20 +84,21 @@ impl<I, H: Iterator> Lines<'_, I, H> {
 
 impl<'a, I, H> Widget for Lines<'a, I, H>
 where
-    I: ExactSizeIterator,
+    I: Iterator,
     I::Item: Into<Cow<'a, str>>,
     H: Iterator<Item = (Range<(usize, usize)>, Style)>,
 {
     fn render(mut self, area: Rect, buf: &mut Buffer) {
-        let n = self.lines.len();
-        for (i, line) in self.lines.enumerate() {
+        for (pos, (i, line)) in self.lines.enumerate().with_position() {
             let line = line.into();
 
             if i >= area.height as usize {
                 break;
             }
 
-            if i == n - 1 && line.is_empty() {
+            if matches!(pos, itertools::Position::Last | itertools::Position::Only)
+                && line.is_empty()
+            {
                 // Don't render the final empty line
                 break;
             }

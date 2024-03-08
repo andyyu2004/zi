@@ -84,15 +84,15 @@ impl Syntax {
         match &self.tree {
             Some(tree) => {
                 let captures =
-                    cursor.captures(&self.highlights_query, tree.root_node(), RopeProvider(source));
+                    cursor.captures(self.highlights_query, tree.root_node(), RopeProvider(source));
                 Highlights::Captures(captures)
             }
             None => Highlights::Empty,
         }
     }
 
-    pub fn highlights_query(&self) -> &Query {
-        &self.highlights_query
+    pub fn highlights_query(&self) -> &'static Query {
+        self.highlights_query
     }
 }
 

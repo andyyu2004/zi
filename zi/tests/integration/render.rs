@@ -1,8 +1,7 @@
 mod split;
 
-use ratatui::backend::TestBackend;
-use ratatui::Terminal;
-use tui::Backend as _;
+use tui::backend::{Backend as _, TestBackend};
+use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
 
 pub fn new_with_snapshot(

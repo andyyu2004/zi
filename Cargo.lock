@@ -1764,6 +1764,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stdx"
 version = "0.1.0"
+dependencies = [
+ "ropey",
+]
 
 [[package]]
 name = "str_indices"
@@ -2878,7 +2881,6 @@ dependencies = [
  "ignore",
  "nucleo",
  "parking_lot",
- "ratatui",
  "rayon",
  "ropey",
  "rustc-hash",
@@ -2928,6 +2930,7 @@ dependencies = [
 name = "zi-tui"
 version = "0.1.0"
 dependencies = [
+ "itertools 0.12.1",
  "ratatui",
  "tracing",
 ]
