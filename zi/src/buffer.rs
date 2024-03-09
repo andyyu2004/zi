@@ -56,6 +56,10 @@ pub trait Text: fmt::Display {
 
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_>;
 
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
+        None
+    }
+
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.lines_at(0)
     }
@@ -233,6 +237,11 @@ impl Text for str {
 }
 
 impl Text for Rope {
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
+        Some(self)
+    }
+
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
         self.get_line(line_idx).map(Into::into)

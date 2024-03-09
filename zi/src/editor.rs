@@ -148,7 +148,7 @@ impl Editor {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers.insert_with_key(|id| {
-            TextBuffer::new(id, FileType::TEXT, "scratch", "", &theme).boxed()
+            TextBuffer::new(id, FileType::TEXT, "scratch", Rope::new(), &theme).boxed()
         });
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));

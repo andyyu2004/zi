@@ -1,10 +1,10 @@
 use super::*;
 
-pub struct TextBuffer {
+pub struct TextBuffer<X> {
     id: BufferId,
     path: PathBuf,
     url: Option<Url>,
-    text: Rope,
+    text: X,
     language_id: FileType,
     syntax: Option<Syntax>,
     // FIXME highlight map doesn't belong here
@@ -13,7 +13,7 @@ pub struct TextBuffer {
     tab_width: u8,
 }
 
-impl Buffer for TextBuffer {
+impl<X: Text + 'static> Buffer for TextBuffer<X> {
     fn id(&self) -> BufferId {
         self.id
     }
@@ -42,13 +42,19 @@ impl Buffer for TextBuffer {
     }
 
     fn insert_char(&mut self, pos: Position, c: char) {
-        let idx = self.text.line_to_char(pos.line().idx()) + pos.col().idx();
-        self.text.insert_char(idx, c);
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.apply(&self.text);
-        }
+        match self.text.as_text_mut() {
+            Some(text) => {
+                let idx = text.line_to_char(pos.line().idx()) + pos.col().idx();
+                text.insert_char(idx, c);
+                if let Some(syntax) = self.syntax.as_mut() {
+                    syntax.apply(&self.text);
+                }
 
-        self.version.checked_add(1).unwrap();
+                self.version.checked_add(1).unwrap();
+            }
+            // FIXME need to check flags and prevent this
+            None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
+        }
     }
 
     fn version(&self) -> u32 {
@@ -104,23 +110,25 @@ impl Buffer for TextBuffer {
     }
 }
 
-impl TextBuffer {
+impl<X: Text> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,
         language_id: FileType,
         path: impl AsRef<Path>,
-        text: impl Into<Rope>,
+        mut text: X,
         theme: &Theme,
     ) -> Self {
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
-        let mut text: Rope = text.into();
         let idx = text.len_chars();
+
         // ensure the buffer ends with a newline
-        if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-            text.insert_char(idx, '\n');
+        if let Some(text) = text.as_text_mut() {
+            if text.get_char(idx.saturating_sub(1)) != Some('\n') {
+                text.insert_char(idx, '\n');
+            }
         }
 
         let mut syntax = Syntax::for_language(&language_id);
