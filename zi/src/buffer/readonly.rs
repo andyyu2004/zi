@@ -19,6 +19,7 @@ pub struct ReadonlyText<B> {
 }
 
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
+    #[cfg(test)]
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
         Self { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() }
@@ -75,19 +76,33 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
         self.as_str().char_to_line(char_idx)
     }
 
+    #[inline]
     fn len_lines(&self) -> usize {
         *self.len_lines.get_or_init(|| 1 + memchr::memchr_iter(b'\n', &self.buf).count())
     }
 
+    #[inline]
     fn len_chars(&self) -> usize {
         *self.len_chars.get_or_init(|| self.as_str().chars().count())
     }
 
+    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.as_str().lines_at(line_idx)
     }
 
+    #[inline]
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         self.as_str().chars_at(char_idx)
+    }
+
+    #[inline]
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
+        self.as_str().chunk_at_byte(byte_idx)
+    }
+
+    #[inline]
+    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+        self.as_str().byte_slice(range)
     }
 }

@@ -1,3 +1,4 @@
+mod change;
 mod explorer;
 mod picker;
 mod readonly;
@@ -26,6 +27,18 @@ slotmap::new_key_type! {
     pub struct BufferId;
 }
 
+pub trait TextMut: Text {
+    // TODO make this a general method `apply(&mut self, change: Change)` for all modifications
+    fn insert_char(&mut self, char_idx: usize, c: char);
+}
+
+impl TextMut for Rope {
+    #[inline]
+    fn insert_char(&mut self, char_idx: usize, c: char) {
+        self.insert_char(char_idx, c);
+    }
+}
+
 pub trait Text: fmt::Display {
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>>;
     fn get_char(&self, char_idx: usize) -> Option<char>;
@@ -38,6 +51,10 @@ pub trait Text: fmt::Display {
 
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str;
+
+    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_>;
 
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.lines_at(0)
@@ -203,6 +220,16 @@ impl Text for str {
     fn chars_at(&self, _char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         todo!()
     }
+
+    #[inline]
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
+        &self[byte_idx..]
+    }
+
+    #[inline]
+    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(std::iter::once(&self[range]))
+    }
 }
 
 impl Text for Rope {
@@ -240,8 +267,20 @@ impl Text for Rope {
         Box::new(self.lines_at(line_idx).map(Into::into))
     }
 
+    #[inline]
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         Box::new(self.chars_at(char_idx))
+    }
+
+    #[inline]
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
+        let (chunk, start_byte, _, _) = self.chunk_at_byte(byte_idx);
+        &chunk[byte_idx - start_byte..]
+    }
+
+    #[inline]
+    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(self.byte_slice(range).chunks())
     }
 }
 
@@ -433,12 +472,24 @@ impl<T: Text + ?Sized> Text for &T {
         (**self).chars_at(char_idx)
     }
 
+    #[inline]
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         (**self).lines()
     }
 
+    #[inline]
     fn line(&self, line: usize) -> Cow<'_, str> {
         (**self).line(line)
+    }
+
+    #[inline]
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
+        (**self).chunk_at_byte(byte_idx)
+    }
+
+    #[inline]
+    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+        (**self).byte_slice(range)
     }
 }
 

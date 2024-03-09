@@ -3,14 +3,12 @@ mod highlight;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
-use ropey::RopeSlice;
 use rustc_hash::FxHashMap;
-use tree_sitter::{
-    Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, TextProvider, Tree,
-};
+use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
+use crate::buffer::Text;
 use crate::FileType;
 
 pub struct Syntax {
@@ -63,12 +61,9 @@ impl Syntax {
         Some(Self { highlights_query, parser, tree: None })
     }
 
-    pub fn apply(&mut self, source: RopeSlice<'_>) {
+    pub fn apply(&mut self, source: &dyn Text) {
         self.tree = self.parser.parse_with(
-            &mut |byte, _pos| match source.try_chunk_at_byte(byte) {
-                Ok((chunk, start_byte, _, _)) => &chunk.as_bytes()[byte - start_byte..],
-                Err(_) => &[],
-            },
+            &mut |byte, _point| source.chunk_at_byte(byte),
             None,
             // TODO incremental partial parsing
             // i.e. keep tree in sync and pass it in, also can only parse the visible range of the document
@@ -79,12 +74,12 @@ impl Syntax {
     pub fn highlights<'a, 'tree: 'a>(
         &'tree self,
         cursor: &'a mut QueryCursor,
-        source: RopeSlice<'a>,
+        source: &'a dyn Text,
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
                 let captures =
-                    cursor.captures(self.highlights_query, tree.root_node(), RopeProvider(source));
+                    cursor.captures(self.highlights_query, tree.root_node(), TextProvider(source));
                 Highlights::Captures(captures)
             }
             None => Highlights::Empty,
@@ -99,7 +94,7 @@ impl Syntax {
 /// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide
 #[derive(Default)]
 pub enum Highlights<'a, 'tree> {
-    Captures(QueryCaptures<'a, 'tree, RopeProvider<'a>>),
+    Captures(QueryCaptures<'a, 'tree, TextProvider<'a>>),
     #[default]
     Empty,
 }
@@ -115,24 +110,12 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
     }
 }
 
-pub struct ChunksBytes<'a> {
-    chunks: ropey::iter::Chunks<'a>,
-}
+pub struct TextProvider<'a>(&'a dyn Text);
 
-impl<'a> Iterator for ChunksBytes<'a> {
-    type Item = &'a [u8];
-    fn next(&mut self) -> Option<Self::Item> {
-        self.chunks.next().map(str::as_bytes)
-    }
-}
-
-pub struct RopeProvider<'a>(pub RopeSlice<'a>);
-
-impl<'a> TextProvider<'a> for RopeProvider<'a> {
-    type I = ChunksBytes<'a>;
+impl<'a> tree_sitter::TextProvider<'a> for TextProvider<'a> {
+    type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {
-        let slice = self.0.byte_slice(node.start_byte()..node.end_byte());
-        ChunksBytes { chunks: slice.chunks() }
+        self.0.byte_slice(node.start_byte()..node.end_byte()).map(str::as_bytes)
     }
 }

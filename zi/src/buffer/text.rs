@@ -45,7 +45,7 @@ impl Buffer for TextBuffer {
         let idx = self.text.line_to_char(pos.line().idx()) + pos.col().idx();
         self.text.insert_char(idx, c);
         if let Some(syntax) = self.syntax.as_mut() {
-            syntax.apply(self.text.slice(..));
+            syntax.apply(&self.text);
         }
 
         self.version.checked_add(1).unwrap();
@@ -62,7 +62,7 @@ impl Buffer for TextBuffer {
         Box::new(
             self.syntax
                 .as_ref()
-                .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, self.text.slice(..)))
+                .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, &self.text))
                 .map(|capture| (capture.node.range(), self.highlight_map.get(capture.index)))
                 .flat_map(move |(range, id)| {
                     // Split multi-line highlights into single-line highlights
@@ -125,7 +125,7 @@ impl TextBuffer {
 
         let mut syntax = Syntax::for_language(&language_id);
         if let Some(syntax) = &mut syntax {
-            syntax.apply(text.slice(..));
+            syntax.apply(&text);
         }
 
         Self {
