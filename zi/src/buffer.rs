@@ -1,5 +1,6 @@
 mod explorer;
 mod picker;
+mod readonly;
 mod text;
 
 use std::any::Any;

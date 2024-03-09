@@ -36,6 +36,8 @@ stdx = { path = "../stdx", features = ["ropey"] }
 chumsky = "0.9.3"
 crossterm = { version = "0.27.0", optional = true }
 expect-test = "1.4.1"
+memmap2 = "0.9.4"
+memchr = "2.7.1"
 
 [dev-dependencies]
 proptest = "1.4.0"

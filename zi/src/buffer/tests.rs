@@ -1,5 +1,6 @@
 use expect_test::{expect, Expect};
 
+use self::readonly::ReadonlyText;
 use super::*;
 
 #[test]
@@ -29,7 +30,7 @@ proptest::proptest! {
         let rope = Rope::from(s.as_ref());
         let reference = &rope as &dyn Text;
 
-        for imp in [&s] {
+        for imp in [&s.as_str() as &dyn Text, &ReadonlyText::new(s.as_bytes())] {
             assert_eq!(reference.len_chars(), imp.len_chars());
             for c in 0..imp.len_chars() {
                 assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
