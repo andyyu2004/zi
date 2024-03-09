@@ -17,6 +17,7 @@ struct Opts {
     #[clap(long)]
     log: Option<PathBuf>,
     path: Option<PathBuf>,
+    readonly: bool,
 }
 
 #[tokio::main]
@@ -39,7 +40,13 @@ async fn main() -> anyhow::Result<()> {
             std::env::set_current_dir(&path)?;
             editor.open_file_explorer(".");
         } else {
-            editor.open_active(path)?;
+            let mut flags =
+                zi::OpenFlags::SET_ACTIVE_BUFFER | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
+
+            if opts.readonly {
+                flags.insert(zi::OpenFlags::READONLY);
+            }
+            editor.open(path, flags)?;
         }
     }
 

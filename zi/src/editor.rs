@@ -1,7 +1,6 @@
 pub(crate) mod cursor;
 
 use std::borrow::Cow;
-use std::fmt;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
@@ -9,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
+use std::{fmt, io};
 
 use futures_core::Stream;
 use ropey::Rope;
@@ -20,7 +20,7 @@ use tokio::sync::Notify;
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{ExplorerBuffer, PickerBuffer, TextBuffer};
+use crate::buffer::{ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -188,18 +188,18 @@ impl Editor {
             }
         }
 
-        let rope = if path.exists() {
-            let reader = BufReader::new(File::open(path)?);
-            Rope::from_reader(reader)?
-        } else {
-            Rope::new()
-        };
-
         let lang = FileType::detect(path);
         tracing::debug!(%lang, ?path, "detected language");
-        let buf = self.buffers.insert_with_key(|id| {
-            TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
-        });
+        let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
+            if flags.contains(OpenFlags::READONLY) {
+                // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
+                let text = unsafe { ReadonlyText::open(path) }?;
+                Ok(TextBuffer::new(id, lang.clone(), path, text, &self.theme).boxed())
+            } else {
+                let rope = Rope::from_reader(BufReader::new(File::open(path)?))?;
+                Ok(TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed())
+            }
+        })?;
 
         if flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
             self.spawn_language_servers_for_lang(buf, &lang)?;

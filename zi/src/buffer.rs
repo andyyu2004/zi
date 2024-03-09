@@ -18,6 +18,7 @@ use zi_lsp::lsp_types::Url;
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
+pub use self::readonly::ReadonlyText;
 pub use self::text::TextBuffer;
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};

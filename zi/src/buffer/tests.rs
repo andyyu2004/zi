@@ -1,6 +1,5 @@
 use expect_test::{expect, Expect};
 
-use self::readonly::ReadonlyText;
 use super::*;
 
 #[test]

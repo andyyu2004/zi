@@ -40,7 +40,6 @@ impl<B: Deref<Target = [u8]>> AsRef<str> for ReadonlyText<B> {
 }
 
 impl ReadonlyText<Mmap> {
-    #[allow(unused)]
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };
@@ -55,6 +54,7 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
 }
 
 // TODO completely naive implementation that's the same as `str`
+// Should maintain an index or something to make this more efficient
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
