@@ -4,14 +4,14 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fs::File;
 use std::future::Future;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 
 use futures_core::Stream;
-use ropey::{Rope, RopeBuilder};
+use ropey::Rope;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::PathExt;
@@ -190,12 +190,7 @@ impl Editor {
 
         let rope = if path.exists() {
             let reader = BufReader::new(File::open(path)?);
-            let mut builder = RopeBuilder::new();
-            for line in reader.lines() {
-                builder.append(line?.as_str());
-                builder.append("\n");
-            }
-            builder.finish()
+            Rope::from_reader(reader)?
         } else {
             Rope::new()
         };
