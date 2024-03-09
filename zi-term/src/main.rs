@@ -17,18 +17,27 @@ struct Opts {
     #[clap(long)]
     log: Option<PathBuf>,
     path: Option<PathBuf>,
+    #[clap(long)]
     readonly: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opts = Opts::parse();
+    let mut opts = Opts::parse();
+
+    const ZI_LOG: &str = "ZI_LOG";
+
+    if std::env::var(ZI_LOG).is_ok() && opts.log.is_none() {
+        // If the user has set the ZI_LOG environment variable, but not specified a log file, default to /tmp/zi.log
+        opts.log = Some(PathBuf::from("/tmp/zi.log"));
+    }
+
     if let Some(log) = opts.log {
         let file = std::fs::OpenOptions::new().create(true).append(true).open(log)?;
         tracing_subscriber::fmt()
             .with_writer(file)
             .with_ansi(false)
-            .with_env_filter(EnvFilter::from_env("ZI_LOG"))
+            .with_env_filter(EnvFilter::from_env(ZI_LOG))
             .init();
     }
 

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
+use std::time::Instant;
 use std::{fmt, io};
 
 use futures_core::Stream;
@@ -189,16 +190,18 @@ impl Editor {
         }
 
         let lang = FileType::detect(path);
-        tracing::debug!(%lang, ?path, "detected language");
         let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
-            if flags.contains(OpenFlags::READONLY) {
+            let start = Instant::now();
+            let buf = if flags.contains(OpenFlags::READONLY) {
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(path) }?;
-                Ok(TextBuffer::new(id, lang.clone(), path, text, &self.theme).boxed())
+                TextBuffer::new(id, lang.clone(), path, text, &self.theme).boxed()
             } else {
                 let rope = Rope::from_reader(BufReader::new(File::open(path)?))?;
-                Ok(TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed())
-            }
+                TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
+            };
+            tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
+            Ok(buf)
         })?;
 
         if flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
