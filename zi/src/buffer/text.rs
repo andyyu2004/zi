@@ -117,9 +117,9 @@ impl TextBuffer {
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
         let mut text: Rope = text.into();
-        let idx = text.len_chars().saturating_sub(1);
+        let idx = text.len_chars();
         // ensure the buffer ends with a newline
-        if text.get_char(idx) != Some('\n') {
+        if text.get_char(idx.saturating_sub(1)) != Some('\n') {
             text.insert_char(idx, '\n');
         }
 

@@ -80,6 +80,7 @@ fn move_cursor_empty() {
 #[test]
 fn move_cursor_horizontal_no_newline() {
     let mut editor = new("abc");
+    assert_eq!(editor.current_line(), "abc\n");
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.move_active_cursor(Right, 1);
     assert_eq!(editor.active_cursor(), (0, 1));
