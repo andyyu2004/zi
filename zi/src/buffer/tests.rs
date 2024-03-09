@@ -20,10 +20,10 @@ fn str_text_impl() {
 }
 
 proptest::proptest! {
-    // Ignore some annoying control characters like vertical tabs, no idea if anyone actually uses that in practice.
+    // Ignore some annoying control characters like vertical tabs, nextline etc. No idea if anyone actually uses that in practice.
     // Also skipping \r as usually it's followed by \n.
     #[test]
-    fn text_impls(s in "[^\r\u{b}\u{c}]*") {
+    fn text_impls(s in "[^\r\u{b}\u{c}\u{85}]*") {
         // Test against the rope implementation as that one is probably correct
 
         let rope = Rope::from(s.as_ref());
