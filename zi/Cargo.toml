@@ -40,6 +40,7 @@ memmap2 = "0.9.4"
 memchr = "2.7.1"
 
 [dev-dependencies]
+duct = "0.13.7"
 proptest = "1.4.0"
 tempfile = "3.10.0"
 test-strategy = "0.3.1"

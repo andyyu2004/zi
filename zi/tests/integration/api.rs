@@ -18,6 +18,9 @@ pub fn new_with_size(content: &str, view_size: zi::Size) -> zi::Editor {
         view_size.width,
         view_size.height + zi::Editor::BOTTOM_BAR_HEIGHT,
     ));
-    editor.open_active(tmpfile.path()).expect("failed to open buffer");
+    let buf = editor.open_active(tmpfile.path()).expect("failed to open buffer");
+    assert_eq!(editor.active_buffer().id(), buf);
+    // not asserting equality as we may have added a trailing newline to the end of the file
+    assert!(editor.active_buffer().text().to_string().starts_with(content));
     editor
 }
