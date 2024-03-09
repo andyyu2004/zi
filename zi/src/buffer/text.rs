@@ -122,10 +122,10 @@ impl<X: Text> TextBuffer<X> {
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let url = Url::from_file_path(&path).ok();
-        let idx = text.len_chars();
 
         // ensure the buffer ends with a newline
         if let Some(text) = text.as_text_mut() {
+            let idx = text.len_chars();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
                 text.insert_char(idx, '\n');
             }
