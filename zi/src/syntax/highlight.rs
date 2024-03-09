@@ -188,7 +188,30 @@ pub struct HighlightMap(Arc<[HighlightId]>);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HighlightId(pub u32);
 
-const DEFAULT_SYNTAX_HIGHLIGHT_ID: HighlightId = HighlightId(u32::MAX);
+impl HighlightId {
+    pub const DEFAULT: HighlightId = HighlightId(u32::MAX);
+}
+
+impl HighlightId {
+    pub fn is_default(self) -> bool {
+        self == Self::DEFAULT
+    }
+
+    pub fn style(self, theme: &Theme) -> Option<Style> {
+        theme.highlights.get(self.0 as usize).map(|(_, style)| style).copied()
+    }
+
+    pub fn name(self, theme: &Theme) -> Option<&str> {
+        theme.highlights.get(self.0 as usize).map(|name| name.0.as_ref())
+    }
+}
+
+impl Default for HighlightId {
+    #[inline]
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 impl HighlightMap {
     pub(crate) fn new(
@@ -219,34 +242,14 @@ impl HighlightMap {
                             Some((i, len))
                         })
                         .max_by_key(|(_, len)| *len)
-                        .map_or(DEFAULT_SYNTAX_HIGHLIGHT_ID, |(i, _)| HighlightId(i as u32))
+                        .map_or(HighlightId::DEFAULT, |(i, _)| HighlightId(i as u32))
                 })
                 .collect(),
         )
     }
 
     pub fn get(&self, capture_id: u32) -> HighlightId {
-        self.0.get(capture_id as usize).copied().unwrap_or(DEFAULT_SYNTAX_HIGHLIGHT_ID)
-    }
-}
-
-impl HighlightId {
-    pub fn is_default(self) -> bool {
-        self == DEFAULT_SYNTAX_HIGHLIGHT_ID
-    }
-
-    pub fn style(self, theme: &Theme) -> Option<Style> {
-        theme.highlights.get(self.0 as usize).map(|(_, style)| style).copied()
-    }
-
-    pub fn name(self, theme: &Theme) -> Option<&str> {
-        theme.highlights.get(self.0 as usize).map(|name| name.0.as_ref())
-    }
-}
-
-impl Default for HighlightId {
-    fn default() -> Self {
-        DEFAULT_SYNTAX_HIGHLIGHT_ID
+        self.0.get(capture_id as usize).copied().unwrap_or_default()
     }
 }
 

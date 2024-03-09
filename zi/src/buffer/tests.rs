@@ -1,3 +1,5 @@
+use expect_test::{expect, Expect};
+
 use super::*;
 
 #[test]
@@ -41,4 +43,133 @@ proptest::proptest! {
             }
         }
     }
+}
+
+#[test]
+fn text_annotations() {
+    #[track_caller]
+    fn check<T: Copy + fmt::Display>(
+        text: impl Text,
+        highlights: impl IntoIterator<Item = (&'static str, T)>,
+        expect: Expect,
+    ) {
+        let highlights = highlights.into_iter().map(|(range, annotation)| {
+            let range = range.parse().unwrap();
+            (range, annotation)
+        });
+
+        let chunks = text.annotate(highlights).collect::<Vec<_>>();
+        let mut s = String::new();
+        for (_, text, ann) in chunks {
+            assert!(text.lines().count() <= 1, "should not have multiline strings");
+            match ann {
+                Some(ann) => s.push_str(&format!("{text:?} -> {ann}\n")),
+                None => s.push_str(&format!("{text:?}\n",)),
+            }
+        }
+
+        expect.assert_eq(&s);
+    }
+
+    check::<i32>("", [], expect![""]);
+
+    check(
+        "abc",
+        [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:3", 3)],
+        expect![[r#"
+            "a" -> 1
+            "b" -> 2
+            "c" -> 3
+        "#]],
+    );
+
+    // allowed to annotate past the end of the text
+    check(
+        "abc",
+        [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:4", 3)],
+        expect![[r#"
+            "a" -> 1
+            "b" -> 2
+            "c" -> 3
+            " " -> 3
+        "#]],
+    );
+
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:1", 1), ("1:0..1:1", 2), ("2:0..2:1", 3)],
+        expect![[r#"
+            "1" -> 1
+            "\n"
+            "2" -> 2
+            "\n"
+            "3" -> 3
+            "\n"
+        "#]],
+    );
+
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:2", 1), ("1:0..1:2", 2), ("2:0..2:3", 3)],
+        expect![[r#"
+            "1\n" -> 1
+            "2\n" -> 2
+            "3\n" -> 3
+            " " -> 3
+        "#]],
+    );
+
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:2", 1), ("1:0..1:3", 2), ("2:0..2:3", 3)],
+        expect![[r#"
+            "1\n" -> 1
+            "2\n" -> 2
+            " " -> 2
+            "3\n" -> 3
+            " " -> 3
+        "#]],
+    );
+
+    check(
+        r#"package main
+
+func main() {}
+"#,
+        [
+            ("0:0..0:7", "keyword|cursorline"),
+            ("0:7..0:50", "cursorline"),
+            ("2:0..2:4", "keyword"),
+            ("2:5..2:9", "function"),
+            ("2:5..2:9", "identifier"),
+        ],
+        expect![[r#"
+            "package" -> keyword|cursorline
+            " main\n" -> cursorline
+            "                                     " -> cursorline
+            "\n"
+            "func" -> keyword
+            " "
+            "main" -> function
+            "() {}\n"
+        "#]],
+    );
+
+    check(
+        stringify!(
+const x: &str = r#"
+1
+2
+"#),
+        [("0:0..0:5", "kw"), ("0:16..0:20", "str"), ("0:20..0:28", "cursorline")],
+        expect![[r##"
+            "const" -> kw
+            " x: &str = "
+            "r#\"\n" -> str
+            "        " -> cursorline
+            "1\n"
+            "2\n"
+            "\"#"
+        "##]],
+    );
 }

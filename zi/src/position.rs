@@ -405,6 +405,20 @@ impl From<usize> for Line {
     }
 }
 
+impl PartialEq<usize> for Line {
+    #[inline]
+    fn eq(&self, &other: &usize) -> bool {
+        self.0 as usize == other
+    }
+}
+
+impl PartialOrd<usize> for Line {
+    #[inline]
+    fn partial_cmp(&self, &other: &usize) -> Option<Ordering> {
+        self.partial_cmp(&Line::from(other))
+    }
+}
+
 impl Line {
     #[inline]
     pub fn up(self, amt: u32) -> Self {
@@ -470,6 +484,20 @@ impl From<usize> for Col {
     fn from(n: usize) -> Self {
         assert!(n < u32::MAX as usize, "Column number must be less than u32::MAX");
         Self(n as u32)
+    }
+}
+
+impl PartialEq<usize> for Col {
+    #[inline]
+    fn eq(&self, &other: &usize) -> bool {
+        self.0 as usize == other
+    }
+}
+
+impl PartialOrd<usize> for Col {
+    #[inline]
+    fn partial_cmp(&self, &other: &usize) -> Option<Ordering> {
+        self.partial_cmp(&Col::from(other))
     }
 }
 

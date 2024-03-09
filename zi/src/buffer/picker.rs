@@ -5,7 +5,7 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{active, Action};
-use crate::{hashmap, trie, Editor, Line, Mode};
+use crate::{hashmap, trie, Editor, Mode};
 
 pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     id: BufferId,
@@ -188,39 +188,51 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
 
-    fn overlay_highlights(
-        &self,
-        _view: &View,
-        size: Size,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
-        let res: Option<_> = try {
-            let line_idx =
-                self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
-            let line_idx = line_idx.raw().min(size.height as u32 - 1);
-            let range = Range::new((line_idx, 0), (line_idx, size.width as u32));
-            Box::new(std::iter::once((range, HighlightId(0))))
-                as Box<dyn Iterator<Item = (Range, HighlightId)>>
-        };
-
-        res.unwrap_or_else(|| Box::new(std::iter::empty()))
+    fn virtual_text(&self) -> Box<dyn Iterator<Item = VirtualText> + '_> {
+        Box::new(self.nucleo.snapshot().matched_items(..).enumerate().map(|(i, item)| {
+            VirtualText::new(
+                if i == self.selected_line.raw() as usize {
+                    HighlightId(0)
+                } else {
+                    HighlightId::default()
+                },
+                item.data.to_string(),
+            )
+        }))
     }
 
-    fn pre_render(&mut self, _view: &View, area: tui::Rect) {
+    // fn overlay_highlights(
+    //     &self,
+    //     _view: &View,
+    //     size: Size,
+    // ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+    //     let res: Option<_> = try {
+    //         let line_idx =
+    //             self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
+    //         let line_idx = line_idx.raw().min(size.height as u32 - 1);
+    //         let range = Range::new((line_idx, 0), (line_idx, size.width as u32));
+    //         Box::new(std::iter::once((range, HighlightId(0))))
+    //             as Box<dyn Iterator<Item = (Range, HighlightId)>>
+    //     };
+    //
+    //     res.unwrap_or_else(|| Box::new(std::iter::empty()))
+    // }
+
+    fn pre_render(&mut self, _view: &View, _area: tui::Rect) {
         self.nucleo.tick(10);
-        let snapshot = self.nucleo.snapshot();
-        self.text = Rope::from(self.text.slice(..self.end_char_idx));
+        // let snapshot = self.nucleo.snapshot();
 
         // the number of items that will fit on the screen
-        let limit = area.height.saturating_sub(self.text.len_lines() as u16) as u32;
+        // let limit = area.height.saturating_sub(self.text.len_lines() as u16) as u32;
 
-        let offset =
-            snapshot.matched_item_count().min(self.selected_line.raw().saturating_sub(limit));
+        // let offset =
+        //     snapshot.matched_item_count().min(self.selected_line.raw().saturating_sub(limit));
 
-        let n = snapshot.matched_item_count().min(1 + limit + offset);
+        // let n = snapshot.matched_item_count().min(1 + limit + offset);
 
-        for item in snapshot.matched_items(offset..n) {
-            self.text.insert(self.text.len_chars(), &format!("\n{}", item.data));
-        }
+        // for item in snapshot.matched_items(offset..n) {
+        //     self.text.insert(self.text.len_chars(), &format!("\n{}", item.data));
+        // }
     }
 
     fn keymap(&mut self) -> Option<&mut Keymap> {
@@ -357,13 +369,6 @@ mod tests {
 
         picker.pre_render(&view, area);
 
-        expect![[r#"
-            >
-            zi/src/buffer/tests.rs
-            zi/src/buffer.rs
-            zi/src/editor/tests.rs
-            zi/src/editor.rs"#]]
-        .assert_eq(&picker.to_string());
-
+        expect![">"].assert_eq(&picker.to_string());
     }
 }

@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{Buffer, BufferId, Col, Direction, Editor, Mode, Position, Text};
+use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, Mode, Position, Text};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -280,6 +280,7 @@ impl HasViewId for View {
 }
 
 impl View {
+    #[tracing::instrument(skip_all)]
     pub(crate) fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
         assert_eq!(surface.area.intersection(area), area);
 
@@ -295,10 +296,7 @@ impl View {
             .syntax_highlights(&mut query_cursor)
             .skip_while(|(range, _)| range.end().line().idx() < line)
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
-            .map(|(range, style)| {
-                // Need to adjust the line to be 0-based as that's what `tui::Lines` is assuming
-                (range - Offset::new(line as u32, 0), style)
-            });
+            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
         let overlay_highlights = buf
             .overlay_highlights(self, area.into())
@@ -306,16 +304,21 @@ impl View {
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
-        let highlights = RangeMergeIter::new(syntax_highlights, overlay_highlights)
-            .map(|(range, style)| (range.into(), style.into()));
+        let highlights =
+            RangeMergeIter::new(syntax_highlights, overlay_highlights).inspect(|(range, style)| {
+                tracing::trace!(%range, %style, "highlight");
+            });
+
+        let chunks = buffer::annotate(buf.text().lines_at(line), highlights);
 
         const LINE_NR_WIDTH: usize = 4;
         let lines = tui::Lines::new(
             line,
             LINE_NR_WIDTH,
             buf.tab_width(),
-            buf.text().lines_at(line),
-            highlights,
+            chunks
+                .inspect(|(_, text, _)| tracing::trace!(?text, "render chunk"))
+                .map(|(line, text, style)| (line.idx(), text, style.unwrap_or_default().into())),
         );
 
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
