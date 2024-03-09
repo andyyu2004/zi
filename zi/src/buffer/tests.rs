@@ -4,10 +4,10 @@ use super::*;
 
 #[test]
 fn str_text_impl() {
-    assert_eq!("".len_lines(), 1);
+    // assert_eq!("".len_lines(), 1);
     assert_eq!("".get_line(0), Some("".into()));
-    assert_eq!("x".len_lines(), 1);
-    assert_eq!("\n".len_lines(), 2);
+    // assert_eq!("x".len_lines(), 1);
+    // assert_eq!("\n".len_lines(), 2);
     assert_eq!("\n".get_line(1), Some("".into()));
     assert_eq!("\n".get_char(0), Some('\n'));
     assert_eq!("\nx".get_char(1), Some('x'));
@@ -29,19 +29,27 @@ proptest::proptest! {
         let rope = Rope::from(s.as_ref());
         let reference = &rope as &dyn Text;
 
-        for imp in [&s.as_str() as &dyn Text, &ReadonlyText::new(s.as_bytes())] {
-            assert_eq!(reference.len_chars(), imp.len_chars());
-            for c in 0..imp.len_chars() {
+        for imp in [&s.as_str() as &dyn LazyText, &ReadonlyText::new(s.as_bytes())] {
+            if let Some(imp) = imp.as_text() {
+                assert_eq!(reference.len_chars(), imp.len_chars());
+            }
+
+            for c in 0..reference.len_chars() {
                 assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
                 assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
             }
 
-            assert_eq!(reference.len_lines(), imp.len_lines());
-            for l in 0..imp.len_lines() {
+            if let Some(imp) = imp.as_text() {
+                assert_eq!(reference.len_lines(), imp.len_lines());
+            }
+
+            for l in 0..reference.len_lines() {
                 assert_eq!(reference.get_line(l), imp.get_line(l), "{s:?}: on line {l}");
                 assert_eq!(reference.line_to_char(l), imp.line_to_char(l), "{s:?}`: on line {l}");
             }
+
         }
+
     }
 }
 
@@ -49,7 +57,7 @@ proptest::proptest! {
 fn text_annotations() {
     #[track_caller]
     fn check<T: Copy + fmt::Display>(
-        text: impl Text,
+        text: impl LazyText,
         highlights: impl IntoIterator<Item = (&'static str, T)>,
         expect: Expect,
     ) {

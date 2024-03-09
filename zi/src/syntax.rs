@@ -8,7 +8,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::buffer::Text;
+use crate::buffer::LazyText;
 use crate::FileType;
 
 pub struct Syntax {
@@ -61,7 +61,7 @@ impl Syntax {
         Some(Self { highlights_query, parser, tree: None })
     }
 
-    pub fn apply(&mut self, source: &dyn Text) {
+    pub fn apply(&mut self, source: &dyn LazyText) {
         self.tree = self.parser.parse_with(
             &mut |byte, _point| source.chunk_at_byte(byte),
             None,
@@ -74,7 +74,7 @@ impl Syntax {
     pub fn highlights<'a, 'tree: 'a>(
         &'tree self,
         cursor: &'a mut QueryCursor,
-        source: &'a dyn Text,
+        source: &'a dyn LazyText,
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
@@ -110,7 +110,7 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
     }
 }
 
-pub struct TextProvider<'a>(&'a dyn Text);
+pub struct TextProvider<'a>(&'a dyn LazyText);
 
 impl<'a> tree_sitter::TextProvider<'a> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;

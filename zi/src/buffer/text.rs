@@ -110,7 +110,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     }
 }
 
-impl<X: Text> TextBuffer<X> {
+impl<X: LazyText> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,

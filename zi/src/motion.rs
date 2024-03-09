@@ -1,16 +1,15 @@
 use stdx::iter::BidirectionalIterator;
 
-use crate::buffer::Text;
-use crate::Position;
+use crate::{LazyText, Position};
 
 pub trait Motion {
-    fn motion(self, text: &dyn Text, pos: Position) -> Position;
+    fn motion(self, text: &dyn LazyText, pos: Position) -> Position;
 }
 
 pub struct PrevToken;
 
 impl Motion for PrevToken {
-    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let mut chars = text.chars_at(start_char).reversed();
 
@@ -33,7 +32,7 @@ impl Motion for PrevToken {
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = text.chars_at(start_char);
 
@@ -64,7 +63,7 @@ impl Motion for NextWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(self, text: &dyn Text, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = text.chars_at(start_char);
 

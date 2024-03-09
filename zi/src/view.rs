@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, Mode, Position, Text};
+use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Position};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -145,8 +145,10 @@ impl View {
         // Check line is in-bounds
         let mut line_idx = pos.line().idx();
         let line = match text.get_line(line_idx) {
-            // disallow putting cursor on the final empty line
-            Some(line) if line != "" || line_idx < text.len_lines() - 1 => line,
+            // Disallow putting cursor on the final empty line.
+            // Note we're using `line_in_bounds` instead of `line_idx < text.len_lines() - 1`
+            // `line_in_bounds` is `O(line_idx)` and `len_lines` can be `O(n)`.
+            Some(line) if line != "" || text.line_in_bounds(line_idx + 2) => line,
             _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
                 line_idx = text.len_lines().saturating_sub(2);
                 text.line(line_idx)
@@ -207,15 +209,10 @@ impl View {
     ) {
         let size = size.into();
         let prev = self.offset;
+        // don't need to bounds check the scroll, `move_cursor` handles that
         match direction {
             Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),
-            Direction::Down => {
-                self.offset.line = self
-                    .offset
-                    .line
-                    .saturating_add(amt)
-                    .min(buf.text().len_lines().saturating_sub(2) as u32)
-            }
+            Direction::Down => self.offset.line = self.offset.line.saturating_add(amt),
             Direction::Left => self.offset.col = self.offset.col.saturating_sub(amt),
             Direction::Right => self.offset.col = self.offset.col.saturating_add(amt),
         }

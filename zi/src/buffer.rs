@@ -40,25 +40,37 @@ impl TextMut for Rope {
     }
 }
 
-pub trait Text: fmt::Display {
+/// These methods are in a separate trait because these methods are not lazy and require reading the entire file.
+/// Avoid their use if possible.
+pub trait Text: LazyText {
+    fn len_lines(&self) -> usize;
+
+    fn len_chars(&self) -> usize;
+}
+
+pub trait LazyText: fmt::Display {
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>>;
     fn get_char(&self, char_idx: usize) -> Option<char>;
 
     fn line_to_char(&self, line_idx: usize) -> usize;
     fn char_to_line(&self, char_idx: usize) -> usize;
 
-    fn len_lines(&self) -> usize;
-    fn len_chars(&self) -> usize;
-
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+
+    // FIXME could be a bidirectional iterator if required (but requires some work to implement)
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_>;
 
     fn chunk_at_byte(&self, byte_idx: usize) -> &str;
 
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_>;
 
-    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
-        None
+    fn as_text(&self) -> Option<&dyn Text>;
+
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut>;
+
+    fn line_in_bounds(&self, line: usize) -> bool {
+        self.get_line(line).is_some()
     }
 
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
@@ -171,9 +183,21 @@ fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> + '_ {
     s.split_inclusive('\n').chain((s.is_empty() || s.ends_with('\n')).then_some("")).map(Into::into)
 }
 
-/// Naive implementation of `Text` for `str`.
-/// Most of these methods are O(n) and large strs should be avoided.
 impl Text for str {
+    #[inline]
+    fn len_lines(&self) -> usize {
+        1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
+    }
+
+    #[inline]
+    fn len_chars(&self) -> usize {
+        self.chars().count()
+    }
+}
+
+/// Naive implementation of [`LazyText`] for `str`.
+/// Most of these methods are O(n) and large strs should be avoided.
+impl LazyText for str {
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
         str_lines(self).nth(line_idx)
@@ -186,17 +210,17 @@ impl Text for str {
 
     #[inline]
     fn line_to_char(&self, line_idx: usize) -> usize {
-        str_lines(self).take(line_idx).map(|l| l.len_chars()).sum()
+        str_lines(self).take(line_idx).map(|l| l.chars().count()).sum()
     }
 
     #[inline]
     fn char_to_line(&self, mut char_idx: usize) -> usize {
         // This should be a real assert, but it's expensive so we just return the last line
-        debug_assert!(char_idx < self.len_chars(), "char_idx out of bounds: {char_idx}");
+        // debug_assert!(char_idx < self.len_chars(), "char_idx out of bounds: {char_idx}");
 
         str_lines(self)
             .take_while(|l| {
-                let n = l.len_chars();
+                let n = l.chars().count();
                 if n > char_idx {
                     return false;
                 }
@@ -204,16 +228,6 @@ impl Text for str {
                 true
             })
             .count()
-    }
-
-    #[inline]
-    fn len_lines(&self) -> usize {
-        1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        self.chars().count()
     }
 
     #[inline]
@@ -227,6 +241,11 @@ impl Text for str {
     }
 
     #[inline]
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        Box::new(self.chars().rev())
+    }
+
+    #[inline]
     fn chunk_at_byte(&self, byte_idx: usize) -> &str {
         &self[byte_idx..]
     }
@@ -235,9 +254,33 @@ impl Text for str {
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(std::iter::once(&self[range]))
     }
+
+    #[inline]
+    fn as_text(&self) -> Option<&dyn Text> {
+        // Not sure how to make this work as we're already a fat pointer
+        // Also can't do `Some(&self)` since that's a reference to a local
+        None
+    }
+
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
+        None
+    }
 }
 
 impl Text for Rope {
+    #[inline]
+    fn len_lines(&self) -> usize {
+        self.len_lines()
+    }
+
+    #[inline]
+    fn len_chars(&self) -> usize {
+        self.len_chars()
+    }
+}
+
+impl LazyText for Rope {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
         Some(self)
@@ -263,16 +306,6 @@ impl Text for Rope {
     }
 
     #[inline]
-    fn len_lines(&self) -> usize {
-        self.len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        self.len_chars()
-    }
-
-    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         Box::new(self.lines_at(line_idx).map(Into::into))
     }
@@ -291,6 +324,16 @@ impl Text for Rope {
     #[inline]
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(self.byte_slice(range).chunks())
+    }
+
+    #[inline]
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        Box::new(self.chars_at(self.len_chars()).reversed())
+    }
+
+    #[inline]
+    fn as_text(&self) -> Option<&dyn Text> {
+        Some(self)
     }
 }
 
@@ -443,6 +486,18 @@ impl Buffer for Box<dyn Buffer> {
 
 impl<T: Text + ?Sized> Text for &T {
     #[inline]
+    fn len_lines(&self) -> usize {
+        (**self).len_lines()
+    }
+
+    #[inline]
+    fn len_chars(&self) -> usize {
+        (**self).len_chars()
+    }
+}
+
+impl<T: LazyText + ?Sized> LazyText for &T {
+    #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
         (**self).get_line(line_idx)
     }
@@ -460,16 +515,6 @@ impl<T: Text + ?Sized> Text for &T {
     #[inline]
     fn char_to_line(&self, char_idx: usize) -> usize {
         (**self).char_to_line(char_idx)
-    }
-
-    #[inline]
-    fn len_lines(&self) -> usize {
-        (**self).len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        (**self).len_chars()
     }
 
     #[inline]
@@ -500,6 +545,21 @@ impl<T: Text + ?Sized> Text for &T {
     #[inline]
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         (**self).byte_slice(range)
+    }
+
+    #[inline]
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        (**self).rev_chars_at_end()
+    }
+
+    #[inline]
+    fn as_text(&self) -> Option<&dyn Text> {
+        (**self).as_text()
+    }
+
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
+        None
     }
 }
 

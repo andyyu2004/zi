@@ -9,7 +9,7 @@ use std::{io, str};
 use memmap2::{Mmap, MmapOptions};
 use stdx::iter::BidirectionalIterator;
 
-use super::Text;
+use super::{LazyText, Text, TextMut};
 
 /// A readonly text buffer suitable for reading large files incrementally.
 pub struct ReadonlyText<B> {
@@ -53,9 +53,11 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
     }
 }
 
+/// We intentionally do not implement [`crate::buffer::Text`] for this type because computing
+/// those methods would require reading the entire file which we're trying to avoid.
 // TODO completely naive implementation that's the same as `str`
 // Should maintain an index or something to make this more efficient
-impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
+impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
         self.as_str().get_line(line_idx)
@@ -77,16 +79,6 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 
     #[inline]
-    fn len_lines(&self) -> usize {
-        *self.len_lines.get_or_init(|| 1 + memchr::memchr_iter(b'\n', &self.buf).count())
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        *self.len_chars.get_or_init(|| self.as_str().chars().count())
-    }
-
-    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.as_str().lines_at(line_idx)
     }
@@ -104,5 +96,32 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     #[inline]
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         self.as_str().byte_slice(range)
+    }
+
+    #[inline]
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        self.as_str().rev_chars_at_end()
+    }
+
+    #[inline]
+    fn as_text(&self) -> Option<&dyn Text> {
+        Some(self)
+    }
+
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
+        None
+    }
+}
+
+impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
+    #[inline]
+    fn len_lines(&self) -> usize {
+        *self.len_lines.get_or_init(|| self.as_str().len_lines())
+    }
+
+    #[inline]
+    fn len_chars(&self) -> usize {
+        *self.len_chars.get_or_init(|| self.as_str().len_chars())
     }
 }
