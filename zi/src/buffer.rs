@@ -1,7 +1,6 @@
 mod explorer;
 mod picker;
 mod text;
-mod virtual_text;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -18,7 +17,6 @@ use zi_lsp::lsp_types::Url;
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
-use self::virtual_text::VirtualText;
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{FileType, Line, Position, Range, Size, View};
@@ -260,11 +258,6 @@ pub trait Buffer {
     // TODO this should be a more general mutate operation
     fn insert_char(&mut self, pos: Position, c: char);
 
-    /// Currently an extremely limited form of virtual text that gets appended to the end of the buffer.
-    fn virtual_text(&self) -> Box<dyn Iterator<Item = VirtualText> + '_> {
-        Box::new(std::iter::empty())
-    }
-
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
     fn syntax_highlights<'a>(
@@ -355,11 +348,6 @@ impl Buffer for Box<dyn Buffer> {
     #[inline]
     fn insert_char(&mut self, pos: Position, c: char) {
         self.as_mut().insert_char(pos, c);
-    }
-
-    #[inline]
-    fn virtual_text(&self) -> Box<dyn Iterator<Item = VirtualText> + '_> {
-        self.as_ref().virtual_text()
     }
 
     #[inline]

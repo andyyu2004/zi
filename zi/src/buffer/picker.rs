@@ -188,19 +188,6 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
 
-    fn virtual_text(&self) -> Box<dyn Iterator<Item = VirtualText> + '_> {
-        Box::new(self.nucleo.snapshot().matched_items(..).enumerate().map(|(i, item)| {
-            VirtualText::new(
-                if i == self.selected_line.raw() as usize {
-                    HighlightId(0)
-                } else {
-                    HighlightId::default()
-                },
-                item.data.to_string(),
-            )
-        }))
-    }
-
     // fn overlay_highlights(
     //     &self,
     //     _view: &View,
@@ -220,7 +207,6 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
 
     fn pre_render(&mut self, _view: &View, _area: tui::Rect) {
         self.nucleo.tick(10);
-        // let snapshot = self.nucleo.snapshot();
 
         // the number of items that will fit on the screen
         // let limit = area.height.saturating_sub(self.text.len_lines() as u16) as u32;
