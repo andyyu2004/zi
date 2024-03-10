@@ -31,20 +31,23 @@ slotmap::new_key_type! {
 }
 
 pub trait TextMut: Text {
-    fn apply(&mut self, change: &Change<'_>);
+    fn edit(&mut self, change: &Change<'_>);
 }
 
 impl TextMut for Rope {
-    fn apply(&mut self, change: &Change<'_>) {
-        assert_eq!(change.operations().len(), 1, "todo");
-        match &change.operations()[0] {
-            Operation::Insert(pos, text) => {
-                let char_idx = pos.char_idx(self);
-                self.insert(char_idx, text);
-            }
-            Operation::Delete(range) => {
-                let char_range = self.range_to_char_range(*range);
-                self.remove(char_range);
+    fn edit(&mut self, change: &Change<'_>) {
+        for operation in change.operations() {
+            match operation {
+                Operation::Insert(pos, text) => {
+                    let char_idx = pos.char_idx(self);
+                    self.insert(char_idx, text);
+                }
+                Operation::Delete(range) => {
+                    let char_range = self.range_to_char_range(*range);
+                    self.remove(char_range);
+                }
+                Operation::Append(text) => self.insert(self.len_chars(), text),
+                Operation::Clear => *self = Rope::new(),
             }
         }
     }
@@ -366,7 +369,7 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn apply(&mut self, change: &Change<'_>);
+    fn edit(&mut self, change: &Change<'_>);
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -456,8 +459,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn apply(&mut self, change: &Change<'_>) {
-        self.as_mut().apply(change);
+    fn edit(&mut self, change: &Change<'_>) {
+        self.as_mut().edit(change);
     }
 
     #[inline]

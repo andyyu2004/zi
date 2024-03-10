@@ -5,7 +5,7 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
-use crate::{hashmap, trie, Editor, Mode, ViewId};
+use crate::{hashmap, trie, Direction, Editor, Mode, ViewId};
 
 pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     id: BufferId,
@@ -15,7 +15,6 @@ pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     nucleo: Nucleo<T>,
     cancel: Cancel,
     keymap: Keymap,
-    selected_line: Line,
     confirm: F,
     select: G,
 }
@@ -77,30 +76,33 @@ where
                 confirm,
                 select,
                 text: Rope::new(),
-                selected_line: Line::default(),
                 keymap: {
                     let next: Action = |editor| {
                         let (_, buf) = get!(editor as Self);
+                        let view = buf.display_view;
+                        editor.move_cursor(view, Direction::Down, 1);
 
-                        if let Some(item) = buf.select_next() {
-                            let select = buf.select;
-                            select(editor, item);
-                        }
+                        // if let Some(item) = buf.select_next() {
+                        //     let select = buf.select;
+                        //     select(editor, item);
+                        // }
                     };
                     let prev: Action = |editor| {
                         let (_, buf) = get!(editor as Self);
+                        let view = buf.display_view;
+                        editor.move_cursor(view, Direction::Up, 1);
 
-                        if let Some(item) = buf.select_prev() {
-                            let select = buf.select;
-                            select(editor, item);
-                        }
+                        // if let Some(item) = buf.select_prev() {
+                        //     let select = buf.select;
+                        //     select(editor, item);
+                        // }
                     };
                     let confirm: Action = |editor| {
                         let (_, buf) = get!(editor as Self);
-                        if let Some(item) = buf.selected_item() {
-                            let confirm = buf.confirm;
-                            confirm(editor, item);
-                        }
+                        // if let Some(item) = buf.selected_item() {
+                        //     let confirm = buf.confirm;
+                        //     confirm(editor, item);
+                        // }
                     };
 
                     Keymap::from(hashmap! {
@@ -127,29 +129,29 @@ where
         )
     }
 
-    fn selected_item(&self) -> Option<T> {
-        self.nucleo
-            .snapshot()
-            .get_matched_item(self.selected_line.idx() as u32)
-            .map(|item| item.data)
-            .cloned()
-    }
-
-    fn select_next(&mut self) -> Option<T> {
-        if self.selected_line.raw() < self.nucleo.snapshot().matched_item_count().saturating_sub(1)
-        {
-            self.selected_line += 1
-        }
-
-        self.selected_item()
-    }
-
-    fn select_prev(&mut self) -> Option<T> {
-        if self.selected_line.raw() > 0 {
-            self.selected_line -= 1
-        }
-        self.selected_item()
-    }
+    // fn selected_item(&self) -> Option<T> {
+    //     self.nucleo
+    //         .snapshot()
+    //         .get_matched_item(self.selected_line.idx() as u32)
+    //         .map(|item| item.data)
+    //         .cloned()
+    // }
+    //
+    // fn select_next(&mut self) -> Option<T> {
+    //     if self.selected_line.raw() < self.nucleo.snapshot().matched_item_count().saturating_sub(1)
+    //     {
+    //         self.selected_line += 1
+    //     }
+    //
+    //     self.selected_item()
+    // }
+    //
+    // fn select_prev(&mut self) -> Option<T> {
+    //     if self.selected_line.raw() > 0 {
+    //         self.selected_line -= 1
+    //     }
+    //     self.selected_item()
+    // }
 }
 
 impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
@@ -181,66 +183,33 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         0
     }
 
-    fn apply(&mut self, change: &Change<'_>) {
-        // TODO respect position
-        self.text.apply(change);
-        self.selected_line = Line::from(0);
+    fn edit(&mut self, change: &Change<'_>) {
+        self.text.edit(change);
 
         let search = Cow::from(&self.text);
         tracing::debug!(%search, "update picker search pattern");
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
 
-    // fn overlay_highlights(
-    //     &self,
-    //     _view: &View,
-    //     size: Size,
-    // ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
-    //     let res: Option<_> = try {
-    //         let line_idx =
-    //             self.selected_line + self.text.try_char_to_line(self.end_char_idx + 1).ok()?;
-    //         let line_idx = line_idx.raw().min(size.height as u32 - 1);
-    //         let range = Range::new((line_idx, 0), (line_idx, size.width as u32));
-    //         Box::new(std::iter::once((range, HighlightId(0))))
-    //             as Box<dyn Iterator<Item = (Range, HighlightId)>>
-    //     };
-    //
-    //     res.unwrap_or_else(|| Box::new(std::iter::empty()))
-    // }
-
     fn pre_render(&mut self, sender: &TaskSender, _view: &View, _area: tui::Rect) {
         self.nucleo.tick(10);
 
         let snapshot = self.nucleo.snapshot();
         let items = snapshot
-            .matched_items(..snapshot.matched_item_count().min(10))
+            .matched_items(..snapshot.matched_item_count().min(100))
             .map(|item| item.data.clone())
             .collect::<Vec<_>>();
-        let view = self.display_view;
+        let display_view = self.display_view;
         sender.queue(move |editor| {
             // hacks hacks hacks need a better interface to modify buffers first
-            let (_view, buf) = get!(editor: view);
-            // buf.apply(Position::default(), '\n', true);
-            // for item in items {
-            //     for c in item.to_string().chars() {
-            //         buf.apply(Position::default(), c, false);
-            //     }
-            //     buf.apply(Position::default(), '\n', false);
-            // }
+            let mut ops = smallvec::smallvec![Operation::Clear];
+            for item in items {
+                ops.push(Operation::Append(item.to_string().into()));
+                ops.push(Operation::Append("\n".into()));
+            }
+            editor.edit(display_view, &Change::new(ops));
             Ok(())
         });
-
-        // the number of items that will fit on the screen
-        // let limit = area.height.saturating_sub(self.text.len_lines() as u16) as u32;
-
-        // let offset =
-        //     snapshot.matched_item_count().min(self.selected_line.raw().saturating_sub(limit));
-
-        // let n = snapshot.matched_item_count().min(1 + limit + offset);
-
-        // for item in snapshot.matched_items(offset..n) {
-        //     self.text.insert(self.text.len_chars(), &format!("\n{}", item.data));
-        // }
     }
 
     fn keymap(&mut self) -> Option<&mut Keymap> {
@@ -257,22 +226,6 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-}
-
-impl<T, F, G> fmt::Display for PickerBuffer<T, F, G>
-where
-    T: Item,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, line) in self.text.lines().enumerate() {
-            if i == self.selected_line.raw() as usize {
-                write!(f, ">{line}")?;
-            } else {
-                write!(f, "{line}")?;
-            }
-        }
-        Ok(())
     }
 }
 

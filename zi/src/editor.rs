@@ -434,13 +434,26 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
-        buf.apply(&Change::insert(cursor, c.to_string()));
+        buf.edit(&Change::insert(cursor, c.to_string()));
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
         }
 
         let event = event::DidChangeBuffer { buf: buf.id() };
+        self.dispatch(event);
+    }
+
+    pub fn edit(&mut self, view_id: ViewId, change: &Change<'_>) {
+        // Don't care if we're actually in insert mode, that's more a key binding namespace.
+        let (view, buf) = get!(self: view_id);
+        let cursor = view.cursor();
+        buf.edit(change);
+        let buf = buf.id();
+        // set the cursor again as it may be out of bounds after the edit
+        self.set_cursor(view_id, cursor);
+
+        let event = event::DidChangeBuffer { buf };
         self.dispatch(event);
     }
 

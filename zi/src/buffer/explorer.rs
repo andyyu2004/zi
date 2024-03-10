@@ -94,7 +94,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         self
     }
 
-    fn apply(&mut self, _change: &Change<'_>) {
+    fn edit(&mut self, _change: &Change<'_>) {
         unreachable!("explorer buffer is read-only")
     }
 

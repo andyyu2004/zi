@@ -41,12 +41,12 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
-    fn apply(&mut self, change: &Change<'_>) {
+    fn edit(&mut self, change: &Change<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
-                text.apply(change);
+                text.edit(change);
                 if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.apply(&self.text);
+                    syntax.edit(&self.text);
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -126,13 +126,13 @@ impl<X: LazyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_chars();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-                text.apply(&Change::insert(idx, "\n"));
+                text.edit(&Change::insert(idx, "\n"));
             }
         }
 
         let mut syntax = Syntax::for_language(&language_id);
         if let Some(syntax) = &mut syntax {
-            syntax.apply(&text);
+            syntax.edit(&text);
         }
 
         Self {

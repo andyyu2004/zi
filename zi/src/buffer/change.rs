@@ -5,11 +5,11 @@ use smallvec::SmallVec;
 use crate::{LazyText, Point, Range};
 
 pub struct Change<'a> {
-    operations: SmallVec<Operation<'a>, 2>,
+    operations: SmallVec<Operation<'a>, 1>,
 }
 
 impl<'a> Change<'a> {
-    fn new(operations: impl Into<SmallVec<Operation<'a>, 2>>) -> Self {
+    pub(crate) fn new(operations: impl Into<SmallVec<Operation<'a>, 1>>) -> Self {
         // todo validations etc
         Self { operations: operations.into() }
     }
@@ -23,9 +23,12 @@ impl<'a> Change<'a> {
     }
 }
 
+#[derive(Debug)]
 pub enum Operation<'a> {
     Insert(Position, Cow<'a, str>),
+    Append(Cow<'a, str>),
     Delete(Range),
+    Clear,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

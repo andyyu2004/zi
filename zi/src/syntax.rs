@@ -61,7 +61,7 @@ impl Syntax {
         Some(Self { highlights_query, parser, tree: None })
     }
 
-    pub fn apply(&mut self, source: &dyn LazyText) {
+    pub fn edit(&mut self, source: &dyn LazyText) {
         self.tree = self.parser.parse_with(
             &mut |byte, _point| source.chunk_at_byte(byte),
             None,

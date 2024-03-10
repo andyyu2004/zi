@@ -6,7 +6,7 @@ use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 
 #[test]
-fn per_readonly_large_file() {
+fn perf_readonly_large_file() {
     let path = create_file(1000);
     let (mut editor, ..) = zi::Editor::new(zi::Size::new(80, 24));
     let buf =
