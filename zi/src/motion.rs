@@ -1,15 +1,15 @@
 use stdx::iter::BidirectionalIterator;
 
-use crate::{LazyText, Position};
+use crate::{LazyText, Point};
 
 pub trait Motion {
-    fn motion(self, text: &dyn LazyText, pos: Position) -> Position;
+    fn motion(self, text: &dyn LazyText, pos: Point) -> Point;
 }
 
 pub struct PrevToken;
 
 impl Motion for PrevToken {
-    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let mut chars = text.chars_at(start_char).reversed();
 
@@ -25,14 +25,14 @@ impl Motion for PrevToken {
         let char = start_char - i;
         let line = text.char_to_line(char);
         let col = char - text.line_to_char(line);
-        Position::new(line, col)
+        Point::new(line, col)
     }
 }
 
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = text.chars_at(start_char);
 
@@ -55,7 +55,7 @@ impl Motion for NextWord {
         let char = start_char + i;
         let line = text.char_to_line(char);
         let col = char - text.line_to_char(line);
-        Position::new(line, col)
+        Point::new(line, col)
     }
 }
 
@@ -63,7 +63,7 @@ impl Motion for NextWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(self, text: &dyn LazyText, pos: Position) -> Position {
+    fn motion(self, text: &dyn LazyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         let chars = text.chars_at(start_char);
 
@@ -84,6 +84,6 @@ impl Motion for NextToken {
         let char = start_char + i;
         let line = text.char_to_line(char);
         let col = char - text.line_to_char(line);
-        Position::new(line, col)
+        Point::new(line, col)
     }
 }

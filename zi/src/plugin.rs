@@ -9,15 +9,15 @@ use crate::zi::api::editor;
 
 pub type Store = wasmtime::Store<Editor>;
 
-use crate::{Editor, Plugin, Position, ViewId};
+use crate::{Editor, Plugin, Point, ViewId};
 
-impl From<Position> for editor::Position {
-    fn from(value: Position) -> Self {
+impl From<Point> for editor::Position {
+    fn from(value: Point) -> Self {
         Self { line: value.line().idx() as u32, col: value.col().idx() as u32 }
     }
 }
 
-impl From<editor::Position> for Position {
+impl From<editor::Position> for Point {
     fn from(value: editor::Position) -> Self {
         Self::from((value.line, value.col))
     }

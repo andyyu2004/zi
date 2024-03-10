@@ -1,6 +1,6 @@
 use super::get;
 use crate::view::HasViewId;
-use crate::{Direction, Editor, Position};
+use crate::{Direction, Editor, Point};
 
 bitflags::bitflags! {
     // A bunch of hacks, don't make this public
@@ -12,7 +12,7 @@ bitflags::bitflags! {
 
 impl Editor {
     #[inline]
-    pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Position>) {
+    pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Point>) {
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
         view.set_cursor(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
@@ -31,12 +31,12 @@ impl Editor {
     }
 
     #[inline]
-    pub fn active_cursor(&self) -> Position {
+    pub fn active_cursor(&self) -> Point {
         self.active_view().cursor()
     }
 
     #[inline]
-    pub fn set_active_cursor(&mut self, cursor: impl Into<Position>) {
+    pub fn set_active_cursor(&mut self, cursor: impl Into<Point>) {
         self.set_cursor(self.tree.active(), cursor);
     }
 }

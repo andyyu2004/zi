@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Position};
+use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Point};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -23,20 +23,20 @@ pub struct View {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Cursor {
-    pos: Position,
+    pos: Point,
     // When we move the cursor down we may go to a shorter line, virtual column stores the column
     // that the cursor should really be at, but can't be because the line is too short.
     target_col: Col,
 }
 
-impl From<Position> for Cursor {
-    fn from(pos: Position) -> Self {
+impl From<Point> for Cursor {
+    fn from(pos: Point) -> Self {
         Self::new(pos)
     }
 }
 
 impl Cursor {
-    fn new(pos: Position) -> Self {
+    fn new(pos: Point) -> Self {
         Self { pos, target_col: pos.col() }
     }
 }
@@ -60,7 +60,7 @@ impl View {
     }
 
     #[inline]
-    pub fn cursor(&self) -> Position {
+    pub fn cursor(&self) -> Point {
         self.cursor.pos
     }
 
@@ -135,7 +135,7 @@ impl View {
         mode: Mode,
         size: impl Into<Size>,
         buf: &dyn Buffer,
-        pos: Position,
+        pos: Point,
         flags: SetCursorFlags,
     ) {
         assert_eq!(buf.id(), self.buf);
@@ -158,7 +158,7 @@ impl View {
 
         let line_len = line.chars().count();
 
-        let pos = Position::new(line_idx, pos.col());
+        let pos = Point::new(line_idx, pos.col());
 
         // Pretending CRLF doesn't exist.
         // We don't allow the cursor on the newline character.

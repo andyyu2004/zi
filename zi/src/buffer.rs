@@ -6,9 +6,9 @@ mod text;
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::slice::SliceIndex;
+use std::{fmt, ops};
 
 use ropey::Rope;
 use stdx::iter::BidirectionalIterator;
@@ -16,6 +16,7 @@ use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use zi_lsp::lsp_types::Url;
 
+pub use self::change::{Change, Operation};
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::readonly::ReadonlyText;
@@ -23,24 +24,29 @@ pub use self::text::TextBuffer;
 use crate::editor::TaskSender;
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{FileType, Line, Position, Range, Size, View};
+use crate::{FileType, Line, Point, Range, Size, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
 }
 
 pub trait TextMut: Text {
-    // TODO make this a general method `apply(&mut self, change: Change)` for all modifications
-    fn insert_char(&mut self, char_idx: usize, c: char, clear: bool);
+    fn apply(&mut self, change: &Change<'_>);
 }
 
 impl TextMut for Rope {
-    #[inline]
-    fn insert_char(&mut self, char_idx: usize, c: char, clear: bool) {
-        if clear {
-            *self = Rope::new();
+    fn apply(&mut self, change: &Change<'_>) {
+        assert_eq!(change.operations().len(), 1, "todo");
+        match &change.operations()[0] {
+            Operation::Insert(pos, text) => {
+                let char_idx = pos.char_idx(self);
+                self.insert(char_idx, text);
+            }
+            Operation::Delete(range) => {
+                let char_range = self.range_to_char_range(*range);
+                self.remove(char_range);
+            }
         }
-        self.insert_char(char_idx, c);
     }
 }
 
@@ -75,6 +81,14 @@ pub trait LazyText: fmt::Display {
 
     fn line_in_bounds(&self, line: usize) -> bool {
         self.get_line(line).is_some()
+    }
+
+    fn point_to_char(&self, point: Point) -> usize {
+        self.line_to_char(point.line().idx()) + point.col().idx()
+    }
+
+    fn range_to_char_range(&self, range: Range) -> ops::Range<usize> {
+        self.point_to_char(range.start())..self.point_to_char(range.end())
     }
 
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
@@ -255,7 +269,7 @@ impl LazyText for str {
     }
 
     #[inline]
-    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+    fn byte_slice(&self, range: ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(std::iter::once(&self[range]))
     }
 
@@ -352,8 +366,7 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    // TODO this should be a more general mutate operation
-    fn insert_char(&mut self, pos: Position, c: char, clear: bool);
+    fn apply(&mut self, change: &Change<'_>);
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -443,8 +456,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn insert_char(&mut self, pos: Position, c: char, clear: bool) {
-        self.as_mut().insert_char(pos, c, clear);
+    fn apply(&mut self, change: &Change<'_>) {
+        self.as_mut().apply(change);
     }
 
     #[inline]

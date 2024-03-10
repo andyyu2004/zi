@@ -81,13 +81,13 @@ impl Location {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Range {
-    start: Position,
-    end: Position,
+    start: Point,
+    end: Point,
 }
 
 impl Range {
     #[inline]
-    pub fn new(start: impl Into<Position>, end: impl Into<Position>) -> Self {
+    pub fn new(start: impl Into<Point>, end: impl Into<Point>) -> Self {
         let start = start.into();
         let end = end.into();
         assert!(start <= end, "start must be less than end: {} !<= {}", start, end);
@@ -110,12 +110,12 @@ impl Range {
     }
 
     #[inline]
-    pub fn start(&self) -> Position {
+    pub fn start(&self) -> Point {
         self.start
     }
 
     #[inline]
-    pub fn end(&self) -> Position {
+    pub fn end(&self) -> Point {
         self.end
     }
 
@@ -145,7 +145,7 @@ impl FromStr for Range {
         let (start, end) = s.split_once("..").ok_or_else(|| {
             anyhow::anyhow!("invalid range: {s} (expected `<line>:<col>..<line>:<col>`)")
         })?;
-        Ok(Self::new(start.parse::<Position>()?, end.parse::<Position>()?))
+        Ok(Self::new(start.parse::<Point>()?, end.parse::<Point>()?))
     }
 }
 
@@ -177,7 +177,7 @@ impl From<tree_sitter::Range> for Range {
     }
 }
 
-impl From<Range> for std::ops::Range<Position> {
+impl From<Range> for std::ops::Range<Point> {
     fn from(val: Range) -> Self {
         val.start..val.end
     }
@@ -191,12 +191,12 @@ impl From<Range> for std::ops::Range<(usize, usize)> {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Position {
+pub struct Point {
     line: Line,
     col: Col,
 }
 
-impl Add<Offset> for Position {
+impl Add<Offset> for Point {
     type Output = Self;
 
     #[inline]
@@ -205,7 +205,7 @@ impl Add<Offset> for Position {
     }
 }
 
-impl Sub<Offset> for Position {
+impl Sub<Offset> for Point {
     type Output = Self;
 
     #[inline]
@@ -214,19 +214,19 @@ impl Sub<Offset> for Position {
     }
 }
 
-impl fmt::Display for Position {
+impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
     }
 }
 
-impl fmt::Debug for Position {
+impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self}")
     }
 }
 
-impl FromStr for Position {
+impl FromStr for Point {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -237,28 +237,28 @@ impl FromStr for Position {
     }
 }
 
-impl From<tree_sitter::Point> for Position {
+impl From<tree_sitter::Point> for Point {
     #[inline]
     fn from(point: tree_sitter::Point) -> Self {
         Self::new(point.row as u32, point.column as u32)
     }
 }
 
-impl From<Position> for (u32, u32) {
+impl From<Point> for (u32, u32) {
     #[inline]
-    fn from(val: Position) -> Self {
+    fn from(val: Point) -> Self {
         (val.line.0, val.col.0)
     }
 }
 
-impl From<Position> for (usize, usize) {
+impl From<Point> for (usize, usize) {
     #[inline]
-    fn from(val: Position) -> Self {
+    fn from(val: Point) -> Self {
         (val.line.idx(), val.col.idx())
     }
 }
 
-impl<L, C> From<(L, C)> for Position
+impl<L, C> From<(L, C)> for Point
 where
     Col: From<C>,
     Line: From<L>,
@@ -269,14 +269,14 @@ where
     }
 }
 
-impl PartialEq<(u32, u32)> for Position {
+impl PartialEq<(u32, u32)> for Point {
     #[inline]
     fn eq(&self, &(line, col): &(u32, u32)) -> bool {
         self.line.0 == line && self.col.0 == col
     }
 }
 
-impl Position {
+impl Point {
     #[inline]
     pub fn new(line: impl Into<Line>, col: impl Into<Col>) -> Self {
         Self { line: line.into(), col: col.into() }

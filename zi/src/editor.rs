@@ -21,7 +21,7 @@ use tokio::sync::Notify;
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
+use crate::buffer::{Change, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -434,7 +434,7 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
-        buf.insert_char(cursor, c, false);
+        buf.apply(&Change::insert(cursor, c.to_string()));
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),

@@ -2,16 +2,16 @@
 
 use zi_lsp::lsp_types;
 
-use crate::Position;
+use crate::Point;
 
-impl From<Position> for lsp_types::Position {
-    fn from(pos: Position) -> Self {
+impl From<Point> for lsp_types::Position {
+    fn from(pos: Point) -> Self {
         lsp_types::Position { line: pos.line().raw(), character: pos.col().raw() }
     }
 }
 
-impl From<lsp_types::Position> for Position {
+impl From<lsp_types::Position> for Point {
     fn from(pos: lsp_types::Position) -> Self {
-        Position::new(pos.line, pos.character)
+        Point::new(pos.line, pos.character)
     }
 }

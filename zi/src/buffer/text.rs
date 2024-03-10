@@ -41,11 +41,10 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
-    fn insert_char(&mut self, pos: Position, c: char, clear: bool) {
+    fn apply(&mut self, change: &Change<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
-                let idx = text.line_to_char(pos.line().idx()) + pos.col().idx();
-                text.insert_char(idx, c, clear);
+                text.apply(change);
                 if let Some(syntax) = self.syntax.as_mut() {
                     syntax.apply(&self.text);
                 }
@@ -80,7 +79,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
                         } else {
                             self.text.line(idx).len_chars()
                         };
-                        (Range::new(Position::new(idx, start), Position::new(idx, end)), id)
+                        (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
                     })
                 }),
         )
@@ -127,7 +126,7 @@ impl<X: LazyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_chars();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-                text.insert_char(idx, '\n', false);
+                text.apply(&Change::insert(idx, "\n"));
             }
         }
 

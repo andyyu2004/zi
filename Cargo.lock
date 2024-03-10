@@ -497,7 +497,7 @@ dependencies = [
  "hashbrown 0.14.3",
  "log",
  "regalloc2",
- "smallvec",
+ "smallvec 1.13.1",
  "target-lexicon",
 ]
 
@@ -543,7 +543,7 @@ checksum = "a3d555819f3a49c01826ce5bf0f3e52a4e17be9c4ee09381d6a1d88549793f3c"
 dependencies = [
  "cranelift-codegen",
  "log",
- "smallvec",
+ "smallvec 1.13.1",
  "target-lexicon",
 ]
 
@@ -575,7 +575,7 @@ dependencies = [
  "cranelift-frontend",
  "itertools 0.10.5",
  "log",
- "smallvec",
+ "smallvec 1.13.1",
  "wasmparser 0.118.2",
  "wasmtime-types",
 ]
@@ -1376,7 +1376,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
- "smallvec",
+ "smallvec 1.13.1",
  "windows-targets 0.48.5",
 ]
 
@@ -1603,7 +1603,7 @@ dependencies = [
  "log",
  "rustc-hash",
  "slice-group-by",
- "smallvec",
+ "smallvec 1.13.1",
 ]
 
 [[package]]
@@ -1656,7 +1656,7 @@ version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
 dependencies = [
- "smallvec",
+ "smallvec 1.13.1",
  "str_indices",
 ]
 
@@ -1863,6 +1863,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 
 [[package]]
+name = "smallvec"
+version = "2.0.0-alpha.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f345fed1f2a354f374f20970fb4faaf3e486cd7cfe95e5abfab6d073176a667"
+
+[[package]]
 name = "socket2"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1878,7 +1884,7 @@ version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29ef1a0fa1e39ac22972c8db23ff89aea700ab96aa87114e1fb55937a631a0c9"
 dependencies = [
- "smallvec",
+ "smallvec 1.13.1",
 ]
 
 [[package]]
@@ -2197,7 +2203,7 @@ dependencies = [
  "once_cell",
  "regex",
  "sharded-slab",
- "smallvec",
+ "smallvec 1.13.1",
  "thread_local",
  "tracing",
  "tracing-core",
@@ -2820,7 +2826,7 @@ dependencies = [
  "cranelift-codegen",
  "gimli",
  "regalloc2",
- "smallvec",
+ "smallvec 1.13.1",
  "target-lexicon",
  "wasmparser 0.118.2",
  "wasmtime-environ",
@@ -3100,6 +3106,7 @@ dependencies = [
  "ropey",
  "rustc-hash",
  "slotmap",
+ "smallvec 2.0.0-alpha.4",
  "stdx",
  "tempfile",
  "test-strategy",

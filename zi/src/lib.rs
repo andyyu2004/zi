@@ -29,7 +29,7 @@ pub use tui::Constraint;
 pub use self::buffer::{Buffer, BufferId, LazyText, PickerBuffer, TextBuffer};
 pub use self::editor::{Callbacks, Editor, OpenFlags};
 pub use self::language::{FileType, LanguageServerId};
-pub use self::position::{Col, Direction, Line, Location, Position, Range, Size};
+pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
 pub use self::syntax::{Color, Style};
 pub use self::view::{View, ViewId};
 

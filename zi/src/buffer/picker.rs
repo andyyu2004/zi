@@ -13,7 +13,6 @@ pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     display_view: ViewId,
     text: Rope,
     nucleo: Nucleo<T>,
-    end_char_idx: usize,
     cancel: Cancel,
     keymap: Keymap,
     selected_line: Line,
@@ -123,7 +122,6 @@ where
                         }),
                     })
                 },
-                end_char_idx: 0,
             },
             injector,
         )
@@ -183,18 +181,12 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         0
     }
 
-    fn insert_char(&mut self, _pos: Position, c: char, clear: bool) {
-        if clear {
-            self.text = Rope::new();
-            self.end_char_idx = 0;
-        }
-
+    fn apply(&mut self, change: &Change<'_>) {
         // TODO respect position
-        self.text.insert_char(self.end_char_idx, c);
-        self.end_char_idx += 1;
+        self.text.apply(change);
         self.selected_line = Line::from(0);
 
-        let search = Cow::from(self.text.slice(..self.end_char_idx));
+        let search = Cow::from(&self.text);
         tracing::debug!(%search, "update picker search pattern");
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
@@ -228,13 +220,13 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         sender.queue(move |editor| {
             // hacks hacks hacks need a better interface to modify buffers first
             let (_view, buf) = get!(editor: view);
-            buf.insert_char(Position::default(), '\n', true);
-            for item in items {
-                for c in item.to_string().chars() {
-                    buf.insert_char(Position::default(), c, false);
-                }
-                buf.insert_char(Position::default(), '\n', false);
-            }
+            // buf.apply(Position::default(), '\n', true);
+            // for item in items {
+            //     for c in item.to_string().chars() {
+            //         buf.apply(Position::default(), c, false);
+            //     }
+            //     buf.apply(Position::default(), '\n', false);
+            // }
             Ok(())
         });
 
