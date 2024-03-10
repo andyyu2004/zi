@@ -7,8 +7,10 @@ use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Po
 
 slotmap::new_key_type! {
     pub struct ViewId;
+    pub struct ViewGroupId;
 }
 
+/// A view is a viewport into a buffer.
 #[derive(Debug, Clone)]
 pub struct View {
     id: ViewId,
@@ -20,6 +22,21 @@ pub struct View {
     /// The cursor position in the buffer
     cursor: Cursor,
     line_number: LineNumber,
+    group: Option<ViewGroupId>,
+}
+
+/// A view group is a collection of views that are displayed together,
+/// closing one view in the group closes all views in the group.
+/// A view can be in at most one group.
+#[derive(Debug, Clone)]
+pub struct ViewGroup {
+    id: ViewGroupId,
+}
+
+impl ViewGroup {
+    pub fn new(id: ViewGroupId) -> Self {
+        Self { id }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -56,6 +73,21 @@ impl View {
     #[inline]
     pub fn with_line_number(self, line_number: LineNumber) -> Self {
         Self { line_number, ..self }
+    }
+
+    #[inline]
+    pub fn group(&self) -> Option<ViewGroupId> {
+        self.group
+    }
+
+    #[inline]
+    pub fn set_group(&mut self, group: ViewGroupId) {
+        self.group = Some(group);
+    }
+
+    #[inline]
+    pub fn with_group(self, group: ViewGroupId) -> Self {
+        Self { group: Some(group), ..self }
     }
 
     #[inline]
@@ -257,15 +289,19 @@ impl View {
         Self {
             id,
             buf,
-            cursor: Cursor::default(),
+            group: Default::default(),
+            cursor: Default::default(),
             offset: Default::default(),
             line_number: Default::default(),
         }
     }
 
-    pub(crate) fn new_from(id: ViewId, view: View) -> Self {
+    /// Split a view from another view.
+    /// Similar to `clone` but only copies a specific set of fields.
+    /// In particular, it does not copy the group.
+    pub(crate) fn split_from(id: ViewId, view: View) -> Self {
         assert_ne!(id, view.id);
-        Self { id, ..view }
+        Self { id, group: None, ..view.clone() }
     }
 }
 

@@ -4,6 +4,26 @@ use zi::Direction::*;
 use super::new;
 
 #[test]
+fn view_group() {
+    let mut editor = new("");
+    let group = editor.create_view_group();
+    editor.active_view_mut().set_group(group);
+    assert_eq!(editor.active_view().group(), Some(group));
+
+    let v = editor.split_active_view(Right, Fill(1));
+    assert!(editor.view(v).group().is_none(), "split view should not copy the group");
+
+    editor.view_mut(v).set_group(group);
+
+    editor.close_active_view();
+
+    assert!(
+        editor.should_quit(),
+        "both views should have closed and so the view tree should be empty"
+    );
+}
+
+#[test]
 fn test_split() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
 

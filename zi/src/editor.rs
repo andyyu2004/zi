@@ -30,6 +30,7 @@ use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
 use crate::position::Size;
 use crate::syntax::Theme;
+use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
     LanguageServerId, Mode, View, ViewId,
@@ -48,6 +49,7 @@ pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
+    pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     mode: Mode,
     keymap: Keymap,
     theme: Theme,
@@ -166,6 +168,7 @@ impl Editor {
             pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
             keymap: default_keymap(),
+            view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
             mode: Default::default(),
@@ -409,7 +412,12 @@ impl Editor {
 
     #[inline]
     pub fn view(&self, id: ViewId) -> &View {
-        self.views.get(id).expect("got bad view id?")
+        self.views.get(id).expect("bad view id")
+    }
+
+    #[inline]
+    pub fn view_mut(&mut self, id: ViewId) -> &mut View {
+        self.views.get_mut(id).expect("bad view id")
     }
 
     #[inline]
@@ -442,7 +450,7 @@ impl Editor {
         let (view, _) = active_ref!(self);
         let id = view.id();
         let view = view.clone();
-        let split_view = self.views.insert_with_key(|id| View::new_from(id, view));
+        let split_view = self.views.insert_with_key(|id| View::split_from(id, view));
         self.tree.split(id, split_view, direction, constraint);
         split_view
     }
@@ -638,10 +646,25 @@ impl Editor {
     }
 
     pub fn close_view(&mut self, view: ViewId) {
-        let _ = self.tree.close_view(view);
+        if self.tree.close_view(view).is_err() {
+            // already closed
+            return;
+        }
+
         // TODO work on a scheme to cleanup views and buffers automatically
-        let view = &self.views[view];
-        self.close_buffer(view.buffer());
+        self.close_buffer(self.views[view].buffer());
+
+        if let Some(group) = self.views[view].group() {
+            // close all views in the same group
+            let views = self.views().map(|v| (v.id(), v.group())).collect::<Vec<_>>();
+            for (v, g) in views {
+                if v == view || g != Some(group) {
+                    continue;
+                }
+
+                self.close_view(v);
+            }
+        }
     }
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
@@ -699,6 +722,10 @@ impl Editor {
         }
     }
 
+    pub fn create_view_group(&mut self) -> ViewGroupId {
+        self.view_groups.insert_with_key(ViewGroup::new)
+    }
+
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
 
@@ -706,14 +733,19 @@ impl Editor {
             let mode = editor.mode;
             editor.mode = Mode::Insert;
 
+            let view_group = editor.create_view_group();
+
             // if editor.tree().len() > 1 {
             //     // This is just a heuristic to avoid stacking pickers.
             //     // This might have some bad interactions.
             //     editor.set_active_buffer(buf);
             // } else {
+
             let placeholder_buf = editor.active_buffer().id();
             let preview = editor.views.insert_with_key(|id| {
-                View::new(id, placeholder_buf).with_line_number(tui::LineNumber::None)
+                View::new(id, placeholder_buf)
+                    .with_line_number(tui::LineNumber::None)
+                    .with_group(view_group)
             });
             editor.tree.push(Layer::new_with_area(preview, |area| {
                 tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)
@@ -724,8 +756,13 @@ impl Editor {
             editor.views[display_view].set_buffer(editor.buffers.insert_with_key(|id| {
                 TextBuffer::new(id, FileType::TEXT, path, Rope::new(), &editor.theme).boxed()
             }));
+
             let search_view = editor.split_active_view(Direction::Up, tui::Constraint::Max(1));
-            assert!(editor.tree().active() == search_view);
+            assert_eq!(editor.tree().active(), search_view);
+
+            // Ensure all views are in the same group so they close together
+            editor.views[display_view].set_group(view_group);
+            editor.views[search_view].set_group(view_group);
 
             let mut injector = None;
             let picker_buf = editor.buffers.insert_with_key(|id| {

@@ -55,6 +55,10 @@ impl ViewTree {
     }
 
     pub fn close_view(&mut self, view: ViewId) -> Result<(), ()> {
+        if self.is_empty() {
+            return Err(());
+        }
+
         let layer = self.top_mut();
         match layer.close_view(view) {
             TraverseResult::Continue => Err(()),
@@ -98,11 +102,11 @@ impl ViewTree {
     }
 
     pub fn top(&self) -> &Layer {
-        self.layers.last().expect("layers was empty")
+        self.layers.last().expect("layers empty")
     }
 
     fn top_mut(&mut self) -> &mut Layer {
-        self.layers.last_mut().expect("layers was empty")
+        self.layers.last_mut().expect("layers empty")
     }
 
     pub(crate) fn resize(&mut self, size: Size) {
