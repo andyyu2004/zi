@@ -89,9 +89,12 @@ impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
         _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
         _ = terminal::disable_raw_mode();
+
         if let Ok((panic, backtrace)) = self.panic_rx.try_recv() {
-            eprintln!("{panic}");
-            eprintln!("{backtrace}");
+            use std::io::Write as _;
+            let mut stderr = io::stderr().lock();
+            let _ = writeln!(stderr, "{panic}");
+            let _ = writeln!(stderr, "{backtrace}");
         }
     }
 }

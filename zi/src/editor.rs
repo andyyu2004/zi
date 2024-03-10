@@ -242,9 +242,10 @@ impl Editor {
         let area = self.tree.area();
         let sender = self.sender();
 
-        // We only call `pre_render` on buffers that are part of some view as otherwise
-        // there's definitely not visible so there's no point.
-        for view in self.views.values() {
+        // Only iterate over the views that are in the view tree, as otherwise they are definitely
+        // not visible and we don't need to render them.
+        for view in self.tree.views() {
+            let view = &self.views[view];
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             buf.pre_render(&sender, view, area);
@@ -590,9 +591,7 @@ impl Editor {
     fn pop_layer(&mut self) {
         let layer = self.tree.pop();
         for view in layer.views() {
-            let view = self.views.remove(view).expect("view not found during removal");
-            self.buffers[view.buffer()].on_leave();
-            self.close_buffer(view.buffer());
+            self.close_view(view);
         }
     }
 
@@ -602,8 +601,13 @@ impl Editor {
     }
 
     pub fn close_active_view(&mut self) {
-        let id = self.tree.close_active();
-        let view = self.views.remove(id).expect("closed view not found");
+        self.close_view(self.tree.active())
+    }
+
+    pub fn close_view(&mut self, view: ViewId) {
+        let _ = self.tree.close_view(view);
+        // TODO work on a scheme to cleanup views and buffers automatically
+        let view = &self.views[view];
         self.close_buffer(view.buffer());
     }
 

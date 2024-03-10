@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+
+use rustc_hash::FxHashMap;
 use tui::{Constraint, Layout, Rect, Widget as _};
 
 use crate::view::HasViewId;
@@ -6,26 +9,33 @@ use crate::{Direction, Editor, Size, ViewId};
 pub(crate) struct ViewTree {
     size: Size,
     layers: Vec<Layer>,
+    last_known_area: RefCell<FxHashMap<ViewId, Rect>>,
 }
 
 impl ViewTree {
     pub fn new(size: Size, view: ViewId) -> Self {
-        ViewTree { size, layers: vec![Layer::new(view)] }
+        ViewTree { size, layers: vec![Layer::new(view)], last_known_area: Default::default() }
     }
 
     pub fn area(&self) -> Rect {
         Rect::new(0, 0, self.size.width, self.size.height)
     }
 
+    /// Get the area of a view in the tree, returns the last known area if the view is no longer in the tree
     pub fn view_area(&self, view: impl HasViewId) -> Rect {
         let id = view.view_id();
         for layer in self.layers.iter().rev() {
             if let Some(area) = layer.view_area(self.area(), id) {
+                self.last_known_area.borrow_mut().insert(id, area);
                 return area;
             }
         }
 
-        panic!("view {id:?} not found in view_tree")
+        self.last_known_area
+            .borrow()
+            .get(&id)
+            .copied()
+            .expect("view has never been in the view tree")
     }
 
     pub fn is_empty(&self) -> bool {
@@ -44,20 +54,17 @@ impl ViewTree {
         self.top().active_view()
     }
 
-    pub fn close_active(&mut self) -> ViewId {
+    pub fn close_view(&mut self, view: ViewId) -> Result<(), ()> {
         let layer = self.top_mut();
-        let view = layer.active_view();
         match layer.close_view(view) {
-            TraverseResult::Continue => {
-                unreachable!("close_active_view should always remove a view")
-            }
-            TraverseResult::Done(..) => (),
+            TraverseResult::Continue => Err(()),
+            TraverseResult::Done(..) => Ok(()),
             // pop the entire layer as it's empty
             TraverseResult::Propogate => {
                 self.pop();
+                Ok(())
             }
-        };
-        view
+        }
     }
 
     pub fn render(&self, editor: &Editor, surface: &mut tui::Buffer) {
@@ -86,7 +93,7 @@ impl ViewTree {
         self.top_mut().focus(view)
     }
 
-    fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
+    pub fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
         self.layers.iter().flat_map(|layer| layer.views())
     }
 
