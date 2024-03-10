@@ -1,4 +1,4 @@
-use tui::{Rect, Widget as _};
+use tui::{LineNumber, Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
@@ -19,6 +19,7 @@ pub struct View {
     offset: Offset,
     /// The cursor position in the buffer
     cursor: Cursor,
+    line_number: LineNumber,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -50,6 +51,11 @@ impl View {
     #[inline]
     pub fn buffer(&self) -> BufferId {
         self.buf
+    }
+
+    #[inline]
+    pub fn with_line_number(self, line_number: LineNumber) -> Self {
+        Self { line_number, ..self }
     }
 
     #[inline]
@@ -236,13 +242,26 @@ impl View {
         );
     }
 
+    pub fn line_number_width(&self) -> u8 {
+        1 + match self.line_number {
+            LineNumber::None => 0,
+            LineNumber::Absolute(width) => width,
+        }
+    }
+
     #[inline]
     pub fn offset(&self) -> Offset {
         self.offset
     }
 
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
-        Self { id, buf, cursor: Cursor::default(), offset: Default::default() }
+        Self {
+            id,
+            buf,
+            cursor: Cursor::default(),
+            offset: Default::default(),
+            line_number: Default::default(),
+        }
     }
 
     pub(crate) fn new_from(id: ViewId, view: View) -> Self {
@@ -308,10 +327,9 @@ impl View {
 
         let chunks = buffer::annotate(buf.text().lines_at(line), highlights);
 
-        const LINE_NR_WIDTH: usize = 4;
         let lines = tui::Lines::new(
             line,
-            LINE_NR_WIDTH,
+            self.line_number,
             buf.tab_width(),
             chunks
                 .inspect(|(_, text, _)| tracing::trace!(?text, "render chunk"))

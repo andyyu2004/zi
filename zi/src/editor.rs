@@ -282,10 +282,7 @@ impl Editor {
         );
 
         let (x, y) = self.cursor_viewport_coords();
-        // + 1 for a blank space between line number and text
-        const LINE_NR_WIDTH: u16 = 4;
-        // FIXME this const is duplicated
-        frame.set_cursor(LINE_NR_WIDTH + x + 1, y);
+        frame.set_cursor(view.line_number_width() as u16 + x, y);
     }
 
     pub fn cursor_viewport_coords(&self) -> (u16, u16) {
@@ -679,7 +676,9 @@ impl Editor {
             //     editor.set_active_buffer(buf);
             // } else {
             let placeholder_buf = editor.active_buffer().id();
-            let preview = editor.views.insert_with_key(|id| View::new(id, placeholder_buf));
+            let preview = editor.views.insert_with_key(|id| {
+                View::new(id, placeholder_buf).with_line_number(tui::LineNumber::None)
+            });
             editor.tree.push(Layer::new_with_area(preview, |area| {
                 tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)
                     [1]

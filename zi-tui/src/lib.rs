@@ -50,25 +50,40 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineNumber {
+    Absolute(u8),
+    // Relative,
+    None,
+}
+
+impl LineNumber {
+    pub fn width(&self) -> u8 {
+        1 + match self {
+            LineNumber::Absolute(width) => *width,
+            LineNumber::None => 0,
+        }
+    }
+}
+
+impl Default for LineNumber {
+    fn default() -> Self {
+        LineNumber::Absolute(4)
+    }
+}
+
 pub struct Lines<'a, I: Iterator> {
     /// The 0-indexed line number to start with
     line_start: usize,
-    /// The width of the line number column
-    line_nr_width: usize,
+    line_number: LineNumber,
     tab_width: u8,
     chunks: Peekable<I>,
     _marker: PhantomData<&'a ()>,
 }
 
 impl<I: Iterator> Lines<'_, I> {
-    pub fn new(line_start: usize, line_nr_width: usize, tab_width: u8, chunks: I) -> Self {
-        Self {
-            line_start,
-            line_nr_width,
-            tab_width,
-            chunks: chunks.peekable(),
-            _marker: PhantomData,
-        }
+    pub fn new(line_start: usize, line_number: LineNumber, tab_width: u8, chunks: I) -> Self {
+        Self { line_start, line_number, tab_width, chunks: chunks.peekable(), _marker: PhantomData }
     }
 }
 
@@ -84,10 +99,18 @@ where
             }
 
             assert!(spans.is_empty());
-            spans.push(Span::styled(
-                format!("{:width$} ", self.line_start + i + 1, width = self.line_nr_width),
-                Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
-            ));
+            let line_number_span = match self.line_number {
+                // FIXME not handling where the line number is longer than the width
+                LineNumber::Absolute(width) => Span::styled(
+                    format!("{:width$} ", self.line_start + i + 1, width = width as usize),
+                    Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
+                ),
+                LineNumber::None => {
+                    Span::styled(" ", Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)))
+                }
+            };
+            assert_eq!(line_number_span.content.len(), self.line_number.width() as usize);
+            spans.push(line_number_span);
 
             while let Some(&(j, ref text, style)) = self.chunks.peek() {
                 if j != i {
