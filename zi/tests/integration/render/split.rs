@@ -1,6 +1,7 @@
 use std::io;
 
 use expect_test::expect;
+use zi::Constraint::*;
 use zi::Direction::*;
 
 use super::new_with_snapshot;
@@ -8,7 +9,7 @@ use super::new_with_snapshot;
 #[test]
 fn close_view() {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
-    editor.split_active_view(Right);
+    editor.split_active_view(Right, Fill(1));
     editor.close_active_view();
     assert!(!editor.should_quit());
 
@@ -26,8 +27,8 @@ fn close_view() {
         "#]],
     );
 
-    editor.split_active_view(Right);
-    editor.split_active_view(Down);
+    editor.split_active_view(Right, Fill(1));
+    editor.split_active_view(Down, Fill(1));
 
     snapshot(
         &mut editor,
@@ -70,7 +71,7 @@ fn close_view() {
 fn splits_have_independent_scroll() -> io::Result<()> {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
 
-    editor.split_active_view(Right);
+    editor.split_active_view(Right, Fill(1));
 
     snapshot(
         &mut editor,
@@ -109,7 +110,7 @@ fn splits_have_independent_scroll() -> io::Result<()> {
 fn split() -> io::Result<()> {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
-    editor.split_active_view(Down);
+    editor.split_active_view(Down, Fill(1));
 
     snapshot(
         &mut editor,
@@ -127,7 +128,7 @@ fn split() -> io::Result<()> {
 
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
 
-    editor.split_active_view(Right);
+    editor.split_active_view(Right, Fill(1));
 
     snapshot(
         &mut editor,
@@ -143,7 +144,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(Right);
+    editor.split_active_view(Right, Fill(1));
     snapshot(
         &mut editor,
         expect![[r#"
@@ -158,7 +159,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(Down);
+    editor.split_active_view(Down, Fill(1));
     snapshot(
         &mut editor,
         expect![[r#"
@@ -173,7 +174,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(Left);
+    editor.split_active_view(Left, Fill(1));
     snapshot(
         &mut editor,
         expect![[r#"
@@ -188,7 +189,7 @@ fn split() -> io::Result<()> {
         "#]],
     );
 
-    editor.split_active_view(Up);
+    editor.split_active_view(Up, Fill(1));
     snapshot(
         &mut editor,
         expect![[r#"
@@ -211,11 +212,11 @@ fn more_splits() {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(20, 8), "abc");
 
     let a = editor.active_view().id();
-    editor.split_active_view(Right);
-    editor.split_active_view(Down);
+    editor.split_active_view(Right, Fill(1));
+    editor.split_active_view(Down, Fill(1));
     editor.focus_view(a);
-    editor.split_active_view(Down);
-    editor.split_active_view(Down);
+    editor.split_active_view(Down, Fill(1));
+    editor.split_active_view(Down, Fill(1));
 
     snapshot(
         &mut editor,
@@ -238,7 +239,7 @@ fn test_directional_focus() {
 
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(24, 6), "abc");
     let a = editor.active_view().id();
-    let b = editor.split_active_view(Right);
+    let b = editor.split_active_view(Right, Fill(1));
 
     snapshot(
         &mut editor,
@@ -266,7 +267,7 @@ fn test_directional_focus() {
         "#]],
     );
 
-    let _c = editor.split_active_view(Down);
+    let _c = editor.split_active_view(Down, Fill(1));
     snapshot(
         &mut editor,
         expect![[r#"
@@ -298,9 +299,9 @@ fn test_directional_focus_propagation() {
     // regression test for cb801c66734ff16be921087a982b53fa626a976a
 
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(32, 6), "ab");
-    editor.split_active_view(Right);
-    editor.split_active_view(Down);
-    editor.split_active_view(Right);
+    editor.split_active_view(Right, Fill(1));
+    editor.split_active_view(Down, Fill(1));
+    editor.split_active_view(Right, Fill(1));
 
     snapshot(
         &mut editor,

@@ -65,12 +65,12 @@ fn request_redraw() {
     NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
 }
 
-/// Get the active view and buffer.
+/// Get a view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
-macro_rules! active {
+macro_rules! get {
     ($editor:ident as $ty:ty) => {{
         let view_id = $editor.tree().active();
-        active!($editor: view_id as $ty)
+        get!($editor: view_id as $ty)
     }};
     ($editor:ident as $ty:ty) => {{
         let view_id = $editor.tree.active();
@@ -78,7 +78,7 @@ macro_rules! active {
     }};
     ($editor:ident) => {{
         let view_id = $editor.tree.active();
-        active!($editor: view_id)
+        get!($editor: view_id)
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
         #[allow(unused_imports)]
@@ -98,7 +98,7 @@ macro_rules! active {
     }};
 }
 
-pub(crate) use active;
+pub(crate) use get;
 
 macro_rules! active_ref {
     ($editor:ident) => {
@@ -240,13 +240,14 @@ impl Editor {
 
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
         let area = self.tree.area();
+        let sender = self.sender();
 
         // We only call `pre_render` on buffers that are part of some view as otherwise
         // there's definitely not visible so there's no point.
         for view in self.views.values() {
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
-            buf.pre_render(view, area);
+            buf.pre_render(&sender, view, area);
         }
 
         self.tree.render(self, frame.buffer_mut());
@@ -316,7 +317,7 @@ impl Editor {
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
         let mut empty = Keymap::default();
-        let (_, buf) = active!(self);
+        let (_, buf) = get!(self);
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
         tracing::debug!(?key, "handling key");
@@ -351,7 +352,7 @@ impl Editor {
     #[inline]
     pub fn set_mode(&mut self, mode: Mode) {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
-            let (view, buf) = active!(self);
+            let (view, buf) = get!(self);
             view.move_cursor(mode, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
@@ -407,12 +408,16 @@ impl Editor {
         (view, buffer)
     }
 
-    pub fn split_active_view(&mut self, direction: Direction) -> ViewId {
+    pub fn split_active_view(
+        &mut self,
+        direction: Direction,
+        constraint: tui::Constraint,
+    ) -> ViewId {
         let (view, _) = active_ref!(self);
         let id = view.id();
         let view = view.clone();
         let split_view = self.views.insert_with_key(|id| View::new_from(id, view));
-        self.tree.split(id, split_view, direction);
+        self.tree.split(id, split_view, direction, constraint);
         split_view
     }
 
@@ -426,10 +431,10 @@ impl Editor {
 
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
-        let (view, buf) = active!(self);
+        let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
-        buf.insert_char(cursor, c);
+        buf.insert_char(cursor, c, false);
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
@@ -468,7 +473,7 @@ impl Editor {
     }
 
     pub fn motion(&mut self, motion: impl Motion) {
-        let (view, buf) = active!(self);
+        let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let pos = motion.motion(buf.text(), view.cursor());
         view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
@@ -481,7 +486,7 @@ impl Editor {
                 _ => continue,
             }
 
-            let (view, buf) = active!(self);
+            let (view, buf) = get!(self);
             let pos = view.cursor();
 
             if let Some(uri) = buf.url() {
@@ -593,7 +598,7 @@ impl Editor {
     }
 
     pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
-        let (view, buf) = active!(self);
+        let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         view.scroll(self.mode, area, buf, direction, amount);
     }
@@ -662,17 +667,23 @@ impl Editor {
             // } else {
             let placeholder_buf = editor.active_buffer().id();
             let preview = editor.views.insert_with_key(|id| View::new(id, placeholder_buf));
-            editor.tree.push(Layer::new_with_layout(preview, |area| {
+            editor.tree.push(Layer::new_with_area(preview, |area| {
                 tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)
                     [1]
             }));
-            let picker_view = editor.split_active_view(Direction::Left);
-            assert!(editor.tree().active() == picker_view);
+
+            let display_view = editor.split_active_view(Direction::Left, tui::Constraint::Fill(1));
+            editor.views[display_view].set_buffer(editor.buffers.insert_with_key(|id| {
+                TextBuffer::new(id, FileType::TEXT, path, Rope::new(), &editor.theme).boxed()
+            }));
+            let search_view = editor.split_active_view(Direction::Up, tui::Constraint::Max(1));
+            assert!(editor.tree().active() == search_view);
 
             let mut injector = None;
             let picker_buf = editor.buffers.insert_with_key(|id| {
                 let (picker, inj) = PickerBuffer::new_with_select(
                     id,
+                    display_view,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
                     move |editor, item: stdx::path::Display| {
@@ -701,7 +712,7 @@ impl Editor {
             });
             let injector = injector.unwrap();
 
-            editor.set_buffer(picker_view, picker_buf);
+            editor.set_buffer(search_view, picker_buf);
 
             let walk = ignore::WalkBuilder::new(path).build_parallel();
             editor.pool.spawn(move || {
@@ -757,19 +768,31 @@ impl Editor {
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
         let buf_id = self.open_active(path)?;
-        let (_view, buf) = active!(self);
+        let (_view, buf) = get!(self);
         assert_eq!(buf.id(), buf_id, "opened buffer should have been set as active");
         self.set_active_cursor(location.range.start);
 
         Ok(())
     }
 
+    fn sender(&self) -> TaskSender {
+        TaskSender(self.tx.clone())
+    }
+
     fn callback<R: 'static>(
-        &mut self,
+        &self,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
         f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
         callback(&self.tx, fut, f);
+    }
+}
+
+pub struct TaskSender(CallbacksSender);
+
+impl TaskSender {
+    pub fn queue(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+        callback(&self.0, std::future::ready(Ok(())), |editor, ()| f(editor));
     }
 }
 
@@ -872,8 +895,10 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
     const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
     const OPEN_FILE_EXPLORER: Action = |editor| editor.open_file_explorer(".");
-    const SPLIT_VERTICAL: Action = |editor| void(editor.split_active_view(Direction::Right));
-    const SPLIT_HORIZONTAL: Action = |editor| void(editor.split_active_view(Direction::Down));
+    const SPLIT_VERTICAL: Action =
+        |editor| void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));
+    const SPLIT_HORIZONTAL: Action =
+        |editor| void(editor.split_active_view(Direction::Down, tui::Constraint::Fill(1)));
     const FOCUS_LEFT: Action = |editor| void(editor.move_focus(Direction::Left));
     const FOCUS_RIGHT: Action = |editor| void(editor.move_focus(Direction::Right));
     const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::{active, Action};
+use crate::editor::{get, Action};
 use crate::{hashmap, trie, Editor, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
@@ -32,7 +32,7 @@ where
         let keymap = {
             let noop: Action = |_| {};
             let confirm: Action = |editor| {
-                let (view, buf) = active!(editor as Self);
+                let (view, buf) = get!(editor as Self);
                 let cursor = view.cursor();
                 let data = buf
                     .nucleo
@@ -94,7 +94,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         self
     }
 
-    fn insert_char(&mut self, _: Position, _: char) {
+    fn insert_char(&mut self, _: Position, _: char, _clear: bool) {
         unreachable!("explorer buffer is read-only")
     }
 
@@ -102,7 +102,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _sender: &TaskSender, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
         let mut rope = Rope::new();

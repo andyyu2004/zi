@@ -1,3 +1,4 @@
+use zi::Constraint::*;
 use zi::Direction::*;
 
 use super::new;
@@ -7,7 +8,7 @@ fn test_split() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
 
     let left = editor.active_view().id();
-    let right = editor.split_active_view(Right);
+    let right = editor.split_active_view(Right, Fill(1));
     assert_ne!(left, right, "splitting should create a new view");
     assert_eq!(editor.active_view().id(), right, "new view should be active");
 
@@ -39,12 +40,12 @@ fn test_directional_focus() {
     // |   (e)    |         |
     // +--------------------+
 
-    let b = editor.split_active_view(Right);
-    let c = editor.split_active_view(Down);
+    let b = editor.split_active_view(Right, Fill(1));
+    let c = editor.split_active_view(Down, Fill(1));
     editor.focus_view(a);
     assert_eq!(editor.active_view().id(), a);
-    let d = editor.split_active_view(Down);
-    let e = editor.split_active_view(Down);
+    let d = editor.split_active_view(Down, Fill(1));
+    let e = editor.split_active_view(Down, Fill(1));
 
     assert_eq!(editor.active_view().id(), e);
 

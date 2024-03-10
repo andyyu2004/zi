@@ -20,6 +20,7 @@ pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::readonly::ReadonlyText;
 pub use self::text::TextBuffer;
+use crate::editor::TaskSender;
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{FileType, Line, Position, Range, Size, View};
@@ -30,12 +31,15 @@ slotmap::new_key_type! {
 
 pub trait TextMut: Text {
     // TODO make this a general method `apply(&mut self, change: Change)` for all modifications
-    fn insert_char(&mut self, char_idx: usize, c: char);
+    fn insert_char(&mut self, char_idx: usize, c: char, clear: bool);
 }
 
 impl TextMut for Rope {
     #[inline]
-    fn insert_char(&mut self, char_idx: usize, c: char) {
+    fn insert_char(&mut self, char_idx: usize, c: char, clear: bool) {
+        if clear {
+            *self = Rope::new();
+        }
         self.insert_char(char_idx, c);
     }
 }
@@ -349,7 +353,7 @@ pub trait Buffer {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // TODO this should be a more general mutate operation
-    fn insert_char(&mut self, pos: Position, c: char);
+    fn insert_char(&mut self, pos: Position, c: char, clear: bool);
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -383,7 +387,7 @@ pub trait Buffer {
     }
 
     /// Called just before rendering the buffer
-    fn pre_render(&mut self, view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _sender: &TaskSender, view: &View, _area: tui::Rect) {
         assert_eq!(self.id(), view.buffer());
     }
 
@@ -439,8 +443,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn insert_char(&mut self, pos: Position, c: char) {
-        self.as_mut().insert_char(pos, c);
+    fn insert_char(&mut self, pos: Position, c: char, clear: bool) {
+        self.as_mut().insert_char(pos, c, clear);
     }
 
     #[inline]
@@ -474,8 +478,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn pre_render(&mut self, view: &View, area: tui::Rect) {
-        self.as_mut().pre_render(view, area);
+    fn pre_render(&mut self, sender: &TaskSender, view: &View, area: tui::Rect) {
+        self.as_mut().pre_render(sender, view, area);
     }
 
     #[inline]

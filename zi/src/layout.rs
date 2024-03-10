@@ -66,10 +66,16 @@ impl ViewTree {
         }
     }
 
-    pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+    pub fn split(
+        &mut self,
+        view: ViewId,
+        new: ViewId,
+        direction: Direction,
+        constraint: Constraint,
+    ) {
         assert_ne!(view, new, "cannot split a view into itself");
         assert!(self.views().all(|v| v != new), "cannot split into an existing view");
-        self.top_mut().split(view, new, direction)
+        self.top_mut().split(view, new, direction, constraint)
     }
 
     pub fn move_focus(&mut self, direction: Direction) -> ViewId {
@@ -105,11 +111,11 @@ pub struct Layer {
 
 impl Layer {
     pub fn new(active: ViewId) -> Self {
-        Self::new_with_layout(active, |area| area)
+        Self::new_with_area(active, |area| area)
     }
 
     /// Create a new layer with a custom area function
-    pub fn new_with_layout(active: ViewId, compute_area: impl Fn(Rect) -> Rect + 'static) -> Self {
+    pub fn new_with_area(active: ViewId, compute_area: impl Fn(Rect) -> Rect + 'static) -> Self {
         Layer { active, root: Node::View(active), compute_area: Box::new(compute_area) }
     }
 
@@ -117,8 +123,14 @@ impl Layer {
         self.root.view_area((self.compute_area)(area), view.view_id())
     }
 
-    pub fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
-        self.root.split(view, new, direction);
+    pub fn split(
+        &mut self,
+        view: ViewId,
+        new: ViewId,
+        direction: Direction,
+        constraint: Constraint,
+    ) {
+        self.root.split(view, new, direction, constraint);
         self.active = new;
     }
 
@@ -185,23 +197,22 @@ impl Node {
         }
     }
 
-    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction, constraint: Constraint) {
         match self {
             Node::View(v) => {
                 assert_eq!(*v, view);
                 let children = match direction {
-                    Direction::Left | Direction::Up => vec![Node::View(new), Node::View(view)],
+                    Direction::Left | Direction::Up => {
+                        [(constraint, Node::View(new)), (Constraint::Fill(1), Node::View(view))]
+                    }
                     Direction::Right | Direction::Down => {
-                        vec![Node::View(view), Node::View(new)]
+                        [(Constraint::Fill(1), Node::View(view)), (constraint, Node::View(new))]
                     }
                 };
 
-                *self = Node::Container(Container::new(
-                    direction,
-                    children.into_iter().map(|n| (Constraint::Fill(1), n)),
-                ));
+                *self = Node::Container(Container::new(direction, children));
             }
-            Node::Container(container) => container.split(view, new, direction),
+            Node::Container(container) => container.split(view, new, direction, constraint),
         }
     }
 
@@ -313,7 +324,7 @@ impl Container {
         assert_eq!(self.children.len(), self.constraints.len());
     }
 
-    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction) {
+    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction, constraint: Constraint) {
         // need manual loop to avoid borrowing issues
         for i in 0..self.children.len() {
             let child = &mut self.children[i];
@@ -324,10 +335,10 @@ impl Container {
                         self.insert(i, new, direction);
                     } else {
                         // otherwise, we create a new container
-                        child.split(view, new, direction)
+                        child.split(view, new, direction, constraint)
                     }
                 }
-                Node::Container(c) => c.split(view, new, direction),
+                Node::Container(c) => c.split(view, new, direction, constraint),
                 _ => continue,
             }
         }
