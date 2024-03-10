@@ -111,7 +111,7 @@ impl View {
         buf: &dyn Buffer,
         direction: Direction,
         amt: u32,
-    ) {
+    ) -> Point {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
@@ -132,7 +132,7 @@ impl View {
         // If we're moving down and we overshoot, move to the last line instead of doing nothing.
         flags |= SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS;
 
-        self.set_cursor(mode, size, buf, pos, flags);
+        self.set_cursor(mode, size, buf, pos, flags)
     }
 
     #[inline]
@@ -143,7 +143,7 @@ impl View {
         buf: &dyn Buffer,
         pos: Point,
         flags: SetCursorFlags,
-    ) {
+    ) -> Point {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
         let size = size.into();
@@ -159,7 +159,7 @@ impl View {
                 line_idx = text.len_lines().saturating_sub(2);
                 text.line(line_idx)
             }
-            _ => return,
+            _ => return self.cursor.pos,
         };
 
         let line_len = line.chars().count();
@@ -203,6 +203,8 @@ impl View {
         } else if self.cursor.pos.line().raw() >= self.offset.line + size.height as u32 {
             self.offset.line = self.cursor.pos.line().idx() as u32 - size.height as u32 + 1;
         }
+
+        self.cursor.pos
     }
 
     pub(crate) fn scroll(
@@ -243,10 +245,7 @@ impl View {
     }
 
     pub fn line_number_width(&self) -> u8 {
-        1 + match self.line_number {
-            LineNumber::None => 0,
-            LineNumber::Absolute(width) => width,
-        }
+        self.line_number.width()
     }
 
     #[inline]

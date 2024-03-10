@@ -77,33 +77,9 @@ where
                 select,
                 text: Rope::new(),
                 keymap: {
-                    let next: Action = |editor| {
-                        let (_, buf) = get!(editor as Self);
-                        let view = buf.display_view;
-                        editor.move_cursor(view, Direction::Down, 1);
-
-                        // if let Some(item) = buf.select_next() {
-                        //     let select = buf.select;
-                        //     select(editor, item);
-                        // }
-                    };
-                    let prev: Action = |editor| {
-                        let (_, buf) = get!(editor as Self);
-                        let view = buf.display_view;
-                        editor.move_cursor(view, Direction::Up, 1);
-
-                        // if let Some(item) = buf.select_prev() {
-                        //     let select = buf.select;
-                        //     select(editor, item);
-                        // }
-                    };
-                    let confirm: Action = |editor| {
-                        let (_, buf) = get!(editor as Self);
-                        // if let Some(item) = buf.selected_item() {
-                        //     let confirm = buf.confirm;
-                        //     confirm(editor, item);
-                        // }
-                    };
+                    let next: Action = |editor| Self::select(editor, Direction::Down);
+                    let prev: Action = |editor| Self::select(editor, Direction::Up);
+                    let confirm: Action = |editor| Self::confirm(editor);
 
                     Keymap::from(hashmap! {
                         Mode::Insert => trie! ({
@@ -128,30 +104,38 @@ where
             injector,
         )
     }
+}
 
-    // fn selected_item(&self) -> Option<T> {
-    //     self.nucleo
-    //         .snapshot()
-    //         .get_matched_item(self.selected_line.idx() as u32)
-    //         .map(|item| item.data)
-    //         .cloned()
-    // }
-    //
-    // fn select_next(&mut self) -> Option<T> {
-    //     if self.selected_line.raw() < self.nucleo.snapshot().matched_item_count().saturating_sub(1)
-    //     {
-    //         self.selected_line += 1
-    //     }
-    //
-    //     self.selected_item()
-    // }
-    //
-    // fn select_prev(&mut self) -> Option<T> {
-    //     if self.selected_line.raw() > 0 {
-    //         self.selected_line -= 1
-    //     }
-    //     self.selected_item()
-    // }
+impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Copy + 'static>
+    PickerBuffer<T, F, G>
+{
+    fn item(&self, line: u32) -> T {
+        self.nucleo.snapshot().get_matched_item(line).expect("should be in bounds").data.clone()
+    }
+
+    fn confirm(editor: &mut Editor) {
+        let (_, picker_buf) = get!(editor as Self);
+        let display_view = picker_buf.display_view;
+        let cursor = editor.view(display_view).cursor();
+
+        let (_, picker_buf) = get!(editor as Self);
+        let item = picker_buf.item(cursor.line().raw());
+        let confirm = picker_buf.confirm;
+        confirm(editor, item);
+    }
+
+    fn select(editor: &mut Editor, direction: Direction) {
+        assert!(direction.is_vertical());
+
+        let (_, picker_buf) = get!(editor as Self);
+        let display_view = picker_buf.display_view;
+        let cursor = editor.move_cursor(display_view, direction, 1);
+
+        let (_, picker_buf) = get!(editor as Self);
+        let item = picker_buf.item(cursor.line().raw());
+        let select = picker_buf.select;
+        select(editor, item);
+    }
 }
 
 impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {

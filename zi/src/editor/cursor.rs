@@ -19,10 +19,10 @@ impl Editor {
     }
 
     #[inline]
-    pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction, amt: u32) {
+    pub fn move_cursor(&mut self, view: impl HasViewId, direction: Direction, amt: u32) -> Point {
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
-        view.move_cursor(self.mode, area, buf, direction, amt);
+        view.move_cursor(self.mode, area, buf, direction, amt)
     }
 
     #[inline]

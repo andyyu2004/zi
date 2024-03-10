@@ -435,7 +435,7 @@ impl Editor {
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
-        }
+        };
 
         let event = event::DidChangeBuffer { buf: buf.id() };
         self.dispatch(event);
