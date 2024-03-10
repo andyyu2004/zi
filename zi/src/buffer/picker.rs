@@ -17,6 +17,7 @@ pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     keymap: Keymap,
     confirm: F,
     select: G,
+    url: Url,
 }
 
 impl<T, F> PickerBuffer<T, F>
@@ -77,6 +78,7 @@ where
                 nucleo,
                 confirm,
                 select,
+                url: Url::parse("buffer://zi/picker").unwrap(),
                 text: Rope::new(),
                 keymap: {
                     let next: Action = |editor| Self::select(editor, Direction::Down);
@@ -149,7 +151,11 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         Path::new("picker")
     }
 
-    fn url(&self) -> Option<Url> {
+    fn url(&self) -> &Url {
+        &self.url
+    }
+
+    fn file_url(&self) -> Option<&Url> {
         None
     }
 

@@ -8,6 +8,7 @@ use crate::{hashmap, trie, Editor, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
     id: BufferId,
+    url: Url,
     text: Rope,
     nucleo: Nucleo<T>,
     cancel: Cancel,
@@ -52,7 +53,18 @@ where
                 }),
             })
         };
-        (Self { id, nucleo, cancel, keymap, confirm, text: Rope::new() }, injector)
+        (
+            Self {
+                id,
+                url: Url::parse("buffer://zi/explorer").unwrap(),
+                nucleo,
+                cancel,
+                keymap,
+                confirm,
+                text: Rope::new(),
+            },
+            injector,
+        )
     }
 }
 
@@ -66,7 +78,11 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         Path::new("explorer")
     }
 
-    fn url(&self) -> Option<Url> {
+    fn url(&self) -> &Url {
+        &self.url
+    }
+
+    fn file_url(&self) -> Option<&Url> {
         None
     }
 

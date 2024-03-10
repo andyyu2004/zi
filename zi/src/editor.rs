@@ -3,13 +3,13 @@ pub(crate) mod cursor;
 use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
+use std::io;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use std::{fmt, io};
 
 use anyhow::anyhow;
 use futures_core::Stream;
@@ -33,7 +33,7 @@ use crate::syntax::Theme;
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Mode, View, ViewId,
+    LanguageServerId, Mode, Url, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -60,6 +60,16 @@ pub struct Editor {
     pool: rayon::ThreadPool,
     /// error to be displayed in the status line
     status_error: Option<String>,
+}
+
+pub trait Resource {
+    type Id;
+
+    const URL_SCHEME: &'static str;
+
+    fn id(&self) -> Self::Id;
+
+    fn url(&self) -> &Url;
 }
 
 pub type Action = fn(&mut Editor);
@@ -425,9 +435,11 @@ impl Editor {
         self.buffers.values().map(|b| b.as_ref())
     }
 
+    /// An iterator over all views in the view tree.
+    // Note: this is not the same as `self.views.values()`
     #[inline]
-    pub fn views(&self) -> impl ExactSizeIterator<Item = &View> + fmt::Debug + Clone {
-        self.views.values()
+    pub fn views(&self) -> impl Iterator<Item = &View> {
+        self.tree.views().map(move |id| self.view(id))
     }
 
     #[inline]
@@ -536,11 +548,11 @@ impl Editor {
             let (view, buf) = get!(self);
             let pos = view.cursor();
 
-            if let Some(uri) = buf.url() {
+            if let Some(uri) = buf.file_url() {
                 tracing::debug!(%uri, %pos, "lsp request definition");
                 let fut = server.definition(lsp_types::GotoDefinitionParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
-                        text_document: lsp_types::TextDocumentIdentifier { uri },
+                        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
                         position: pos.into(),
                     },
                     work_done_progress_params: lsp_types::WorkDoneProgressParams {
@@ -560,10 +572,10 @@ impl Editor {
                         Ok(())
                     },
                 );
-
-                // Send the request to the first server that supports it
-                break;
             }
+
+            // Send the request to the first server that supports it
+            break;
         }
     }
 
@@ -629,13 +641,6 @@ impl Editor {
         Ok(())
     }
 
-    fn pop_layer(&mut self) {
-        let layer = self.tree.pop();
-        for view in layer.views() {
-            self.close_view(view);
-        }
-    }
-
     fn close_buffer(&mut self, buf: BufferId) {
         // can't naively remove the buffer as it might be referenced by multiple views
         self.buffers[buf].on_leave();
@@ -655,6 +660,8 @@ impl Editor {
         self.close_buffer(self.views[view].buffer());
 
         if let Some(group) = self.views[view].group() {
+            self.view_groups.remove(group);
+
             // close all views in the same group
             let views = self.views().map(|v| (v.id(), v.group())).collect::<Vec<_>>();
             for (v, g) in views {
@@ -722,24 +729,31 @@ impl Editor {
         }
     }
 
-    pub fn create_view_group(&mut self) -> ViewGroupId {
-        self.view_groups.insert_with_key(ViewGroup::new)
+    /// Create a new view group with the given url.
+    /// If a view group with the same url already exists, returns `Err(id)`
+    pub fn create_view_group(&mut self, url: Url) -> Result<ViewGroupId, ViewGroupId> {
+        assert_eq!(url.scheme(), ViewGroup::URL_SCHEME);
+
+        if let Some(group) = self.view_groups.values().find(|g| g.url() == &url) {
+            return Err(group.id());
+        }
+
+        Ok(self.view_groups.insert_with_key(|id| ViewGroup::new(id, url)))
     }
 
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
 
         fn inner(editor: &mut Editor, path: &Path) {
+            let Ok(view_group) =
+                editor.create_view_group(Url::parse("view-group://zi/file-picker").unwrap())
+            else {
+                // picker view group already exists, don't open another one
+                return;
+            };
+
             let mode = editor.mode;
             editor.mode = Mode::Insert;
-
-            let view_group = editor.create_view_group();
-
-            // if editor.tree().len() > 1 {
-            //     // This is just a heuristic to avoid stacking pickers.
-            //     // This might have some bad interactions.
-            //     editor.set_active_buffer(buf);
-            // } else {
 
             let placeholder_buf = editor.active_buffer().id();
             let preview = editor.views.insert_with_key(|id| {
@@ -774,7 +788,8 @@ impl Editor {
                     move |editor, item: stdx::path::Display| {
                         let path = item.into_inner();
                         assert!(path.is_file(), "directories should not be in the selection");
-                        editor.pop_layer();
+                        // We can close any of them, they are all in the same group
+                        editor.close_view(search_view);
                         if let Err(err) = editor.open_active(path) {
                             editor.set_error(err);
                         }
@@ -892,7 +907,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
             tracing::debug!(?event, "buffer did change");
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
-                (editor.language_servers.get_mut(&server_id), buf.url())
+                (editor.language_servers.get_mut(&server_id), buf.file_url())
             {
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
                 server
@@ -914,7 +929,8 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
 
     event::register(event::handler::<event::DidOpenBuffer>(move |editor, event| {
         let buf = &editor.buffers[event.buf];
-        if let (Some(server), Some(uri)) = (editor.language_servers.get_mut(&server_id), buf.url())
+        if let (Some(server), Some(uri)) =
+            (editor.language_servers.get_mut(&server_id), buf.file_url())
         {
             tracing::debug!(?event, ?server_id, "lsp buffer did open");
             server

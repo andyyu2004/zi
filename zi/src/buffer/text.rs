@@ -3,7 +3,10 @@ use super::*;
 pub struct TextBuffer<X> {
     id: BufferId,
     path: PathBuf,
-    url: Option<Url>,
+    /// The resource url of this buffer
+    url: Url,
+    /// The url of the file (effectively a cached copy of `Url::from_file_path(&self.path)`)
+    file_url: Option<Url>,
     text: X,
     language_id: FileType,
     syntax: Option<Syntax>,
@@ -18,13 +21,19 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         self.id
     }
 
+    #[inline]
     fn path(&self) -> &Path {
         &self.path
     }
 
     #[inline]
-    fn url(&self) -> Option<Url> {
-        self.url.clone()
+    fn url(&self) -> &Url {
+        &self.url
+    }
+
+    #[inline]
+    fn file_url(&self) -> Option<&Url> {
+        self.file_url.as_ref()
     }
 
     #[inline]
@@ -120,7 +129,13 @@ impl<X: LazyText> TextBuffer<X> {
     ) -> Self {
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
-        let url = Url::from_file_path(&path).ok();
+        let file_url = Url::from_file_path(&path).ok();
+
+        let url = file_url.as_ref().map_or_else(
+            // maybe there's another reason a buffer wouldn't have a url?
+            || Url::parse("buffer://zi/scratch").unwrap(),
+            |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
+        );
 
         // ensure the buffer ends with a newline
         if let Some(text) = text.as_text_mut() {
@@ -139,6 +154,7 @@ impl<X: LazyText> TextBuffer<X> {
             id,
             path,
             url,
+            file_url,
             text,
             language_id,
             version: 0,

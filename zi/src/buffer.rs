@@ -14,20 +14,35 @@ use ropey::Rope;
 use stdx::iter::BidirectionalIterator;
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
-use zi_lsp::lsp_types::Url;
 
 pub use self::change::{Change, Operation};
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::readonly::ReadonlyText;
 pub use self::text::TextBuffer;
-use crate::editor::TaskSender;
+use crate::editor::{Resource, TaskSender};
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
-use crate::{FileType, Line, Point, Range, Size, View};
+use crate::{FileType, Line, Point, Range, Size, Url, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
+}
+
+impl Resource for dyn Buffer {
+    type Id = BufferId;
+
+    const URL_SCHEME: &'static str = "buffer";
+
+    fn id(&self) -> Self::Id {
+        self.id()
+    }
+
+    fn url(&self) -> &Url {
+        let url = self.url();
+        assert_eq!(url.scheme(), Self::URL_SCHEME);
+        url
+    }
 }
 
 pub trait TextMut: Text {
@@ -361,7 +376,8 @@ impl LazyText for Rope {
 pub trait Buffer {
     fn id(&self) -> BufferId;
     fn path(&self) -> &Path;
-    fn url(&self) -> Option<Url>;
+    fn url(&self) -> &Url;
+    fn file_url(&self) -> Option<&Url>;
     fn language_id(&self) -> &FileType;
     fn tab_width(&self) -> u8;
     fn text(&self) -> &dyn Text;
@@ -424,8 +440,13 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn url(&self) -> Option<Url> {
+    fn url(&self) -> &Url {
         self.as_ref().url()
+    }
+
+    #[inline]
+    fn file_url(&self) -> Option<&Url> {
+        self.as_ref().file_url()
     }
 
     #[inline]

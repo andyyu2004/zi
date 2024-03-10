@@ -6,7 +6,14 @@ use super::new;
 #[test]
 fn view_group() {
     let mut editor = new("");
-    let group = editor.create_view_group();
+    let url = zi::Url::parse("view-group://test").unwrap();
+    let group = editor.create_view_group(url.clone()).unwrap();
+    assert_eq!(
+        editor.create_view_group(url),
+        Err(group),
+        "should return the same group given the same url"
+    );
+
     editor.active_view_mut().set_group(group);
     assert_eq!(editor.active_view().group(), Some(group));
 

@@ -25,6 +25,7 @@ mod view;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::Constraint;
+pub use zi_lsp::lsp_types::Url;
 
 pub use self::buffer::{Buffer, BufferId, LazyText, PickerBuffer, TextBuffer};
 pub use self::editor::{Callbacks, Editor, OpenFlags};

@@ -3,7 +3,10 @@ use super::new;
 #[test]
 fn picker() {
     let mut editor = new("");
+
+    assert_eq!(editor.views().count(), 1);
     let current_buf = editor.active_buffer().id();
+
     editor.open_file_picker(".");
     assert_ne!(
         editor.active_buffer().id(),
@@ -18,11 +21,19 @@ fn picker() {
         "view should be focused on original buffer after closing picker"
     );
 
-    assert_eq!(editor.views().len(), 1, "the picker view should be gone");
+    assert_eq!(editor.views().count(), 1, "the picker views should be gone");
 
     editor.open_file_picker(".");
-    assert_eq!(editor.views().len(), 2);
+    assert_eq!(
+        editor.views().count(),
+        4,
+        "the file picker consists of 3 views (picker, results, and preview)"
+    );
 
     editor.open_file_picker(".");
-    assert_eq!(editor.views().len(), 2, "opening another picker should not create a new view");
+    assert_eq!(
+        editor.views().count(),
+        4,
+        "opening another picker should not create new set of views"
+    );
 }

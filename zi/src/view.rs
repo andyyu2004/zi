@@ -2,8 +2,9 @@ use tui::{LineNumber, Rect, Widget as _};
 use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
+use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Point};
+use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Point, Url};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -23,6 +24,22 @@ pub struct View {
     cursor: Cursor,
     line_number: LineNumber,
     group: Option<ViewGroupId>,
+    url: Url,
+}
+
+impl Resource for View {
+    type Id = ViewId;
+
+    const URL_SCHEME: &'static str = "view";
+
+    fn id(&self) -> Self::Id {
+        self.id
+    }
+
+    fn url(&self) -> &Url {
+        assert_eq!(self.url.scheme(), Self::URL_SCHEME);
+        &self.url
+    }
 }
 
 /// A view group is a collection of views that are displayed together,
@@ -31,11 +48,27 @@ pub struct View {
 #[derive(Debug, Clone)]
 pub struct ViewGroup {
     id: ViewGroupId,
+    url: Url,
+}
+
+impl Resource for ViewGroup {
+    type Id = ViewGroupId;
+
+    const URL_SCHEME: &'static str = "view-group";
+
+    fn id(&self) -> Self::Id {
+        self.id
+    }
+
+    fn url(&self) -> &Url {
+        assert_eq!(self.url.scheme(), Self::URL_SCHEME);
+        &self.url
+    }
 }
 
 impl ViewGroup {
-    pub fn new(id: ViewGroupId) -> Self {
-        Self { id }
+    pub fn new(id: ViewGroupId, url: Url) -> Self {
+        Self { id, url }
     }
 }
 
@@ -288,6 +321,7 @@ impl View {
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
         Self {
             id,
+            url: Url::parse(&format!("view://{}", id.0.as_ffi())).unwrap(),
             buf,
             group: Default::default(),
             cursor: Default::default(),
