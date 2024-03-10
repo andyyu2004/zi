@@ -196,7 +196,18 @@ impl Editor {
         path: impl AsRef<Path>,
         flags: OpenFlags,
     ) -> Result<BufferId, zi_lsp::Error> {
-        let path = path.as_ref();
+        let mut path = Cow::Borrowed(path.as_ref());
+        if path.exists() && !path.is_file() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file").into());
+        }
+
+        if !path.exists() && flags.contains(OpenFlags::READONLY) {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found").into());
+        }
+
+        if path.exists() {
+            path = path.canonicalize()?.into();
+        }
 
         // If the buffer is already open, switch to it
         for buf in self.buffers.values() {
@@ -206,17 +217,23 @@ impl Editor {
             }
         }
 
-        let lang = FileType::detect(path);
+        let lang = FileType::detect(&path);
         let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
             let start = Instant::now();
             let buf = if flags.contains(OpenFlags::READONLY) {
+                debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
-                let text = unsafe { ReadonlyText::open(path) }?;
-                TextBuffer::new(id, lang.clone(), path, text, &self.theme).boxed()
+                let text = unsafe { ReadonlyText::open(&path) }?;
+                TextBuffer::new(id, lang.clone(), &path, text, &self.theme).boxed()
             } else {
-                let rope = Rope::from_reader(BufReader::new(File::open(path)?))?;
-                TextBuffer::new(id, lang.clone(), path, rope, &self.theme).boxed()
+                let rope = if path.exists() {
+                    Rope::from_reader(BufReader::new(File::open(&path)?))?
+                } else {
+                    Rope::new()
+                };
+                TextBuffer::new(id, lang.clone(), &path, rope, &self.theme).boxed()
             };
+
             tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
             Ok(buf)
         })?;
