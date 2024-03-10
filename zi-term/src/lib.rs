@@ -51,8 +51,11 @@ impl<B: Backend + io::Write> App<B> {
                     Ok(f) => if let Err(err) = f(&mut self.editor) {
                         tracing::error!("task callback failed: {:?}", err);
                     }
-                    // TODO show error somewhere
-                    Err(err) => tracing::error!("task failed: {:?}", err),
+                    Err(err) => {
+                        tracing::error!("task failed: {err}");
+                        self.editor.set_error(&*err);
+
+                    }
                 },
                 () = redraw.notified() => tracing::info!("redrawing due to request"),
                 Some(event) = events.next() => self.editor.handle_input(event?),

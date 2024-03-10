@@ -44,7 +44,9 @@ where
     ) -> Self {
         let (this, inj) = Self::new(id, display_view, config, notify, confirm);
         for item in items {
-            let _ = inj.push(item);
+            if inj.push(item).is_err() {
+                break;
+            }
         }
         this
     }

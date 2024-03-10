@@ -8,9 +8,10 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, io};
 
+use anyhow::anyhow;
 use futures_core::Stream;
 use ropey::Rope;
 use rustc_hash::FxHashMap;
@@ -55,6 +56,8 @@ pub struct Editor {
     language_config: language::Config,
     tree: layout::ViewTree,
     pool: rayon::ThreadPool,
+    /// error to be displayed in the status line
+    status_error: Option<String>,
 }
 
 pub type Action = fn(&mut Editor);
@@ -167,6 +170,7 @@ impl Editor {
             language_servers: Default::default(),
             mode: Default::default(),
             theme: Default::default(),
+            status_error: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -238,6 +242,10 @@ impl Editor {
         self.tree.is_empty()
     }
 
+    pub fn set_error(&mut self, error: impl std::error::Error) {
+        self.status_error = Some(error.to_string());
+    }
+
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
         let area = self.tree.area();
         let sender = self.sender();
@@ -255,9 +263,9 @@ impl Editor {
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
         let (view, buf) = active_ref!(self);
-        let statusline = tui::Text::styled(
+        let mut status_spans = vec![tui::Span::styled(
             format!(
-                "{}:{}:{}",
+                "{}:{}:{} ",
                 buf.path().display(),
                 view.cursor().line() + 1_usize,
                 view.cursor().col()
@@ -265,17 +273,35 @@ impl Editor {
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
-        );
+        )];
 
-        let cmdline = tui::Text::styled(
+        if let Some(error) = &self.status_error {
+            status_spans.push(tui::Span::styled(
+                error,
+                tui::Style::new()
+                    .fg(tui::Color::Rgb(0xff, 0x00, 0x00))
+                    .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
+            ));
+        }
+
+        // FIXME probably a better way than manually padding the right
+        status_spans.push(tui::Span::styled(
+            " ".repeat(area.width as usize),
+            tui::Style::new()
+                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
+                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
+        ));
+
+        let status = tui::Line::default().spans(status_spans);
+
+        let cmd = tui::Text::styled(
             format!("-- {} --", self.mode()),
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x00, 0x2b, 0x36)),
         );
 
-        let widget =
-            tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (statusline, cmdline));
+        let widget = tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (status, cmd));
 
         widget.render(
             tui::Rect { x: 0, y: area.height, width: area.width, height: Self::BOTTOM_BAR_HEIGHT },
@@ -314,6 +340,8 @@ impl Editor {
 
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
+        self.status_error = None;
+
         let mut empty = Keymap::default();
         let (_, buf) = get!(self);
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
@@ -515,11 +543,15 @@ impl Editor {
                     },
                 });
 
-                self.callback(async move { Ok(fut.await?) }, |editor, res| {
-                    tracing::debug!(?res, "lsp definition response");
-                    editor.jump_to_definition(res)?;
-                    Ok(())
-                });
+                self.callback(
+                    "go to definition request",
+                    async move { Ok(fut.await?) },
+                    |editor, res| {
+                        tracing::debug!(?res, "lsp definition response");
+                        editor.jump_to_definition(res)?;
+                        Ok(())
+                    },
+                );
 
                 // Send the request to the first server that supports it
                 break;
@@ -542,10 +574,11 @@ impl Editor {
                 let server_config = &self.language_config.language_servers[&server_id];
                 let command = &server_config.command;
                 let args = &server_config.args;
-                tracing::debug!(%server_id, ?command, ?args, "initializing language server");
+                tracing::debug!(%server_id, ?command, ?args, "language server initialization");
                 let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
                 callback(
                     &self.tx,
+                    "initializing language server",
                     async move {
                         let res = server
                             .initialize(lsp_types::InitializeParams {
@@ -631,9 +664,8 @@ impl Editor {
                         let path = path.into_inner();
                         if path.is_dir() {
                             editor.open_file_explorer(path);
-                        } else {
-                            // FIXME show error
-                            let _ = editor.open_active(path);
+                        } else if let Err(err) = editor.open_active(path) {
+                            editor.set_error(err);
                         }
                     },
                 );
@@ -706,8 +738,9 @@ impl Editor {
                         let path = item.into_inner();
                         assert!(path.is_file(), "directories should not be in the selection");
                         editor.pop_layer();
-                        // FIXME show error
-                        let _ = editor.open_active(path);
+                        if let Err(err) = editor.open_active(path) {
+                            editor.set_error(err);
+                        }
                         editor.mode = mode;
                     },
                     move |editor, path| {
@@ -797,10 +830,11 @@ impl Editor {
 
     fn callback<R: 'static>(
         &self,
+        desc: &'static str,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
         f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
-        callback(&self.tx, fut, f);
+        callback(&self.tx, desc, fut, f);
     }
 }
 
@@ -808,7 +842,8 @@ pub struct TaskSender(CallbacksSender);
 
 impl TaskSender {
     pub fn queue(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
-        callback(&self.0, std::future::ready(Ok(())), |editor, ()| f(editor));
+        // no description needed as `ready()` will never timeout
+        callback(&self.0, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
 }
 
@@ -861,11 +896,16 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
 
 fn callback<R: 'static>(
     tx: &CallbacksSender,
+    desc: &'static str,
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
     f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
     tx.send(Box::pin(async move {
-        let res = fut.await?;
+        let dur = Duration::from_secs(3);
+        let res =
+            tokio::time::timeout(dur, fut).await.map_err(|_: tokio::time::error::Elapsed| {
+                anyhow!("{desc} timed out after {dur:?}")
+            })??;
         Ok(Box::new(move |editor: &mut Editor| f(editor, res))
             as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
     }))
