@@ -175,8 +175,8 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         0
     }
 
-    fn edit(&mut self, change: &Change<'_>) {
-        self.text.edit(change);
+    fn edit(&mut self, delta: &Delta<'_>) {
+        self.text.edit(delta);
 
         let search = Cow::from(&self.text);
         tracing::debug!(%search, "update picker search pattern");
@@ -193,13 +193,12 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
             .collect::<Vec<_>>();
         let display_view = self.display_view;
         sender.queue(move |editor| {
-            // hacks hacks hacks need a better interface to modify buffers first
-            let mut ops = smallvec::smallvec![Operation::Clear];
-            for item in items {
-                ops.push(Operation::Append(item.to_string().into()));
-                ops.push(Operation::Append("\n".into()));
+            use std::fmt::Write;
+            let mut s = String::new();
+            for item in items.iter() {
+                writeln!(s, "{item}")?;
             }
-            editor.edit(display_view, &Change::new(ops));
+            editor.edit(display_view, &Delta::set(s));
             Ok(())
         });
     }

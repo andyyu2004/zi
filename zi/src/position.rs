@@ -79,7 +79,7 @@ impl Location {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Range {
     start: Point,
     end: Point,

@@ -22,7 +22,7 @@ use tokio::sync::Notify;
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{Change, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
+use crate::buffer::{Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -497,7 +497,7 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
-        buf.edit(&Change::insert(cursor, c.to_string()));
+        buf.edit(&Delta::insert_at(cursor, c.to_string()));
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
@@ -507,11 +507,11 @@ impl Editor {
         self.dispatch(event);
     }
 
-    pub fn edit(&mut self, view_id: ViewId, change: &Change<'_>) {
+    pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self: view_id);
         let cursor = view.cursor();
-        buf.edit(change);
+        buf.edit(delta);
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
         self.set_cursor(view_id, cursor);

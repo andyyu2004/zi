@@ -1,4 +1,4 @@
-mod change;
+mod delta;
 mod explorer;
 mod picker;
 mod readonly;
@@ -15,7 +15,8 @@ use stdx::iter::BidirectionalIterator;
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 
-pub use self::change::{Change, Operation};
+pub use self::delta::Delta;
+use self::delta::DeltaRange;
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::readonly::ReadonlyText;
@@ -46,25 +47,24 @@ impl Resource for dyn Buffer {
 }
 
 pub trait TextMut: Text {
-    fn edit(&mut self, change: &Change<'_>);
+    fn edit(&mut self, delta: &Delta<'_>);
+
+    fn delta_to_char_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
+        match delta.range() {
+            DeltaRange::Point(range) => self.range_to_char_range(range),
+            DeltaRange::Char(range) => range,
+            DeltaRange::Full => 0..self.len_chars(),
+        }
+    }
 }
 
 impl TextMut for Rope {
-    fn edit(&mut self, change: &Change<'_>) {
-        for operation in change.operations() {
-            match operation {
-                Operation::Insert(pos, text) => {
-                    let char_idx = pos.char_idx(self);
-                    self.insert(char_idx, text);
-                }
-                Operation::Delete(range) => {
-                    let char_range = self.range_to_char_range(*range);
-                    self.remove(char_range);
-                }
-                Operation::Append(text) => self.insert(self.len_chars(), text),
-                Operation::Clear => *self = Rope::new(),
-            }
-        }
+    #[inline]
+    fn edit(&mut self, delta: &Delta<'_>) {
+        let range = self.delta_to_char_range(delta);
+        let start = range.start;
+        self.remove(range);
+        self.insert(start, delta.text());
     }
 }
 
@@ -385,7 +385,7 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn edit(&mut self, change: &Change<'_>);
+    fn edit(&mut self, delta: &Delta<'_>);
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -480,8 +480,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn edit(&mut self, change: &Change<'_>) {
-        self.as_mut().edit(change);
+    fn edit(&mut self, delta: &Delta<'_>) {
+        self.as_mut().edit(delta);
     }
 
     #[inline]

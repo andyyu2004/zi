@@ -50,10 +50,10 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
-    fn edit(&mut self, change: &Change<'_>) {
+    fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
-                text.edit(change);
+                text.edit(delta);
                 if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(&self.text);
                 }
@@ -141,7 +141,7 @@ impl<X: LazyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_chars();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-                text.edit(&Change::insert(idx, "\n"));
+                text.edit(&Delta::insert_at(idx, "\n"));
             }
         }
 
