@@ -1,11 +1,21 @@
 #![allow(unused)]
 use std::path::Path;
+use std::sync::OnceLock;
 
 use slotmap::{Key as _, KeyData};
 use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
 use crate::zi::api::editor;
+
+fn engine() -> &'static Engine {
+    static ENGINE: OnceLock<Engine> = OnceLock::new();
+    ENGINE.get_or_init(|| {
+        let mut config = wasmtime::Config::new();
+        config.wasm_component_model(true).async_support(true);
+        Engine::new(&config).expect("configuration should be valid")
+    })
+}
 
 pub type Store = wasmtime::Store<Editor>;
 
@@ -80,14 +90,14 @@ impl editor::Host for Editor {
 }
 
 pub fn load(
-    engine: Engine,
+    engine: &Engine,
     store: &mut Store,
     plugin_paths: &[impl AsRef<Path>],
 ) -> wasmtime::Result<Box<[Plugin]>> {
     let mut plugins = Vec::with_capacity(plugin_paths.len());
-    let mut linker = Linker::new(&engine);
+    let mut linker = Linker::new(engine);
     for path in plugin_paths {
-        let component = Component::from_file(&engine, path)?;
+        let component = Component::from_file(engine, path)?;
         Plugin::add_to_linker(&mut linker, |ctx| ctx)?;
         let (bindings, _) = Plugin::instantiate(&mut *store, &component, &linker)?;
         plugins.push(bindings);
@@ -100,14 +110,13 @@ pub fn load(
 mod test {
     use wasmtime::{Config, Engine, Store};
 
+    use super::engine;
     use crate::Editor;
 
     fn it_works() -> wasmtime::Result<()> {
-        let mut config = Config::new();
-        config.wasm_component_model(true).async_support(true);
-        let engine = Engine::new(&config)?;
         let (editor, _, _) = Editor::new(crate::Size::new(80, 24));
-        let mut store = Store::new(&engine, editor);
+        let engine = engine();
+        let mut store = Store::new(engine, editor);
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"])?;
         for plugin in &plugins[..] {
             plugin.call_initialize(&mut store)?;

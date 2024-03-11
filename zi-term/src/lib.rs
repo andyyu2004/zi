@@ -58,7 +58,7 @@ impl<B: Backend + io::Write> App<B> {
                     }
                 },
                 () = redraw.notified() => tracing::info!("redrawing due to request"),
-                Some(event) = events.next() => self.editor.handle_input(event?),
+                    Some(event) = events.next() => self.editor.handle_input(event?),
             }
 
             if self.editor.should_quit() {
