@@ -121,6 +121,11 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
 
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     #[inline]
+    fn len_bytes(&self) -> usize {
+        self.buf.len()
+    }
+
+    #[inline]
     fn len_lines(&self) -> usize {
         *self.len_lines.get_or_init(|| self.as_str().len_lines())
     }

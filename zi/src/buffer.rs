@@ -66,6 +66,8 @@ pub trait Text: LazyText {
     fn len_lines(&self) -> usize;
 
     fn len_chars(&self) -> usize;
+
+    fn len_bytes(&self) -> usize;
 }
 
 pub trait LazyText: fmt::Display {
@@ -91,6 +93,7 @@ pub trait LazyText: fmt::Display {
 
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut>;
 
+    #[inline]
     fn char_to_point(&self, char_idx: usize) -> Point {
         let line = self.char_to_line(char_idx);
         let col = char_idx - self.line_to_char(line);
@@ -239,6 +242,11 @@ fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> + '_ {
 
 impl Text for str {
     #[inline]
+    fn len_bytes(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
     fn len_lines(&self) -> usize {
         1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
     }
@@ -328,6 +336,11 @@ impl LazyText for str {
 }
 
 impl Text for Rope {
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        self.len_bytes()
+    }
+
     #[inline]
     fn len_lines(&self) -> usize {
         self.len_lines()
@@ -555,6 +568,11 @@ impl Buffer for Box<dyn Buffer> {
 
 impl<T: Text + ?Sized> Text for &T {
     #[inline]
+    fn len_bytes(&self) -> usize {
+        (**self).len_bytes()
+    }
+
+    #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
     }
@@ -602,13 +620,8 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     }
 
     #[inline]
-    fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
-        (**self).lines()
-    }
-
-    #[inline]
-    fn line(&self, line: usize) -> Cow<'_, str> {
-        (**self).line(line)
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        (**self).rev_chars_at_end()
     }
 
     #[inline]
@@ -622,11 +635,6 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     }
 
     #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        (**self).rev_chars_at_end()
-    }
-
-    #[inline]
     fn as_text(&self) -> Option<&dyn Text> {
         (**self).as_text()
     }
@@ -634,6 +642,16 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
         None
+    }
+
+    #[inline]
+    fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
+        (**self).lines()
+    }
+
+    #[inline]
+    fn line(&self, line: usize) -> Cow<'_, str> {
+        (**self).line(line)
     }
 }
 

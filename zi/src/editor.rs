@@ -225,7 +225,6 @@ impl Editor {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
-                panic!();
                 TextBuffer::new(id, lang.clone(), &path, text, &self.theme).boxed()
             } else {
                 let rope = if path.exists() {

@@ -38,6 +38,7 @@ proptest::proptest! {
                 assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
                 assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
                 assert_eq!(reference.char_to_byte(c), imp.char_to_byte(c), "{s:?}: char {c}");
+                assert_eq!(reference.char_to_point(c), imp.char_to_point(c), "{s:?}: char {c}");
             }
 
             if let Some(imp) = imp.as_text() {

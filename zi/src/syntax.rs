@@ -8,7 +8,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::buffer::{Delta, LazyText, TextMut};
+use crate::buffer::{Delta, LazyText, Text as _, TextMut};
 use crate::FileType;
 
 pub struct Syntax {
@@ -68,26 +68,10 @@ impl Syntax {
     }
 
     pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) {
-        if let Some(tree) = &mut self.tree {
-            let char_range = text.delta_to_char_range(delta);
-            let point_range = text.delta_to_point_range(delta);
-            let start_byte = text.char_to_byte(char_range.start);
-            let old_end_byte = text.char_to_byte(char_range.end);
-            let new_end_byte = text.char_to_byte(char_range.end + delta.text().len());
-
-            let input = tree_sitter::InputEdit {
-                start_byte,
-                old_end_byte,
-                new_end_byte,
-                start_position: point_range.start().into(),
-                old_end_position: point_range.end().into(),
-                new_end_position: tree_sitter::Point { row: 0, column: 0 },
-            };
-
-            tree.edit(&input);
+        match &mut self.tree {
+            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)),
+            _ => text.edit(delta),
         }
-
-        text.edit(delta);
 
         self.tree = self
             .parser
@@ -111,6 +95,29 @@ impl Syntax {
 
     pub fn highlights_query(&self) -> &'static Query {
         self.highlights_query
+    }
+}
+
+fn delta_to_ts_edit(text: &mut dyn TextMut, delta: &Delta<'_>) -> tree_sitter::InputEdit {
+    let char_range = text.delta_to_char_range(delta);
+    let point_range = text.delta_to_point_range(delta);
+
+    let start_byte = text.char_to_byte(char_range.start);
+    let old_end_byte = text.char_to_byte(char_range.end);
+    let new_end_byte = start_byte + delta.text().len();
+
+    text.edit(delta);
+
+    let new_end_char = start_byte + delta.text().len_chars();
+    let new_end_position = text.char_to_point(new_end_char).into();
+
+    tree_sitter::InputEdit {
+        start_byte,
+        old_end_byte,
+        new_end_byte,
+        start_position: point_range.start().into(),
+        old_end_position: point_range.end().into(),
+        new_end_position,
     }
 }
 
@@ -142,3 +149,6 @@ impl<'a> tree_sitter::TextProvider<'a> for TextProvider<'a> {
         self.0.byte_slice(node.start_byte()..node.end_byte()).map(str::as_bytes)
     }
 }
+
+#[cfg(test)]
+mod tests;
