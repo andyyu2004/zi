@@ -210,6 +210,7 @@ impl Editor {
         }
 
         // If the buffer is already open, switch to it
+        // FIXME we need to check the buffer is in the same mode too i.e. both readonly or not
         for buf in self.buffers.values() {
             if buf.path() == path {
                 self.views[self.tree.active()].set_buffer(buf.id());
@@ -224,6 +225,7 @@ impl Editor {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
+                panic!();
                 TextBuffer::new(id, lang.clone(), &path, text, &self.theme).boxed()
             } else {
                 let rope = if path.exists() {
@@ -497,7 +499,8 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
-        buf.edit(&Delta::insert_at(cursor, c.to_string()));
+        let mut cbuf = [0; 4];
+        buf.edit(&Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
@@ -817,7 +820,9 @@ impl Editor {
                         let path = path.into_inner();
                         // FIXME reuse the same buffer
                         // editor.views[preview].set_buffer(placeholder_buf);
-                        match editor.open(path, OpenFlags::READONLY) {
+                        // FIXME use readonly see associated bug with open
+                        // match editor.open(path, OpenFlags::READONLY) {
+                        match editor.open(path, OpenFlags::empty()) {
                             Ok(buffer) => editor.set_buffer(preview, buffer),
                             Err(_) => {
                                 // FIXME show error

@@ -133,7 +133,6 @@ impl Range {
         let before = Range::new(start, inside_start);
         let inside = Range::new(inside_start, inside_end);
         let after = Range::new(inside_end, end);
-        debug_assert!(!inside.is_empty(), "they intersected so inside can't be empty");
         (before, inside, after)
     }
 }
@@ -234,6 +233,13 @@ impl FromStr for Point {
             .split_once(':')
             .ok_or_else(|| anyhow::anyhow!("invalid position: {s} (expected `<line>:<col>`)"))?;
         Ok(Self::new(line.parse::<u32>()?, col.parse::<u32>()?))
+    }
+}
+
+impl From<Point> for tree_sitter::Point {
+    #[inline]
+    fn from(point: Point) -> Self {
+        Self { row: point.line.0 as usize, column: point.col.0 as usize }
     }
 }
 
@@ -612,57 +618,60 @@ where
             };
         }
 
-        if let Some((range, style)) = self.buffer.pop() {
-            return Some((range, style));
-        }
-
-        let ((xr, x), (yr, y)) = match peek!(x, y) {
-            (None, None) => return None,
-            (Some(_), None) => return next!(x),
-            (None, Some(_)) => return next!(y),
-            (Some(&x), Some(&y)) => (x, y),
-        };
-
-        // It's generally not possible to merge non-single-line ranges.
-        // Given ranges 0:0:5:2 and 0:3:0:5, it's ambiguous what the output should be.
-        // In particular, it's ambiguous where the first highlight should end for each line.
-        assert!(
-            xr.is_single_line() && yr.is_single_line(),
-            "can only merge single-line ranges: {xr} {yr}"
-        );
-
-        if xr.intersects(&yr) {
-            next!(x, y);
-
-            let (before, inside, after) = xr.segments(&yr);
-            debug_assert!(!inside.is_empty());
-
-            if !after.is_empty() {
-                if xr.end < yr.end {
-                    self.ys_buffer.push_back((after, y));
-                } else {
-                    self.xs_buffer.push_back((after, x));
+        loop {
+            while let Some((range, style)) = self.buffer.pop() {
+                if !range.is_empty() {
+                    return Some((range, style));
                 }
             }
 
-            match xr.start.cmp(&yr.start) {
-                Ordering::Less => {
-                    self.buffer.push((inside, x.merge(y)));
-                    Some((before, x))
+            let ((xr, x), (yr, y)) = match peek!(x, y) {
+                (None, None) => return None,
+                (Some(_), None) => return next!(x),
+                (None, Some(_)) => return next!(y),
+                (Some(&x), Some(&y)) => (x, y),
+            };
+
+            // It's generally not possible to merge non-single-line ranges.
+            // Given ranges 0:0:5:2 and 0:3:0:5, it's ambiguous what the output should be.
+            // In particular, it's ambiguous where the first highlight should end for each line.
+            assert!(
+                xr.is_single_line() && yr.is_single_line(),
+                "can only merge single-line ranges: {xr} {yr}"
+            );
+
+            if xr.intersects(&yr) {
+                next!(x, y);
+
+                let (before, inside, after) = xr.segments(&yr);
+
+                if !after.is_empty() {
+                    if xr.end < yr.end {
+                        self.ys_buffer.push_back((after, y));
+                    } else {
+                        self.xs_buffer.push_back((after, x));
+                    }
                 }
-                Ordering::Equal => {
-                    assert!(before.is_empty());
-                    Some((inside, x.merge(y)))
+
+                match xr.start.cmp(&yr.start) {
+                    Ordering::Less => {
+                        self.buffer.push((inside, x.merge(y)));
+                        self.buffer.push((before, x));
+                    }
+                    Ordering::Equal => {
+                        assert!(before.is_empty());
+                        return Some((inside, x.merge(y)));
+                    }
+                    Ordering::Greater => {
+                        self.buffer.push((inside, x.merge(y)));
+                        self.buffer.push((before, y));
+                    }
                 }
-                Ordering::Greater => {
-                    self.buffer.push((inside, x.merge(y)));
-                    Some((before, y))
-                }
+            } else if xr.start < yr.start {
+                return next!(x);
+            } else {
+                return next!(y);
             }
-        } else if xr.start < yr.start {
-            next!(x)
-        } else {
-            next!(y)
         }
     }
 }

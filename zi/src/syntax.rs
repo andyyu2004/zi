@@ -8,7 +8,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::buffer::LazyText;
+use crate::buffer::{Delta, LazyText, TextMut};
 use crate::FileType;
 
 pub struct Syntax {
@@ -61,14 +61,37 @@ impl Syntax {
         Some(Self { highlights_query, parser, tree: None })
     }
 
-    pub fn edit(&mut self, source: &dyn LazyText) {
-        self.tree = self.parser.parse_with(
-            &mut |byte, _point| source.chunk_at_byte(byte),
-            None,
-            // TODO incremental partial parsing
-            // i.e. keep tree in sync and pass it in, also can only parse the visible range of the document
-            // self.tree.as_ref(),
-        );
+    /// Set the text of the syntax tree.
+    /// Prefer using `edit` if you have a delta.
+    pub fn set(&mut self, text: &dyn LazyText) {
+        self.tree = self.parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), None);
+    }
+
+    pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) {
+        if let Some(tree) = &mut self.tree {
+            let char_range = text.delta_to_char_range(delta);
+            let point_range = text.delta_to_point_range(delta);
+            let start_byte = text.char_to_byte(char_range.start);
+            let old_end_byte = text.char_to_byte(char_range.end);
+            let new_end_byte = text.char_to_byte(char_range.end + delta.text().len());
+
+            let input = tree_sitter::InputEdit {
+                start_byte,
+                old_end_byte,
+                new_end_byte,
+                start_position: point_range.start().into(),
+                old_end_position: point_range.end().into(),
+                new_end_position: tree_sitter::Point { row: 0, column: 0 },
+            };
+
+            tree.edit(&input);
+        }
+
+        text.edit(delta);
+
+        self.tree = self
+            .parser
+            .parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref());
     }
 
     pub fn highlights<'a, 'tree: 'a>(

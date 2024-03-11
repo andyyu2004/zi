@@ -194,11 +194,15 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         let display_view = self.display_view;
         sender.queue(move |editor| {
             use std::fmt::Write;
+            let buf = editor.view(display_view).buffer();
+            let text = editor.buffer(buf).text();
+
             let mut s = String::new();
             for item in items.iter() {
                 writeln!(s, "{item}")?;
             }
-            editor.edit(display_view, &Delta::set(s));
+
+            editor.edit(display_view, &Delta::new(0..text.len_chars(), s));
             Ok(())
         });
     }

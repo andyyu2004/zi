@@ -53,9 +53,10 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
-                text.edit(delta);
                 if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(&self.text);
+                    syntax.edit(text, delta);
+                } else {
+                    text.edit(delta);
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -147,7 +148,7 @@ impl<X: LazyText> TextBuffer<X> {
 
         let mut syntax = Syntax::for_language(&language_id);
         if let Some(syntax) = &mut syntax {
-            syntax.edit(&text);
+            syntax.set(&text);
         }
 
         Self {

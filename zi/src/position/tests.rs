@@ -36,6 +36,7 @@ fn range_segments() {
 
     check("1:1..1:5", "1:3..1:10", ("1:1..1:3", "1:3..1:5", "1:5..1:10"));
     check("1:1..1:5", "1:1..1:5", ("1:1..1:1", "1:1..1:5", "1:5..1:5"));
+    check("9:1..9:1", "9:0..9:29", ("9:0..9:1", "9:1..9:1", "9:1..9:29"));
 }
 
 #[test]
@@ -64,6 +65,8 @@ fn range_merge_iter() {
             // help RA out a bit with inference
             let range: Range = range;
             let style: Style = style;
+            assert!(!range.is_empty(), "should not yield empty ranges");
+
             if let Some(prev_range) = prev {
                 // ranges yielded should be non-overlapping and in order
                 assert!(
@@ -83,6 +86,15 @@ fn range_merge_iter() {
     }
 
     check([], [], expect![]);
+
+    check(
+        [("1:1..1:5", "fg=#000102")],
+        [("1:2..1:2", "bg=#010203")],
+        expect![[r#"
+            1:1..1:2 => fg=#000102
+            1:2..1:5 => fg=#000102
+        "#]],
+    );
 
     check(
         [("1:1..1:5", "fg=#000102")],

@@ -17,7 +17,6 @@ pub enum DeltaRange {
     Point(Range),
     /// The character index range to replace
     Char(ops::Range<usize>),
-    Full,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,24 +64,18 @@ impl From<Range> for DeltaRange {
 }
 
 impl<'a> Delta<'a> {
-    #[inline]
-    pub fn clear() -> Self {
-        Self { range: DeltaRange::Full, text: Cow::Borrowed("") }
+    pub fn new(range: impl Into<DeltaRange>, text: impl Into<Cow<'a, str>>) -> Self {
+        Self { range: range.into(), text: text.into() }
     }
 
     #[inline]
     pub fn delete(range: impl Into<DeltaRange>) -> Self {
-        Self { range: range.into(), text: Cow::Borrowed("") }
+        Self::new(range, "")
     }
 
     #[inline]
     pub fn insert_at(at: impl Into<PointOrChar>, text: impl Into<Cow<'a, str>>) -> Self {
-        Self { range: at.into().empty_range(), text: text.into() }
-    }
-
-    #[inline]
-    pub fn set(text: impl Into<Cow<'a, str>>) -> Self {
-        Self { range: DeltaRange::Full, text: text.into() }
+        Self::new(at.into().empty_range(), text)
     }
 
     #[inline]

@@ -79,6 +79,11 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     }
 
     #[inline]
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        self.as_str().char_to_byte(char_idx)
+    }
+
+    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.as_str().lines_at(line_idx)
     }

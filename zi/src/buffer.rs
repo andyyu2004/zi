@@ -48,14 +48,6 @@ impl Resource for dyn Buffer {
 
 pub trait TextMut: Text {
     fn edit(&mut self, delta: &Delta<'_>);
-
-    fn delta_to_char_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
-        match delta.range() {
-            DeltaRange::Point(range) => self.range_to_char_range(range),
-            DeltaRange::Char(range) => range,
-            DeltaRange::Full => 0..self.len_chars(),
-        }
-    }
 }
 
 impl TextMut for Rope {
@@ -83,6 +75,8 @@ pub trait LazyText: fmt::Display {
     fn line_to_char(&self, line_idx: usize) -> usize;
     fn char_to_line(&self, char_idx: usize) -> usize;
 
+    fn char_to_byte(&self, char_idx: usize) -> usize;
+
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
 
@@ -97,6 +91,30 @@ pub trait LazyText: fmt::Display {
 
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut>;
 
+    fn char_to_point(&self, char_idx: usize) -> Point {
+        let line = self.char_to_line(char_idx);
+        let col = char_idx - self.line_to_char(line);
+        Point::new(line, col)
+    }
+
+    #[inline]
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+        match delta.range() {
+            DeltaRange::Point(p) => p,
+            DeltaRange::Char(range) => {
+                Range::new(self.char_to_point(range.start), self.char_to_point(range.end))
+            }
+        }
+    }
+
+    #[inline]
+    fn delta_to_char_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
+        match delta.range() {
+            DeltaRange::Point(range) => self.point_range_to_char_range(range),
+            DeltaRange::Char(range) => range,
+        }
+    }
+
     fn line_in_bounds(&self, line: usize) -> bool {
         self.get_line(line).is_some()
     }
@@ -105,7 +123,7 @@ pub trait LazyText: fmt::Display {
         self.line_to_char(point.line().idx()) + point.col().idx()
     }
 
-    fn range_to_char_range(&self, range: Range) -> ops::Range<usize> {
+    fn point_range_to_char_range(&self, range: Range) -> ops::Range<usize> {
         self.point_to_char(range.start())..self.point_to_char(range.end())
     }
 
@@ -267,6 +285,11 @@ impl LazyText for str {
     }
 
     #[inline]
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        self.chars().take(char_idx).map(|c| c.len_utf8()).sum()
+    }
+
+    #[inline]
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         Box::new(str_lines(self).skip(line_idx))
     }
@@ -339,6 +362,11 @@ impl LazyText for Rope {
     #[inline]
     fn char_to_line(&self, char_idx: usize) -> usize {
         self.char_to_line(char_idx)
+    }
+
+    #[inline]
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        self.char_to_byte(char_idx)
     }
 
     #[inline]
@@ -556,6 +584,11 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     #[inline]
     fn char_to_line(&self, char_idx: usize) -> usize {
         (**self).char_to_line(char_idx)
+    }
+
+    #[inline]
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        (**self).char_to_byte(char_idx)
     }
 
     #[inline]
