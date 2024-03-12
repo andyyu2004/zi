@@ -449,6 +449,11 @@ impl Editor {
         request_redraw();
     }
 
+    #[cfg(test)]
+    pub async fn test_run(mut self, tasks: Tasks) -> io::Result<()> {
+        self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
+    }
+
     pub async fn run(
         &mut self,
         mut events: impl Stream<Item = io::Result<Event>>,

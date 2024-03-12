@@ -132,9 +132,7 @@ mod test {
 
         let mut store = Store::new(engine, editor.client());
 
-        tokio::spawn(
-            async move { editor.run(futures_util::stream::empty(), tasks, |_e| Ok(())).await },
-        );
+        tokio::spawn(editor.test_run(tasks));
 
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
         for plugin in &plugins[..] {
