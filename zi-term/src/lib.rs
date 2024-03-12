@@ -1,14 +1,12 @@
 use std::backtrace::Backtrace;
 use std::io;
-use std::pin::pin;
 use std::sync::mpsc::Receiver;
 
 use crossterm::cursor::SetCursorStyle;
 use crossterm::event::DisableMouseCapture;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{cursor, execute, terminal};
-use futures_util::{Stream, StreamExt};
-use tokio::select;
+use futures_util::Stream;
 use tui::{Backend, Terminal};
 use zi::input::Event;
 use zi::Editor;
@@ -32,54 +30,22 @@ impl<B: Backend + io::Write> App<B> {
     pub async fn run(
         &mut self,
         editor: &mut Editor,
-        mut events: impl Stream<Item = io::Result<Event>>,
-        zi::Tasks { requests, callbacks, notify_redraw }: zi::Tasks,
+        events: impl Stream<Item = io::Result<Event>>,
+        tasks: zi::Tasks,
     ) -> io::Result<()> {
-        self.render(editor)?;
+        editor
+            .run(events, tasks, |editor| {
+                // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
+                // Looks much less janky if we set the cursor before rendering.
+                let style = match editor.mode() {
+                    zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
+                    zi::Mode::Insert => SetCursorStyle::SteadyBar,
+                };
+                execute!(self.term.backend_mut(), cursor::Show, style)?;
 
-        let mut requests = requests.fuse();
-        let mut callbacks = callbacks.buffer_unordered(16);
-
-        let mut events = pin!(events);
-        loop {
-            select! {
-                biased;
-                Some(event) = events.next() => editor.handle_input(event?),
-                () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
-                req = requests.select_next_some() => {
-                    // If the receiver dropped then we just ignore the request.
-                    let _ = req.tx.send((req.f)(editor));
-                },
-                f = callbacks.select_next_some() => match f {
-                    Ok(f) => if let Err(err) = f(editor) {
-                        tracing::error!("task callback failed: {:?}", err);
-                    }
-                    Err(err) => {
-                        tracing::error!("task failed: {err}");
-                        editor.set_error(&*err);
-
-                    }
-                },
-            }
-
-            if editor.should_quit() {
-                break;
-            }
-
-            // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
-            // Looks much less janky if we set the cursor before rendering.
-            let style = match editor.mode() {
-                zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
-                zi::Mode::Insert => SetCursorStyle::SteadyBar,
-            };
-            execute!(self.term.backend_mut(), cursor::Show, style)?;
-
-            self.render(editor)?;
-        }
-
-        editor.cleanup().await;
-
-        Ok(())
+                self.render(editor)
+            })
+            .await
     }
 
     #[tracing::instrument(skip_all, level = "debug")]

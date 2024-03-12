@@ -7,13 +7,13 @@ use std::future::Future;
 use std::io;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
-use futures_core::Stream;
+use futures_util::{Stream, StreamExt};
 use ropey::Rope;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
@@ -134,8 +134,8 @@ use self::cursor::SetCursorFlags;
 
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
-pub type Callbacks = impl Stream<Item = CallbackFuture>;
-pub type Requests = impl Stream<Item = Request>;
+pub type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
+pub type Requests = impl Stream<Item = Request> + Unpin;
 
 type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
 
@@ -191,9 +191,9 @@ impl Client {
 }
 
 pub struct Tasks {
-    pub requests: Requests,
-    pub callbacks: Callbacks,
-    pub notify_redraw: &'static Notify,
+    requests: Requests,
+    callbacks: Callbacks,
+    notify_redraw: &'static Notify,
 }
 
 impl Editor {
@@ -427,6 +427,50 @@ impl Editor {
         let size = Size { height: size.height - Self::BOTTOM_BAR_HEIGHT, ..size };
         self.tree.resize(size);
         request_redraw();
+    }
+
+    pub async fn run(
+        &mut self,
+        mut events: impl Stream<Item = io::Result<Event>>,
+        Tasks { requests, callbacks, notify_redraw }: Tasks,
+        mut render: impl FnMut(&mut Self) -> io::Result<()>,
+    ) -> io::Result<()> {
+        render(self)?;
+
+        let mut requests = requests.fuse();
+        let mut callbacks = callbacks.buffer_unordered(16);
+
+        let mut events = pin!(events);
+        loop {
+            tokio::select! {
+                biased;
+                Some(event) = events.next() => self.handle_input(event?),
+                () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
+                req = requests.select_next_some() => {
+                    // If the receiver dropped then we just ignore the request.
+                    let _ = req.tx.send((req.f)(self));
+                },
+                f = callbacks.select_next_some() => match f {
+                    Ok(f) => if let Err(err) = f(self) {
+                        tracing::error!("task callback failed: {:?}", err);
+                    }
+                    Err(err) => {
+                        tracing::error!("task failed: {err}");
+                        self.set_error(&*err);
+                    }
+                },
+            }
+
+            if self.should_quit() {
+                break;
+            }
+
+            render(self)?;
+        }
+
+        self.cleanup().await;
+
+        Ok(())
     }
 
     #[inline]
