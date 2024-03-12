@@ -47,6 +47,9 @@ impl<B: Backend + io::Write> App<B> {
         let mut events = pin!(events);
         loop {
             select! {
+                biased;
+                Some(event) = events.next() => self.editor.handle_input(event?),
+                () = redraw.notified() => tracing::info!("redrawing due to request"),
                 f = tasks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(&mut self.editor) {
                         tracing::error!("task callback failed: {:?}", err);
@@ -57,8 +60,6 @@ impl<B: Backend + io::Write> App<B> {
 
                     }
                 },
-                () = redraw.notified() => tracing::info!("redrawing due to request"),
-                    Some(event) = events.next() => self.editor.handle_input(event?),
             }
 
             if self.editor.should_quit() {
