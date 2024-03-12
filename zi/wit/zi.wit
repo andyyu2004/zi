@@ -4,7 +4,13 @@ world plugin {
     import editor;
     use editor.{mode};
 
+    record dependency {
+        path: string,
+        version: string,
+    }
+
     export initialize: func();
+    export dependencies: func() -> list<dependency>;
 }
 
 interface editor {

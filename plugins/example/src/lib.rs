@@ -4,6 +4,8 @@ mod bindings;
 use bindings::zi::api::editor::*;
 use bindings::Guest;
 
+use self::bindings::Dependency;
+
 struct Component;
 
 impl Guest for Component {
@@ -22,6 +24,10 @@ impl Guest for Component {
 
         let _buf = view.get_buffer();
         // assert!();
+    }
+
+    fn dependencies() -> Vec<Dependency> {
+        vec![]
     }
 }
 

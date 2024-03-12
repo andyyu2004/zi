@@ -40,8 +40,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 wasmtime::component::bindgen!({
     async: true,
-    // tracing: true,
-    // ownership: Borrowing {
-    //     duplicate_if_necessary: true
-    // },
+    tracing: true,
+    ownership: Borrowing {
+        duplicate_if_necessary: true
+    },
+    with: {}
 });
