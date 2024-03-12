@@ -1,9 +1,8 @@
 #[allow(warnings)]
 mod bindings;
 
+use bindings::zi::api::editor::*;
 use bindings::Guest;
-
-use crate::bindings::zi::api::editor::*;
 
 struct Component;
 

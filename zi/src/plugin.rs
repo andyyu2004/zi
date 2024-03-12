@@ -136,7 +136,7 @@ mod test {
             async move { editor.run(futures_util::stream::empty(), tasks, |_e| Ok(())).await },
         );
 
-        let plugins = super::load(engine, &mut store, &["../runtime/plugins/p1.wasm"]).await?;
+        let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
         for plugin in &plugins[..] {
             plugin.call_initialize(&mut store).await?;
         }

@@ -1,10 +1,10 @@
 [package]
-name = "p1"
+name = "example"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wit-bindgen = { version = "0.22.0", default-features = false, features = ["realloc"] }
+wit-bindgen = "0.22.0"
 wit-bindgen-rt = "0.22.0"
 
 [lib]
