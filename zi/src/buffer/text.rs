@@ -156,7 +156,15 @@ impl<X: LazyText> TextBuffer<X> {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
-        let mut syntax = Syntax::for_language(&language_id);
+        let mut syntax = match Syntax::for_language(&language_id) {
+            Ok(syntax) => syntax,
+            Err(err) => {
+                // TODO show the error somewhere
+                tracing::error!("failed to load syntax for {}: {}", language_id, err);
+                None
+            }
+        };
+
         if let Some(syntax) = &mut syntax {
             syntax.set(&text);
         }

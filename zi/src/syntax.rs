@@ -1,5 +1,6 @@
 mod highlight;
 
+use std::cell::RefCell;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
@@ -9,62 +10,82 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
 use crate::buffer::{Delta, LazyText, Text as _, TextMut};
-use crate::FileType;
+use crate::{dirs, FileType};
 
 pub struct Syntax {
+    language: tree_sitter::Language,
     highlights_query: &'static Query,
     tree: Option<Tree>,
-    parser: Parser,
+}
+
+/// The wasm engine to use for tree-sitter.
+/// We're not using the same engine as the plugins because issues with using async stores with tree-sitter.
+static ENGINE: OnceLock<wasmtime::Engine> = OnceLock::new();
+
+thread_local! {
+    static PARSER: RefCell<Parser> = {
+        let mut parser = Parser::new();
+        parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default).clone()).unwrap()).unwrap();
+        parser.set_timeout_micros(5000);
+        RefCell::new(parser)
+    };
 }
 
 /// A cache of tree-sitter queries for each language.
 /// Creating a query is very expensive, so we cache them here forever.
 /// Not concerned about memory usage because the queries are not large, and there are not many languages.
-static QUERY_CACHE: OnceLock<RwLock<FxHashMap<tree_sitter::Language, &'static Query>>> =
+static QUERY_CACHE: OnceLock<RwLock<FxHashMap<FileType, (tree_sitter::Language, &'static Query)>>> =
     OnceLock::new();
 
 impl Syntax {
-    pub fn for_language(id: &FileType) -> Option<Self> {
-        let (language, highlights) = match id {
-            id if *id == FileType::RUST => {
-                (tree_sitter_rust::language(), tree_sitter_rust::HIGHLIGHT_QUERY)
-            }
-            id if *id == FileType::GO => {
-                (tree_sitter_go::language(), tree_sitter_go::HIGHLIGHT_QUERY)
-            }
-            id if *id == FileType::TOML => {
-                (tree_sitter_toml::language(), tree_sitter_toml::HIGHLIGHT_QUERY)
-            }
-            id if *id == FileType::JSON => {
-                (tree_sitter_json::language(), tree_sitter_json::HIGHLIGHT_QUERY)
-            }
-            _ => return None,
-        };
-
+    #[tracing::instrument]
+    pub fn for_language(id: &FileType) -> anyhow::Result<Option<Self>> {
         let cache = QUERY_CACHE.get_or_init(Default::default);
         let read_guard = cache.read();
-        let highlights_query = match read_guard.get(&language) {
-            Some(&query) => query,
+        let (language, highlights_query) = match read_guard.get(id) {
+            Some(cached) => cached.clone(),
             None => {
                 drop(read_guard);
-                let query =
-                    Query::new(language, highlights).expect("failed to create tree-sitter query");
-                let query = &*Box::leak(Box::new(query));
-                cache.write().insert(language, query);
-                query
+
+                let grammar_dir = dirs::grammar().join(id);
+                let wasm_path = grammar_dir.join("language.wasm");
+                let highlights_path = grammar_dir.join("highlights.scm");
+
+                if !wasm_path.exists() || !highlights_path.exists() {
+                    tracing::info!(?id, "no wasm or highlights file found for language");
+                    return Ok(None);
+                }
+
+                let bytes = std::fs::read(wasm_path)?;
+                let language = PARSER.with(|parser| {
+                    let mut parser = parser.borrow_mut();
+                    let mut store = parser
+                        .take_wasm_store()
+                        .expect("set during initialization and we always re-set it after");
+                    let language = store.load_language(id.as_str(), &bytes);
+                    parser.set_wasm_store(store).expect("this succeeded during initialization");
+                    language
+                })?;
+
+                let highlights_text = std::fs::read_to_string(highlights_path)?;
+                let highlights_query =
+                    &*Box::leak(Box::new(Query::new(&language, &highlights_text)?));
+                cache.write().insert(id.clone(), (language.clone(), highlights_query));
+                (language, highlights_query)
             }
         };
 
-        let mut parser = Parser::new();
-        parser.set_language(language).expect("failed to set tree-sitter parser language");
-        parser.set_timeout_micros(5000);
-        Some(Self { highlights_query, parser, tree: None })
+        Ok(Some(Self { language, highlights_query, tree: None }))
     }
 
     /// Set the text of the syntax tree.
     /// Prefer using `edit` if you have a delta.
     pub fn set(&mut self, text: &dyn LazyText) {
-        self.tree = self.parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), None);
+        self.tree = PARSER.with(|parser| {
+            let mut parser = parser.borrow_mut();
+            parser.set_language(&self.language).unwrap();
+            parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), None)
+        });
     }
 
     pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) {
@@ -73,9 +94,11 @@ impl Syntax {
             _ => text.edit(delta),
         }
 
-        self.tree = self
-            .parser
-            .parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref());
+        PARSER.with(|parser| {
+            let mut parser = parser.borrow_mut();
+            parser.set_language(&self.language).unwrap();
+            parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref());
+        });
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -124,7 +147,7 @@ fn delta_to_ts_edit(text: &mut dyn TextMut, delta: &Delta<'_>) -> tree_sitter::I
 /// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide
 #[derive(Default)]
 pub enum Highlights<'a, 'tree> {
-    Captures(QueryCaptures<'a, 'tree, TextProvider<'a>>),
+    Captures(QueryCaptures<'a, 'tree, TextProvider<'a>, &'a [u8]>),
     #[default]
     Empty,
 }
@@ -142,7 +165,7 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
 
 pub struct TextProvider<'a>(&'a dyn LazyText);
 
-impl<'a> tree_sitter::TextProvider<'a> for TextProvider<'a> {
+impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {

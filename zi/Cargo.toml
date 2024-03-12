@@ -16,11 +16,7 @@ rustc-hash = "1.1.0"
 slotmap = "1.0.7"
 tokio = { version = "1.36.0", default-features = false, features = ["sync", "rt-multi-thread", "time"] }
 tracing = "0.1.40"
-tree-sitter = "0.20.4"
-tree-sitter-go = "0.20.0"
-tree-sitter-json = "0.20.2"
-tree-sitter-rust = "0.20.4"
-tree-sitter-toml = "0.20.0"
+tree-sitter = { version = "0.22.1", features = ["wasm"] }
 unicode-width = "0.1.11"
 wasmtime = { version = "18.0.2", features = ["component-model"] }
 wit-bindgen = "0.18.0"
@@ -38,6 +34,7 @@ memchr = "2.7.1"
 smallvec = "2.0.0-alpha.4"
 async-trait = "0.1.77"
 futures-util = "0.3.30"
+directories-next = "2.0.0"
 
 [dev-dependencies]
 duct = "0.13.7"

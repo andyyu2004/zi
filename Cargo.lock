@@ -2222,52 +2222,14 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.20.10"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
+checksum = "5606b9e714f1b20d2b2a3f1b634b69ff377e967e3e2c12171d9301f946be9881"
 dependencies = [
  "cc",
  "regex",
-]
-
-[[package]]
-name = "tree-sitter-go"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad6d11f19441b961af2fda7f12f5d0dac325f6d6de83836a1d3750018cc5114"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-json"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a9a38a9c679b55cc8d17350381ec08d69fa1a17a53fcf197f344516e485ed4d"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-rust"
-version = "0.20.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0832309b0b2b6d33760ce5c0e818cb47e1d72b468516bfe4134408926fa7594"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-toml"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca517f578a98b23d20780247cc2688407fa81effad5b627a5a364ec3339b53e8"
-dependencies = [
- "cc",
- "tree-sitter",
+ "wasmtime",
+ "wasmtime-c-api-impl",
 ]
 
 [[package]]
@@ -2498,6 +2460,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86b9d329c718b3a18412a6a017c912b539baa8fe1210d21b651f6b4dbafed743"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "wasmtime-c-api-impl"
+version = "18.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc93587c24d8e3cb28912eb7abf95f7e350380656faccc46cff04c0821ec58c2"
+dependencies = [
+ "anyhow",
+ "log",
+ "once_cell",
+ "tracing",
+ "wasmtime",
+ "wasmtime-c-api-macros",
+]
+
+[[package]]
+name = "wasmtime-c-api-macros"
+version = "18.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e571a71eba52dfe81ef653a3a336888141f00fc2208a9962722e036fe2a34be"
+dependencies = [
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -3072,6 +3058,7 @@ dependencies = [
  "bitflags 2.4.2",
  "chumsky",
  "crossterm",
+ "directories-next",
  "duct",
  "expect-test",
  "futures-core",
@@ -3093,10 +3080,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tree-sitter",
- "tree-sitter-go",
- "tree-sitter-json",
- "tree-sitter-rust",
- "tree-sitter-toml",
  "unicode-width",
  "wasmtime",
  "wit-bindgen",

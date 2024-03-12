@@ -11,7 +11,7 @@ pub use wasmtime::Engine;
 use crate::editor::Client;
 use crate::zi::api::editor;
 
-fn engine() -> &'static Engine {
+pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
     ENGINE.get_or_init(|| {
         let mut config = wasmtime::Config::new();

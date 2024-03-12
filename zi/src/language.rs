@@ -40,6 +40,17 @@ impl FileType {
             None => Self::TEXT,
         }
     }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for FileType {
+    #[inline]
+    fn as_ref(&self) -> &Path {
+        self.as_str().as_ref()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
