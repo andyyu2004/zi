@@ -1,5 +1,4 @@
-#[allow(clippy::all)]
-#[allow(dead_code)]
+#[allow(warnings)]
 mod bindings;
 
 use bindings::Guest;
@@ -26,3 +25,5 @@ impl Guest for Component {
         // assert!();
     }
 }
+
+bindings::export!(Component with_types_in bindings);

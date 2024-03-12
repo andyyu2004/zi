@@ -117,7 +117,7 @@ impl ViewTree {
 pub struct Layer {
     active: ViewId,
     root: Node,
-    compute_area: Box<dyn Fn(Rect) -> Rect>,
+    compute_area: Box<dyn Fn(Rect) -> Rect + Send>,
 }
 
 impl Layer {
@@ -126,7 +126,10 @@ impl Layer {
     }
 
     /// Create a new layer with a custom area function
-    pub fn new_with_area(active: ViewId, compute_area: impl Fn(Rect) -> Rect + 'static) -> Self {
+    pub fn new_with_area(
+        active: ViewId,
+        compute_area: impl Fn(Rect) -> Rect + Send + 'static,
+    ) -> Self {
         Layer { active, root: Node::View(active), compute_area: Box::new(compute_area) }
     }
 

@@ -36,6 +36,8 @@ expect-test = "1.4.1"
 memmap2 = "0.9.4"
 memchr = "2.7.1"
 smallvec = "2.0.0-alpha.4"
+async-trait = "0.1.77"
+futures-util = "0.3.30"
 
 [dev-dependencies]
 duct = "0.13.7"

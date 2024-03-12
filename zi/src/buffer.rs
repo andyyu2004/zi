@@ -448,9 +448,9 @@ pub trait Buffer {
         Box::new(std::iter::empty())
     }
 
-    fn boxed(self) -> Box<dyn Buffer>
+    fn boxed(self) -> Box<dyn Buffer + Send>
     where
-        Self: Sized + 'static,
+        Self: Sized + Send + 'static,
     {
         Box::new(self)
     }
@@ -469,7 +469,7 @@ pub trait Buffer {
 }
 
 // NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
-impl Buffer for Box<dyn Buffer> {
+impl Buffer for Box<dyn Buffer + Send> {
     #[inline]
     fn id(&self) -> BufferId {
         self.as_ref().id()
@@ -543,9 +543,9 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn boxed(self) -> Box<dyn Buffer>
+    fn boxed(self) -> Box<dyn Buffer + Send>
     where
-        Self: Sized + 'static,
+        Self: Sized + Send + 'static,
     {
         self
     }

@@ -28,7 +28,7 @@ pub use tui::Constraint;
 pub use zi_lsp::lsp_types::Url;
 
 pub use self::buffer::{Buffer, BufferId, LazyText, PickerBuffer, TextBuffer};
-pub use self::editor::{Callbacks, Editor, OpenFlags};
+pub use self::editor::{Callbacks, Editor, OpenFlags, Requests, Tasks};
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
 pub use self::syntax::{Color, Style};
@@ -39,7 +39,7 @@ pub type Error = anyhow::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 wasmtime::component::bindgen!({
-    // async: true,
+    async: true,
     // tracing: true,
     // ownership: Borrowing {
     //     duplicate_if_necessary: true

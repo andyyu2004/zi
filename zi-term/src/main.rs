@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
 
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
-    let (mut editor, callbacks, notify_redraw) = zi::Editor::new(term.size()?);
+    let (mut editor, tasks) = zi::Editor::new(term.size()?);
     if let Some(path) = opts.path {
         if path.exists() && path.is_dir() {
             std::env::set_current_dir(&path)?;
@@ -67,12 +67,12 @@ async fn main() -> anyhow::Result<()> {
         prev(info);
     });
 
-    let mut app = zi_term::App::new(term, editor, panic_rx)?;
+    let mut app = zi_term::App::new(term, panic_rx)?;
     app.enter()?;
 
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
-    app.run(events, callbacks, notify_redraw).await?;
+    app.run(&mut editor, events, tasks).await?;
 
     Ok(())
 }

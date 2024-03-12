@@ -14,18 +14,13 @@ use zi::input::Event;
 use zi::Editor;
 
 pub struct App<B: Backend + io::Write> {
-    editor: Editor,
     term: Terminal<B>,
     panic_rx: Receiver<(String, Backtrace)>,
 }
 
 impl<B: Backend + io::Write> App<B> {
-    pub fn new(
-        term: Terminal<B>,
-        editor: Editor,
-        panic_rx: Receiver<(String, Backtrace)>,
-    ) -> io::Result<Self> {
-        Ok(Self { term, editor, panic_rx })
+    pub fn new(term: Terminal<B>, panic_rx: Receiver<(String, Backtrace)>) -> io::Result<Self> {
+        Ok(Self { term, panic_rx })
     }
 
     pub fn enter(&mut self) -> io::Result<()> {
@@ -36,55 +31,60 @@ impl<B: Backend + io::Write> App<B> {
 
     pub async fn run(
         &mut self,
+        editor: &mut Editor,
         mut events: impl Stream<Item = io::Result<Event>>,
-        tasks: zi::Callbacks,
-        redraw: &zi::Notify,
+        zi::Tasks { requests, callbacks, notify_redraw }: zi::Tasks,
     ) -> io::Result<()> {
-        self.render()?;
+        self.render(editor)?;
 
-        let mut tasks = tasks.buffer_unordered(16);
+        let mut requests = requests.fuse();
+        let mut callbacks = callbacks.buffer_unordered(16);
 
         let mut events = pin!(events);
         loop {
             select! {
                 biased;
-                Some(event) = events.next() => self.editor.handle_input(event?),
-                () = redraw.notified() => tracing::info!("redrawing due to request"),
-                f = tasks.select_next_some() => match f {
-                    Ok(f) => if let Err(err) = f(&mut self.editor) {
+                Some(event) = events.next() => editor.handle_input(event?),
+                () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
+                req = requests.select_next_some() => {
+                    // If the receiver dropped then we just ignore the request.
+                    let _ = req.tx.send((req.f)(editor));
+                },
+                f = callbacks.select_next_some() => match f {
+                    Ok(f) => if let Err(err) = f(editor) {
                         tracing::error!("task callback failed: {:?}", err);
                     }
                     Err(err) => {
                         tracing::error!("task failed: {err}");
-                        self.editor.set_error(&*err);
+                        editor.set_error(&*err);
 
                     }
                 },
             }
 
-            if self.editor.should_quit() {
+            if editor.should_quit() {
                 break;
             }
 
             // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
             // Looks much less janky if we set the cursor before rendering.
-            let style = match self.editor.mode() {
+            let style = match editor.mode() {
                 zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
                 zi::Mode::Insert => SetCursorStyle::SteadyBar,
             };
             execute!(self.term.backend_mut(), cursor::Show, style)?;
 
-            self.render()?;
+            self.render(editor)?;
         }
 
-        self.editor.cleanup().await;
+        editor.cleanup().await;
 
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), level = "debug")]
-    fn render(&mut self) -> io::Result<()> {
-        self.term.draw(|frame| self.editor.render(frame))?;
+    #[tracing::instrument(skip_all, level = "debug")]
+    fn render(&mut self, editor: &mut Editor) -> io::Result<()> {
+        self.term.draw(|frame| editor.render(frame))?;
         Ok(())
     }
 }

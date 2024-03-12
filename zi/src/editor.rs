@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
@@ -17,8 +18,8 @@ use ropey::Rope;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::PathExt;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::Notify;
+use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
@@ -47,14 +48,15 @@ bitflags::bitflags! {
 
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
-    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
+    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer + Send>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     mode: Mode,
     keymap: Keymap,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
-    tx: CallbacksSender,
+    callbacks_tx: CallbacksSender,
+    requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
     tree: layout::ViewTree,
     pool: rayon::ThreadPool,
@@ -133,13 +135,14 @@ use self::cursor::SetCursorFlags;
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
 pub type Callbacks = impl Stream<Item = CallbackFuture>;
+pub type Requests = impl Stream<Item = Request>;
 
 type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
 
 type CallbacksSender = UnboundedSender<CallbackFuture>;
 
 // Adaptor for tokio's channel to be a futures Stream
-struct ChannelStream<T>(UnboundedReceiver<T>);
+struct ChannelStream<T>(Receiver<T>);
 
 impl<T> Stream for ChannelStream<T> {
     type Item = T;
@@ -148,6 +151,49 @@ impl<T> Stream for ChannelStream<T> {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.0.poll_recv(cx)
     }
+}
+
+// Adaptor for tokio's unbounded channel to be a futures Stream
+struct UnboundedChannelStream<T>(UnboundedReceiver<T>);
+
+impl<T> Stream for UnboundedChannelStream<T> {
+    type Item = T;
+
+    #[inline]
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
+    }
+}
+
+pub struct Request {
+    #[allow(clippy::type_complexity)]
+    pub f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
+    pub tx: oneshot::Sender<Box<dyn Any + Send>>,
+}
+
+/// An async client to the editor.
+pub struct Client {
+    tx: Sender<Request>,
+}
+
+impl Client {
+    pub async fn request<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&mut Editor) -> T + Send + 'static,
+    ) -> T {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(Request { tx, f: Box::new(|editor| Box::new(f(editor))) })
+            .await
+            .expect("request receiver should be alive");
+        *rx.await.expect("server did not send response").downcast().unwrap()
+    }
+}
+
+pub struct Tasks {
+    pub requests: Requests,
+    pub callbacks: Callbacks,
+    pub notify_redraw: &'static Notify,
 }
 
 impl Editor {
@@ -159,7 +205,7 @@ impl Editor {
     /// The callback stream must be polled and the resulting callback executed on the editor.
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
-    pub fn new(size: impl Into<Size>) -> (Self, Callbacks, &'static Notify) {
+    pub fn new(size: impl Into<Size>) -> (Self, Tasks) {
         let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
@@ -169,12 +215,15 @@ impl Editor {
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
 
-        // Using an unbounded channel as we need `tx.send()` to be sync.
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        // Using an unbounded channel as we need `callbacks_tx.send()` to be sync.
+        let (callbacks_tx, callbacks_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
         let mut editor = Self {
             buffers,
             views,
-            tx,
+            callbacks_tx,
+            requests_tx,
             pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
             keymap: default_keymap(),
@@ -188,7 +237,18 @@ impl Editor {
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
         editor.resize(size);
-        (editor, ChannelStream(rx), notify_redraw)
+        (
+            editor,
+            Tasks {
+                requests: ChannelStream(requests_rx),
+                callbacks: UnboundedChannelStream(callbacks_rx),
+                notify_redraw,
+            },
+        )
+    }
+
+    pub fn client(&self) -> Client {
+        Client { tx: self.requests_tx.clone() }
     }
 
     pub fn open(
@@ -449,7 +509,7 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &dyn Buffer> {
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &(dyn Buffer + Send)> {
         self.buffers.values().map(|b| b.as_ref())
     }
 
@@ -616,7 +676,7 @@ impl Editor {
                 tracing::debug!(%server_id, ?command, ?args, "language server initialization");
                 let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
                 callback(
-                    &self.tx,
+                    &self.callbacks_tx,
                     "initializing language server",
                     async move {
                         let res = server
@@ -898,7 +958,7 @@ impl Editor {
     }
 
     fn sender(&self) -> TaskSender {
-        TaskSender(self.tx.clone())
+        TaskSender(self.callbacks_tx.clone())
     }
 
     fn callback<R: 'static>(
@@ -907,7 +967,7 @@ impl Editor {
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
         f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
-        callback(&self.tx, desc, fut, f);
+        callback(&self.callbacks_tx, desc, fut, f);
     }
 }
 

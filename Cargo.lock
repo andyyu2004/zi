@@ -1358,7 +1358,8 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 name = "p1"
 version = "0.1.0"
 dependencies = [
- "wit-bindgen",
+ "wit-bindgen 0.22.0",
+ "wit-bindgen-rt",
 ]
 
 [[package]]
@@ -2985,6 +2986,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wit-bindgen"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "288f992ea30e6b5c531b52cdd5f3be81c148554b09ea416f058d16556ba92c27"
+dependencies = [
+ "bitflags 2.4.2",
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "wit-bindgen-core"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2993,6 +3004,12 @@ dependencies = [
  "anyhow",
  "wit-parser 0.14.0",
 ]
+
+[[package]]
+name = "wit-bindgen-rt"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcb8738270f32a2d6739973cbbb7c1b6dd8959ce515578a6e19165853272ee64"
 
 [[package]]
 name = "wit-bindgen-rust"
@@ -3100,12 +3117,14 @@ name = "zi"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bitflags 2.4.2",
  "chumsky",
  "crossterm",
  "duct",
  "expect-test",
  "futures-core",
+ "futures-util",
  "ignore",
  "memchr",
  "memmap2",
@@ -3129,7 +3148,7 @@ dependencies = [
  "tree-sitter-toml",
  "unicode-width",
  "wasmtime",
- "wit-bindgen",
+ "wit-bindgen 0.18.0",
  "zi-lsp",
  "zi-tui",
 ]

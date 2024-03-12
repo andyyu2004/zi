@@ -10,5 +10,6 @@ target := "wasm32-unknown-unknown"
 build-plugins:
     @echo "building plugins"
     @for dir in ./plugins/*/; do cargo -Zunstable-options -C $dir component build --target {{target}} --release; done
+    mkdir -p runtime/plugins
     cp target/{{target}}/release/*.wasm runtime/plugins
 
