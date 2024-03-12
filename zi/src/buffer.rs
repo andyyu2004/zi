@@ -30,6 +30,13 @@ slotmap::new_key_type! {
     pub struct BufferId;
 }
 
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct BufferFlags: u32 {
+        const READONLY = 0b0000_0001;
+    }
+}
+
 impl Resource for dyn Buffer {
     type Id = BufferId;
 
@@ -416,6 +423,7 @@ impl LazyText for Rope {
 
 pub trait Buffer {
     fn id(&self) -> BufferId;
+    fn flags(&self) -> BufferFlags;
     fn path(&self) -> &Path;
     fn url(&self) -> &Url;
     fn file_url(&self) -> Option<&Url>;
@@ -473,6 +481,11 @@ impl Buffer for Box<dyn Buffer + Send> {
     #[inline]
     fn id(&self) -> BufferId {
         self.as_ref().id()
+    }
+
+    #[inline]
+    fn flags(&self) -> BufferFlags {
+        self.as_ref().flags()
     }
 
     #[inline]

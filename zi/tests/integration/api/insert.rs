@@ -22,3 +22,19 @@ fn insert_char() {
     editor.set_mode(zi::Mode::Normal);
     assert_eq!(editor.active_cursor(), (0, 0), "nowhere left to move");
 }
+
+#[test]
+fn insert_into_readonly() -> zi::Result<()> {
+    let mut editor = new("abc");
+    let path = tempfile::NamedTempFile::new()?.into_temp_path();
+    let buf = editor.open(path, zi::OpenFlags::READONLY | zi::OpenFlags::SET_ACTIVE_BUFFER)?;
+    assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));
+
+    assert!(editor.get_error().is_none());
+
+    editor.insert("def");
+
+    assert_eq!(editor.buffer(buf).text().to_string(), "");
+    assert!(editor.get_error().is_some());
+    Ok(())
+}

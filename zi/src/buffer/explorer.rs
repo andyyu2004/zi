@@ -73,6 +73,10 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         self.id
     }
 
+    fn flags(&self) -> BufferFlags {
+        BufferFlags::READONLY
+    }
+
     fn path(&self) -> &Path {
         // TODO get the actual directory path we're looking at
         Path::new("explorer")

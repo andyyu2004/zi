@@ -2,6 +2,7 @@ use super::*;
 
 pub struct TextBuffer<X> {
     id: BufferId,
+    flags: BufferFlags,
     path: PathBuf,
     /// The resource url of this buffer
     url: Url,
@@ -17,8 +18,14 @@ pub struct TextBuffer<X> {
 }
 
 impl<X: Text + 'static> Buffer for TextBuffer<X> {
+    #[inline]
     fn id(&self) -> BufferId {
         self.id
+    }
+
+    #[inline]
+    fn flags(&self) -> BufferFlags {
+        self.flags
     }
 
     #[inline]
@@ -123,6 +130,7 @@ impl<X: LazyText> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,
+        flags: BufferFlags,
         language_id: FileType,
         path: impl AsRef<Path>,
         mut text: X,
@@ -144,6 +152,8 @@ impl<X: LazyText> TextBuffer<X> {
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
                 text.edit(&Delta::insert_at(idx, "\n"));
             }
+        } else if !flags.contains(BufferFlags::READONLY) {
+            panic!("must set readonly buffer flag for readonly text implementations")
         }
 
         let mut syntax = Syntax::for_language(&language_id);
@@ -153,6 +163,7 @@ impl<X: LazyText> TextBuffer<X> {
 
         Self {
             id,
+            flags,
             path,
             url,
             file_url,

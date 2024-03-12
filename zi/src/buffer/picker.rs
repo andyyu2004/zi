@@ -147,6 +147,10 @@ impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
         self.id
     }
 
+    fn flags(&self) -> BufferFlags {
+        BufferFlags::empty()
+    }
+
     fn path(&self) -> &Path {
         Path::new("picker")
     }

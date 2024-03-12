@@ -4,13 +4,13 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
-use std::io;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+use std::{fmt, io};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
@@ -23,7 +23,7 @@ use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
+use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
 use crate::input::{Event, KeyCode, KeyEvent};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -80,6 +80,12 @@ static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
 
 fn request_redraw() {
     NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
+}
+
+macro_rules! set_error {
+    ($editor:ident, $error:expr) => {
+        $editor.status_error = Some($error.to_string());
+    };
 }
 
 /// Get a view and buffer.
@@ -210,7 +216,15 @@ impl Editor {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let buf = buffers.insert_with_key(|id| {
-            TextBuffer::new(id, FileType::TEXT, "scratch", Rope::new(), &theme).boxed()
+            TextBuffer::new(
+                id,
+                BufferFlags::empty(),
+                FileType::TEXT,
+                "scratch",
+                Rope::new(),
+                &theme,
+            )
+            .boxed()
         });
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, buf));
@@ -254,14 +268,14 @@ impl Editor {
     pub fn open(
         &mut self,
         path: impl AsRef<Path>,
-        flags: OpenFlags,
+        open_flags: OpenFlags,
     ) -> Result<BufferId, zi_lsp::Error> {
         let mut path = Cow::Borrowed(path.as_ref());
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file").into());
         }
 
-        if !path.exists() && flags.contains(OpenFlags::READONLY) {
+        if !path.exists() && open_flags.contains(OpenFlags::READONLY) {
             return Err(io::Error::new(io::ErrorKind::NotFound, "file not found").into());
         }
 
@@ -281,29 +295,31 @@ impl Editor {
         let lang = FileType::detect(&path);
         let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
             let start = Instant::now();
-            let buf = if flags.contains(OpenFlags::READONLY) {
+            let buf = if open_flags.contains(OpenFlags::READONLY) {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
-                TextBuffer::new(id, lang.clone(), &path, text, &self.theme).boxed()
+                TextBuffer::new(id, BufferFlags::READONLY, lang.clone(), &path, text, &self.theme)
+                    .boxed()
             } else {
                 let rope = if path.exists() {
                     Rope::from_reader(BufReader::new(File::open(&path)?))?
                 } else {
                     Rope::new()
                 };
-                TextBuffer::new(id, lang.clone(), &path, rope, &self.theme).boxed()
+                TextBuffer::new(id, BufferFlags::empty(), lang.clone(), &path, rope, &self.theme)
+                    .boxed()
             };
 
             tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
             Ok(buf)
         })?;
 
-        if flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+        if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
             self.spawn_language_servers_for_lang(buf, &lang)?;
         }
 
-        if flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
+        if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
             self.set_active_buffer(buf);
         }
 
@@ -333,8 +349,12 @@ impl Editor {
         self.tree.is_empty()
     }
 
-    pub fn set_error(&mut self, error: impl std::error::Error) {
-        self.status_error = Some(error.to_string());
+    pub fn get_error(&mut self) -> Option<&str> {
+        self.status_error.as_deref()
+    }
+
+    pub fn set_error(&mut self, error: impl fmt::Display) {
+        set_error!(self, error);
     }
 
     pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
@@ -600,6 +620,12 @@ impl Editor {
     pub fn insert_char(&mut self, c: char) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self);
+
+        if buf.flags().contains(BufferFlags::READONLY) {
+            set_error!(self, "buffer is readonly");
+            return;
+        }
+
         let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
         let mut cbuf = [0; 4];
@@ -616,6 +642,12 @@ impl Editor {
     pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self: view_id);
+
+        if buf.flags().contains(BufferFlags::READONLY) {
+            set_error!(self, "buffer is readonly");
+            return;
+        }
+
         let cursor = view.cursor();
         buf.edit(delta);
         let buf = buf.id();
@@ -891,7 +923,15 @@ impl Editor {
 
             let display_view = editor.split_active_view(Direction::Left, tui::Constraint::Fill(1));
             editor.views[display_view].set_buffer(editor.buffers.insert_with_key(|id| {
-                TextBuffer::new(id, FileType::TEXT, path, Rope::new(), &editor.theme).boxed()
+                TextBuffer::new(
+                    id,
+                    BufferFlags::READONLY,
+                    FileType::TEXT,
+                    path,
+                    Rope::new(),
+                    &editor.theme,
+                )
+                .boxed()
             }));
 
             let search_view = editor.split_active_view(Direction::Up, tui::Constraint::Max(1));

@@ -27,7 +27,7 @@ pub use tree_sitter;
 pub use tui::Constraint;
 pub use zi_lsp::lsp_types::Url;
 
-pub use self::buffer::{Buffer, BufferId, LazyText, PickerBuffer, TextBuffer};
+pub use self::buffer::{Buffer, BufferId, LazyText, PickerBuffer, TextBuffer, BufferFlags};
 pub use self::editor::{Callbacks, Editor, OpenFlags, Requests, Tasks};
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
