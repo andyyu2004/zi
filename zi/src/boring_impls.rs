@@ -1,10 +1,13 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use crate::Mode;
+use crate::{Dependency, Mode};
 
-// Kinda painful that we can't seem to control the derives? wit-bindgen has a setting but doesn't
-// have the async stuff.
+// Kinda painful that we can't seem to control the derives? wit-bindgen has a setting called
+// additional_derives but wasmtime's one doesn't.
+//
+// Try write the impls in an exhaustive way so any new cases or fields will be caught.
+
 impl PartialEq for Mode {
     fn eq(&self, other: &Self) -> bool {
         match self {
@@ -43,3 +46,12 @@ impl fmt::Display for Mode {
         )
     }
 }
+
+impl PartialEq for Dependency {
+    #[inline]
+    fn eq(&self, Self { path, version }: &Self) -> bool {
+        &self.path == path && &self.version == version
+    }
+}
+
+impl Eq for Dependency {}

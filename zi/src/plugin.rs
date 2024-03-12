@@ -137,7 +137,7 @@ mod test {
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
 
         for plugin in &plugins[..] {
-            // assert_eq!(plugin.call_dependencies(&mut store).await?, vec![]);
+            assert_eq!(plugin.call_dependencies(&mut store).await?, vec![]);
             plugin.call_initialize(&mut store).await?;
         }
 
