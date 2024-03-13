@@ -79,6 +79,11 @@ impl editor::HostBuffer for Client {
 
 #[async_trait::async_trait]
 impl editor::Host for Client {
+    async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
+        self.request(move |editor| editor.insert(&text)).await;
+        Ok(())
+    }
+
     async fn get_mode(&mut self) -> wasmtime::Result<editor::Mode> {
         Ok(self.request(|editor| editor.mode()).await)
     }
@@ -93,8 +98,7 @@ impl editor::Host for Client {
         Ok(Resource::new_own(v))
     }
 
-    async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.insert(&text)).await;
+    async fn create_command(&mut self, cmd: String) -> wasmtime::Result<()> {
         Ok(())
     }
 }
@@ -108,7 +112,7 @@ pub async fn load(
     let mut linker = Linker::new(engine);
     for path in plugin_paths {
         let component = Component::from_file(engine, path)?;
-        Plugin::add_to_linker(&mut linker, |ctx| ctx)?;
+        Plugin::add_to_linker(&mut linker, |client| client)?;
         let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
         plugins.push(bindings);
     }
@@ -137,7 +141,8 @@ mod test {
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
 
         for plugin in &plugins[..] {
-            assert_eq!(plugin.call_dependencies(&mut store).await?, vec![]);
+            assert_eq!(plugin.call_name(&mut store).await?, "example");
+            assert!(plugin.call_dependencies(&mut store).await?.is_empty());
             plugin.call_initialize(&mut store).await?;
         }
 

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use crate::{Dependency, Mode};
+use crate::Mode;
 
 // Kinda painful that we can't seem to control the derives? wit-bindgen has a setting called
 // additional_derives but wasmtime's one doesn't.
@@ -48,12 +48,3 @@ impl fmt::Display for Mode {
         )
     }
 }
-
-impl PartialEq for Dependency {
-    #[inline]
-    fn eq(&self, Self { path, version }: &Self) -> bool {
-        &self.path == path && &self.version == version
-    }
-}
-
-impl Eq for Dependency {}

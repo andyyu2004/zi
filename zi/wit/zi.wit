@@ -4,16 +4,16 @@ world plugin {
     import editor;
     use editor.{mode};
 
-    record dependency {
-        path: string,
-        version: string,
-    }
+    type name = string;
 
     export initialize: func();
-    export dependencies: func() -> list<dependency>;
+    export name: func() -> name;
+    export dependencies: func() -> list<name>;
+    export invoke: func(cmd: string, args: list<string>);
 }
 
 interface editor {
+
     variant mode {
         normal,
         insert,
@@ -33,6 +33,8 @@ interface editor {
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
     get-active-view: func() -> view;
+
+    create-command: func(cmd: string) -> ();
 
     resource view {
         get-buffer: func() -> buffer;

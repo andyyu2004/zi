@@ -2,9 +2,7 @@
 mod bindings;
 
 use bindings::zi::api::editor::*;
-use bindings::Guest;
-
-use self::bindings::Dependency;
+use bindings::{Guest, Name};
 
 struct Component;
 
@@ -26,9 +24,15 @@ impl Guest for Component {
         // assert!();
     }
 
-    fn dependencies() -> Vec<Dependency> {
+    fn name() -> Name {
+        "example".into()
+    }
+
+    fn dependencies() -> Vec<Name> {
         vec![]
     }
+
+    fn invoke(_cmd: String, _args: Vec<String>) {}
 }
 
 bindings::export!(Component with_types_in bindings);

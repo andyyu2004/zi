@@ -2,19 +2,7 @@
 // Options used:
 //   * ownership: Borrowing { duplicate_if_necessary: true }
 //   * additional derives ["PartialEq", "Eq"]
-#[derive(Clone, Eq, PartialEq)]
-pub struct Dependency {
-    pub path: _rt::String,
-    pub version: _rt::String,
-}
-impl ::core::fmt::Debug for Dependency {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Dependency")
-            .field("path", &self.path)
-            .field("version", &self.version)
-            .finish()
-    }
-}
+pub type Name = _rt::String;
 #[doc(hidden)]
 #[allow(non_snake_case)]
 pub unsafe fn _export_initialize_cabi<T: Guest>() {
@@ -22,66 +10,106 @@ pub unsafe fn _export_initialize_cabi<T: Guest>() {
 }
 #[doc(hidden)]
 #[allow(non_snake_case)]
+pub unsafe fn _export_name_cabi<T: Guest>() -> *mut u8 {
+    let result0 = T::name();
+    let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
+    let vec2 = (result0.into_bytes()).into_boxed_slice();
+    let ptr2 = vec2.as_ptr().cast::<u8>();
+    let len2 = vec2.len();
+    ::core::mem::forget(vec2);
+    *ptr1.add(4).cast::<usize>() = len2;
+    *ptr1.add(0).cast::<*mut u8>() = ptr2.cast_mut();
+    ptr1
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+pub unsafe fn __post_return_name<T: Guest>(arg0: *mut u8) {
+    let l0 = *arg0.add(0).cast::<*mut u8>();
+    let l1 = *arg0.add(4).cast::<usize>();
+    _rt::cabi_dealloc(l0, l1, 1);
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
 pub unsafe fn _export_dependencies_cabi<T: Guest>() -> *mut u8 {
     let result0 = T::dependencies();
     let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-    let vec5 = result0;
-    let len5 = vec5.len();
-    let layout5 = _rt::alloc::Layout::from_size_align_unchecked(vec5.len() * 16, 4);
-    let result5 = if layout5.size() != 0 {
-        let ptr = _rt::alloc::alloc(layout5).cast::<u8>();
+    let vec3 = result0;
+    let len3 = vec3.len();
+    let layout3 = _rt::alloc::Layout::from_size_align_unchecked(vec3.len() * 8, 4);
+    let result3 = if layout3.size() != 0 {
+        let ptr = _rt::alloc::alloc(layout3).cast::<u8>();
         if ptr.is_null() {
-            _rt::alloc::handle_alloc_error(layout5);
+            _rt::alloc::handle_alloc_error(layout3);
         }
         ptr
     } else {
         { ::core::ptr::null_mut() }
     };
-    for (i, e) in vec5.into_iter().enumerate() {
-        let base = result5.add(i * 16);
+    for (i, e) in vec3.into_iter().enumerate() {
+        let base = result3.add(i * 8);
         {
-            let Dependency { path: path2, version: version2 } = e;
-            let vec3 = (path2.into_bytes()).into_boxed_slice();
-            let ptr3 = vec3.as_ptr().cast::<u8>();
-            let len3 = vec3.len();
-            ::core::mem::forget(vec3);
-            *base.add(4).cast::<usize>() = len3;
-            *base.add(0).cast::<*mut u8>() = ptr3.cast_mut();
-            let vec4 = (version2.into_bytes()).into_boxed_slice();
-            let ptr4 = vec4.as_ptr().cast::<u8>();
-            let len4 = vec4.len();
-            ::core::mem::forget(vec4);
-            *base.add(12).cast::<usize>() = len4;
-            *base.add(8).cast::<*mut u8>() = ptr4.cast_mut();
+            let vec2 = (e.into_bytes()).into_boxed_slice();
+            let ptr2 = vec2.as_ptr().cast::<u8>();
+            let len2 = vec2.len();
+            ::core::mem::forget(vec2);
+            *base.add(4).cast::<usize>() = len2;
+            *base.add(0).cast::<*mut u8>() = ptr2.cast_mut();
         }
     }
-    *ptr1.add(4).cast::<usize>() = len5;
-    *ptr1.add(0).cast::<*mut u8>() = result5;
+    *ptr1.add(4).cast::<usize>() = len3;
+    *ptr1.add(0).cast::<*mut u8>() = result3;
     ptr1
 }
 #[doc(hidden)]
 #[allow(non_snake_case)]
 pub unsafe fn __post_return_dependencies<T: Guest>(arg0: *mut u8) {
-    let l4 = *arg0.add(0).cast::<*mut u8>();
-    let l5 = *arg0.add(4).cast::<usize>();
-    let base6 = l4;
-    let len6 = l5;
-    for i in 0..len6 {
-        let base = base6.add(i * 16);
+    let l2 = *arg0.add(0).cast::<*mut u8>();
+    let l3 = *arg0.add(4).cast::<usize>();
+    let base4 = l2;
+    let len4 = l3;
+    for i in 0..len4 {
+        let base = base4.add(i * 8);
         {
             let l0 = *base.add(0).cast::<*mut u8>();
             let l1 = *base.add(4).cast::<usize>();
             _rt::cabi_dealloc(l0, l1, 1);
-            let l2 = *base.add(8).cast::<*mut u8>();
-            let l3 = *base.add(12).cast::<usize>();
-            _rt::cabi_dealloc(l2, l3, 1);
         }
     }
-    _rt::cabi_dealloc(base6, len6 * 16, 4);
+    _rt::cabi_dealloc(base4, len4 * 8, 4);
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+pub unsafe fn _export_invoke_cabi<T: Guest>(
+    arg0: *mut u8,
+    arg1: usize,
+    arg2: *mut u8,
+    arg3: usize,
+) {
+    let len0 = arg1;
+    let bytes0 = _rt::Vec::from_raw_parts(arg0.cast(), len0, len0);
+    let base4 = arg2;
+    let len4 = arg3;
+    let mut result4 = _rt::Vec::with_capacity(len4);
+    for i in 0..len4 {
+        let base = base4.add(i * 8);
+        let e4 = {
+            let l1 = *base.add(0).cast::<*mut u8>();
+            let l2 = *base.add(4).cast::<usize>();
+            let len3 = l2;
+            let bytes3 = _rt::Vec::from_raw_parts(l1.cast(), len3, len3);
+
+            _rt::string_lift(bytes3)
+        };
+        result4.push(e4);
+    }
+    _rt::cabi_dealloc(base4, len4 * 8, 4);
+    T::invoke(_rt::string_lift(bytes0), result4);
 }
 pub trait Guest {
     fn initialize();
-    fn dependencies() -> _rt::Vec<Dependency>;
+    fn name() -> Name;
+    fn dependencies() -> _rt::Vec<Name>;
+    fn invoke(cmd: _rt::String, args: _rt::Vec<_rt::String>);
 }
 #[doc(hidden)]
 
@@ -92,6 +120,14 @@ macro_rules! __export_world_plugin_cabi{
     unsafe extern "C" fn export_initialize() {
       $($path_to_types)*::_export_initialize_cabi::<$ty>()
     }
+    #[export_name = "name"]
+    unsafe extern "C" fn export_name() -> *mut u8 {
+      $($path_to_types)*::_export_name_cabi::<$ty>()
+    }
+    #[export_name = "cabi_post_name"]
+    unsafe extern "C" fn _post_return_name(arg0: *mut u8,) {
+      $($path_to_types)*::__post_return_name::<$ty>(arg0)
+    }
     #[export_name = "dependencies"]
     unsafe extern "C" fn export_dependencies() -> *mut u8 {
       $($path_to_types)*::_export_dependencies_cabi::<$ty>()
@@ -99,6 +135,10 @@ macro_rules! __export_world_plugin_cabi{
     #[export_name = "cabi_post_dependencies"]
     unsafe extern "C" fn _post_return_dependencies(arg0: *mut u8,) {
       $($path_to_types)*::__post_return_dependencies::<$ty>(arg0)
+    }
+    #[export_name = "invoke"]
+    unsafe extern "C" fn export_invoke(arg0: *mut u8,arg1: usize,arg2: *mut u8,arg3: usize,) {
+      $($path_to_types)*::_export_invoke_cabi::<$ty>(arg0, arg1, arg2, arg3)
     }
   };);
 }
@@ -323,6 +363,27 @@ pub mod zi {
                     }
                     let ret = wit_import();
                     View::from_handle(ret as u32)
+                }
+            }
+            #[allow(unused_unsafe, clippy::all)]
+            pub fn create_command(name: &str) {
+                unsafe {
+                    let vec0 = name;
+                    let ptr0 = vec0.as_ptr().cast::<u8>();
+                    let len0 = vec0.len();
+
+                    #[cfg(target_arch = "wasm32")]
+                    #[link(wasm_import_module = "zi:api/editor")]
+                    extern "C" {
+                        #[link_name = "create-command"]
+                        fn wit_import(_: *mut u8, _: usize);
+                    }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    fn wit_import(_: *mut u8, _: usize) {
+                        unreachable!()
+                    }
+                    wit_import(ptr0.cast_mut(), len0);
                 }
             }
             impl View {
@@ -555,7 +616,6 @@ mod _rt {
             self as i32
         }
     }
-    pub use alloc_crate::alloc;
     pub use alloc_crate::string::String;
     pub unsafe fn cabi_dealloc(ptr: *mut u8, size: usize, align: usize) {
         if size == 0 {
@@ -564,7 +624,15 @@ mod _rt {
         let layout = alloc::Layout::from_size_align_unchecked(size, align);
         alloc::dealloc(ptr as *mut u8, layout);
     }
+    pub use alloc_crate::alloc;
     pub use alloc_crate::vec::Vec;
+    pub unsafe fn string_lift(bytes: Vec<u8>) -> String {
+        if cfg!(debug_assertions) {
+            String::from_utf8(bytes).unwrap()
+        } else {
+            String::from_utf8_unchecked(bytes)
+        }
+    }
     extern crate alloc as alloc_crate;
 }
 
@@ -599,9 +667,9 @@ pub(crate) use __export_plugin_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.21.0:plugin:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 609] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe4\x03\x01A\x02\x01\
-A\x0b\x01B\x1b\x01q\x04\x06normal\0\0\x06insert\0\0\x06visual\0\0\x07command\0\0\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 661] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x98\x04\x01A\x02\x01\
+A\x10\x01B\x1d\x01q\x04\x06normal\0\0\x06insert\0\0\x06visual\0\0\x07command\0\0\
 \x04\0\x04mode\x03\0\0\x01y\x04\0\x04line\x03\0\x02\x01y\x04\0\x03col\x03\0\x04\x01\
 r\x02\x04line\x03\x03col\x05\x04\0\x08position\x03\0\x06\x04\0\x04view\x03\x01\x04\
 \0\x06buffer\x03\x01\x01h\x08\x01i\x09\x01@\x01\x04self\x0a\0\x0b\x04\0\x17[meth\
@@ -609,12 +677,13 @@ od]view.get-buffer\x01\x0c\x01@\x01\x04self\x0a\0\x07\x04\0\x17[method]view.get-
 cursor\x01\x0d\x01@\x02\x04self\x0a\x03pos\x07\x01\0\x04\0\x17[method]view.set-c\
 ursor\x01\x0e\x01@\x01\x04texts\x01\0\x04\0\x06insert\x01\x0f\x01@\0\0\x01\x04\0\
 \x08get-mode\x01\x10\x01@\x01\x04mode\x01\x01\0\x04\0\x08set-mode\x01\x11\x01i\x08\
-\x01@\0\0\x12\x04\0\x0fget-active-view\x01\x13\x03\x01\x0dzi:api/editor\x05\0\x02\
-\x03\0\0\x04mode\x03\0\x04mode\x03\0\x01\x01r\x02\x04paths\x07versions\x03\0\x0a\
-dependency\x03\0\x03\x01@\0\x01\0\x04\0\x0ainitialize\x01\x05\x01p\x04\x01@\0\0\x06\
-\x04\0\x0cdependencies\x01\x07\x04\x01\x0dzi:api/plugin\x04\0\x0b\x0c\x01\0\x06p\
-lugin\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.201.\
-0\x10wit-bindgen-rust\x060.21.0";
+\x01@\0\0\x12\x04\0\x0fget-active-view\x01\x13\x01@\x01\x04names\x01\0\x04\0\x0e\
+create-command\x01\x14\x03\x01\x0dzi:api/editor\x05\0\x02\x03\0\0\x04mode\x03\0\x04\
+mode\x03\0\x01\x01s\x03\0\x04name\x03\0\x03\x01@\0\x01\0\x04\0\x0ainitialize\x01\
+\x05\x01@\0\0\x04\x04\0\x04name\x01\x06\x01p\x04\x01@\0\0\x07\x04\0\x0cdependenc\
+ies\x01\x08\x01ps\x01@\x02\x03cmds\x04args\x09\x01\0\x04\0\x06invoke\x01\x0a\x04\
+\x01\x0dzi:api/plugin\x04\0\x0b\x0c\x01\0\x06plugin\x03\0\0\0G\x09producers\x01\x0c\
+processed-by\x02\x0dwit-component\x070.201.0\x10wit-bindgen-rust\x060.21.0";
 
 #[inline(never)]
 #[doc(hidden)]

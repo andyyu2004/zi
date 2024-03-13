@@ -150,8 +150,10 @@ impl fmt::Debug for CommandKind {
 pub struct Handler {
     arity: ArityRange,
     flags: HandlerFlags,
-    handler: fn(&mut Editor, Option<&CommandRange>, &[Word]) -> Result<(), Error>,
+    handler: CommandHandler,
 }
+
+pub type CommandHandler = fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>;
 
 /// An inclusive range of valid arities for a command handler.
 /// Can't use `RangeInclusive` because it's not `Copy`.
