@@ -25,6 +25,7 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
+use crate::command::Command;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -63,6 +64,8 @@ pub struct Editor {
     pool: rayon::ThreadPool,
     /// error to be displayed in the status line
     status_error: Option<String>,
+    /// Stores the command currently in the command line
+    command: String,
 }
 
 impl Index<ViewId> for Editor {
@@ -112,7 +115,7 @@ fn request_redraw() {
 
 macro_rules! set_error {
     ($editor:ident, $error:expr) => {
-        $editor.status_error = Some($error.to_string());
+        $editor.status_error = Some($error.to_string())
     };
 }
 
@@ -275,6 +278,7 @@ impl Editor {
             mode: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
+            command: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -456,7 +460,10 @@ impl Editor {
         let status = tui::Line::default().spans(status_spans);
 
         let cmd = tui::Text::styled(
-            format!("-- {} --", self.mode()),
+            match self.mode {
+                Mode::Command => format!(":{}", self.command),
+                mode => format!("-- {mode} --",),
+            },
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x00, 0x2b, 0x36)),
@@ -470,10 +477,19 @@ impl Editor {
         );
 
         let (x, y) = self.cursor_viewport_coords();
-        frame.set_cursor(view.line_number_width() as u16 + x, y);
+        let offset = match self.mode {
+            Mode::Command => self.command.len() as u16,
+            _ => view.line_number_width() as u16,
+        };
+
+        frame.set_cursor(x + offset, y);
     }
 
     pub fn cursor_viewport_coords(&self) -> (u16, u16) {
+        if self.mode == Mode::Command {
+            return (1, self.tree.area().height + 1);
+        }
+
         let (view, buf) = active_ref!(self);
         let area = self.tree.view_area(view.id());
         let (x, y) = view.cursor_viewport_coords(buf);
@@ -569,7 +585,7 @@ impl Editor {
 
         tracing::debug!(?key, "handling key");
         match &key.code {
-            &KeyCode::Char(_c) if self.mode == Mode::Insert => {
+            &KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
                 let (res, buffered) = keymap.on_key(self.mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
@@ -578,7 +594,11 @@ impl Editor {
 
                 for event in buffered {
                     match event.code {
-                        KeyCode::Char(c) => self.insert_char(c),
+                        KeyCode::Char(c) => match self.mode {
+                            Mode::Insert => self.insert_char(c),
+                            Mode::Command => self.command.push(c),
+                            _ => unreachable!(),
+                        },
                         _ => unreachable!(),
                     }
                 }
@@ -596,8 +616,22 @@ impl Editor {
         self.mode
     }
 
+    pub fn execute(&mut self, cmd: Command) {}
+
+    pub fn execute_command(&mut self) {
+        match self.command.parse::<Command>() {
+            Ok(cmd) => { self.execute(cmd) }
+            Err(err) =>  set_error!(self, err)
+        };
+
+        self.command.clear();
+        self.set_mode(Mode::Normal);
+    }
+
     #[inline]
     pub fn set_mode(&mut self, mode: Mode) {
+        self.command.clear();
+
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = get!(self);
             view.move_cursor(mode, self.tree.view_area(view.id()), buf, Direction::Left, 1);
@@ -1264,12 +1298,14 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));
     const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
     const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
+    const EXECUTE_COMMAND: Action = |editor| editor.execute_command();
 
     Keymap::from(hashmap! {
         Mode::Command => trie!({
             "<ESC>" => NORMAL_MODE,
             "<C-c>" => NORMAL_MODE,
-        }),
+            "<CR>" => EXECUTE_COMMAND,
+            }),
         Mode::Insert => trie!({
             "<ESC>" => NORMAL_MODE,
             "<CR>" => INSERT_NEWLINE,
