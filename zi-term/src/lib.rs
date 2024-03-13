@@ -39,7 +39,7 @@ impl<B: Backend + io::Write> App<B> {
                 // Looks much less janky if we set the cursor before rendering.
                 let style = match editor.mode() {
                     zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
-                    zi::Mode::Insert => SetCursorStyle::SteadyBar,
+                    zi::Mode::Insert | zi::Mode::Command => SetCursorStyle::SteadyBar,
                 };
                 execute!(self.term.backend_mut(), cursor::Show, style)?;
 

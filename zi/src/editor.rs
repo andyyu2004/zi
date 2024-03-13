@@ -1221,6 +1221,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     fn void<T>(_: T) {}
 
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
+    const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
     const CLOSE_VIEW: Action = |editor| editor.close_active_view();
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
     const NORMAL_MODE: Action = |editor| editor.set_mode(Mode::Normal);
@@ -1265,11 +1266,24 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
 
     Keymap::from(hashmap! {
+        Mode::Command => trie!({
+            "<ESC>" => NORMAL_MODE,
+            "<C-c>" => NORMAL_MODE,
+        }),
+        Mode::Insert => trie!({
+            "<ESC>" => NORMAL_MODE,
+            "<CR>" => INSERT_NEWLINE,
+            "<C-c>" => NORMAL_MODE,
+            "f" => {
+                "d" => NORMAL_MODE,
+            },
+        }),
         Mode::Normal => trie!({
             "<C-d>" => SCROLL_DOWN,
             "<C-u>" => SCROLL_UP,
             "<C-e>" => SCROLL_LINE_DOWN,
             "<C-y>" => SCROLL_LINE_UP,
+            ":" => COMMAND_MODE,
             "i" => INSERT_MODE,
             "q" => CLOSE_VIEW,
             "h" => MOVE_LEFT,
@@ -1303,13 +1317,6 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                 "k" | "<C-k>" => FOCUS_UP,
                 "j" | "<C-j>" => FOCUS_DOWN,
                 "l" | "<C-l>" => FOCUS_RIGHT,
-            },
-        }),
-        Mode::Insert => trie!({
-            "<ESC>" => NORMAL_MODE,
-            "<CR>" => INSERT_NEWLINE,
-            "f" => {
-                "d" => NORMAL_MODE,
             },
         }),
     })

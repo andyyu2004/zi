@@ -18,6 +18,7 @@ interface editor {
         normal,
         insert,
         visual,
+        command,
     }
 
     type line = u32;

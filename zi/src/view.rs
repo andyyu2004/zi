@@ -241,7 +241,7 @@ impl View {
         // Normal mode not allowed to move past the end of the line.
         let n = match mode {
             Mode::Insert => n,
-            Mode::Normal | Mode::Visual => n + 1,
+            Mode::Normal | Mode::Command | Mode::Visual => n + 1,
         };
 
         let max_col = Col::from(line_len.saturating_sub(n));

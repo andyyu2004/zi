@@ -13,6 +13,7 @@ impl PartialEq for Mode {
         match self {
             Mode::Normal => matches!(other, Mode::Normal),
             Mode::Insert => matches!(other, Mode::Insert),
+            Mode::Command => matches!(other, Mode::Command),
             Mode::Visual => matches!(other, Mode::Visual),
         }
     }
@@ -40,6 +41,7 @@ impl fmt::Display for Mode {
             "{}",
             match self {
                 Mode::Normal => "NORMAL",
+                Mode::Command => "COMMAND",
                 Mode::Insert => "INSERT",
                 Mode::Visual => "VISUAL",
             }
