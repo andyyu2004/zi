@@ -391,7 +391,7 @@ impl Editor {
     pub async fn cleanup(&mut self) {
         for server in std::mem::take(&mut self.language_servers).into_values() {
             // TODO shutdown concurrently
-            let _ = server.shutdown().await;
+            let _ = tokio::time::timeout(Duration::from_millis(200), server.shutdown()).await;
         }
     }
 
