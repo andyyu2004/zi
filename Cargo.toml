@@ -7,6 +7,12 @@ members = [
 
 resolver = "2"
 
+[profile.dev.package.cranelift-codegen]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 1
+
 [workspace.lints.rust]
 rust_2018_idioms = "deny"
 

@@ -35,8 +35,8 @@ thread_local! {
 }
 
 /// A cache of tree-sitter queries for each language.
-/// Creating a query is very expensive, so we cache them here forever.
-/// Not concerned about memory usage because the queries are not large, and there are not many languages.
+/// Creating a query and compiling a language is very expensive, so we cache them here forever.
+/// Not concerned about memory usage because these are not large, and there are not many languages.
 static QUERY_CACHE: OnceLock<RwLock<FxHashMap<FileType, (tree_sitter::Language, &'static Query)>>> =
     OnceLock::new();
 
