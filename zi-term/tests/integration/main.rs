@@ -8,15 +8,14 @@ use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use zi::Editor;
 
-#[tokio::test]
-async fn it_works() -> anyhow::Result<()> {
-    snapshot("empty", |_editor| Ok(())).await?;
+#[test]
+fn it_works() -> anyhow::Result<()> {
+    snapshot("empty", |_editor| Ok(()))?;
 
     snapshot("numbers", |editor| {
         editor.open_active("tests/integration/testdata/numbers.txt")?;
         Ok(())
-    })
-    .await?;
+    })?;
 
     Ok(())
 }
@@ -26,26 +25,22 @@ async fn syntax_highlight() -> anyhow::Result<()> {
     snapshot("go", |editor| {
         editor.open_active("tests/integration/testdata/main.go")?;
         Ok(())
-    })
-    .await?;
+    })?;
 
     snapshot("rust", |editor| {
         editor.open_active("tests/integration/testdata/main.rs")?;
         Ok(())
-    })
-    .await?;
+    })?;
 
     snapshot("multiline highlight", |editor| {
         editor.open_active("tests/integration/testdata/multiline-highlight.rs")?;
         Ok(())
-    })
-    .await?;
+    })?;
 
     snapshot("multiline highlight 2", |editor| {
         editor.open_active("tests/integration/testdata/multiline-highlight-2.rs")?;
         Ok(())
-    })
-    .await?;
+    })?;
 
     Ok(())
 }
@@ -56,28 +51,26 @@ async fn scroll() -> anyhow::Result<()> {
         editor.open_active("tests/integration/testdata/numbers.txt")?;
         editor.scroll_active_view(zi::Direction::Down, 50);
         Ok(())
-    })
-    .await?;
+    })?;
 
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |editor| {
         editor.open_active("tests/integration/testdata/minimal.rs")?;
         editor.scroll_active_view(zi::Direction::Down, 1);
         Ok(())
-    })
-    .await?;
+    })?;
 
     snapshot("scroll go", |editor| {
         editor.open_active("tests/integration/testdata/main.go")?;
         editor.scroll_active_view(zi::Direction::Down, 9);
         Ok(())
-    })
-    .await?;
+    })?;
 
     Ok(())
 }
 
-async fn snapshot(
+#[track_caller]
+fn snapshot(
     name: &'static str,
     f: impl FnOnce(&mut Editor) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
