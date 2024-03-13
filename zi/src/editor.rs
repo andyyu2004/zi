@@ -25,7 +25,7 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
-use crate::command::Command;
+use crate::command::{Command, CommandKind};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -440,6 +440,7 @@ impl Editor {
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
         )];
 
+        // The error should probably go in the cmd line not the status line.
         if let Some(error) = &self.status_error {
             status_spans.push(tui::Span::styled(
                 error,
@@ -616,7 +617,16 @@ impl Editor {
         self.mode
     }
 
-    pub fn execute(&mut self, cmd: Command) {}
+    pub fn execute(&mut self, cmd: Command) {
+        assert!(cmd.range().is_none(), "range commands not supported yet");
+        match cmd.kind() {
+            CommandKind::Generic(cmd, _args) => match cmd.as_str() {
+                "q" => self.tree.close_view(self.tree.active()).expect("no views to close"),
+                _ => set_error!(self, format!("unknown command: {cmd}")),
+            }
+
+        }
+    }
 
     pub fn execute_command(&mut self) {
         match self.command.parse::<Command>() {
@@ -1256,7 +1266,6 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
 
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
     const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
-    const CLOSE_VIEW: Action = |editor| editor.close_active_view();
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
     const NORMAL_MODE: Action = |editor| editor.set_mode(Mode::Normal);
     const MOVE_LEFT: Action = |editor| editor.move_active_cursor(Direction::Left, 1);
@@ -1321,7 +1330,6 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "<C-y>" => SCROLL_LINE_UP,
             ":" => COMMAND_MODE,
             "i" => INSERT_MODE,
-            "q" => CLOSE_VIEW,
             "h" => MOVE_LEFT,
             "l" => MOVE_RIGHT,
             "j" => MOVE_DOWN,

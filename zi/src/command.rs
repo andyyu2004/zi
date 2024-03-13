@@ -16,6 +16,16 @@ pub struct Command {
     kind: CommandKind,
 }
 
+impl Command {
+    pub fn range(&self) -> Option<&CommandRange> {
+        self.range.as_ref()
+    }
+
+    pub fn kind(&self) -> &CommandKind {
+        &self.kind
+    }
+}
+
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(range) = &self.range {
@@ -80,6 +90,13 @@ fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simp
 /// A single word in a command, without whitespace.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Word(String);
+
+impl Word {
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 impl fmt::Display for Word {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
