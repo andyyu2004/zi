@@ -100,7 +100,11 @@ impl Syntax {
         PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref());
+            if let Some(tree) =
+                parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref())
+            {
+                self.tree = Some(tree);
+            }
         });
     }
 
