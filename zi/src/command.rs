@@ -1,7 +1,12 @@
 use std::fmt;
+use std::ops::{Bound, RangeBounds, RangeInclusive};
 use std::str::FromStr;
 
 use chumsky::Parser;
+use rustc_hash::FxHashMap;
+use smol_str::SmolStr;
+
+use crate::{Editor, Error};
 
 pub enum CommandRange {}
 
@@ -89,7 +94,7 @@ fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simp
 
 /// A single word in a command, without whitespace.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Word(String);
+pub struct Word(SmolStr);
 
 impl Word {
     #[inline]
@@ -112,14 +117,14 @@ impl fmt::Debug for Word {
 
 impl From<String> for Word {
     fn from(s: String) -> Self {
-        assert!(s.chars().all(|c| !c.is_whitespace()));
-        Word(s)
+        s.as_str().into()
     }
 }
 
 impl From<&str> for Word {
     fn from(s: &str) -> Self {
-        s.to_string().into()
+        assert!(s.chars().all(|c| !c.is_whitespace()));
+        Word(s.into())
     }
 }
 
@@ -139,6 +144,92 @@ impl fmt::Debug for CommandKind {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy)]
+pub struct Handler {
+    arity: ArityRange,
+    flags: HandlerFlags,
+    handler: fn(&mut Editor, Option<&CommandRange>, &[Word]) -> Result<(), Error>,
+}
+
+/// An inclusive range of valid arities for a command handler.
+/// Can't use `RangeInclusive` because it's not `Copy`.
+#[derive(Clone, Copy)]
+pub struct ArityRange {
+    start: u8,
+    end: u8,
+}
+
+impl From<RangeInclusive<u8>> for ArityRange {
+    fn from(range: RangeInclusive<u8>) -> Self {
+        let (start, end) = range.into_inner();
+        Self { start, end }
+    }
+}
+
+impl RangeBounds<u8> for ArityRange {
+    fn start_bound(&self) -> Bound<&u8> {
+        Bound::Included(&self.start)
+    }
+
+    fn end_bound(&self) -> Bound<&u8> {
+        Bound::Included(&self.end)
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Default, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+    pub struct HandlerFlags: u8 {
+        const RANGE = 0b0000_0001;
+    }
+}
+
+impl Handler {
+    pub fn execute(
+        &self,
+        editor: &mut Editor,
+        range: Option<&CommandRange>,
+        args: &[Word],
+    ) -> Result<(), Error> {
+        if !self.arity.contains(&(args.len() as u8)) {
+            if self.arity.start == self.arity.end {
+                anyhow::bail!("expected {} arguments, got {}", self.arity.start, args.len())
+            }
+
+            anyhow::bail!(
+                "expected {} to {} arguments, got {}",
+                self.arity.start,
+                self.arity.end,
+                args.len()
+            )
+        }
+
+        if range.is_some() && !self.flags.contains(HandlerFlags::RANGE) {
+            anyhow::bail!("range not allowed")
+        }
+
+        (self.handler)(editor, range, args)
+    }
+}
+
+pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
+    [(
+        "q",
+        Handler {
+            arity: (0..=0).into(),
+            flags: HandlerFlags::empty(),
+            handler: |editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                editor.close_active_view();
+                Ok(())
+            },
+        },
+    )]
+    .into_iter()
+    .map(|(cmd, handler)| (cmd.into(), handler))
+    .collect()
 }
 
 #[cfg(test)]

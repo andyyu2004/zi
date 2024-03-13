@@ -25,7 +25,7 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
-use crate::command::{Command, CommandKind};
+use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -66,6 +66,7 @@ pub struct Editor {
     status_error: Option<String>,
     /// Stores the command currently in the command line
     command: String,
+    command_handlers: FxHashMap<Word, Handler>,
 }
 
 impl Index<ViewId> for Editor {
@@ -269,6 +270,7 @@ impl Editor {
             views,
             callbacks_tx,
             requests_tx,
+            command_handlers: command::builtin_handlers(),
             pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
             keymap: default_keymap(),
@@ -618,20 +620,24 @@ impl Editor {
     }
 
     pub fn execute(&mut self, cmd: Command) {
-        assert!(cmd.range().is_none(), "range commands not supported yet");
+        let range = cmd.range();
         match cmd.kind() {
-            CommandKind::Generic(cmd, _args) => match cmd.as_str() {
-                "q" => self.tree.close_view(self.tree.active()).expect("no views to close"),
-                _ => set_error!(self, format!("unknown command: {cmd}")),
+            CommandKind::Generic(cmd, args) => {
+                if let Some(handler) = self.command_handlers.get(cmd).copied() {
+                    if let Err(err) = handler.execute(self, range, args) {
+                        set_error!(self, err);
+                    }
+                } else {
+                    set_error!(self, format!("unknown command: {cmd}"));
+                }
             }
-
         }
     }
 
     pub fn execute_command(&mut self) {
         match self.command.parse::<Command>() {
-            Ok(cmd) => { self.execute(cmd) }
-            Err(err) =>  set_error!(self, err)
+            Ok(cmd) => self.execute(cmd),
+            Err(err) => set_error!(self, err),
         };
 
         self.command.clear();

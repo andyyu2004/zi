@@ -122,6 +122,7 @@ pub mod zi {
                 Normal,
                 Insert,
                 Visual,
+                Command,
             }
             impl ::core::fmt::Debug for Mode {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -129,6 +130,7 @@ pub mod zi {
                         Mode::Normal => f.debug_tuple("Mode::Normal").finish(),
                         Mode::Insert => f.debug_tuple("Mode::Insert").finish(),
                         Mode::Visual => f.debug_tuple("Mode::Visual").finish(),
+                        Mode::Command => f.debug_tuple("Mode::Command").finish(),
                     }
                 }
             }
@@ -272,9 +274,10 @@ pub mod zi {
                     let v0 = match ret {
                         0 => Mode::Normal,
                         1 => Mode::Insert,
+                        2 => Mode::Visual,
                         n => {
-                            debug_assert_eq!(n, 2, "invalid enum discriminant");
-                            Mode::Visual
+                            debug_assert_eq!(n, 3, "invalid enum discriminant");
+                            Mode::Command
                         }
                     };
                     v0
@@ -287,6 +290,7 @@ pub mod zi {
                         Mode::Normal => 0i32,
                         Mode::Insert => 1i32,
                         Mode::Visual => 2i32,
+                        Mode::Command => 3i32,
                     };
 
                     #[cfg(target_arch = "wasm32")]
@@ -595,22 +599,22 @@ pub(crate) use __export_plugin_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.21.0:plugin:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 599] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xda\x03\x01A\x02\x01\
-A\x0b\x01B\x1b\x01q\x03\x06normal\0\0\x06insert\0\0\x06visual\0\0\x04\0\x04mode\x03\
-\0\0\x01y\x04\0\x04line\x03\0\x02\x01y\x04\0\x03col\x03\0\x04\x01r\x02\x04line\x03\
-\x03col\x05\x04\0\x08position\x03\0\x06\x04\0\x04view\x03\x01\x04\0\x06buffer\x03\
-\x01\x01h\x08\x01i\x09\x01@\x01\x04self\x0a\0\x0b\x04\0\x17[method]view.get-buff\
-er\x01\x0c\x01@\x01\x04self\x0a\0\x07\x04\0\x17[method]view.get-cursor\x01\x0d\x01\
-@\x02\x04self\x0a\x03pos\x07\x01\0\x04\0\x17[method]view.set-cursor\x01\x0e\x01@\
-\x01\x04texts\x01\0\x04\0\x06insert\x01\x0f\x01@\0\0\x01\x04\0\x08get-mode\x01\x10\
-\x01@\x01\x04mode\x01\x01\0\x04\0\x08set-mode\x01\x11\x01i\x08\x01@\0\0\x12\x04\0\
-\x0fget-active-view\x01\x13\x03\x01\x0dzi:api/editor\x05\0\x02\x03\0\0\x04mode\x03\
-\0\x04mode\x03\0\x01\x01r\x02\x04paths\x07versions\x03\0\x0adependency\x03\0\x03\
-\x01@\0\x01\0\x04\0\x0ainitialize\x01\x05\x01p\x04\x01@\0\0\x06\x04\0\x0cdepende\
-ncies\x01\x07\x04\x01\x0dzi:api/plugin\x04\0\x0b\x0c\x01\0\x06plugin\x03\0\0\0G\x09\
-producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.201.0\x10wit-bindgen-rus\
-t\x060.21.0";
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 609] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xe4\x03\x01A\x02\x01\
+A\x0b\x01B\x1b\x01q\x04\x06normal\0\0\x06insert\0\0\x06visual\0\0\x07command\0\0\
+\x04\0\x04mode\x03\0\0\x01y\x04\0\x04line\x03\0\x02\x01y\x04\0\x03col\x03\0\x04\x01\
+r\x02\x04line\x03\x03col\x05\x04\0\x08position\x03\0\x06\x04\0\x04view\x03\x01\x04\
+\0\x06buffer\x03\x01\x01h\x08\x01i\x09\x01@\x01\x04self\x0a\0\x0b\x04\0\x17[meth\
+od]view.get-buffer\x01\x0c\x01@\x01\x04self\x0a\0\x07\x04\0\x17[method]view.get-\
+cursor\x01\x0d\x01@\x02\x04self\x0a\x03pos\x07\x01\0\x04\0\x17[method]view.set-c\
+ursor\x01\x0e\x01@\x01\x04texts\x01\0\x04\0\x06insert\x01\x0f\x01@\0\0\x01\x04\0\
+\x08get-mode\x01\x10\x01@\x01\x04mode\x01\x01\0\x04\0\x08set-mode\x01\x11\x01i\x08\
+\x01@\0\0\x12\x04\0\x0fget-active-view\x01\x13\x03\x01\x0dzi:api/editor\x05\0\x02\
+\x03\0\0\x04mode\x03\0\x04mode\x03\0\x01\x01r\x02\x04paths\x07versions\x03\0\x0a\
+dependency\x03\0\x03\x01@\0\x01\0\x04\0\x0ainitialize\x01\x05\x01p\x04\x01@\0\0\x06\
+\x04\0\x0cdependencies\x01\x07\x04\x01\x0dzi:api/plugin\x04\0\x0b\x0c\x01\0\x06p\
+lugin\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.201.\
+0\x10wit-bindgen-rust\x060.21.0";
 
 #[inline(never)]
 #[doc(hidden)]
