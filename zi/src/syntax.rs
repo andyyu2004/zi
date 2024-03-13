@@ -26,7 +26,7 @@ thread_local! {
     static PARSER: RefCell<Parser> = {
         let mut parser = Parser::new();
         parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default).clone()).unwrap()).unwrap();
-        parser.set_timeout_micros(10000);
+        // parser.set_timeout_micros(10000);
 
         // TODO we should use this feature as otherwise it times out quite easily
         parser.set_included_ranges(&[]).expect("passed invalid ranges");
@@ -42,20 +42,20 @@ static QUERY_CACHE: OnceLock<RwLock<FxHashMap<FileType, (tree_sitter::Language, 
 
 impl Syntax {
     #[tracing::instrument]
-    pub fn for_language(id: &FileType) -> anyhow::Result<Option<Self>> {
+    pub fn for_language(ft: &FileType) -> anyhow::Result<Option<Self>> {
         let cache = QUERY_CACHE.get_or_init(Default::default);
         let read_guard = cache.read();
-        let (language, highlights_query) = match read_guard.get(id) {
+        let (language, highlights_query) = match read_guard.get(ft) {
             Some(cached) => cached.clone(),
             None => {
                 drop(read_guard);
 
-                let grammar_dir = dirs::grammar().join(id);
+                let grammar_dir = dirs::grammar().join(ft);
                 let wasm_path = grammar_dir.join("language.wasm");
                 let highlights_path = grammar_dir.join("highlights.scm");
 
                 if !wasm_path.exists() || !highlights_path.exists() {
-                    tracing::info!(?id, "no wasm or highlights file found for language");
+                    tracing::info!(?ft, "no wasm or highlights file found for language");
                     return Ok(None);
                 }
 
@@ -65,7 +65,9 @@ impl Syntax {
                     let mut store = parser
                         .take_wasm_store()
                         .expect("set during initialization and we always re-set it after");
-                    let language = store.load_language(id.as_str(), &bytes);
+                    let now = std::time::Instant::now();
+                    let language = store.load_language(ft.as_str(), &bytes);
+                    tracing::info!(%ft, dur = ?now.elapsed(), "loaded wasm language");
                     parser.set_wasm_store(store).expect("this succeeded during initialization");
                     language
                 })?;
@@ -73,7 +75,7 @@ impl Syntax {
                 let highlights_text = std::fs::read_to_string(highlights_path)?;
                 let highlights_query =
                     &*Box::leak(Box::new(Query::new(&language, &highlights_text)?));
-                cache.write().insert(id.clone(), (language.clone(), highlights_query));
+                cache.write().insert(ft.clone(), (language.clone(), highlights_query));
                 (language, highlights_query)
             }
         };
