@@ -112,6 +112,10 @@ impl ViewTree {
     pub(crate) fn resize(&mut self, size: Size) {
         self.size = size;
     }
+
+    pub(crate) fn view_only(&mut self, view: ViewId) {
+        self.layers = vec![Layer::new(view)];
+    }
 }
 
 pub struct Layer {

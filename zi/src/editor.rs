@@ -601,6 +601,11 @@ impl Editor {
         (view, buffer)
     }
 
+    #[inline]
+    pub fn view_only(&mut self, view: ViewId) {
+        self.tree.view_only(view);
+    }
+
     pub fn split_active_view(
         &mut self,
         direction: Direction,
@@ -1182,6 +1187,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const FOCUS_RIGHT: Action = |editor| void(editor.move_focus(Direction::Right));
     const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));
     const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
+    const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
 
     Keymap::from(hashmap! {
         Mode::Normal => trie!({
@@ -1215,6 +1221,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                 "d" => GO_TO_DEFINITION,
             },
             "<C-w>" => {
+                "o" => VIEW_ONLY,
                 "v" => SPLIT_VERTICAL,
                 "s" => SPLIT_HORIZONTAL,
                 "<C-v>" => SPLIT_VERTICAL,
