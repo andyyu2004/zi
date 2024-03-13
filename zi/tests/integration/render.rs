@@ -8,7 +8,7 @@ pub fn new_with_snapshot(
     size: zi::Size,
     content: &str,
 ) -> (zi::Editor, impl FnMut(&mut zi::Editor, expect_test::Expect)) {
-    let (mut editor, ..) = zi::Editor::new(size);
+    let (mut editor, _tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
     for c in content.chars() {
         editor.insert_char(c);

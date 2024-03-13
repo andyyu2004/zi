@@ -7,6 +7,28 @@ use zi::Direction::*;
 use super::new_with_snapshot;
 
 #[test]
+fn view_only() {
+    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
+    let v = editor.split_active_view(Right, Fill(1));
+    editor.split_active_view(Down, Fill(1));
+    editor.view_only(v);
+
+    snapshot(
+        &mut editor,
+        expect![[r#"
+            "   1 1                                             "
+            "   2 2                                             "
+            "   3 3                                             "
+            "   4 |                                             "
+            "                                                   "
+            "                                                   "
+            "scratch:4:0                                        "
+            "-- INSERT --                                       "
+        "#]],
+    );
+}
+
+#[test]
 fn close_view() {
     let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
     editor.split_active_view(Right, Fill(1));
