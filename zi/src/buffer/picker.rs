@@ -113,8 +113,8 @@ where
 impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Copy + 'static>
     PickerBuffer<T, F, G>
 {
-    fn item(&self, line: u32) -> T {
-        self.nucleo.snapshot().get_matched_item(line).expect("should be in bounds").data.clone()
+    fn item(&self, line: u32) -> Option<T> {
+        self.nucleo.snapshot().get_matched_item(line).map(|item| item.data.clone())
     }
 
     fn confirm(editor: &mut Editor) {
@@ -123,9 +123,10 @@ impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Co
         let cursor = editor.view(display_view).cursor();
 
         let (_, picker_buf) = get!(editor as Self);
-        let item = picker_buf.item(cursor.line().raw());
         let confirm = picker_buf.confirm;
-        confirm(editor, item);
+        if let Some(item) = picker_buf.item(cursor.line().raw()) {
+            confirm(editor, item);
+        }
     }
 
     fn select(editor: &mut Editor, direction: Direction) {
@@ -136,9 +137,10 @@ impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Co
         let cursor = editor.move_cursor(display_view, direction, 1);
 
         let (_, picker_buf) = get!(editor as Self);
-        let item = picker_buf.item(cursor.line().raw());
         let select = picker_buf.select;
-        select(editor, item);
+        if let Some(item) = picker_buf.item(cursor.line().raw()) {
+            select(editor, item);
+        }
     }
 }
 

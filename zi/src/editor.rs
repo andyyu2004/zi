@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
+use std::ops::Index;
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
 use std::sync::OnceLock;
@@ -24,7 +25,7 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
-use crate::input::{Event, KeyCode, KeyEvent};
+use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
@@ -62,6 +63,33 @@ pub struct Editor {
     pool: rayon::ThreadPool,
     /// error to be displayed in the status line
     status_error: Option<String>,
+}
+
+impl Index<ViewId> for Editor {
+    type Output = View;
+
+    #[inline]
+    fn index(&self, index: ViewId) -> &Self::Output {
+        &self.views[index]
+    }
+}
+
+impl Index<BufferId> for Editor {
+    type Output = dyn Buffer;
+
+    #[inline]
+    fn index(&self, index: BufferId) -> &Self::Output {
+        &self.buffers[index]
+    }
+}
+
+impl Index<ViewGroupId> for Editor {
+    type Output = ViewGroup;
+
+    #[inline]
+    fn index(&self, index: ViewGroupId) -> &Self::Output {
+        &self.view_groups[index]
+    }
 }
 
 pub trait Resource {
@@ -287,37 +315,59 @@ impl Editor {
         // FIXME we need to check the buffer is in the same mode too i.e. both readonly or not
         for buf in self.buffers.values() {
             if buf.path() == path {
-                self.views[self.tree.active()].set_buffer(buf.id());
+                if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
+                    self.views[self.tree.active()].set_buffer(buf.id());
+                }
                 return Ok(buf.id());
             }
         }
 
-        let lang = FileType::detect(&path);
-        let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
-            let start = Instant::now();
-            let buf = if open_flags.contains(OpenFlags::READONLY) {
-                debug_assert!(path.exists() && path.is_file());
-                // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
-                let text = unsafe { ReadonlyText::open(&path) }?;
-                TextBuffer::new(id, BufferFlags::READONLY, lang.clone(), &path, text, &self.theme)
+        let buf = if let Some(buf) = self.buffers.values().find(|b| b.path() == path) {
+            buf.id()
+        } else {
+            let lang = FileType::detect(&path);
+            let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
+                let start = Instant::now();
+                let buf = if open_flags.contains(OpenFlags::READONLY) {
+                    debug_assert!(path.exists() && path.is_file());
+                    // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
+                    let text = unsafe { ReadonlyText::open(&path) }?;
+                    TextBuffer::new(
+                        id,
+                        BufferFlags::READONLY,
+                        lang.clone(),
+                        &path,
+                        text,
+                        &self.theme,
+                    )
                     .boxed()
-            } else {
-                let rope = if path.exists() {
-                    Rope::from_reader(BufReader::new(File::open(&path)?))?
                 } else {
-                    Rope::new()
-                };
-                TextBuffer::new(id, BufferFlags::empty(), lang.clone(), &path, rope, &self.theme)
+                    let rope = if path.exists() {
+                        Rope::from_reader(BufReader::new(File::open(&path)?))?
+                    } else {
+                        Rope::new()
+                    };
+                    TextBuffer::new(
+                        id,
+                        BufferFlags::empty(),
+                        lang.clone(),
+                        &path,
+                        rope,
+                        &self.theme,
+                    )
                     .boxed()
-            };
+                };
 
-            tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
-            Ok(buf)
-        })?;
+                tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
+                Ok(buf)
+            })?;
 
-        if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_lang(buf, &lang)?;
-        }
+            if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+                self.spawn_language_servers_for_lang(buf, &lang)?;
+            }
+
+            buf
+        };
 
         if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
             self.set_active_buffer(buf);
@@ -428,6 +478,17 @@ impl Editor {
         let area = self.tree.view_area(view.id());
         let (x, y) = view.cursor_viewport_coords(buf);
         (x + area.x, y + area.y)
+    }
+
+    pub fn input<S>(&mut self, seq: S) -> Result<(), S::Error>
+    where
+        S: TryInto<KeySequence>,
+    {
+        for key in seq.try_into()? {
+            self.handle_input(Event::Key(key));
+        }
+
+        Ok(())
     }
 
     pub fn handle_input(&mut self, event: impl Into<Event>) {
@@ -906,15 +967,15 @@ impl Editor {
         Ok(self.view_groups.insert_with_key(|id| ViewGroup::new(id, url)))
     }
 
-    pub fn open_file_picker(&mut self, path: impl AsRef<Path>) {
-        inner(self, path.as_ref());
+    pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
+        return inner(self, path.as_ref());
 
-        fn inner(editor: &mut Editor, path: &Path) {
-            let Ok(view_group) =
-                editor.create_view_group(Url::parse("view-group://zi/file-picker").unwrap())
-            else {
-                // picker view group already exists, don't open another one
-                return;
+        fn inner(editor: &mut Editor, path: &Path) -> ViewGroupId {
+            let view_group = match editor
+                .create_view_group(Url::parse("view-group://zi/file-picker").unwrap())
+            {
+                Ok(view_group) => view_group,
+                Err(id) => return id,
             };
 
             let mode = editor.mode;
@@ -977,9 +1038,7 @@ impl Editor {
                         // match editor.open(path, OpenFlags::READONLY) {
                         match editor.open(path, OpenFlags::empty()) {
                             Ok(buffer) => editor.set_buffer(preview, buffer),
-                            Err(_) => {
-                                // FIXME show error
-                            }
+                            Err(err) => editor.set_error(err),
                         }
                     },
                 );
@@ -1008,7 +1067,9 @@ impl Editor {
                         }
                     })
                 })
-            })
+            });
+
+            view_group
         }
     }
 
@@ -1177,7 +1238,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
-    const OPEN_FILE_PICKER: Action = |editor| editor.open_file_picker(".");
+    const OPEN_FILE_PICKER: Action = |editor| void(editor.open_file_picker("."));
     const OPEN_FILE_EXPLORER: Action = |editor| editor.open_file_explorer(".");
     const SPLIT_VERTICAL: Action =
         |editor| void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));

@@ -160,6 +160,14 @@ impl IntoIterator for KeySequence {
     }
 }
 
+impl TryFrom<&str> for KeySequence {
+    type Error = Vec<chumsky::error::Simple<char>>;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
 impl fmt::Display for KeySequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for key in self.0.iter() {
