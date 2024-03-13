@@ -9,6 +9,7 @@
 
 mod boring_impls;
 mod buffer;
+mod command;
 mod dirs;
 mod editor;
 pub mod event;
