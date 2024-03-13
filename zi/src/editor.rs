@@ -930,7 +930,7 @@ impl Editor {
             editor.views[display_view].set_buffer(editor.buffers.insert_with_key(|id| {
                 TextBuffer::new(
                     id,
-                    BufferFlags::READONLY,
+                    BufferFlags::empty(),
                     FileType::TEXT,
                     path,
                     Rope::new(),
