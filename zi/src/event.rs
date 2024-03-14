@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use crate::{BufferId, Editor};
+use crate::{BufferId, Editor, ViewId};
 
 pub struct Registry {
     handlers: FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send + Sync>>>,
@@ -20,8 +20,8 @@ pub fn dispatch(editor: &mut Editor, event: impl Event) {
     with(|registry| registry.dispatch(editor, &event));
 }
 
-pub fn register<T: Event>(handler: impl EventHandler<Event = T> + Send + Sync + 'static) {
-    with(|registry| registry.register(handler));
+pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T> + Send + Sync + 'static) {
+    with(|registry| registry.subscribe(handler));
 }
 
 /// Create a new event handler from a closure.
@@ -34,7 +34,7 @@ impl Registry {
         Self { handlers: FxHashMap::default() }
     }
 
-    pub fn register<T: Event>(
+    pub fn subscribe<T: Event>(
         &mut self,
         handler: impl EventHandler<Event = T> + Send + Sync + 'static,
     ) {
@@ -109,3 +109,10 @@ pub struct DidOpenBuffer {
 }
 
 impl Event for DidOpenBuffer {}
+
+#[derive(Debug)]
+pub struct DidCloseView {
+    pub view: ViewId,
+}
+
+impl Event for DidCloseView {}

@@ -882,6 +882,8 @@ impl Editor {
             return;
         }
 
+        self.dispatch(event::DidCloseView { view });
+
         // TODO work on a scheme to cleanup views and buffers automatically
         self.close_buffer(self.views[view].buffer());
 
@@ -1012,6 +1014,15 @@ impl Editor {
             editor.views[display_view].set_group(view_group);
             editor.views[search_view].set_group(view_group);
 
+            event::subscribe(event::handler::<event::DidCloseView>({
+                move |editor, event| {
+                    // restore the mode if the picker view group is closed
+                    if editor.views[event.view].group() == Some(view_group) {
+                        editor.set_mode(mode);
+                    }
+                }
+            }));
+
             let mut injector = None;
             let picker_buf = editor.buffers.insert_with_key(|id| {
                 let (picker, inj) = PickerBuffer::new_with_select(
@@ -1027,7 +1038,6 @@ impl Editor {
                         if let Err(err) = editor.open_active(path) {
                             editor.set_error(err);
                         }
-                        editor.mode = mode;
                     },
                     move |editor, path| {
                         tracing::debug!(%path, "picker selected item");
@@ -1137,7 +1147,7 @@ impl TaskSender {
 
 fn register_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
-    event::register(event::handler::<event::DidChangeBuffer>({
+    event::subscribe(event::handler::<event::DidChangeBuffer>({
         let server_id = server_id.clone();
         move |editor, event| {
             tracing::debug!(?event, "buffer did change");
@@ -1163,7 +1173,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
         }
     }));
 
-    event::register(event::handler::<event::DidOpenBuffer>(move |editor, event| {
+    event::subscribe(event::handler::<event::DidOpenBuffer>(move |editor, event| {
         let buf = &editor.buffers[event.buf];
         if let (Some(server), Some(uri)) =
             (editor.language_servers.get_mut(&server_id), buf.file_url())
