@@ -1019,7 +1019,9 @@ impl Editor {
                     // restore the mode if the picker view group is closed
                     if editor.views[event.view].group() == Some(view_group) {
                         editor.set_mode(mode);
+                        return event::HandlerResult::Unsubscribe;
                     }
+                    event::HandlerResult::Ok
                 }
             });
 
@@ -1170,6 +1172,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
                     })
                     .expect("lsp did_change failed");
             }
+            event::HandlerResult::Ok
         }
     });
 
@@ -1190,6 +1193,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
                 })
                 .expect("lsp did_open failed");
         }
+        event::HandlerResult::Ok
     });
 }
 

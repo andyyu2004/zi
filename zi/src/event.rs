@@ -24,14 +24,14 @@ pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     with(|registry| registry.subscribe(handler));
 }
 
-pub fn subscribe_with<T: Event>(f: impl FnMut(&mut Editor, &T) + Send + 'static) {
+pub fn subscribe_with<T: Event>(f: impl FnMut(&mut Editor, &T) -> HandlerResult + Send + 'static) {
     subscribe(handler(f));
 }
 
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
 pub fn handler<E: Event>(
-    f: impl FnMut(&mut Editor, &E) + Send + 'static,
+    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
 ) -> impl EventHandler<Event = E> {
     HandlerFunc { f, _marker: std::marker::PhantomData }
 }
@@ -47,9 +47,10 @@ impl Registry {
 
     pub fn dispatch<T: Event>(&mut self, editor: &mut Editor, event: &T) {
         if let Some(handlers) = self.handlers.get_mut(&TypeId::of::<T>()) {
-            for handler in handlers {
-                handler.dyn_on_event(editor, event);
-            }
+            handlers.retain_mut(|handler| match handler.dyn_on_event(editor, event) {
+                HandlerResult::Ok => true,
+                HandlerResult::Unsubscribe => false,
+            });
         }
     }
 }
@@ -63,7 +64,16 @@ impl Default for Registry {
 pub trait EventHandler: Send + 'static {
     type Event: Event;
 
-    fn on_event(&mut self, editor: &mut Editor, event: &Self::Event);
+    fn on_event(&mut self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
+}
+
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandlerResult {
+    /// Continue processing the event.
+    Ok,
+    /// Unsubscribe the handler from the event.
+    Unsubscribe,
 }
 
 struct HandlerFunc<F, E> {
@@ -73,28 +83,30 @@ struct HandlerFunc<F, E> {
 
 impl<F, E> EventHandler for HandlerFunc<F, E>
 where
-    F: FnMut(&mut Editor, &E) + Send + 'static,
+    F: FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
     E: Event,
 {
     type Event = E;
 
-    fn on_event(&mut self, editor: &mut Editor, event: &E) {
-        (self.f)(editor, event);
+    fn on_event(&mut self, editor: &mut Editor, event: &E) -> HandlerResult {
+        (self.f)(editor, event)
     }
 }
 
 trait ErasedEventHandler {
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event);
+    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
 }
 
 impl<H> ErasedEventHandler for H
 where
     H: EventHandler,
 {
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) {
+    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
-            self.on_event(editor, event);
+            return self.on_event(editor, event);
         }
+
+        HandlerResult::Ok
     }
 }
 
