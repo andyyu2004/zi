@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use crate::{BufferId, Editor, ViewId};
 
 pub struct Registry {
-    handlers: FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send + Sync>>>,
+    handlers: FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send>>>,
 }
 
 static REGISTRY: OnceLock<Mutex<Registry>> = OnceLock::new();
@@ -20,12 +20,19 @@ pub fn dispatch(editor: &mut Editor, event: impl Event) {
     with(|registry| registry.dispatch(editor, &event));
 }
 
-pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T> + Send + Sync + 'static) {
+pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     with(|registry| registry.subscribe(handler));
 }
 
+pub fn subscribe_with<T: Event>(f: impl FnMut(&mut Editor, &T) + Send + 'static) {
+    subscribe(handler(f));
+}
+
 /// Create a new event handler from a closure.
-pub fn handler<E: Event>(f: impl FnMut(&mut Editor, &E)) -> impl EventHandler<Event = E> {
+// Can't find a way to implement this as a blanket impl
+pub fn handler<E: Event>(
+    f: impl FnMut(&mut Editor, &E) + Send + 'static,
+) -> impl EventHandler<Event = E> {
     HandlerFunc { f, _marker: std::marker::PhantomData }
 }
 
@@ -34,10 +41,7 @@ impl Registry {
         Self { handlers: FxHashMap::default() }
     }
 
-    pub fn subscribe<T: Event>(
-        &mut self,
-        handler: impl EventHandler<Event = T> + Send + Sync + 'static,
-    ) {
+    pub fn subscribe<T: Event>(&mut self, handler: impl EventHandler<Event = T>) {
         self.handlers.entry(TypeId::of::<T>()).or_default().push(Box::new(handler));
     }
 
@@ -56,7 +60,7 @@ impl Default for Registry {
     }
 }
 
-pub trait EventHandler {
+pub trait EventHandler: Send + 'static {
     type Event: Event;
 
     fn on_event(&mut self, editor: &mut Editor, event: &Self::Event);
@@ -69,7 +73,7 @@ struct HandlerFunc<F, E> {
 
 impl<F, E> EventHandler for HandlerFunc<F, E>
 where
-    F: FnMut(&mut Editor, &E),
+    F: FnMut(&mut Editor, &E) + Send + 'static,
     E: Event,
 {
     type Event = E;

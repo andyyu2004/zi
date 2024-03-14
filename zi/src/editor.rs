@@ -1014,14 +1014,14 @@ impl Editor {
             editor.views[display_view].set_group(view_group);
             editor.views[search_view].set_group(view_group);
 
-            event::subscribe(event::handler::<event::DidCloseView>({
+            event::subscribe_with::<event::DidCloseView>({
                 move |editor, event| {
                     // restore the mode if the picker view group is closed
                     if editor.views[event.view].group() == Some(view_group) {
                         editor.set_mode(mode);
                     }
                 }
-            }));
+            });
 
             let mut injector = None;
             let picker_buf = editor.buffers.insert_with_key(|id| {
@@ -1147,7 +1147,7 @@ impl TaskSender {
 
 fn register_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
-    event::subscribe(event::handler::<event::DidChangeBuffer>({
+    event::subscribe_with::<event::DidChangeBuffer>({
         let server_id = server_id.clone();
         move |editor, event| {
             tracing::debug!(?event, "buffer did change");
@@ -1171,9 +1171,9 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
                     .expect("lsp did_change failed");
             }
         }
-    }));
+    });
 
-    event::subscribe(event::handler::<event::DidOpenBuffer>(move |editor, event| {
+    event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
         let buf = &editor.buffers[event.buf];
         if let (Some(server), Some(uri)) =
             (editor.language_servers.get_mut(&server_id), buf.file_url())
@@ -1190,7 +1190,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
                 })
                 .expect("lsp did_open failed");
         }
-    }));
+    });
 }
 
 fn callback<R: 'static>(
