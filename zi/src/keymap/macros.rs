@@ -18,7 +18,7 @@ macro_rules! hashmap {
 
 #[macro_export]
 macro_rules! trie {
-    (@trie $value:ident) => {
+    (@trie $value:path) => {
         $crate::keymap::TrieNode::Value($value)
     };
 

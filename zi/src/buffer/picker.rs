@@ -84,22 +84,19 @@ where
                     let next: Action = |editor| Self::select(editor, Direction::Down);
                     let prev: Action = |editor| Self::select(editor, Direction::Up);
                     let confirm: Action = |editor| Self::confirm(editor);
+                    let close: Action = |editor| editor.close_active_view();
 
                     Keymap::from(hashmap! {
                         Mode::Insert => trie! ({
-                            "<Tab>" => next,
-                            "<S-Tab>" => prev,
-                            "<C-j>" => next,
-                            "<C-k>" => prev,
+                            "<Esc>" | "<C-c>" => close,
+                            "<Tab>" | "<C-j>" => next,
+                            "<S-Tab>" | "<C-k>" => prev,
                             "<CR>" => confirm,
                         }),
                         Mode::Normal => trie!({
-                            "<Tab>" => next,
-                            "<S-Tab>" => prev,
-                            "<C-j>" => next,
-                            "<C-k>" => prev,
-                            "j" => next,
-                            "k" => prev,
+                            "<Esc>" | "<C-c>" | "q" => close,
+                            "<Tab>" | "<C-j>" | "j" => next,
+                            "<S-Tab>" | "<C-k>" | "k" => prev,
                             "<CR>" => confirm,
                         }),
                     })
