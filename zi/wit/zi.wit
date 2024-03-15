@@ -4,23 +4,24 @@ world plugin {
     import editor;
 
     use editor.{mode};
-    use plugin-resources.{command-handler};
 
     type name = string;
 
     export initialize: func();
     export get-name: func() -> name;
     export dependencies: func() -> list<name>;
-    export handler: func() -> command-handler;
 
-    export plugin-resources;
-
+    export command;
 }
 
-interface plugin-resources {
-    resource command-handler {
+// This is structured in a very particular way to get bindgen to do what we want (on both host and guest side).
+// - Do not use anything from this interface in the main `world` otherwise the host will generate useless bindings.
+// - If this is not in separate interface (and in the main world) we have the above issue + the guest doesn't generate bindings for this.
+interface command {
+    resource handler {
         constructor();
-        exec: func(cmd: string, args: list<string>) -> ();
+        // random return tyep for now
+        exec: func(cmd: string, args: list<string>) -> u32;
     }
 }
 

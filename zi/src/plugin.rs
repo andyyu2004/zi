@@ -9,8 +9,9 @@ use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
 use crate::editor::Client;
-use crate::wit::zi::api::{editor, plugin_resources};
-use crate::wit::{self, CommandHandler, Plugin};
+use crate::wit::exports::zi::api::command;
+use crate::wit::zi::api::editor;
+use crate::wit::{self, Plugin};
 
 pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
@@ -72,31 +73,10 @@ impl editor::HostView for Client {
     }
 }
 
+#[async_trait::async_trait]
 impl editor::HostBuffer for Client {
     fn drop(&mut self, _rep: Resource<editor::Buffer>) -> wasmtime::Result<()> {
         Ok(())
-    }
-}
-
-impl plugin_resources::Host for Client {}
-
-#[async_trait::async_trait]
-impl plugin_resources::HostCommandHandler for Client {
-    async fn new(&mut self) -> wasmtime::Result<Resource<CommandHandler>> {
-        todo!()
-    }
-
-    async fn exec(
-        &mut self,
-        _rep: Resource<CommandHandler>,
-        _cmd: String,
-        _args: Vec<String>,
-    ) -> wasmtime::Result<()> {
-        todo!()
-    }
-
-    fn drop(&mut self, _rep: Resource<CommandHandler>) -> wasmtime::Result<()> {
-        todo!()
     }
 }
 
@@ -152,7 +132,7 @@ mod test {
     use crate::Editor;
 
     #[tokio::test]
-    async fn it_works() -> wasmtime::Result<()> {
+    async fn smoke() -> wasmtime::Result<()> {
         let (mut editor, tasks) = Editor::new(crate::Size::new(80, 24));
 
         let engine = engine();
@@ -161,13 +141,18 @@ mod test {
 
         tokio::spawn(editor.test_run(tasks));
 
-        let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
+        let plugins =
+            super::load(engine, &mut store, &["../runtime/plugins/plugin_example.wasm"]).await?;
 
         for plugin in &plugins[..] {
             assert_eq!(plugin.call_get_name(&mut store).await?, "example");
             assert!(plugin.call_dependencies(&mut store).await?.is_empty());
             plugin.call_initialize(&mut store).await?;
-            let handler = plugin.call_handler(&mut store).await?;
+
+            let handler = plugin.zi_api_command().handler();
+            let handler_resource = handler.call_constructor(&mut store).await?;
+            assert_eq!(handler.call_exec(&mut store, handler_resource, "wer", &["a"]).await?, 42);
+            handler_resource.resource_drop_async(&mut store).await?;
         }
 
         Ok(())

@@ -161,7 +161,7 @@ pub trait LazyText: fmt::Display {
 /// The returned lines are guaranteed to be single-line
 pub fn annotate<'a, T: Copy>(
     lines: impl Iterator<Item = Cow<'a, str>> + 'a,
-    highlights: impl IntoIterator<Item = (Range, T)> + 'a,
+    annotations: impl IntoIterator<Item = (Range, T)> + 'a,
 ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a {
     // A specialized slice that preserves the borrow if possible
     fn slice_cow<'a, I: SliceIndex<str, Output = str>>(s: &Cow<'a, str>, index: I) -> Cow<'a, str> {
@@ -171,7 +171,7 @@ pub fn annotate<'a, T: Copy>(
         }
     }
 
-    let mut annotations = highlights.into_iter().peekable();
+    let mut annotations = annotations.into_iter().peekable();
     std::iter::from_coroutine(move || {
         for (i, line) in lines.enumerate() {
             let line_idx = Line::from(i);

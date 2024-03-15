@@ -1,11 +1,7 @@
-// #[allow(warnings)]
-// mod bindings;
-
 use bindings::zi::api::editor::*;
 use bindings::{Guest, Name};
 
-use self::bindings::exports::zi::api::plugin_resources::GuestCommandHandler;
-use self::bindings::CommandHandler;
+use self::bindings::exports::zi::api::command;
 
 struct Component;
 
@@ -18,18 +14,20 @@ mod bindings {
     });
 }
 
-impl bindings::exports::zi::api::plugin_resources::Guest for Component {
-    type CommandHandler = HandlerImpl;
+impl bindings::exports::zi::api::command::Guest for Component {
+    type Handler = CommandHandler;
 }
 
-struct HandlerImpl;
+struct CommandHandler;
 
-impl GuestCommandHandler for HandlerImpl {
+impl command::GuestHandler for CommandHandler {
     fn new() -> Self {
         Self
     }
 
-    fn exec(&self, cmd: String, args: Vec<String>) {}
+    fn exec(&self, _cmd: String, _args: Vec<String>) -> u32 {
+        42
+    }
 }
 
 impl Guest for Component {
@@ -56,10 +54,6 @@ impl Guest for Component {
 
     fn dependencies() -> Vec<Name> {
         vec![]
-    }
-
-    fn handler() -> CommandHandler {
-        CommandHandler::new()
     }
 }
 

@@ -30,7 +30,7 @@ pub fn subscribe_with<T: Event>(f: impl FnMut(&mut Editor, &T) -> HandlerResult 
 
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
-pub fn handler<E: Event>(
+fn handler<E: Event>(
     f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
 ) -> impl EventHandler<Event = E> {
     HandlerFunc { f, _marker: std::marker::PhantomData }
