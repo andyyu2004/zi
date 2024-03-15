@@ -1,10 +1,21 @@
-#[allow(warnings)]
-mod bindings;
+// #[allow(warnings)]
+// mod bindings;
 
 use bindings::zi::api::editor::*;
 use bindings::{Guest, Name};
 
+use self::bindings::CommandHandler;
+
 struct Component;
+
+#[allow(warnings)]
+mod bindings {
+    wit_bindgen::generate!({
+        path: "../../zi/wit/zi.wit",
+        additional_derives: [PartialEq, Eq],
+        ownership: Borrowing { duplicate_if_necessary: true },
+    });
+}
 
 impl Guest for Component {
     fn initialize() {
@@ -24,7 +35,7 @@ impl Guest for Component {
         // assert!();
     }
 
-    fn name() -> Name {
+    fn get_name() -> Name {
         "example".into()
     }
 
@@ -32,7 +43,9 @@ impl Guest for Component {
         vec![]
     }
 
-    fn invoke(_cmd: String, _args: Vec<String>) {}
+    fn handler() -> CommandHandler {
+        CommandHandler::new()
+    }
 }
 
 bindings::export!(Component with_types_in bindings);

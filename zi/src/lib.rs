@@ -35,16 +35,19 @@ pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
 pub use self::syntax::{Color, Style};
 pub use self::view::{View, ViewId};
+pub use self::wit::zi::api::editor::Mode;
 
 // Consider a proper error type
 pub type Error = anyhow::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
-wasmtime::component::bindgen!({
-    async: true,
-    tracing: true,
-    ownership: Borrowing {
-        duplicate_if_necessary: true
-    },
-    with: {}
-});
+mod wit {
+    wasmtime::component::bindgen!({
+        async: true,
+        tracing: true,
+        ownership: Borrowing {
+            duplicate_if_necessary: true
+        },
+        with: {}
+    });
+}

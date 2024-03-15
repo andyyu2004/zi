@@ -5,17 +5,7 @@ edition = "2021"
 
 [dependencies]
 wit-bindgen-rt = "0.22.0"
+wit-bindgen = "0.22.0"
 
 [lib]
 crate-type = ["cdylib"]
-
-[package.metadata.component]
-package = "zi:zi"
-
-[package.metadata.component.bindings]
-ownership = "borrowing-duplicate-if-necessary"
-derives = ["PartialEq", "Eq"]
-
-[package.metadata.component.target]
-path = "../../zi/wit/zi.wit"
-world = "plugin"

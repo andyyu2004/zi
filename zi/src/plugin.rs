@@ -9,7 +9,8 @@ use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
 use crate::editor::Client;
-use crate::zi::api::editor;
+use crate::wit::zi::api::editor;
+use crate::wit::{self, CommandHandler, Plugin};
 
 pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
@@ -22,7 +23,7 @@ pub fn engine() -> &'static Engine {
 
 pub type Store = wasmtime::Store<Client>;
 
-use crate::{Editor, Plugin, Point, ViewId};
+use crate::{Editor, Point, ViewId};
 
 impl From<Point> for editor::Position {
     fn from(value: Point) -> Self {
@@ -76,6 +77,28 @@ impl editor::HostBuffer for Client {
         Ok(())
     }
 }
+
+#[async_trait::async_trait]
+impl wit::HostCommandHandler for Client {
+    async fn new(&mut self) -> wasmtime::Result<Resource<CommandHandler>> {
+        panic!("guest provides command handler resource")
+    }
+
+    async fn exec(
+        &mut self,
+        _rep: Resource<CommandHandler>,
+        cmd: String,
+        args: Vec<String>,
+    ) -> wasmtime::Result<()> {
+        panic!("guest provides command handler resource")
+    }
+
+    fn drop(&mut self, _rep: Resource<CommandHandler>) -> wasmtime::Result<()> {
+        panic!("guest provides command handler resource")
+    }
+}
+
+impl wit::PluginImports for Client {}
 
 #[async_trait::async_trait]
 impl editor::Host for Client {
@@ -141,9 +164,10 @@ mod test {
         let plugins = super::load(engine, &mut store, &["../runtime/plugins/example.wasm"]).await?;
 
         for plugin in &plugins[..] {
-            assert_eq!(plugin.call_name(&mut store).await?, "example");
+            assert_eq!(plugin.call_get_name(&mut store).await?, "example");
             assert!(plugin.call_dependencies(&mut store).await?.is_empty());
             plugin.call_initialize(&mut store).await?;
+            let handler = plugin.call_handler(&mut store).await?;
         }
 
         Ok(())

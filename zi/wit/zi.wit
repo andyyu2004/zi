@@ -2,18 +2,23 @@ package zi:api;
 
 world plugin {
     import editor;
+
     use editor.{mode};
 
     type name = string;
 
     export initialize: func();
-    export name: func() -> name;
+    export get-name: func() -> name;
     export dependencies: func() -> list<name>;
-    export invoke: func(cmd: string, args: list<string>);
+    export handler: func() -> command-handler;
+
+    resource command-handler {
+        constructor();
+        exec: func(cmd: string, args: list<string>) -> ();
+    }
 }
 
 interface editor {
-
     variant mode {
         normal,
         insert,
