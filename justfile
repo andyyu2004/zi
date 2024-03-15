@@ -3,7 +3,7 @@ test *FLAGS: build
 
 build *FLAGS: build-plugins
     @echo "building zi"
-    @cargo build {{FLAGS}}
+    @mold -run cargo build {{FLAGS}}
 
 target := "wasm32-unknown-unknown"
 

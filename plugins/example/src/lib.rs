@@ -4,6 +4,7 @@
 use bindings::zi::api::editor::*;
 use bindings::{Guest, Name};
 
+use self::bindings::exports::zi::api::plugin_resources::GuestCommandHandler;
 use self::bindings::CommandHandler;
 
 struct Component;
@@ -15,6 +16,20 @@ mod bindings {
         additional_derives: [PartialEq, Eq],
         ownership: Borrowing { duplicate_if_necessary: true },
     });
+}
+
+impl bindings::exports::zi::api::plugin_resources::Guest for Component {
+    type CommandHandler = HandlerImpl;
+}
+
+struct HandlerImpl;
+
+impl GuestCommandHandler for HandlerImpl {
+    fn new() -> Self {
+        Self
+    }
+
+    fn exec(&self, cmd: String, args: Vec<String>) {}
 }
 
 impl Guest for Component {

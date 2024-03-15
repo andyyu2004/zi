@@ -9,7 +9,7 @@ use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
 use crate::editor::Client;
-use crate::wit::zi::api::editor;
+use crate::wit::zi::api::{editor, plugin_resources};
 use crate::wit::{self, CommandHandler, Plugin};
 
 pub fn engine() -> &'static Engine {
@@ -78,27 +78,27 @@ impl editor::HostBuffer for Client {
     }
 }
 
+impl plugin_resources::Host for Client {}
+
 #[async_trait::async_trait]
-impl wit::HostCommandHandler for Client {
+impl plugin_resources::HostCommandHandler for Client {
     async fn new(&mut self) -> wasmtime::Result<Resource<CommandHandler>> {
-        panic!("guest provides command handler resource")
+        todo!()
     }
 
     async fn exec(
         &mut self,
         _rep: Resource<CommandHandler>,
-        cmd: String,
-        args: Vec<String>,
+        _cmd: String,
+        _args: Vec<String>,
     ) -> wasmtime::Result<()> {
-        panic!("guest provides command handler resource")
+        todo!()
     }
 
     fn drop(&mut self, _rep: Resource<CommandHandler>) -> wasmtime::Result<()> {
-        panic!("guest provides command handler resource")
+        todo!()
     }
 }
-
-impl wit::PluginImports for Client {}
 
 #[async_trait::async_trait]
 impl editor::Host for Client {

@@ -4,6 +4,7 @@ world plugin {
     import editor;
 
     use editor.{mode};
+    use plugin-resources.{command-handler};
 
     type name = string;
 
@@ -12,6 +13,11 @@ world plugin {
     export dependencies: func() -> list<name>;
     export handler: func() -> command-handler;
 
+    export plugin-resources;
+
+}
+
+interface plugin-resources {
     resource command-handler {
         constructor();
         exec: func(cmd: string, args: list<string>) -> ();
