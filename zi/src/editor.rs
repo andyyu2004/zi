@@ -557,11 +557,12 @@ impl Editor {
                 },
                 f = callbacks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(self) {
-                        tracing::error!("task callback failed: {:?}", err);
+                        tracing::error!("task callback failed: {err:?}");
+                        self.set_error(err);
                     }
                     Err(err) => {
                         tracing::error!("task failed: {err}");
-                        self.set_error(&*err);
+                        self.set_error(err);
                     }
                 },
             }
