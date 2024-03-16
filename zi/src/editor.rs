@@ -172,8 +172,8 @@ use self::cursor::SetCursorFlags;
 
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
-pub type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
-pub type Requests = impl Stream<Item = Request> + Unpin;
+type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
+type Requests = impl Stream<Item = Request> + Unpin;
 
 type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
 
@@ -203,7 +203,7 @@ impl<T> Stream for UnboundedChannelStream<T> {
     }
 }
 
-pub struct Request {
+struct Request {
     #[allow(clippy::type_complexity)]
     pub f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
     pub tx: oneshot::Sender<Box<dyn Any + Send>>,
