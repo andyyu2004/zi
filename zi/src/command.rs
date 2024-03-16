@@ -148,9 +148,41 @@ impl fmt::Debug for CommandKind {
 
 #[derive(Clone, Copy)]
 pub struct Handler {
-    arity: ArityRange,
-    flags: HandlerFlags,
+    desc: CommandDescriptor,
     handler: CommandHandler,
+}
+
+#[derive(Clone, Copy)]
+pub struct CommandDescriptor {
+    arity: ArityRange,
+    flags: Flags,
+}
+
+impl CommandDescriptor {
+    pub fn new(arity: impl Into<ArityRange>, flags: Flags) -> Self {
+        Self { arity: arity.into(), flags }
+    }
+
+    fn check(&self, range: Option<&CommandRange>, args: &[Word]) -> Result<(), Error> {
+        if !self.arity.contains(&(args.len() as u8)) {
+            if self.arity.min == self.arity.max {
+                anyhow::bail!("expected {} arguments, got {}", self.arity.min, args.len())
+            }
+
+            anyhow::bail!(
+                "expected {} to {} arguments, got {}",
+                self.arity.min,
+                self.arity.max,
+                args.len()
+            )
+        }
+
+        if range.is_some() && !self.flags.contains(Flags::RANGE) {
+            anyhow::bail!("range not allowed")
+        }
+
+        Ok(())
+    }
 }
 
 pub type CommandHandler = fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>;
@@ -159,30 +191,30 @@ pub type CommandHandler = fn(&mut Editor, Option<&CommandRange>, &[Word]) -> cra
 /// Can't use `RangeInclusive` because it's not `Copy`.
 #[derive(Clone, Copy)]
 pub struct ArityRange {
-    start: u8,
-    end: u8,
+    min: u8,
+    max: u8,
 }
 
 impl From<RangeInclusive<u8>> for ArityRange {
     fn from(range: RangeInclusive<u8>) -> Self {
         let (start, end) = range.into_inner();
-        Self { start, end }
+        Self { min: start, max: end }
     }
 }
 
 impl RangeBounds<u8> for ArityRange {
     fn start_bound(&self) -> Bound<&u8> {
-        Bound::Included(&self.start)
+        Bound::Included(&self.min)
     }
 
     fn end_bound(&self) -> Bound<&u8> {
-        Bound::Included(&self.end)
+        Bound::Included(&self.max)
     }
 }
 
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, Debug, Hash, PartialEq, Eq)]
-    pub struct HandlerFlags: u8 {
+    pub struct Flags: u8 {
         const RANGE = 0b0000_0001;
     }
 }
@@ -194,23 +226,7 @@ impl Handler {
         range: Option<&CommandRange>,
         args: &[Word],
     ) -> Result<(), Error> {
-        if !self.arity.contains(&(args.len() as u8)) {
-            if self.arity.start == self.arity.end {
-                anyhow::bail!("expected {} arguments, got {}", self.arity.start, args.len())
-            }
-
-            anyhow::bail!(
-                "expected {} to {} arguments, got {}",
-                self.arity.start,
-                self.arity.end,
-                args.len()
-            )
-        }
-
-        if range.is_some() && !self.flags.contains(HandlerFlags::RANGE) {
-            anyhow::bail!("range not allowed")
-        }
-
+        self.desc.check(range, args)?;
         (self.handler)(editor, range, args)
     }
 }
@@ -219,8 +235,7 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
     [(
         "q",
         Handler {
-            arity: (0..=0).into(),
-            flags: HandlerFlags::empty(),
+            desc: CommandDescriptor::new(0..=0, Flags::empty()),
             handler: |editor, range, args| {
                 assert!(range.is_none());
                 assert!(args.is_empty());

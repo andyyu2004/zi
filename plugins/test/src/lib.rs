@@ -1,7 +1,7 @@
 use bindings::zi::api::editor::*;
 use bindings::{Guest, Name};
 
-use self::bindings::exports::zi::api::command;
+use self::bindings::exports::zi::api::command::{self, Arity, Command, CommandOpts};
 
 struct Component;
 
@@ -16,6 +16,14 @@ mod bindings {
 
 impl bindings::exports::zi::api::command::Guest for Component {
     type Handler = CommandHandler;
+
+    fn commands() -> Vec<Command> {
+        vec![Command {
+            name: "foo".into(),
+            arity: Arity { min: 0, max: 1 },
+            opts: CommandOpts::RANGE,
+        }]
+    }
 }
 
 struct CommandHandler;
@@ -25,7 +33,8 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, _cmd: String, _args: Vec<String>) -> u32 {
+    fn exec(&self, cmd: String, _args: Vec<String>) -> u32 {
+        assert_eq!(cmd, "foo", "unexpected command");
         42
     }
 }

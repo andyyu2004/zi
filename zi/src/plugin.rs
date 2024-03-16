@@ -10,7 +10,7 @@ use tokio::select;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
-use wasmtime::component::{Component, Linker, Resource};
+use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
 
 use crate::editor::Client;
@@ -104,10 +104,6 @@ impl editor::Host for Client {
     async fn get_active_view(&mut self) -> wasmtime::Result<Resource<editor::View>> {
         let v = self.request(|editor| editor.active_view().id().data().as_ffi() as u32).await;
         Ok(Resource::new_own(v))
-    }
-
-    async fn create_command(&mut self, cmd: String) -> wasmtime::Result<()> {
-        Ok(())
     }
 }
 
@@ -250,9 +246,18 @@ mod test {
             assert!(plugin.call_dependencies(&mut store).await?.is_empty());
             plugin.call_initialize(&mut store).await?;
 
+            use crate::wit::exports::zi::api::command::{Arity, Command, CommandOpts};
+            assert_eq!(
+                plugin.zi_api_command().call_commands(&mut store).await?,
+                vec![Command {
+                    name: "foo".into(),
+                    arity: Arity { min: 0, max: 1 },
+                    opts: CommandOpts::RANGE
+                }]
+            );
             let handler = plugin.zi_api_command().handler();
             let handler_resource = handler.call_constructor(&mut store).await?;
-            assert_eq!(handler.call_exec(&mut store, handler_resource, "wer", &["a"]).await?, 42);
+            assert_eq!(handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?, 42);
             handler_resource.resource_drop_async(&mut store).await?;
         }
 

@@ -1,6 +1,6 @@
 use bindings::{Guest, Name};
 
-use self::bindings::exports::zi::api::command;
+use self::bindings::exports::zi::api::command::{self, Command};
 
 struct Component;
 
@@ -13,8 +13,12 @@ mod bindings {
     });
 }
 
-impl bindings::exports::zi::api::command::Guest for Component {
+impl command::Guest for Component {
     type Handler = CommandHandler;
+
+    fn commands() -> Vec<Command> {
+        vec![]
+    }
 }
 
 struct CommandHandler;

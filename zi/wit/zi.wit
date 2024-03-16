@@ -18,6 +18,23 @@ world plugin {
 // - Do not use anything from this interface in the main `world` otherwise the host will generate useless bindings.
 // - If this is not in separate interface (and in the main world) we have the above issue + the guest doesn't generate bindings for this.
 interface command {
+    record arity {
+        min: u32,
+        max: u32,
+    }
+
+    flags command-opts {
+        range,
+    }
+
+    record command {
+        name: string,
+        arity: arity,
+        opts: command-opts,
+    }
+
+    commands: func() -> list<command>;
+
     resource handler {
         constructor();
         // random return type for now
@@ -45,8 +62,6 @@ interface editor {
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
     get-active-view: func() -> view;
-
-    create-command: func(cmd: string) -> ();
 
     resource view {
         get-buffer: func() -> buffer;

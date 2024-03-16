@@ -1,12 +1,25 @@
-use std::fmt;
-use std::hash::{Hash, Hasher};
-
-use crate::Mode;
-
 // Kinda painful that we can't seem to control the derives? wit-bindgen has a setting called
 // additional_derives but wasmtime's one doesn't.
 //
 // Try write the impls in an exhaustive way so any new cases or fields will be caught.
+
+use std::fmt;
+use std::hash::{Hash, Hasher};
+
+use crate::wit::exports::zi::api::command::{Arity, Command};
+use crate::Mode;
+
+impl PartialEq for Command {
+    fn eq(&self, Self { name, arity, opts }: &Self) -> bool {
+        self.name == *name && self.arity == *arity && self.opts == *opts
+    }
+}
+
+impl PartialEq for Arity {
+    fn eq(&self, Self { min, max }: &Self) -> bool {
+        self.min == *min && self.max == *max
+    }
+}
 
 impl PartialEq for Mode {
     fn eq(&self, other: &Self) -> bool {
