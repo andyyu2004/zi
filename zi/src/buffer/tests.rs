@@ -23,7 +23,7 @@ proptest::proptest! {
     // Ignore some annoying control characters like vertical tabs, nextline etc. No idea if anyone actually uses that in practice.
     // Also skipping \r as usually it's followed by \n.
     #[test]
-    fn text_impls(s in "[^\r\u{b}\u{c}\u{85}]*") {
+    fn text_impls(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*") {
         // Test against the rope implementation as that one is probably correct
 
         let rope = Rope::from(s.as_ref());
