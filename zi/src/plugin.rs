@@ -1,10 +1,15 @@
 #![allow(unused)]
 use std::any::Any;
+use std::io;
 use std::path::Path;
 use std::sync::OnceLock;
 
+use futures_util::{Stream, StreamExt, TryStreamExt};
 use slotmap::{Key as _, KeyData};
+use tokio::select;
 use tokio::sync::oneshot;
+use tokio::task::JoinSet;
+use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource};
 pub use wasmtime::Engine;
 
@@ -24,7 +29,7 @@ pub fn engine() -> &'static Engine {
 
 pub type Store = wasmtime::Store<Client>;
 
-use crate::{Editor, Point, ViewId};
+use crate::{dirs, Editor, Point, ViewId};
 
 impl From<Point> for editor::Position {
     fn from(value: Point) -> Self {
@@ -106,30 +111,127 @@ impl editor::Host for Client {
     }
 }
 
-pub async fn load(
-    engine: &Engine,
-    store: &mut Store,
-    plugin_paths: &[impl AsRef<Path>],
-) -> wasmtime::Result<Box<[Plugin]>> {
-    let mut plugins = Vec::with_capacity(plugin_paths.len());
-    let mut linker = Linker::new(engine);
-    for path in plugin_paths {
-        let component = Component::from_file(engine, path)?;
-        Plugin::add_to_linker(&mut linker, |client| client)?;
-        let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
-        plugins.push(bindings);
+pub struct Plugins {
+    client: Client,
+}
+
+impl Plugins {
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 
-    Ok(plugins.into_boxed_slice())
+    pub async fn run(self) -> wasmtime::Result<()> {
+        let engine = engine();
+
+        let components = self.load_plugin_components(engine).await?;
+
+        let mut join_set = JoinSet::new();
+
+        let plugin_hosts = components
+            .then(|component| {
+                let client = self.client.clone();
+                let mut linker = Linker::new(engine);
+                async move {
+                    let component = component?;
+                    let mut store = Store::new(engine, client);
+                    Plugin::add_to_linker(&mut linker, |client| client)?;
+                    let (plugin, _instance) =
+                        Plugin::instantiate_async(&mut store, &component, &linker).await?;
+
+                    Ok::<_, wasmtime::Error>(PluginHost { plugin, store })
+                }
+            })
+            .filter_map(|res| async {
+                match res {
+                    Ok(plugin) => Some(plugin),
+                    Err(err) => {
+                        tracing::error!("error loading plugin: {err} (skipping)");
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .await
+            .into_boxed_slice();
+
+        tracing::info!(n = plugin_hosts.len(), "instantiated plugins");
+
+        for host in plugin_hosts.into_vec() {
+            join_set.spawn(host.start());
+        }
+
+        while let Some(res) = join_set.join_next().await {
+            match res {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => tracing::error!("error running plugin: {err}"),
+                Err(err) => tracing::error!("error joining plugin: {err}"),
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn load_plugin_components(
+        &self,
+        engine: &'static Engine,
+    ) -> io::Result<impl Stream<Item = wasmtime::Result<Component>>> {
+        let entries = tokio::fs::read_dir(dirs::plugin()).await?;
+        let stream = ReadDirStream::new(entries);
+        Ok(stream.map_err(Into::into).try_filter_map(move |entry| async move {
+            if !entry.file_type().await?.is_file() {
+                return Ok(None);
+            }
+
+            let component = Component::from_file(engine, entry.path())?;
+            Ok(Some(component))
+        }))
+    }
+}
+
+struct PluginHost {
+    store: Store,
+    plugin: Plugin,
+}
+
+impl PluginHost {
+    pub async fn start(mut self) -> wasmtime::Result<()> {
+        self.plugin.call_initialize(&mut self.store).await?;
+
+        loop {
+            select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            }
+        }
+        Ok(())
+    }
+
+    async fn initialize(&mut self) -> wasmtime::Result<()> {
+        self.plugin.call_initialize(&mut self.store).await
+    }
 }
 
 #[cfg(test)]
 mod test {
     use futures_util::{Stream, StreamExt};
-    use wasmtime::{Config, Engine, Store};
 
-    use super::engine;
-    use crate::Editor;
+    use super::*;
+
+    async fn load(
+        engine: &Engine,
+        store: &mut Store,
+        plugin_paths: &[impl AsRef<Path>],
+    ) -> wasmtime::Result<Box<[Plugin]>> {
+        let mut plugins = Vec::with_capacity(plugin_paths.len());
+        let mut linker = Linker::new(engine);
+        for path in plugin_paths {
+            let component = Component::from_file(engine, path)?;
+            Plugin::add_to_linker(&mut linker, |client| client)?;
+            let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
+            plugins.push(bindings);
+        }
+
+        Ok(plugins.into_boxed_slice())
+    }
 
     #[tokio::test]
     async fn smoke() -> wasmtime::Result<()> {
@@ -141,11 +243,10 @@ mod test {
 
         tokio::spawn(editor.test_run(tasks));
 
-        let plugins =
-            super::load(engine, &mut store, &["../runtime/plugins/plugin_example.wasm"]).await?;
+        let plugins = load(engine, &mut store, &["../runtime/plugins/plugin_test.wasm"]).await?;
 
         for plugin in &plugins[..] {
-            assert_eq!(plugin.call_get_name(&mut store).await?, "example");
+            assert_eq!(plugin.call_get_name(&mut store).await?, "test");
             assert!(plugin.call_dependencies(&mut store).await?.is_empty());
             plugin.call_initialize(&mut store).await?;
 

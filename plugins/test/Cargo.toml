@@ -1,0 +1,11 @@
+[package]
+name = "plugin-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen-rt = "0.22.0"
+wit-bindgen = "0.22.0"
+
+[lib]
+crate-type = ["cdylib"]

@@ -4,9 +4,9 @@ test *FLAGS: build
 run *FLAGS:
     @cargo run -p zi-term
 
+# Trying to build plugins with a standard cargo build results in linker issues hence the exclude
 build *FLAGS: build-plugins
     @echo "building zi"
-    # Trying to build plugins with a standard cargo build results in linker issues
     @cargo build --workspace --exclude 'plugin-*' {{FLAGS}}
 
 wasm-target := "wasm32-unknown-unknown"

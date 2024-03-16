@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
 
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
-    app.run(&mut editor, events, tasks).await?;
+    app.run(editor, events, tasks).await?;
 
     Ok(())
 }

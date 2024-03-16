@@ -28,8 +28,8 @@ impl<B: Backend + io::Write> App<B> {
     }
 
     pub async fn run(
-        &mut self,
-        editor: &mut Editor,
+        mut self,
+        editor: Editor,
         events: impl Stream<Item = io::Result<Event>>,
         tasks: zi::Tasks,
     ) -> io::Result<()> {

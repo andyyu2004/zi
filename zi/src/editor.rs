@@ -31,6 +31,7 @@ use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
+use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::Theme;
 use crate::view::{ViewGroup, ViewGroupId};
@@ -205,11 +206,12 @@ impl<T> Stream for UnboundedChannelStream<T> {
 
 struct Request {
     #[allow(clippy::type_complexity)]
-    pub f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
-    pub tx: oneshot::Sender<Box<dyn Any + Send>>,
+    f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
+    tx: oneshot::Sender<Box<dyn Any + Send>>,
 }
 
 /// An async client to the editor.
+#[derive(Clone)]
 pub struct Client {
     tx: Sender<Request>,
 }
@@ -410,6 +412,7 @@ impl Editor {
     }
 
     pub fn set_error(&mut self, error: impl fmt::Display) {
+        // TODO push all the corresponding tracing error in here
         set_error!(self, error);
     }
 
@@ -530,17 +533,20 @@ impl Editor {
     }
 
     #[cfg(test)]
-    pub async fn test_run(mut self, tasks: Tasks) -> io::Result<()> {
+    pub async fn test_run(self, tasks: Tasks) -> io::Result<()> {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
 
     pub async fn run(
-        &mut self,
+        mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        render(self)?;
+        let plugins = Plugins::new(self.client());
+        let plugin_handle = tokio::spawn(plugins.run());
+
+        render(&mut self)?;
 
         let mut requests = requests.fuse();
         let mut callbacks = callbacks.buffer_unordered(16);
@@ -553,10 +559,10 @@ impl Editor {
                 () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
                 req = requests.select_next_some() => {
                     // If the receiver dropped then we just ignore the request.
-                    let _ = req.tx.send((req.f)(self));
+                    let _ = req.tx.send((req.f)(&mut self));
                 },
                 f = callbacks.select_next_some() => match f {
-                    Ok(f) => if let Err(err) = f(self) {
+                    Ok(f) => if let Err(err) = f(&mut self) {
                         tracing::error!("task callback failed: {err:?}");
                         self.set_error(err);
                     }
@@ -568,10 +574,14 @@ impl Editor {
             }
 
             if self.should_quit() {
+                // The only time we abort the plugin system is when we're exiting the main loop so
+                // the assumptions above hold.
+                plugin_handle.abort();
+                let _ = plugin_handle.await;
                 break;
             }
 
-            render(self)?;
+            render(&mut self)?;
         }
 
         self.cleanup().await;

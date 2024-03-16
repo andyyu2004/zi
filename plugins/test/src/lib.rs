@@ -1,3 +1,4 @@
+use bindings::zi::api::editor::*;
 use bindings::{Guest, Name};
 
 use self::bindings::exports::zi::api::command;
@@ -30,10 +31,20 @@ impl command::GuestHandler for CommandHandler {
 }
 
 impl Guest for Component {
-    fn initialize() {}
+    fn initialize() {
+        let view = get_active_view();
+        assert_eq!(view.get_cursor(), Position { line: 0, col: 0 });
+        view.set_cursor(Position { line: 0, col: 1 });
+        assert_eq!(view.get_cursor(), Position { line: 0, col: 0 });
+        insert("abc");
+        view.set_cursor(Position { line: 0, col: 1 });
+        assert_eq!(view.get_cursor(), Position { line: 0, col: 1 });
+
+        let _buf = view.get_buffer();
+    }
 
     fn get_name() -> Name {
-        "example".into()
+        "test".into()
     }
 
     fn dependencies() -> Vec<Name> {
