@@ -1,6 +1,9 @@
 test *FLAGS: build
     mold -run cargo test {{FLAGS}}
 
+run *FLAGS:
+    @cargo run -p zi-term
+
 build *FLAGS: build-plugins
     @echo "building zi"
     # Trying to build plugins with a standard cargo build results in linker issues

@@ -20,7 +20,7 @@ world plugin {
 interface command {
     resource handler {
         constructor();
-        // random return tyep for now
+        // random return type for now
         exec: func(cmd: string, args: list<string>) -> u32;
     }
 }
