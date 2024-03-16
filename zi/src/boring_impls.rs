@@ -7,7 +7,14 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::wit::exports::zi::api::command::{Arity, Command};
+use crate::wit::exports::zi::api::lifecycle::InitializeResult;
 use crate::Mode;
+
+impl PartialEq for InitializeResult {
+    fn eq(&self, Self { commands }: &Self) -> bool {
+        self.commands == *commands
+    }
+}
 
 impl PartialEq for Command {
     fn eq(&self, Self { name, arity, opts }: &Self) -> bool {

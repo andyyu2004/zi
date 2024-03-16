@@ -68,6 +68,7 @@ pub struct Editor {
     /// Stores the command currently in the command line
     command: String,
     command_handlers: FxHashMap<Word, Handler>,
+    plugins: Plugins,
 }
 
 impl Index<ViewId> for Editor {
@@ -267,11 +268,13 @@ impl Editor {
         let (callbacks_tx, callbacks_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
+        let plugins = Plugins::new(Client { tx: requests_tx.clone() });
         let mut editor = Self {
             buffers,
             views,
             callbacks_tx,
             requests_tx,
+            plugins,
             command_handlers: command::builtin_handlers(),
             pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
@@ -382,6 +385,10 @@ impl Editor {
         }
 
         Ok(buf)
+    }
+
+    pub fn register_command(&mut self, handler: Handler) {
+        self.command_handlers.insert(handler.name(), handler);
     }
 
     pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
@@ -537,14 +544,17 @@ impl Editor {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
 
+    pub(crate) fn plugins(&self) -> Plugins {
+        self.plugins.clone()
+    }
+
     pub async fn run(
         mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        let plugins = Plugins::new(self.client());
-        let plugin_handle = tokio::spawn(plugins.run());
+        let plugin_handle = tokio::spawn(self.plugins.clone().run());
 
         render(&mut self)?;
 
@@ -634,7 +644,7 @@ impl Editor {
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
-                if let Some(handler) = self.command_handlers.get(cmd).copied() {
+                if let Some(handler) = self.command_handlers.get(cmd).cloned() {
                     if let Err(err) = handler.execute(self, range, args) {
                         set_error!(self, err);
                     }
@@ -1189,9 +1199,17 @@ impl Editor {
         TaskSender(self.callbacks_tx.clone())
     }
 
+    pub(crate) fn schedule(
+        &self,
+        desc: impl fmt::Display + Send + 'static,
+        fut: impl Future<Output = Result<(), Error>> + Send + 'static,
+    ) {
+        self.callback(desc, fut, |_, ()| Ok(()))
+    }
+
     fn callback<R: 'static>(
         &self,
-        desc: &'static str,
+        desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
         f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
@@ -1260,16 +1278,15 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
 
 fn callback<R: 'static>(
     tx: &CallbacksSender,
-    desc: &'static str,
+    desc: impl fmt::Display + Send + 'static,
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
     f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
     tx.send(Box::pin(async move {
-        let dur = Duration::from_secs(3);
-        let res =
-            tokio::time::timeout(dur, fut).await.map_err(|_: tokio::time::error::Elapsed| {
-                anyhow!("{desc} timed out after {dur:?}")
-            })??;
+        const TIMEOUT: Duration = Duration::from_secs(3);
+        let res = tokio::time::timeout(TIMEOUT, fut).await.map_err(
+            |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {TIMEOUT:?}"),
+        )??;
         Ok(Box::new(move |editor: &mut Editor| f(editor, res))
             as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
     }))

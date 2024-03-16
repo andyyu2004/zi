@@ -1,22 +1,22 @@
-#![allow(unused)]
-use std::any::Any;
 use std::io;
-use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use futures_util::{Stream, StreamExt, TryStreamExt};
-use slotmap::{Key as _, KeyData};
+use parking_lot::RwLock;
+use slotmap::{Key as _, KeyData, SlotMap};
+use smol_str::SmolStr;
 use tokio::select;
+use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
 
-use crate::editor::Client;
-use crate::wit::exports::zi::api::command;
+use crate::command::{CommandHandler, CommandRange, Handler, Word};
+use crate::editor::Client as EditorClient;
 use crate::wit::zi::api::editor;
-use crate::wit::{self, Plugin};
+use crate::wit::Plugin;
 
 pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
@@ -27,9 +27,9 @@ pub fn engine() -> &'static Engine {
     })
 }
 
-pub type Store = wasmtime::Store<Client>;
+pub type Store = wasmtime::Store<EditorClient>;
 
-use crate::{dirs, Editor, Point, ViewId};
+use crate::{dirs, Point, ViewId};
 
 impl From<Point> for editor::Position {
     fn from(value: Point) -> Self {
@@ -48,7 +48,7 @@ fn v(res: Resource<editor::View>) -> ViewId {
 }
 
 #[async_trait::async_trait]
-impl editor::HostView for Client {
+impl editor::HostView for EditorClient {
     async fn get_buffer(
         &mut self,
         view: Resource<editor::View>,
@@ -79,14 +79,14 @@ impl editor::HostView for Client {
 }
 
 #[async_trait::async_trait]
-impl editor::HostBuffer for Client {
+impl editor::HostBuffer for EditorClient {
     fn drop(&mut self, _rep: Resource<editor::Buffer>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl editor::Host for Client {
+impl editor::Host for EditorClient {
     async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
         self.request(move |editor| editor.insert(&text)).await;
         Ok(())
@@ -107,13 +107,92 @@ impl editor::Host for Client {
     }
 }
 
+/// The plugin manager responsible for loading and running plugins and keeping track of their state.
+/// This also provides the interface for the editor to interact with the plugins.
+#[derive(Clone)]
 pub struct Plugins {
-    client: Client,
+    inner: Arc<Inner>,
+    client: EditorClient,
 }
 
 impl Plugins {
-    pub fn new(client: Client) -> Self {
-        Self { client }
+    #[must_use]
+    fn add(&self, _name: impl Into<SmolStr>, tx: Sender<PluginRequest>) -> PluginId {
+        // TODO name uniqueness check?
+        self.inner.plugins.write().insert(PluginState { client: PluginClient(tx) })
+    }
+
+    fn with_plugin<F, T>(&self, id: PluginId, f: F) -> wasmtime::Result<T>
+    where
+        F: FnOnce(&PluginState) -> T,
+    {
+        self.inner
+            .plugins
+            .read()
+            .get(id)
+            .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}",))
+            .map(f)
+    }
+
+    fn plugin_client(&self, id: PluginId) -> wasmtime::Result<PluginClient> {
+        self.with_plugin(id, |state| state.client.clone())
+    }
+
+    pub async fn execute(
+        &self,
+        id: PluginId,
+        name: Word,
+        range: Option<CommandRange>,
+        args: Box<[String]>,
+    ) -> wasmtime::Result<()> {
+        let client = self.plugin_client(id)?;
+        client.execute(name, range, args).await
+    }
+}
+
+slotmap::new_key_type! {
+    pub struct PluginId;
+}
+
+#[derive(Default)]
+struct Inner {
+    plugins: RwLock<SlotMap<PluginId, PluginState>>,
+}
+
+#[derive(Clone)]
+struct PluginClient(Sender<PluginRequest>);
+
+impl PluginClient {
+    pub async fn execute(
+        &self,
+        name: Word,
+        range: Option<CommandRange>,
+        args: Box<[String]>,
+    ) -> wasmtime::Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.0.send(PluginRequest::ExecuteCommand { name, range, args, tx }).await?;
+        rx.await?
+    }
+}
+
+struct PluginState {
+    client: PluginClient,
+}
+
+type Responder<T> = oneshot::Sender<wasmtime::Result<T>>;
+
+enum PluginRequest {
+    ExecuteCommand {
+        name: Word,
+        range: Option<CommandRange>,
+        args: Box<[String]>,
+        tx: Responder<()>,
+    },
+}
+
+impl Plugins {
+    pub fn new(client: EditorClient) -> Self {
+        Self { client, inner: Arc::new(Inner::default()) }
     }
 
     pub async fn run(self) -> wasmtime::Result<()> {
@@ -125,7 +204,8 @@ impl Plugins {
 
         let plugin_hosts = components
             .then(|component| {
-                let client = self.client.clone();
+                let plugins = self.clone();
+                let client = plugins.client.clone();
                 let mut linker = Linker::new(engine);
                 async move {
                     let component = component?;
@@ -134,7 +214,7 @@ impl Plugins {
                     let (plugin, _instance) =
                         Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
-                    Ok::<_, wasmtime::Error>(PluginHost { plugin, store })
+                    Ok::<_, wasmtime::Error>(PluginHost::new(plugins, store, plugin))
                 }
             })
             .filter_map(|res| async {
@@ -185,32 +265,101 @@ impl Plugins {
 }
 
 struct PluginHost {
+    plugins: Plugins,
     store: Store,
     plugin: Plugin,
+    handler: Option<ResourceAny>,
+}
+
+impl Drop for PluginHost {
+    fn drop(&mut self) {
+        if let Some(handler) = self.handler.take() {
+            let _ = handler.resource_drop(&mut self.store);
+        }
+    }
 }
 
 impl PluginHost {
+    fn new(plugins: Plugins, store: Store, plugin: Plugin) -> Self {
+        Self { plugins, store, plugin, handler: None }
+    }
+
     pub async fn start(mut self) -> wasmtime::Result<()> {
-        self.plugin.call_initialize(&mut self.store).await?;
+        let dep = self.plugin.zi_api_dependency();
+        let name = dep.call_get_name(&mut self.store).await?;
+
+        let lifecycle = self.plugin.zi_api_lifecycle();
+        let init = lifecycle.call_initialize(&mut self.store).await?;
+
+        let (tx, mut rx) = mpsc::channel(16);
+        let id = self.plugins.add(name, tx);
+
+        let command = self.plugin.zi_api_command();
+        self.handler = Some(command.handler().call_constructor(&mut self.store).await?);
+
+        for cmd in init.commands {
+            let Ok(name) = Word::try_from(cmd.name.as_str()) else {
+                tracing::error!("invalid command name: {}", cmd.name);
+                continue;
+            };
+
+            self.store
+                .data()
+                .request(move |editor| {
+                    editor.register_command(Handler::new(
+                        name,
+                        cmd.arity,
+                        cmd.opts,
+                        CommandHandler::Remote(id),
+                    ))
+                })
+                .await;
+        }
 
         loop {
             select! {
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+                msg = rx.recv() => match msg {
+                    Some(req) => self.handle_request(req).await?,
+                    None => break,
+                }
             }
         }
+
+        self.plugin.zi_api_lifecycle().call_shutdown(&mut self.store).await?;
+
         Ok(())
     }
 
-    async fn initialize(&mut self) -> wasmtime::Result<()> {
-        self.plugin.call_initialize(&mut self.store).await
+    async fn handle_request(&mut self, req: PluginRequest) -> wasmtime::Result<()> {
+        match req {
+            PluginRequest::ExecuteCommand { name, range, args, tx } => {
+                let _ = range;
+                let handler = self.handler.expect("handler not initialized");
+                self.plugin
+                    .zi_api_command()
+                    .handler()
+                    .call_exec(
+                        &mut self.store,
+                        handler,
+                        &name,
+                        &args.iter().map(|s| s.as_ref()).collect::<Box<_>>(),
+                    )
+                    .await?;
+                let _ = tx.send(Ok(()));
+            }
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use futures_util::{Stream, StreamExt};
+    use std::path::Path;
 
     use super::*;
+    use crate::wit::exports::zi::api::lifecycle::InitializeResult;
+    use crate::Editor;
 
     async fn load(
         engine: &Engine,
@@ -231,7 +380,7 @@ mod test {
 
     #[tokio::test]
     async fn smoke() -> wasmtime::Result<()> {
-        let (mut editor, tasks) = Editor::new(crate::Size::new(80, 24));
+        let (editor, tasks) = Editor::new(crate::Size::new(80, 24));
 
         let engine = engine();
 
@@ -242,23 +391,30 @@ mod test {
         let plugins = load(engine, &mut store, &["../runtime/plugins/plugin_test.wasm"]).await?;
 
         for plugin in &plugins[..] {
-            assert_eq!(plugin.call_get_name(&mut store).await?, "test");
-            assert!(plugin.call_dependencies(&mut store).await?.is_empty());
-            plugin.call_initialize(&mut store).await?;
+            let dep = plugin.zi_api_dependency();
+            assert_eq!(dep.call_get_name(&mut store).await?, "test");
+            assert!(dep.call_dependencies(&mut store).await?.is_empty());
 
-            use crate::wit::exports::zi::api::command::{Arity, Command, CommandOpts};
+            let lifecycle = plugin.zi_api_lifecycle();
+            let init = lifecycle.call_initialize(&mut store).await?;
+
+            use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
             assert_eq!(
-                plugin.zi_api_command().call_commands(&mut store).await?,
-                vec![Command {
-                    name: "foo".into(),
-                    arity: Arity { min: 0, max: 1 },
-                    opts: CommandOpts::RANGE
-                }]
+                init,
+                InitializeResult {
+                    commands: vec![Command {
+                        name: "foo".into(),
+                        arity: Arity { min: 0, max: 1 },
+                        opts: CommandFlags::RANGE
+                    }]
+                }
             );
             let handler = plugin.zi_api_command().handler();
             let handler_resource = handler.call_constructor(&mut store).await?;
-            assert_eq!(handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?, 42);
+            handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;
             handler_resource.resource_drop_async(&mut store).await?;
+
+            lifecycle.call_shutdown(&mut store).await?;
         }
 
         Ok(())

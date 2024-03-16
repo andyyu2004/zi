@@ -1,6 +1,9 @@
-use bindings::{Guest, Name};
+use api::lifecycle::{self, InitializeResult};
+use api::{command, dependency};
 
-use self::bindings::exports::zi::api::command::{self, Command};
+use self::bindings::exports::zi::api;
+use self::bindings::exports::zi::api::command::Command;
+use self::bindings::zi::api::editor::{self, Mode};
 
 struct Component;
 
@@ -15,10 +18,6 @@ mod bindings {
 
 impl command::Guest for Component {
     type Handler = CommandHandler;
-
-    fn commands() -> Vec<Command> {
-        vec![]
-    }
 }
 
 struct CommandHandler;
@@ -28,19 +27,33 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, _cmd: String, _args: Vec<String>) -> u32 {
-        42
+    fn exec(&self, cmd: String, _args: Vec<String>) {
+        match &cmd[..] {
+            "foo" => editor::set_mode(Mode::Insert),
+            _ => unreachable!("unexpected command: `{cmd}`"),
+        }
     }
 }
 
-impl Guest for Component {
-    fn initialize() {}
+impl lifecycle::Guest for Component {
+    fn initialize() -> InitializeResult {
+        InitializeResult {
+            commands: vec![Command {
+                name: "foo".into(),
+                arity: api::command::Arity { min: 0, max: 1 },
+                opts: api::command::CommandFlags::empty(),
+            }],
+        }
+    }
+    fn shutdown() {}
+}
 
-    fn get_name() -> Name {
+impl dependency::Guest for Component {
+    fn get_name() -> String {
         "example".into()
     }
 
-    fn dependencies() -> Vec<Name> {
+    fn dependencies() -> Vec<String> {
         vec![]
     }
 }

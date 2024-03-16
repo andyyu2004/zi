@@ -3,15 +3,25 @@ package zi:api;
 world plugin {
     import editor;
 
-    use editor.{mode};
-
-    type name = string;
-
-    export initialize: func();
-    export get-name: func() -> name;
-    export dependencies: func() -> list<name>;
-
+    export lifecycle;
+    export dependency;
     export command;
+}
+
+interface dependency {
+    get-name: func() -> string;
+    dependencies: func() -> list<string>;
+}
+
+interface lifecycle {
+    use command.{command };
+
+    record initialize-result {
+        commands: list<command>,
+    }
+
+    initialize: func() -> initialize-result;
+    shutdown: func();
 }
 
 // This is structured in a very particular way to get bindgen to do what we want (on both host and guest side).
@@ -19,26 +29,23 @@ world plugin {
 // - If this is not in separate interface (and in the main world) we have the above issue + the guest doesn't generate bindings for this.
 interface command {
     record arity {
-        min: u32,
-        max: u32,
+        min: u8,
+        max: u8,
     }
 
-    flags command-opts {
+    flags command-flags {
         range,
     }
 
     record command {
         name: string,
         arity: arity,
-        opts: command-opts,
+        opts: command-flags,
     }
-
-    commands: func() -> list<command>;
 
     resource handler {
         constructor();
-        // random return type for now
-        exec: func(cmd: string, args: list<string>) -> u32;
+        exec: func(cmd: string, args: list<string>) -> ();
     }
 }
 

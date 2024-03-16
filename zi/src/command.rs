@@ -1,11 +1,13 @@
 use std::fmt;
-use std::ops::{Bound, RangeBounds, RangeInclusive};
+use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
 
 use chumsky::Parser;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
+use crate::plugin::PluginId;
+use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Editor, Error};
 
 pub enum CommandRange {}
@@ -85,7 +87,7 @@ fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simp
 
     any().repeated().at_least(1).map(|text: Vec<char>| {
         let s = text.into_iter().collect::<String>();
-        let mut words = s.split_whitespace().map(Word::from);
+        let mut words = s.split_whitespace().map(Word::try_from).map(Result::unwrap);
         let cmd = words.next().expect("expect at least 1");
         let args = words.collect::<Box<_>>();
         CommandKind::Generic(cmd, args)
@@ -103,6 +105,21 @@ impl Word {
     }
 }
 
+impl Deref for Word {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<&Word> for String {
+    fn from(value: &Word) -> Self {
+        value.0.clone().into()
+    }
+}
+
 impl fmt::Display for Word {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -115,16 +132,23 @@ impl fmt::Debug for Word {
     }
 }
 
-impl From<String> for Word {
-    fn from(s: String) -> Self {
-        s.as_str().into()
+impl TryFrom<String> for Word {
+    type Error = &'static str;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.as_str().try_into()
     }
 }
 
-impl From<&str> for Word {
-    fn from(s: &str) -> Self {
-        assert!(s.chars().all(|c| !c.is_whitespace()));
-        Word(s.into())
+impl TryFrom<&str> for Word {
+    type Error = &'static str;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if s.chars().all(|c| !c.is_whitespace()) {
+            Ok(Word(s.into()))
+        } else {
+            Err("word contains whitespace")
+        }
     }
 }
 
@@ -146,21 +170,75 @@ impl fmt::Debug for CommandKind {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Handler {
-    desc: CommandDescriptor,
+    name: Word,
+    arity: Arity,
+    opts: CommandFlags,
     handler: CommandHandler,
 }
 
 #[derive(Clone, Copy)]
-pub struct CommandDescriptor {
-    arity: ArityRange,
-    flags: Flags,
+pub enum CommandHandler {
+    Local(LocalHandler),
+    Remote(PluginId),
 }
 
-impl CommandDescriptor {
-    pub fn new(arity: impl Into<ArityRange>, flags: Flags) -> Self {
-        Self { arity: arity.into(), flags }
+#[derive(Clone, Copy)]
+pub struct LocalHandler(fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>);
+
+impl From<LocalHandler> for CommandHandler {
+    fn from(v: LocalHandler) -> Self {
+        Self::Local(v)
+    }
+}
+
+impl From<RangeInclusive<u8>> for Arity {
+    fn from(range: RangeInclusive<u8>) -> Self {
+        let (min, max) = range.into_inner();
+        Self { min, max }
+    }
+}
+
+impl RangeBounds<u8> for Arity {
+    fn start_bound(&self) -> Bound<&u8> {
+        Bound::Included(&self.min)
+    }
+
+    fn end_bound(&self) -> Bound<&u8> {
+        Bound::Included(&self.max)
+    }
+}
+
+impl Handler {
+    pub fn new(
+        name: impl Into<Word>,
+        arity: Arity,
+        opts: CommandFlags,
+        handler: impl Into<CommandHandler>,
+    ) -> Self {
+        Self { name: name.into(), arity, opts, handler: handler.into() }
+    }
+
+    pub fn execute(
+        &self,
+        editor: &mut Editor,
+        range: Option<&CommandRange>,
+        args: &[Word],
+    ) -> Result<(), Error> {
+        self.check(range, args)?;
+        match self.handler {
+            CommandHandler::Local(f) => (f.0)(editor, range, args),
+            CommandHandler::Remote(id) => {
+                let plugins = editor.plugins();
+                let name = self.name.clone();
+                let args = args.iter().map(Into::into).collect::<Box<_>>();
+                editor.schedule(format!("plugin command {name}"), async move {
+                    plugins.execute(id, name, None, args).await
+                });
+                Ok(())
+            }
+        }
     }
 
     fn check(&self, range: Option<&CommandRange>, args: &[Word]) -> Result<(), Error> {
@@ -177,75 +255,33 @@ impl CommandDescriptor {
             )
         }
 
-        if range.is_some() && !self.flags.contains(Flags::RANGE) {
+        if range.is_some() && !self.opts.contains(CommandFlags::RANGE) {
             anyhow::bail!("range not allowed")
         }
 
         Ok(())
     }
-}
 
-pub type CommandHandler = fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>;
-
-/// An inclusive range of valid arities for a command handler.
-/// Can't use `RangeInclusive` because it's not `Copy`.
-#[derive(Clone, Copy)]
-pub struct ArityRange {
-    min: u8,
-    max: u8,
-}
-
-impl From<RangeInclusive<u8>> for ArityRange {
-    fn from(range: RangeInclusive<u8>) -> Self {
-        let (start, end) = range.into_inner();
-        Self { min: start, max: end }
-    }
-}
-
-impl RangeBounds<u8> for ArityRange {
-    fn start_bound(&self) -> Bound<&u8> {
-        Bound::Included(&self.min)
-    }
-
-    fn end_bound(&self) -> Bound<&u8> {
-        Bound::Included(&self.max)
-    }
-}
-
-bitflags::bitflags! {
-    #[derive(Default, Clone, Copy, Debug, Hash, PartialEq, Eq)]
-    pub struct Flags: u8 {
-        const RANGE = 0b0000_0001;
-    }
-}
-
-impl Handler {
-    pub fn execute(
-        &self,
-        editor: &mut Editor,
-        range: Option<&CommandRange>,
-        args: &[Word],
-    ) -> Result<(), Error> {
-        self.desc.check(range, args)?;
-        (self.handler)(editor, range, args)
+    pub fn name(&self) -> Word {
+        Word::clone(&self.name)
     }
 }
 
 pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
-    [(
-        "q",
-        Handler {
-            desc: CommandDescriptor::new(0..=0, Flags::empty()),
-            handler: |editor, range, args| {
-                assert!(range.is_none());
-                assert!(args.is_empty());
-                editor.close_active_view();
-                Ok(())
-            },
-        },
-    )]
+    [Handler {
+        name: "q".try_into().unwrap(),
+        arity: Arity::from(0..=0),
+        opts: CommandFlags::empty(),
+        handler: LocalHandler(|editor, range, args| {
+            assert!(range.is_none());
+            assert!(args.is_empty());
+            editor.close_active_view();
+            Ok(())
+        })
+        .into(),
+    }]
     .into_iter()
-    .map(|(cmd, handler)| (cmd.into(), handler))
+    .map(|handler| (handler.name.clone(), handler))
     .collect()
 }
 

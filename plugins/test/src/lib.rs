@@ -1,7 +1,9 @@
+use api::command::{self, Arity, Command, CommandFlags};
+use api::dependency;
+use api::lifecycle::{self, InitializeResult};
 use bindings::zi::api::editor::*;
-use bindings::{Guest, Name};
 
-use self::bindings::exports::zi::api::command::{self, Arity, Command, CommandOpts};
+use self::bindings::exports::zi::api;
 
 struct Component;
 
@@ -16,14 +18,6 @@ mod bindings {
 
 impl bindings::exports::zi::api::command::Guest for Component {
     type Handler = CommandHandler;
-
-    fn commands() -> Vec<Command> {
-        vec![Command {
-            name: "foo".into(),
-            arity: Arity { min: 0, max: 1 },
-            opts: CommandOpts::RANGE,
-        }]
-    }
 }
 
 struct CommandHandler;
@@ -33,14 +27,13 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, cmd: String, _args: Vec<String>) -> u32 {
+    fn exec(&self, cmd: String, _args: Vec<String>) {
         assert_eq!(cmd, "foo", "unexpected command");
-        42
     }
 }
 
-impl Guest for Component {
-    fn initialize() {
+impl lifecycle::Guest for Component {
+    fn initialize() -> InitializeResult {
         let view = get_active_view();
         assert_eq!(view.get_cursor(), Position { line: 0, col: 0 });
         view.set_cursor(Position { line: 0, col: 1 });
@@ -50,13 +43,25 @@ impl Guest for Component {
         assert_eq!(view.get_cursor(), Position { line: 0, col: 1 });
 
         let _buf = view.get_buffer();
+
+        InitializeResult {
+            commands: vec![Command {
+                name: "foo".into(),
+                arity: Arity { min: 0, max: 1 },
+                opts: CommandFlags::RANGE,
+            }],
+        }
     }
 
-    fn get_name() -> Name {
+    fn shutdown() {}
+}
+
+impl dependency::Guest for Component {
+    fn get_name() -> String {
         "test".into()
     }
 
-    fn dependencies() -> Vec<Name> {
+    fn dependencies() -> Vec<String> {
         vec![]
     }
 }
