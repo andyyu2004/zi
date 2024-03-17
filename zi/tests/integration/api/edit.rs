@@ -1,6 +1,29 @@
 use crate::api::new;
 
 #[test]
+fn delete_char() {
+    let mut editor = new("");
+    editor.set_mode(zi::Mode::Insert);
+    editor.insert_char('a');
+    editor.insert_char('b');
+    editor.insert_char('c');
+
+    assert_eq!(editor.current_line(), "abc\n");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "ab\n");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "a\n");
+    editor.insert_char('x');
+    assert_eq!(editor.current_line(), "ax\n");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "a\n");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "\n");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "\n");
+}
+
+#[test]
 fn insert_char() {
     let mut editor = new("");
     assert_eq!(editor.active_cursor(), (0, 0));

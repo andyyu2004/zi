@@ -1,7 +1,7 @@
 use std::io::Write;
 
 mod cursor;
-mod insert;
+mod edit;
 mod open;
 mod picker;
 mod scroll;

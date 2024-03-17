@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt;
 use std::iter::Peekable;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::str::FromStr;
 
 use stdx::merge::Merge;
@@ -81,7 +81,9 @@ impl Location {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Range {
+    /// The start of the range (inclusive)
     start: Point,
+    /// The end of the range (exclusive)
     end: Point,
 }
 
@@ -173,6 +175,28 @@ impl From<tree_sitter::Range> for Range {
     #[inline]
     fn from(range: tree_sitter::Range) -> Self {
         Self::new(range.start_point, range.end_point)
+    }
+}
+
+impl<R> From<R> for Range
+where
+    R: RangeBounds<Point>,
+{
+    #[inline]
+    fn from(value: R) -> Self {
+        let start = match value.start_bound() {
+            std::ops::Bound::Included(&start) => start,
+            std::ops::Bound::Excluded(&start) => start.right(1),
+            std::ops::Bound::Unbounded => Point::default(),
+        };
+
+        let end = match value.end_bound() {
+            std::ops::Bound::Included(&end) => end.right(1),
+            std::ops::Bound::Excluded(&end) => end,
+            std::ops::Bound::Unbounded => panic!("range must be bounded above"),
+        };
+
+        Self::new(start, end)
     }
 }
 

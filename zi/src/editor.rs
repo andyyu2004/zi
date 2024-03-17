@@ -759,19 +759,26 @@ impl Editor {
         self.tree.move_focus(direction)
     }
 
-    pub fn insert_char(&mut self, c: char) {
-        // Don't care if we're actually in insert mode, that's more a key binding namespace.
+    pub fn delete_char_backward(&mut self) {
         let (view, buf) = get!(self);
-
         if buf.flags().contains(BufferFlags::READONLY) {
             set_error!(self, "buffer is readonly");
             return;
         }
 
-        let area = self.tree.view_area(view.id());
         let cursor = view.cursor();
+        buf.edit(&Delta::delete(cursor.left(1)..cursor));
+        view.move_cursor(self.mode, self.tree.view_area(view.id()), buf, Direction::Left, 1);
+    }
+
+    pub fn insert_char(&mut self, c: char) {
         let mut cbuf = [0; 4];
-        buf.edit(&Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
+        let view = self.active_view();
+        let cursor = view.cursor();
+        self.edit(view.id(), &Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
+
+        let (view, buf) = get!(self);
+        let area = self.tree.view_area(view.id());
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
@@ -1342,6 +1349,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
     const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
     const EXECUTE_COMMAND: Action = |editor| editor.execute_command();
+    const DELETE_CHAR_BACKWARD: Action = |editor| editor.delete_char_backward();
 
     Keymap::from(hashmap! {
         Mode::Command => trie!({
@@ -1353,6 +1361,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "<ESC>" => NORMAL_MODE,
             "<CR>" => INSERT_NEWLINE,
             "<C-c>" => NORMAL_MODE,
+            "<BS>" => DELETE_CHAR_BACKWARD,
             "f" => {
                 "d" => NORMAL_MODE,
             },

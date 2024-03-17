@@ -56,10 +56,10 @@ impl From<ops::Range<usize>> for DeltaRange {
     }
 }
 
-impl From<Range> for DeltaRange {
+impl<R: Into<Range>> From<R> for DeltaRange {
     #[inline]
-    fn from(v: Range) -> Self {
-        Self::Point(v)
+    fn from(v: R) -> Self {
+        Self::Point(v.into())
     }
 }
 
