@@ -322,22 +322,12 @@ impl Editor {
             path = path.canonicalize()?.into();
         }
 
-        // If the buffer is already open, switch to it
-        // FIXME we need to check the buffer is in the same mode too i.e. both readonly or not
-        for buf in self.buffers.values() {
-            if buf.path() == path {
-                if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
-                    self.views[self.tree.active()].set_buffer(buf.id());
-                }
-                return Ok(buf.id());
-            }
-        }
-
+        let lang = FileType::detect(&path);
         let buf = if let Some(buf) = self.buffers.values().find(|b| b.path() == path) {
+            // If the buffer is already open, we can reuse it.
             buf.id()
         } else {
-            let lang = FileType::detect(&path);
-            let buf = self.buffers.try_insert_with_key::<_, io::Error>(|id| {
+            self.buffers.try_insert_with_key::<_, io::Error>(|id| {
                 let start = Instant::now();
                 let buf = if open_flags.contains(OpenFlags::READONLY) {
                     debug_assert!(path.exists() && path.is_file());
@@ -371,17 +361,15 @@ impl Editor {
 
                 tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
                 Ok(buf)
-            })?;
-
-            if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-                self.spawn_language_servers_for_lang(buf, &lang)?;
-            }
-
-            buf
+            })?
         };
 
         if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
             self.set_active_buffer(buf);
+        }
+
+        if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+            self.spawn_language_servers_for_lang(buf, &lang)?;
         }
 
         Ok(buf)
