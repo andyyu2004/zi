@@ -889,8 +889,10 @@ impl Editor {
             }
 
             // Send the request to the first server that supports it
-            break;
+            return;
         }
+
+        self.set_error(format!("no active language server supports go to definition"));
     }
 
     fn spawn_language_servers_for_lang(
