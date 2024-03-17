@@ -767,8 +767,18 @@ impl Editor {
         }
 
         let cursor = view.cursor();
-        buf.edit(&Delta::delete(cursor.left(1)..cursor));
-        view.move_cursor(self.mode, self.tree.view_area(view.id()), buf, Direction::Left, 1);
+        let char_idx = buf.text().point_to_char(cursor);
+        let start_char_idx = char_idx.saturating_sub(1);
+        buf.edit(&Delta::delete(start_char_idx..char_idx));
+        let new_cursor = buf.text().char_to_point(start_char_idx);
+
+        view.set_cursor(
+            self.mode,
+            self.tree.view_area(view.id()),
+            buf,
+            new_cursor,
+            SetCursorFlags::empty(),
+        );
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -1281,6 +1291,43 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
         }
         event::HandlerResult::Ok
     });
+}
+
+impl Editor {
+    /// Return a debug representation of the text and cursor in the active view.
+    pub fn display_active(&self) -> impl fmt::Debug + '_ {
+        let (view, buf) = self.active();
+
+        struct Debug<'a> {
+            view: &'a View,
+            buf: &'a dyn Buffer,
+        }
+
+        impl fmt::Debug for Debug<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let cursor = self.view.cursor();
+                for (i, line) in self.buf.text().lines().enumerate() {
+                    write!(f, "{:2} ", i + 1)?;
+                    for (j, c) in line.chars().enumerate() {
+                        if cursor.line().idx() == i && cursor.col().idx() == j {
+                            write!(f, "|")?;
+                            if c == '\n' {
+                                // The cursor can be on the newline character in insert mode.
+                                // We still need to write the newline character.
+                                writeln!(f)?;
+                            }
+                        } else {
+                            write!(f, "{c}")?;
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+        }
+
+        Debug { view, buf }
+    }
 }
 
 fn callback<R: 'static>(

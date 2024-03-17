@@ -1,5 +1,7 @@
 use std::io::Write;
 
+use expect_test::Expect;
+
 mod cursor;
 mod edit;
 mod open;
@@ -24,4 +26,8 @@ pub fn new_with_size(content: &str, view_size: zi::Size) -> zi::Editor {
     // not asserting equality as we may have added a trailing newline to the end of the file
     assert!(editor.active_buffer().text().to_string().starts_with(content));
     editor
+}
+
+pub fn snapshot(editor: &zi::Editor, expect: Expect) {
+    expect.assert_debug_eq(&editor.display_active());
 }

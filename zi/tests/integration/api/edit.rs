@@ -1,13 +1,16 @@
-use crate::api::new;
+use expect_test::expect;
+
+use crate::api::{new, snapshot};
 
 #[test]
-fn delete_char() {
+fn delete_char_backward() {
     let mut editor = new("");
     editor.set_mode(zi::Mode::Insert);
     editor.insert_char('a');
     editor.insert_char('b');
     editor.insert_char('c');
 
+    // works on single line
     assert_eq!(editor.current_line(), "abc\n");
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "ab\n");
@@ -21,6 +24,56 @@ fn delete_char() {
     assert_eq!(editor.current_line(), "\n");
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "\n");
+
+    // works on multiple lines
+    editor.insert("abc\nd");
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "\n");
+    assert_eq!(editor.active_cursor(), (1, 0));
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "abc\n");
+    assert_eq!(editor.active_cursor(), (0, 3));
+
+    expect![[r#"
+         1 abc|
+         2
+    "#]]
+    .assert_debug_eq(&editor.display_active());
+
+    editor.input("<CR><ESC>oghi<ESC>kidef").unwrap();
+
+    snapshot(
+        &editor,
+        expect![[r#"
+             1 abc
+             2 de|
+             3 ghi
+             4
+        "#]],
+    );
+
+    editor.input("<BS>").unwrap();
+
+    snapshot(
+        &editor,
+        expect![[r#"
+             1 abc
+             2 d|
+             3 ghi
+             4
+        "#]],
+    );
+
+    editor.input("<BS><BS>").unwrap();
+
+    snapshot(
+        &editor,
+        expect![[r#"
+             1 abc|
+             2 ghi
+             3
+        "#]],
+    );
 }
 
 #[test]
