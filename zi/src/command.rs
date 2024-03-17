@@ -6,6 +6,7 @@ use chumsky::Parser;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
+use crate::layout::Layer;
 use crate::plugin::PluginId;
 use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Editor, Error};
@@ -267,19 +268,47 @@ impl Handler {
     }
 }
 
+impl Arity {
+    const ZERO: Self = Self { min: 0, max: 0 };
+}
+
 pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
-    [Handler {
-        name: "q".try_into().unwrap(),
-        arity: Arity::from(0..=0),
-        opts: CommandFlags::empty(),
-        handler: LocalHandler(|editor, range, args| {
-            assert!(range.is_none());
-            assert!(args.is_empty());
-            editor.close_active_view();
-            Ok(())
-        })
-        .into(),
-    }]
+    [
+        Handler {
+            name: "q".try_into().unwrap(),
+            arity: Arity::ZERO,
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                editor.close_active_view();
+                Ok(())
+            })
+            .into(),
+        },
+        Handler {
+            name: "jumps".try_into().unwrap(),
+            arity: Arity::ZERO,
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+
+                let mut s = String::new();
+                for &jump in editor.active_view().jump_list().iter() {
+                    use std::fmt::Write;
+                    let path = editor.buffer(jump.buf).path().display();
+                    writeln!(s, "{path}:{}", jump.point).unwrap();
+                }
+
+                let buf = editor.create_readonly_buffer("jumps", s.into_bytes());
+                let view = editor.create_view(buf);
+                editor.push_layer(Layer::new(view));
+                Ok(())
+            })
+            .into(),
+        },
+    ]
     .into_iter()
     .map(|handler| (handler.name.clone(), handler))
     .collect()

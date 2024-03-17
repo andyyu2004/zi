@@ -4,7 +4,10 @@ use unicode_width::UnicodeWidthChar;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{buffer, Buffer, BufferId, Col, Direction, Editor, LazyText, Mode, Point, Url};
+use crate::{
+    buffer, Buffer, BufferId, Col, Direction, Editor, JumpList, LazyText, Location, Mode, Point,
+    Url,
+};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -25,6 +28,7 @@ pub struct View {
     line_number: LineNumber,
     group: Option<ViewGroupId>,
     url: Url,
+    jumps: JumpList<Location>,
 }
 
 impl Resource for View {
@@ -327,6 +331,7 @@ impl View {
             cursor: Default::default(),
             offset: Default::default(),
             line_number: Default::default(),
+            jumps: JumpList::default(),
         }
     }
 
@@ -336,6 +341,14 @@ impl View {
     pub(crate) fn split_from(id: ViewId, view: View) -> Self {
         assert_ne!(id, view.id);
         Self { id, group: None, ..view.clone() }
+    }
+
+    pub fn jump_list(&self) -> &JumpList<Location> {
+        &self.jumps
+    }
+
+    pub fn jump_list_mut(&mut self) -> &mut JumpList<Location> {
+        &mut self.jumps
     }
 }
 

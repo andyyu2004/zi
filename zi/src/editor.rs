@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
-use std::ops::Index;
+use std::ops::{Deref, Index};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
 use std::sync::OnceLock;
@@ -37,7 +37,7 @@ use crate::syntax::Theme;
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Mode, Url, View, ViewId,
+    LanguageServerId, Location, Mode, Url, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -157,9 +157,9 @@ macro_rules! get {
 
 pub(crate) use get;
 
-macro_rules! active_ref {
+macro_rules! get_ref {
     ($editor:ident) => {
-        active_ref!($editor: $editor.tree.active())
+        get_ref!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
         #[allow(unused_imports)]
@@ -275,10 +275,10 @@ impl Editor {
             callbacks_tx,
             requests_tx,
             plugins,
+            keymap: default_keymap(),
             command_handlers: command::builtin_handlers(),
             pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
-            keymap: default_keymap(),
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -452,7 +452,7 @@ impl Editor {
         self.tree.render(self, frame.buffer_mut());
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
-        let (view, buf) = active_ref!(self);
+        let (view, buf) = get_ref!(self);
         let mut status_spans = vec![tui::Span::styled(
             format!(
                 "{}:{}:{} ",
@@ -516,7 +516,7 @@ impl Editor {
             return (1, self.tree.area().height + 1);
         }
 
-        let (view, buf) = active_ref!(self);
+        let (view, buf) = get_ref!(self);
         let area = self.tree.view_area(view.id());
         let (x, y) = view.cursor_viewport_coords(buf);
         (x + area.x, y + area.y)
@@ -756,7 +756,7 @@ impl Editor {
         direction: Direction,
         constraint: tui::Constraint,
     ) -> ViewId {
-        let (view, _) = active_ref!(self);
+        let (view, _) = get_ref!(self);
         let id = view.id();
         let view = view.clone();
         let split_view = self.views.insert_with_key(|id| View::split_from(id, view));
@@ -1072,6 +1072,40 @@ impl Editor {
         Ok(self.view_groups.insert_with_key(|id| ViewGroup::new(id, url)))
     }
 
+    // FIXME bad api, not general enough, just used for convenience for now.
+    pub fn create_readonly_buffer(
+        &mut self,
+        name: impl AsRef<Path>,
+        s: impl Deref<Target = [u8]> + Send + 'static,
+    ) -> BufferId {
+        self.buffers.insert_with_key(|id| {
+            TextBuffer::new(
+                id,
+                BufferFlags::READONLY,
+                FileType::TEXT,
+                name,
+                ReadonlyText::new(s),
+                &self.theme,
+            )
+            .boxed()
+        })
+    }
+
+    pub fn create_buffer(
+        &mut self,
+        mk: impl FnOnce(BufferId) -> Box<dyn Buffer + Send>,
+    ) -> BufferId {
+        self.buffers.insert_with_key(mk)
+    }
+
+    pub fn create_view(&mut self, buf: BufferId) -> ViewId {
+        self.views.insert_with_key(|id| View::new(id, buf))
+    }
+
+    pub fn push_layer(&mut self, layer: Layer) {
+        self.tree.push(layer);
+    }
+
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         return inner(self, path.as_ref());
 
@@ -1213,18 +1247,51 @@ impl Editor {
         Ok(())
     }
 
+    pub fn jump_to(&mut self, loc: impl Into<Location>) {
+        self.jump(self.current_location(), loc.into());
+    }
+
+    fn jump(&mut self, from: Location, to: Location) {
+        let jumps = self.active_view_mut().jump_list_mut();
+        jumps.push(from);
+        self.goto(to);
+    }
+
+    fn goto(&mut self, Location { buf, point }: Location) {
+        // FIXME what if buffer is gone
+        self.set_active_buffer(buf);
+        self.set_active_cursor(point);
+    }
+
+    pub fn jump_next(&mut self) -> Option<Location> {
+        let loc = self.active_view_mut().jump_list_mut().next().copied()?;
+        self.goto(loc);
+        Some(loc)
+    }
+
+    pub fn jump_prev(&mut self) -> Option<Location> {
+        let current = self.current_location();
+        let loc = self.active_view_mut().jump_list_mut().prev(current).copied()?;
+        self.goto(loc);
+        Some(loc)
+    }
+
     fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {
         let path = location
             .uri
             .to_file_path()
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
+        let from = self.current_location();
         let buf_id = self.open_active(path)?;
-        let (_view, buf) = get!(self);
-        assert_eq!(buf.id(), buf_id, "opened buffer should have been set as active");
-        self.set_active_cursor(location.range.start);
+        self.jump(from, Location::new(buf_id, location.range.start));
 
         Ok(())
+    }
+
+    pub fn current_location(&self) -> Location {
+        let (view, buf) = get_ref!(self);
+        Location { buf: buf.id(), point: view.cursor() }
     }
 
     fn sender(&self) -> TaskSender {
@@ -1328,7 +1395,10 @@ impl Editor {
                         break;
                     }
 
-                    write!(f, "{:2} ", i + 1)?;
+                    write!(f, "{}", i + 1)?;
+                    if !line.is_empty() {
+                        write!(f, " ")?;
+                    }
                     for (j, c) in line.chars().enumerate() {
                         if cursor.line().idx() == i && cursor.col().idx() == j {
                             write!(f, "|")?;
@@ -1418,23 +1488,25 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
     const EXECUTE_COMMAND: Action = |editor| editor.execute_command();
     const DELETE_CHAR_BACKWARD: Action = |editor| editor.delete_char_backward();
+    const JUMP_PREV: Action = |editor| void(editor.jump_prev());
+    const JUMP_NEXT: Action = |editor| void(editor.jump_next());
 
     Keymap::from(hashmap! {
         Mode::Command => trie!({
-            "<ESC>" => NORMAL_MODE,
-            "<C-c>" => NORMAL_MODE,
+            "<ESC>" | "<C-c>" => NORMAL_MODE,
             "<CR>" => EXECUTE_COMMAND,
-            }),
+        }),
         Mode::Insert => trie!({
-            "<ESC>" => NORMAL_MODE,
+            "<ESC>" | "<C-c>" => NORMAL_MODE,
             "<CR>" => INSERT_NEWLINE,
-            "<C-c>" => NORMAL_MODE,
             "<BS>" => DELETE_CHAR_BACKWARD,
             "f" => {
                 "d" => NORMAL_MODE,
             },
         }),
         Mode::Normal => trie!({
+            "<C-o>" => JUMP_PREV,
+            "<C-i>" => JUMP_NEXT,
             "<C-d>" => SCROLL_DOWN,
             "<C-u>" => SCROLL_UP,
             "<C-e>" => SCROLL_LINE_DOWN,

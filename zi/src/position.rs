@@ -68,14 +68,21 @@ impl PartialEq<(u32, u32)> for Offset {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location {
-    pub buffer: BufferId,
-    pub range: Range,
+    pub buf: BufferId,
+    pub point: Point,
+}
+
+impl fmt::Debug for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}:{}", self.buf, self.point)
+    }
 }
 
 impl Location {
-    pub fn new(buffer: BufferId, range: Range) -> Self {
-        Self { buffer, range }
+    pub fn new(buf: BufferId, point: impl Into<Point>) -> Self {
+        Self { buf, point: point.into() }
     }
 }
 

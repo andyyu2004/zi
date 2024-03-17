@@ -14,6 +14,7 @@ mod dirs;
 mod editor;
 pub mod event;
 pub mod input;
+mod jump;
 mod keymap;
 mod language;
 mod layout;
@@ -31,6 +32,7 @@ pub use zi_lsp::lsp_types::Url;
 
 pub use self::buffer::{Buffer, BufferFlags, BufferId, LazyText, PickerBuffer, TextBuffer};
 pub use self::editor::{Editor, OpenFlags, Tasks};
+pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
 pub use self::syntax::{Color, Style};

@@ -34,11 +34,13 @@ fn delete_char_backward() {
     assert_eq!(editor.current_line(), "abc\n");
     assert_eq!(editor.active_cursor(), (0, 3));
 
-    expect![[r#"
-         1 abc|
+    snapshot(
+        &editor,
+        expect![[r#"
+             1 abc|
 
-    "#]]
-    .assert_debug_eq(&editor.display_active());
+        "#]],
+    );
 
     editor.input("<CR><ESC>oghi<ESC>kidef").unwrap();
 

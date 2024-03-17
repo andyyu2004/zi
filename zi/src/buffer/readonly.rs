@@ -19,7 +19,6 @@ pub struct ReadonlyText<B> {
 }
 
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
-    #[cfg(test)]
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
         Self { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() }

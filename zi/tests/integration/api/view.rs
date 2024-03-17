@@ -1,7 +1,56 @@
+use expect_test::expect;
 use zi::Constraint::*;
 use zi::Direction::*;
 
 use super::new;
+
+#[test]
+fn jump_list() {
+    let mut editor = new("");
+    let loc_initial = editor.current_location();
+    let a = editor.create_readonly_buffer("a.txt", "aa".as_bytes());
+    let b = editor.create_readonly_buffer("b.txt", "bb".as_bytes());
+
+    // NOTE: a=3v1 b=4v1
+
+    // jumping should store where we came from
+    editor.jump_to(zi::Location::new(a, (0, 0)));
+    expect![[r#"
+        BufferId(2v1):0:0
+         <<<
+    "#]]
+    .assert_debug_eq(&editor.active_view().jump_list());
+
+    editor.jump_to(zi::Location::new(b, (0, 1)));
+    expect![[r#"
+        BufferId(2v1):0:0
+        BufferId(3v1):0:0
+         <<<
+    "#]]
+    .assert_debug_eq(&editor.active_view().jump_list());
+
+    let loc_a = zi::Location::new(a, (0, 0));
+    let loc_b = zi::Location::new(b, (0, 1));
+
+    assert_eq!(editor.jump_prev(), Some(loc_a));
+    assert_eq!(editor.jump_prev(), Some(loc_initial));
+    assert_eq!(editor.jump_prev(), None);
+    assert_eq!(editor.jump_next(), Some(loc_a));
+    assert_eq!(editor.jump_next(), Some(loc_b));
+    assert_eq!(editor.jump_prev(), Some(loc_a));
+    assert_eq!(editor.jump_next(), Some(loc_b));
+
+    assert_eq!(editor.jump_next(), None);
+    assert_eq!(editor.jump_next(), None);
+    assert_eq!(editor.jump_prev(), Some(loc_a));
+
+    expect![[r#"
+        BufferId(2v1):0:0
+        BufferId(3v1):0:0 <<<
+        BufferId(4v1):0:1
+    "#]]
+    .assert_debug_eq(&editor.active_view().jump_list());
+}
 
 #[test]
 fn view_group() {
