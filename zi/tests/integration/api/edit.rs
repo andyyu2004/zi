@@ -36,7 +36,7 @@ fn delete_char_backward() {
 
     expect![[r#"
          1 abc|
-         2
+
     "#]]
     .assert_debug_eq(&editor.display_active());
 
@@ -48,7 +48,7 @@ fn delete_char_backward() {
              1 abc
              2 de|
              3 ghi
-             4
+
         "#]],
     );
 
@@ -60,7 +60,7 @@ fn delete_char_backward() {
              1 abc
              2 d|
              3 ghi
-             4
+
         "#]],
     );
 
@@ -71,7 +71,7 @@ fn delete_char_backward() {
         expect![[r#"
              1 abc|
              2 ghi
-             3
+
         "#]],
     );
 }

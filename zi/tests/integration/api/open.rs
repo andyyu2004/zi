@@ -25,3 +25,19 @@ fn test_open() -> zi::Result<()> {
     assert!(!non_existing_path.exists(), "should not create new file until saved");
     Ok(())
 }
+
+#[test]
+fn test_open_replace_readonly_with_writable() -> zi::Result<()> {
+    let mut editor = new("");
+    let path = tempfile::NamedTempFile::new()?.into_temp_path();
+
+    let readonly = editor.open(&path, zi::OpenFlags::READONLY)?;
+    // Should be able to replace an open readonly buffer with a writable one
+    let buf = editor.open(&path, zi::OpenFlags::empty())?;
+    assert_eq!(buf, readonly, "the buffer should retain it's identity");
+
+    editor.insert_char('a');
+    assert!(editor.get_error().is_none());
+
+    Ok(())
+}

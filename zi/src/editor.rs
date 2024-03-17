@@ -324,8 +324,33 @@ impl Editor {
 
         let lang = FileType::detect(&path);
         let buf = if let Some(buf) = self.buffers.values().find(|b| b.path() == path) {
+            let id = buf.id();
             // If the buffer is already open, we can reuse it.
-            buf.id()
+            // There is an exception where the buffer is already open as a readonly buffer
+            // and we want to open it as a normal buffer. In that case we drop the old buffer and
+            // replace it with a writable one (with the same id). This is safe as we know we're not
+            // losing any data due to it being readonly.
+            if buf.flags().contains(BufferFlags::READONLY)
+                && !open_flags.contains(OpenFlags::READONLY)
+            {
+                let rope = if path.exists() {
+                    Rope::from_reader(BufReader::new(File::open(&path)?))?
+                } else {
+                    Rope::new()
+                };
+
+                let buf = TextBuffer::new(
+                    buf.id(),
+                    BufferFlags::empty(),
+                    lang.clone(),
+                    &path,
+                    rope,
+                    &self.theme,
+                )
+                .boxed();
+                self.buffers[id] = buf
+            }
+            id
         } else {
             self.buffers.try_insert_with_key::<_, io::Error>(|id| {
                 let start = Instant::now();
@@ -1126,7 +1151,7 @@ impl Editor {
                         // editor.views[preview].set_buffer(placeholder_buf);
                         // FIXME use readonly see associated bug with open
                         // match editor.open(path, OpenFlags::READONLY) {
-                        match editor.open(path, OpenFlags::empty()) {
+                        match editor.open(path, OpenFlags::READONLY) {
                             Ok(buffer) => editor.set_buffer(preview, buffer),
                             Err(err) => editor.set_error(err),
                         }
@@ -1296,7 +1321,13 @@ impl Editor {
         impl fmt::Debug for Debug<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let cursor = self.view.cursor();
+                let n = self.buf.text().len_lines();
                 for (i, line) in self.buf.text().lines().enumerate() {
+                    if i == n - 1 && line.trim().is_empty() {
+                        // avoid printing the last empty line
+                        break;
+                    }
+
                     write!(f, "{:2} ", i + 1)?;
                     for (j, c) in line.chars().enumerate() {
                         if cursor.line().idx() == i && cursor.col().idx() == j {
