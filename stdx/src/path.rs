@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub trait PathExt {
     fn display_owned(self) -> Display;
@@ -30,5 +30,12 @@ impl fmt::Display for Display {
 impl fmt::Debug for Display {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl AsRef<Path> for Display {
+    #[inline]
+    fn as_ref(&self) -> &Path {
+        &self.0
     }
 }

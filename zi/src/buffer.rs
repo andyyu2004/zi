@@ -18,7 +18,7 @@ use tree_sitter::QueryCursor;
 pub use self::delta::Delta;
 use self::delta::DeltaRange;
 pub use self::explorer::ExplorerBuffer;
-pub use self::picker::PickerBuffer;
+pub use self::picker::{FilePicker, Picker, PickerBuffer};
 pub use self::readonly::ReadonlyText;
 pub use self::text::TextBuffer;
 use crate::editor::{Resource, TaskSender};

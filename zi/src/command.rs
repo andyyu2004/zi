@@ -6,7 +6,6 @@ use chumsky::Parser;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
-use crate::layout::Layer;
 use crate::plugin::PluginId;
 use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Editor, Error};
@@ -294,16 +293,8 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
-                let mut s = String::new();
-                for &jump in editor.active_view().jump_list().iter() {
-                    use std::fmt::Write;
-                    let path = editor.buffer(jump.buf).path().display();
-                    writeln!(s, "{path}:{}", jump.point).unwrap();
-                }
+                editor.open_jump_list();
 
-                let buf = editor.create_readonly_buffer("jumps", s.into_bytes());
-                let view = editor.create_view(buf);
-                editor.push_layer(Layer::new(view));
                 Ok(())
             })
             .into(),

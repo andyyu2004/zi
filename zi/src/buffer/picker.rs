@@ -5,9 +5,9 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
-use crate::{hashmap, trie, Direction, Editor, Mode, ViewId};
+use crate::{hashmap, trie, Direction, Editor, Mode, OpenFlags, ViewId};
 
-pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
+pub struct PickerBuffer<T: Item, P: Picker<T>> {
     id: BufferId,
     /// The view that displays the results
     display_view: ViewId,
@@ -15,59 +15,65 @@ pub struct PickerBuffer<T: Item, F, G = fn(&mut Editor, T)> {
     nucleo: Nucleo<T>,
     cancel: Cancel,
     keymap: Keymap,
-    confirm: F,
-    select: G,
+    picker: P,
     url: Url,
 }
 
-impl<T, F> PickerBuffer<T, F>
+pub trait Picker<T>: Copy + 'static {
+    fn new(preview: ViewId) -> Self;
+    fn config(self) -> nucleo::Config;
+    fn confirm(self, editor: &mut Editor, item: T);
+    fn select(self, editor: &mut Editor, item: T);
+}
+
+#[derive(Clone, Copy)]
+pub struct FilePicker {
+    preview: ViewId,
+}
+
+impl<P> Picker<P> for FilePicker
+where
+    P: AsRef<Path>,
+{
+    fn new(preview: ViewId) -> Self {
+        Self { preview }
+    }
+
+    fn config(self) -> nucleo::Config {
+        nucleo::Config::DEFAULT.match_paths()
+    }
+
+    fn confirm(self, editor: &mut Editor, path: P) {
+        let path = path.as_ref();
+        assert!(path.is_file(), "directories should not be in the selection");
+        // We can close any of the views, they are all in the same group
+        editor.close_view(self.preview);
+        if let Err(err) = editor.open_active(path) {
+            editor.set_error(err);
+        }
+    }
+
+    fn select(self, editor: &mut Editor, path: P) {
+        let path = path.as_ref();
+        match editor.open(path, OpenFlags::READONLY) {
+            Ok(buffer) => editor.set_buffer(self.preview, buffer),
+            Err(err) => editor.set_error(err),
+        }
+    }
+}
+
+impl<T, P> PickerBuffer<T, P>
 where
     T: Item,
-    F: Fn(&mut Editor, T) + Copy + 'static,
+    P: Picker<T>,
 {
     pub fn new(
         id: BufferId,
         display_view: ViewId,
-        config: nucleo::Config,
         notify: impl Fn() + Send + Sync + 'static,
-        confirm: F,
+        picker: P,
     ) -> (Self, Injector<T>) {
-        Self::new_with_select(id, display_view, config, notify, confirm, |_, _| ())
-    }
-
-    pub fn new_with_items(
-        id: BufferId,
-        display_view: ViewId,
-        config: nucleo::Config,
-        items: impl IntoIterator<Item = T>,
-        notify: impl Fn() + Send + Sync + 'static,
-        confirm: F,
-    ) -> Self {
-        let (this, inj) = Self::new(id, display_view, config, notify, confirm);
-        for item in items {
-            if inj.push(item).is_err() {
-                break;
-            }
-        }
-        this
-    }
-}
-
-impl<T, F, G> PickerBuffer<T, F, G>
-where
-    T: Item,
-    F: Fn(&mut Editor, T) + Copy + 'static,
-    G: Fn(&mut Editor, T) + Copy + 'static,
-{
-    pub fn new_with_select(
-        id: BufferId,
-        display_view: ViewId,
-        config: nucleo::Config,
-        notify: impl Fn() + Send + Sync + 'static,
-        confirm: F,
-        select: G,
-    ) -> (Self, Injector<T>) {
-        let nucleo = Nucleo::new(config, Arc::new(notify), None, 1);
+        let nucleo = Nucleo::new(picker.config(), Arc::new(notify), None, 1);
         let cancel = Cancel::new();
         let injector = Injector::new(nucleo.injector(), cancel.clone());
         (
@@ -76,10 +82,9 @@ where
                 display_view,
                 cancel,
                 nucleo,
-                confirm,
-                select,
                 url: Url::parse("buffer://zi/picker").unwrap(),
                 text: Rope::new(),
+                picker,
                 keymap: {
                     let next: Action = |editor| Self::select(editor, Direction::Down);
                     let prev: Action = |editor| Self::select(editor, Direction::Up);
@@ -105,11 +110,25 @@ where
             injector,
         )
     }
+
+    pub fn new_with_items(
+        id: BufferId,
+        display_view: ViewId,
+        items: impl IntoIterator<Item = T>,
+        notify: impl Fn() + Send + Sync + 'static,
+        picker: P,
+    ) -> Self {
+        let (this, inj) = Self::new(id, display_view, notify, picker);
+        for item in items {
+            if inj.push(item).is_err() {
+                break;
+            }
+        }
+        this
+    }
 }
 
-impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Copy + 'static>
-    PickerBuffer<T, F, G>
-{
+impl<T: Item, P: Picker<T>> PickerBuffer<T, P> {
     fn item(&self, line: u32) -> Option<T> {
         self.nucleo.snapshot().get_matched_item(line).map(|item| item.data.clone())
     }
@@ -120,9 +139,9 @@ impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Co
         let cursor = editor.view(display_view).cursor();
 
         let (_, picker_buf) = get!(editor as Self);
-        let confirm = picker_buf.confirm;
+        let picker = picker_buf.picker;
         if let Some(item) = picker_buf.item(cursor.line().raw()) {
-            confirm(editor, item);
+            picker.confirm(editor, item);
         }
     }
 
@@ -134,14 +153,14 @@ impl<T: Item, F: Fn(&mut Editor, T) + Copy + 'static, G: Fn(&mut Editor, T) + Co
         let cursor = editor.move_cursor(display_view, direction, 1);
 
         let (_, picker_buf) = get!(editor as Self);
-        let select = picker_buf.select;
+        let picker = picker_buf.picker;
         if let Some(item) = picker_buf.item(cursor.line().raw()) {
-            select(editor, item);
+            picker.select(editor, item);
         }
     }
 }
 
-impl<T: Item, F: 'static, G: 'static> Buffer for PickerBuffer<T, F, G> {
+impl<T: Item, P: Picker<T>> Buffer for PickerBuffer<T, P> {
     fn id(&self) -> BufferId {
         self.id
     }

@@ -24,7 +24,10 @@ use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
-use crate::buffer::{BufferFlags, Delta, ExplorerBuffer, PickerBuffer, ReadonlyText, TextBuffer};
+use crate::buffer::{
+    BufferFlags, Delta, ExplorerBuffer, FilePicker, Injector, Item, Picker, PickerBuffer,
+    ReadonlyText, TextBuffer,
+};
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
@@ -37,7 +40,7 @@ use crate::syntax::Theme;
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Location, Mode, Url, View, ViewId,
+    LanguageServerId, Location, Mode, Point, Url, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -412,14 +415,16 @@ impl Editor {
         self.set_buffer(self.tree.active(), buf);
     }
 
-    fn set_buffer(&mut self, view: ViewId, buf: BufferId) {
+    pub(crate) fn set_buffer(&mut self, view: ViewId, buf: BufferId) {
         self.views[view].set_buffer(buf);
     }
 
     pub async fn cleanup(&mut self) {
         for server in std::mem::take(&mut self.language_servers).into_values() {
             // TODO shutdown concurrently
-            let _ = tokio::time::timeout(Duration::from_millis(200), server.shutdown()).await;
+            // async-lsp panics if we terminate too early
+            // let _ = tokio::time::timeout(Duration::from_millis(200), server.shutdown()).await;
+            let _ = server.shutdown().await;
         }
     }
 
@@ -1106,120 +1111,179 @@ impl Editor {
         self.tree.push(layer);
     }
 
-    pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
-        return inner(self, path.as_ref());
+    pub fn open_picker<P, T>(
+        &mut self,
+        view_group_url: Url,
+        path: impl AsRef<Path>,
+        inject: impl FnOnce(&mut Editor, Injector<T>),
+    ) -> ViewGroupId
+    where
+        P: Picker<T> + Send,
+        T: Item,
+    {
+        let view_group = match self.create_view_group(view_group_url) {
+            Ok(view_group) => view_group,
+            Err(id) => return id,
+        };
 
-        fn inner(editor: &mut Editor, path: &Path) -> ViewGroupId {
-            let view_group = match editor
-                .create_view_group(Url::parse("view-group://zi/file-picker").unwrap())
-            {
-                Ok(view_group) => view_group,
-                Err(id) => return id,
-            };
+        let mode = self.mode;
+        self.mode = Mode::Insert;
 
-            let mode = editor.mode;
-            editor.mode = Mode::Insert;
+        // FIXME we need to automatically select the first item once available
+        let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
+        let preview = self.views.insert_with_key(|id| {
+            View::new(id, preview_buf)
+                .with_line_number(tui::LineNumber::None)
+                .with_group(view_group)
+        });
+        self.tree.push(Layer::new_with_area(preview, |area| {
+            tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)[1]
+        }));
 
-            let placeholder_buf = editor.active_buffer().id();
-            let preview = editor.views.insert_with_key(|id| {
-                View::new(id, placeholder_buf)
-                    .with_line_number(tui::LineNumber::None)
-                    .with_group(view_group)
-            });
-            editor.tree.push(Layer::new_with_area(preview, |area| {
-                tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)
-                    [1]
-            }));
+        let display_view = self.split_active_view(Direction::Left, tui::Constraint::Fill(1));
+        self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
+            TextBuffer::new(
+                id,
+                BufferFlags::empty(),
+                FileType::TEXT,
+                path,
+                Rope::new(),
+                &self.theme,
+            )
+            .boxed()
+        }));
 
-            let display_view = editor.split_active_view(Direction::Left, tui::Constraint::Fill(1));
-            editor.views[display_view].set_buffer(editor.buffers.insert_with_key(|id| {
-                TextBuffer::new(
-                    id,
-                    BufferFlags::empty(),
-                    FileType::TEXT,
-                    path,
-                    Rope::new(),
-                    &editor.theme,
-                )
-                .boxed()
-            }));
+        let search_view = self.split_active_view(Direction::Up, tui::Constraint::Max(1));
+        assert_eq!(self.tree().active(), search_view);
 
-            let search_view = editor.split_active_view(Direction::Up, tui::Constraint::Max(1));
-            assert_eq!(editor.tree().active(), search_view);
+        // ensure all views are in the same group so they close together
+        self.views[display_view].set_group(view_group);
+        self.views[search_view].set_group(view_group);
 
-            // Ensure all views are in the same group so they close together
-            editor.views[display_view].set_group(view_group);
-            editor.views[search_view].set_group(view_group);
-
-            event::subscribe_with::<event::DidCloseView>({
-                move |editor, event| {
-                    // restore the mode if the picker view group is closed
-                    if editor.views[event.view].group() == Some(view_group) {
-                        editor.set_mode(mode);
-                        return event::HandlerResult::Unsubscribe;
-                    }
-                    event::HandlerResult::Ok
+        event::subscribe_with::<event::DidCloseView>({
+            move |editor, event| {
+                // restore the mode if the picker view group is closed
+                if editor.views[event.view].group() == Some(view_group) {
+                    editor.set_mode(mode);
+                    return event::HandlerResult::Unsubscribe;
                 }
-            });
+                event::HandlerResult::Ok
+            }
+        });
 
-            let mut injector = None;
-            let picker_buf = editor.buffers.insert_with_key(|id| {
-                let (picker, inj) = PickerBuffer::new_with_select(
-                    id,
-                    display_view,
-                    nucleo::Config::DEFAULT.match_paths(),
-                    request_redraw,
-                    move |editor, item: stdx::path::Display| {
-                        let path = item.into_inner();
-                        assert!(path.is_file(), "directories should not be in the selection");
-                        // We can close any of them, they are all in the same group
-                        editor.close_view(search_view);
-                        if let Err(err) = editor.open_active(path) {
-                            editor.set_error(err);
-                        }
-                    },
-                    move |editor, path| {
-                        tracing::debug!(%path, "picker selected item");
-                        let path = path.into_inner();
-                        // FIXME reuse the same buffer
-                        // editor.views[preview].set_buffer(placeholder_buf);
-                        // FIXME use readonly see associated bug with open
-                        // match editor.open(path, OpenFlags::READONLY) {
-                        match editor.open(path, OpenFlags::READONLY) {
-                            Ok(buffer) => editor.set_buffer(preview, buffer),
-                            Err(err) => editor.set_error(err),
-                        }
-                    },
-                );
-                injector = Some(inj);
-                picker.boxed()
-            });
-            let injector = injector.unwrap();
+        let mut injector = None;
+        let picker_buf = self.buffers.insert_with_key(|id| {
+            let (picker, inj) =
+                PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
+            injector = Some(inj);
+            picker.boxed()
+        });
+        inject(self, injector.unwrap());
 
-            editor.set_buffer(search_view, picker_buf);
+        self.set_buffer(search_view, picker_buf);
 
-            let walk = ignore::WalkBuilder::new(path).build_parallel();
-            editor.pool.spawn(move || {
-                walk.run(|| {
-                    Box::new(|entry| {
-                        let entry = match entry {
-                            Ok(entry) => match entry.file_type() {
-                                Some(ft) if ft.is_file() => entry,
-                                _ => return ignore::WalkState::Continue,
-                            },
-                            Err(_) => return ignore::WalkState::Continue,
-                        };
+        view_group
+    }
 
-                        match injector.push(entry.into_path().display_owned()) {
-                            Ok(()) => ignore::WalkState::Continue,
-                            Err(()) => ignore::WalkState::Quit,
-                        }
-                    })
-                })
-            });
-
-            view_group
+    pub fn open_jump_list(&mut self) -> ViewGroupId {
+        #[derive(Debug, Clone, Copy)]
+        struct JumpListPicker {
+            preview: ViewId,
         }
+
+        #[derive(Clone)]
+        struct Jump {
+            buf: BufferId,
+            path: PathBuf,
+            point: Point,
+        }
+
+        impl From<Jump> for Location {
+            fn from(val: Jump) -> Self {
+                Location { buf: val.buf, point: val.point }
+            }
+        }
+
+        impl fmt::Display for Jump {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}:{}", self.path.display(), self.point)
+            }
+        }
+
+        impl Picker<Jump> for JumpListPicker {
+            fn new(preview: crate::ViewId) -> Self {
+                Self { preview }
+            }
+
+            fn config(self) -> nucleo::Config {
+                nucleo::Config::DEFAULT
+            }
+
+            fn confirm(self, editor: &mut Editor, item: Jump) {
+                let path = &item.path;
+                assert!(path.is_file(), "directories should not be in the jump list");
+                // We can close any of the views, they are all in the same group
+                editor.close_view(self.preview);
+                if let Err(err) = editor.open_active(path) {
+                    editor.set_error(err);
+                }
+
+                editor.jump_to(item);
+            }
+
+            // TODO preview the point in the jump list
+            fn select(self, editor: &mut Editor, jump: Jump) {
+                let path = jump.path;
+                match editor.open(path, OpenFlags::READONLY) {
+                    Ok(buffer) => editor.set_buffer(self.preview, buffer),
+                    Err(err) => editor.set_error(err),
+                }
+            }
+        }
+
+        // Save the current view so the jumps we get are from the right view.
+        let view = self.active_view().id();
+        self.open_picker::<JumpListPicker, _>(
+            Url::parse("view-group://jumps").unwrap(),
+            "jumps",
+            |editor, injector| {
+                for loc in editor.view(view).jump_list().iter() {
+                    let path = editor.buffer(loc.buf).path().to_path_buf();
+                    if let Err(()) = injector.push(Jump { path, buf: loc.buf, point: loc.point }) {
+                        break;
+                    }
+                }
+            },
+        )
+    }
+
+    pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
+        let path = path.as_ref();
+        self.open_picker::<FilePicker, stdx::path::Display>(
+            Url::parse("view-group://files").unwrap(),
+            path,
+            |editor, injector| {
+                let walk = ignore::WalkBuilder::new(path).build_parallel();
+                editor.pool.spawn(move || {
+                    walk.run(|| {
+                        Box::new(|entry| {
+                            let entry = match entry {
+                                Ok(entry) => match entry.file_type() {
+                                    Some(ft) if ft.is_file() => entry,
+                                    _ => return ignore::WalkState::Continue,
+                                },
+                                Err(_) => return ignore::WalkState::Continue,
+                            };
+
+                            match injector.push(entry.into_path().display_owned()) {
+                                Ok(()) => ignore::WalkState::Continue,
+                                Err(()) => ignore::WalkState::Quit,
+                            }
+                        })
+                    })
+                });
+            },
+        )
     }
 
     fn jump_to_definition(
@@ -1476,6 +1540,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
     const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
     const OPEN_FILE_PICKER: Action = |editor| void(editor.open_file_picker("."));
+    const OPEN_JUMP_LIST: Action = |editor| void(editor.open_jump_list());
     const OPEN_FILE_EXPLORER: Action = |editor| editor.open_file_explorer(".");
     const SPLIT_VERTICAL: Action =
         |editor| void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));
@@ -1532,6 +1597,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
             "<space>" => {
                 "e" => OPEN_FILE_EXPLORER,
                 "o" => OPEN_FILE_PICKER,
+                "j" => OPEN_JUMP_LIST,
             },
             "g" => {
                 "d" => GO_TO_DEFINITION,
