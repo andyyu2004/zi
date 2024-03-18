@@ -4,12 +4,16 @@ use std::str::FromStr;
 use chumsky::Parser;
 
 use crate::Size;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Event {
     Key(KeyEvent),
     Resize(Size),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum KeyCode {
     Backspace,
     Enter,
@@ -86,7 +90,8 @@ impl fmt::Display for KeyCode {
 }
 
 bitflags::bitflags! {
-    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Default)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub struct KeyModifiers: u8 {
         const NONE = 0b0000_0000;
         const SHIFT = 0b0000_0001;
@@ -143,13 +148,27 @@ impl TryFrom<crossterm::event::Event> for Event {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KeyEvent {
     pub code: KeyCode,
     pub modifiers: KeyModifiers,
 }
 
+impl From<KeyCode> for KeyEvent {
+    #[inline]
+    fn from(code: KeyCode) -> Self {
+        Self { code, modifiers: KeyModifiers::empty() }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct KeySequence(Box<[KeyEvent]>);
+
+impl FromIterator<KeyEvent> for KeySequence {
+    fn from_iter<T: IntoIterator<Item = KeyEvent>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
 
 impl IntoIterator for KeySequence {
     type Item = KeyEvent;

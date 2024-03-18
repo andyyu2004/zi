@@ -2,6 +2,7 @@
 members = [
     "zi",
     "zi-term",
+    "fuzz",
     "plugins/*", "zi-tui", "zi-lsp", "stdx",
 ]
 

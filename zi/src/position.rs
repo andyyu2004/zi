@@ -11,6 +11,7 @@ use tui::Rect;
 use crate::BufferId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Size {
     pub width: u16,
     pub height: u16,

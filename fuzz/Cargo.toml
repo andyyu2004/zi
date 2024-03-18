@@ -1,0 +1,23 @@
+[package]
+name = "zi-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+futures-util = "0.3.30"
+zi = { path = "../zi", features = ["arbitrary"] }
+zi-tui = { path = "../zi-tui" }
+tokio = { version = "1.36.0", default-features = false, features = ["rt-multi-thread"] }
+
+[[bin]]
+name = "zi"
+path = "fuzz_targets/zi.rs"
+test = false
+doc = false
+bench = false
+
