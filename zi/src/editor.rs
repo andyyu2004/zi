@@ -25,8 +25,8 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{
-    BufferFlags, Delta, ExplorerBuffer, FilePicker, Injector, Item, Picker, PickerBuffer,
-    ReadonlyText, TextBuffer,
+    BufferFlags, Delta, ExplorerBuffer, FilePicker, Injector, Picker, PickerBuffer, ReadonlyText,
+    TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -1111,15 +1111,14 @@ impl Editor {
         self.tree.push(layer);
     }
 
-    pub fn open_picker<P, T>(
+    pub fn open_picker<P>(
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
-        inject: impl FnOnce(&mut Editor, Injector<T>),
+        inject: impl FnOnce(&mut Editor, Injector<P::Item>),
     ) -> ViewGroupId
     where
-        P: Picker<T> + Send,
-        T: Item,
+        P: Picker + Send,
     {
         let view_group = match self.create_view_group(view_group_url) {
             Ok(view_group) => view_group,
@@ -1210,7 +1209,9 @@ impl Editor {
             }
         }
 
-        impl Picker<Jump> for JumpListPicker {
+        impl Picker for JumpListPicker {
+            type Item = Jump;
+
             fn new(preview: crate::ViewId) -> Self {
                 Self { preview }
             }
@@ -1243,7 +1244,7 @@ impl Editor {
 
         // Save the current view so the jumps we get are from the right view.
         let view = self.active_view().id();
-        self.open_picker::<JumpListPicker, _>(
+        self.open_picker::<JumpListPicker>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
             |editor, injector| {
@@ -1259,7 +1260,7 @@ impl Editor {
 
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         let path = path.as_ref();
-        self.open_picker::<FilePicker, stdx::path::Display>(
+        self.open_picker::<FilePicker<stdx::path::Display>>(
             Url::parse("view-group://files").unwrap(),
             path,
             |editor, injector| {

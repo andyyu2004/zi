@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
@@ -7,36 +8,49 @@ use super::*;
 use crate::editor::{get, Action};
 use crate::{hashmap, trie, Direction, Editor, Mode, OpenFlags, ViewId};
 
-pub struct PickerBuffer<T: Item, P: Picker<T>> {
+pub struct PickerBuffer<P: Picker> {
     id: BufferId,
     /// The view that displays the results
     display_view: ViewId,
     text: Rope,
-    nucleo: Nucleo<T>,
+    nucleo: Nucleo<P::Item>,
     cancel: Cancel,
     keymap: Keymap,
     picker: P,
     url: Url,
 }
 
-pub trait Picker<T>: Copy + 'static {
+pub trait Picker: Copy + 'static {
+    type Item: Item;
+
     fn new(preview: ViewId) -> Self;
     fn config(self) -> nucleo::Config;
-    fn confirm(self, editor: &mut Editor, item: T);
-    fn select(self, editor: &mut Editor, item: T);
+    fn confirm(self, editor: &mut Editor, item: Self::Item);
+    fn select(self, editor: &mut Editor, item: Self::Item);
 }
 
-#[derive(Clone, Copy)]
-pub struct FilePicker {
+pub struct FilePicker<P> {
     preview: ViewId,
+    marker: PhantomData<P>,
 }
 
-impl<P> Picker<P> for FilePicker
+impl<P> Clone for FilePicker<P> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<P> Copy for FilePicker<P> {}
+
+impl<P> Picker for FilePicker<P>
 where
-    P: AsRef<Path>,
+    P: AsRef<Path> + Item,
 {
+    type Item = P;
+
     fn new(preview: ViewId) -> Self {
-        Self { preview }
+        Self { preview, marker: PhantomData }
     }
 
     fn config(self) -> nucleo::Config {
@@ -62,17 +76,16 @@ where
     }
 }
 
-impl<T, P> PickerBuffer<T, P>
+impl<P> PickerBuffer<P>
 where
-    T: Item,
-    P: Picker<T>,
+    P: Picker,
 {
     pub fn new(
         id: BufferId,
         display_view: ViewId,
         notify: impl Fn() + Send + Sync + 'static,
         picker: P,
-    ) -> (Self, Injector<T>) {
+    ) -> (Self, Injector<P::Item>) {
         let nucleo = Nucleo::new(picker.config(), Arc::new(notify), None, 1);
         let cancel = Cancel::new();
         let injector = Injector::new(nucleo.injector(), cancel.clone());
@@ -114,7 +127,7 @@ where
     pub fn new_with_items(
         id: BufferId,
         display_view: ViewId,
-        items: impl IntoIterator<Item = T>,
+        items: impl IntoIterator<Item = P::Item>,
         notify: impl Fn() + Send + Sync + 'static,
         picker: P,
     ) -> Self {
@@ -128,8 +141,8 @@ where
     }
 }
 
-impl<T: Item, P: Picker<T>> PickerBuffer<T, P> {
-    fn item(&self, line: u32) -> Option<T> {
+impl<P: Picker> PickerBuffer<P> {
+    fn item(&self, line: u32) -> Option<P::Item> {
         self.nucleo.snapshot().get_matched_item(line).map(|item| item.data.clone())
     }
 
@@ -160,7 +173,7 @@ impl<T: Item, P: Picker<T>> PickerBuffer<T, P> {
     }
 }
 
-impl<T: Item, P: Picker<T>> Buffer for PickerBuffer<T, P> {
+impl<P: Picker> Buffer for PickerBuffer<P> {
     fn id(&self) -> BufferId {
         self.id
     }
