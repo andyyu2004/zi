@@ -274,7 +274,11 @@ struct PluginHost {
 impl Drop for PluginHost {
     fn drop(&mut self) {
         if let Some(handler) = self.handler.take() {
-            let _ = handler.resource_drop(&mut self.store);
+            tokio::task::block_in_place(move || {
+                tokio::runtime::Handle::current().block_on(async move {
+                    let _ = handler.resource_drop_async(&mut self.store).await;
+                });
+            });
         }
     }
 }
@@ -325,7 +329,16 @@ impl PluginHost {
             }
         }
 
+        self.shutdown().await?;
+
+        Ok(())
+    }
+
+    async fn shutdown(&mut self) -> wasmtime::Result<()> {
         self.plugin.zi_api_lifecycle().call_shutdown(&mut self.store).await?;
+        if let Some(handler) = self.handler.take() {
+            handler.resource_drop_async(&mut self.store).await?;
+        }
 
         Ok(())
     }
