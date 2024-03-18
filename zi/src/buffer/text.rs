@@ -57,13 +57,13 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) {
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         match self.text.as_text_mut() {
             Some(text) => {
                 if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(text, delta);
+                    syntax.edit(text, delta)?
                 } else {
-                    text.edit(delta);
+                    text.edit(delta)?
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -71,6 +71,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
+
+        Ok(())
     }
 
     fn version(&self) -> u32 {
@@ -150,7 +152,7 @@ impl<X: LazyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_chars();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-                text.edit(&Delta::insert_at(idx, "\n"));
+                text.edit(&Delta::insert_at(idx, "\n")).unwrap();
             }
         } else if !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")

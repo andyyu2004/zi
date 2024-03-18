@@ -93,10 +93,10 @@ impl Syntax {
         });
     }
 
-    pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) {
+    pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         match &mut self.tree {
-            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)),
-            _ => text.edit(delta),
+            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)?),
+            _ => text.edit(delta)?,
         }
 
         PARSER.with(|parser| {
@@ -108,6 +108,8 @@ impl Syntax {
                 self.tree = Some(tree);
             }
         });
+
+        Ok(())
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -130,7 +132,10 @@ impl Syntax {
     }
 }
 
-fn delta_to_ts_edit(text: &mut dyn TextMut, delta: &Delta<'_>) -> tree_sitter::InputEdit {
+fn delta_to_ts_edit(
+    text: &mut dyn TextMut,
+    delta: &Delta<'_>,
+) -> Result<tree_sitter::InputEdit, ropey::Error> {
     let char_range = text.delta_to_char_range(delta);
     let point_range = text.delta_to_point_range(delta);
 
@@ -138,19 +143,19 @@ fn delta_to_ts_edit(text: &mut dyn TextMut, delta: &Delta<'_>) -> tree_sitter::I
     let old_end_byte = text.char_to_byte(char_range.end);
     let new_end_byte = start_byte + delta.text().len();
 
-    text.edit(delta);
+    text.edit(delta)?;
 
     let new_end_char = start_byte + delta.text().len_chars();
     let new_end_position = text.char_to_point(new_end_char).into();
 
-    tree_sitter::InputEdit {
+    Ok(tree_sitter::InputEdit {
         start_byte,
         old_end_byte,
         new_end_byte,
         start_position: point_range.start().into(),
         old_end_position: point_range.end().into(),
         new_end_position,
-    }
+    })
 }
 
 /// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide

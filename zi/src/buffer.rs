@@ -54,16 +54,16 @@ impl Resource for dyn Buffer {
 }
 
 pub trait TextMut: Text {
-    fn edit(&mut self, delta: &Delta<'_>);
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
 }
 
 impl TextMut for Rope {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) {
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         let range = self.delta_to_char_range(delta);
         let start = range.start;
-        self.remove(range);
-        self.insert(start, delta.text());
+        self.try_remove(range)?;
+        self.try_insert(start, delta.text())
     }
 }
 
@@ -434,7 +434,7 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn edit(&mut self, delta: &Delta<'_>);
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -534,8 +534,8 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.as_mut().edit(delta);
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+        self.as_mut().edit(delta)
     }
 
     #[inline]

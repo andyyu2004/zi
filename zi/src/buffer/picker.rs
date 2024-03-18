@@ -218,12 +218,14 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         0
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.text.edit(delta);
+    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+        self.text.edit(delta)?;
 
         let search = Cow::from(&self.text);
         tracing::debug!(%search, "update picker search pattern");
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
+
+        Ok(())
     }
 
     fn pre_render(&mut self, sender: &SyncClient, _view: &View, _area: tui::Rect) {
@@ -251,7 +253,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
                 writeln!(s, "{item}")?;
             }
 
-            editor.edit(display_view, &Delta::new(0..text.len_chars(), s));
+            editor.edit(display_view, &Delta::new(0..text.len_chars(), s)).unwrap();
             Ok(())
         });
     }

@@ -114,7 +114,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         self
     }
 
-    fn edit(&mut self, _delta: &Delta<'_>) {
+    fn edit(&mut self, _delta: &Delta<'_>) -> Result<(), ropey::Error> {
         unreachable!("explorer buffer is read-only")
     }
 

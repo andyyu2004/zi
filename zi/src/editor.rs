@@ -799,7 +799,7 @@ impl Editor {
         let cursor = view.cursor();
         let char_idx = buf.text().point_to_char(cursor);
         let start_char_idx = char_idx.saturating_sub(1);
-        buf.edit(&Delta::delete(start_char_idx..char_idx));
+        buf.edit(&Delta::delete(start_char_idx..char_idx)).unwrap();
         let new_cursor = buf.text().char_to_point(start_char_idx);
 
         view.set_cursor(
@@ -815,7 +815,7 @@ impl Editor {
         let mut cbuf = [0; 4];
         let view = self.active_view();
         let cursor = view.cursor();
-        self.edit(view.id(), &Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
+        self.edit(view.id(), &Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf))).unwrap();
 
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
@@ -828,23 +828,25 @@ impl Editor {
         self.dispatch(event);
     }
 
-    pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) {
+    pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self: view_id);
 
         if buf.flags().contains(BufferFlags::READONLY) {
             set_error!(self, "buffer is readonly");
-            return;
+            return Ok(());
         }
 
         let cursor = view.cursor();
-        buf.edit(delta);
+        buf.edit(delta)?;
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
         self.set_cursor(view_id, cursor);
 
         let event = event::DidChangeBuffer { buf };
         self.dispatch(event);
+
+        Ok(())
     }
 
     fn dispatch(&mut self, event: impl event::Event) {
