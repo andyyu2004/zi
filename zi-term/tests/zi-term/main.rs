@@ -13,7 +13,7 @@ fn it_works() -> anyhow::Result<()> {
     snapshot("empty", |_editor| Ok(()))?;
 
     snapshot("numbers", |editor| {
-        editor.open_active("tests/integration/testdata/numbers.txt")?;
+        editor.open_active("tests/zi-term/testdata/numbers.txt")?;
         Ok(())
     })?;
 
@@ -23,22 +23,22 @@ fn it_works() -> anyhow::Result<()> {
 #[tokio::test]
 async fn syntax_highlight() -> anyhow::Result<()> {
     snapshot("go", |editor| {
-        editor.open_active("tests/integration/testdata/main.go")?;
+        editor.open_active("tests/zi-term/testdata/main.go")?;
         Ok(())
     })?;
 
     snapshot("rust", |editor| {
-        editor.open_active("tests/integration/testdata/main.rs")?;
+        editor.open_active("tests/zi-term/testdata/main.rs")?;
         Ok(())
     })?;
 
     snapshot("multiline highlight", |editor| {
-        editor.open_active("tests/integration/testdata/multiline-highlight.rs")?;
+        editor.open_active("tests/zi-term/testdata/multiline-highlight.rs")?;
         Ok(())
     })?;
 
     snapshot("multiline highlight 2", |editor| {
-        editor.open_active("tests/integration/testdata/multiline-highlight-2.rs")?;
+        editor.open_active("tests/zi-term/testdata/multiline-highlight-2.rs")?;
         Ok(())
     })?;
 
@@ -48,20 +48,20 @@ async fn syntax_highlight() -> anyhow::Result<()> {
 #[tokio::test]
 async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |editor| {
-        editor.open_active("tests/integration/testdata/numbers.txt")?;
+        editor.open_active("tests/zi-term/testdata/numbers.txt")?;
         editor.scroll_active_view(zi::Direction::Down, 50);
         Ok(())
     })?;
 
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |editor| {
-        editor.open_active("tests/integration/testdata/minimal.rs")?;
+        editor.open_active("tests/zi-term/testdata/minimal.rs")?;
         editor.scroll_active_view(zi::Direction::Down, 1);
         Ok(())
     })?;
 
     snapshot("scroll go", |editor| {
-        editor.open_active("tests/integration/testdata/main.go")?;
+        editor.open_active("tests/zi-term/testdata/main.go")?;
         editor.scroll_active_view(zi::Direction::Down, 9);
         Ok(())
     })?;
@@ -88,7 +88,7 @@ fn snapshot(
     }
 
     let name = name.replace(|c: char| c.is_whitespace(), "-");
-    let dir = PathBuf::from("tests/integration/snapshots");
+    let dir = PathBuf::from("tests/zi-term/snapshots");
     let path = dir.join(format!("{name}.ansi"));
 
     let mut expected = vec![];

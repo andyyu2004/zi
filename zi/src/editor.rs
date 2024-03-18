@@ -284,15 +284,17 @@ impl Editor {
 
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
         let plugins = Plugins::new(Client { tx: requests_tx.clone() });
+
+        let pool = rayon::ThreadPoolBuilder::new().build().expect("rayon pool");
         let mut editor = Self {
             buffers,
             views,
             callbacks_tx,
             requests_tx,
             plugins,
+            pool,
             keymap: default_keymap(),
             command_handlers: command::builtin_handlers(),
-            pool: rayon::ThreadPoolBuilder::new().build().expect("rayon pool"),
             tree: layout::ViewTree::new(size, active_view),
             view_groups: Default::default(),
             language_config: Default::default(),
