@@ -21,7 +21,7 @@ pub use self::explorer::ExplorerBuffer;
 pub use self::picker::{FilePicker, Picker, PickerBuffer};
 pub use self::readonly::ReadonlyText;
 pub use self::text::TextBuffer;
-use crate::editor::{Resource, TaskSender};
+use crate::editor::{Resource, SyncClient};
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::{FileType, Line, Point, Range, Size, Url, View};
@@ -468,7 +468,7 @@ pub trait Buffer {
     }
 
     /// Called just before rendering the buffer
-    fn pre_render(&mut self, _sender: &TaskSender, view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _client: &SyncClient, view: &View, _area: tui::Rect) {
         assert_eq!(self.id(), view.buffer());
     }
 
@@ -569,7 +569,7 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn pre_render(&mut self, sender: &TaskSender, view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, sender: &SyncClient, view: &View, area: tui::Rect) {
         self.as_mut().pre_render(sender, view, area);
     }
 

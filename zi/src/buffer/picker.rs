@@ -158,18 +158,26 @@ impl<P: Picker> PickerBuffer<P> {
         }
     }
 
+    fn select_current(buf_id: BufferId, editor: &mut Editor) {
+        let picker_buf = editor.buffer(buf_id).as_any().downcast_ref::<Self>().unwrap();
+        let display_view = picker_buf.display_view;
+        let cursor = editor.get_cursor(display_view);
+
+        let picker = picker_buf.picker;
+        if let Some(item) = picker_buf.item(cursor.line().raw()) {
+            picker.select(editor, item);
+        }
+    }
+
     fn select(editor: &mut Editor, direction: Direction) {
         assert!(direction.is_vertical());
 
         let (_, picker_buf) = get!(editor as Self);
         let display_view = picker_buf.display_view;
-        let cursor = editor.move_cursor(display_view, direction, 1);
+        let buf_id = picker_buf.id;
+        editor.move_cursor(display_view, direction, 1);
 
-        let (_, picker_buf) = get!(editor as Self);
-        let picker = picker_buf.picker;
-        if let Some(item) = picker_buf.item(cursor.line().raw()) {
-            picker.select(editor, item);
-        }
+        Self::select_current(buf_id, editor);
     }
 }
 
@@ -218,7 +226,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
 
-    fn pre_render(&mut self, sender: &TaskSender, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, sender: &SyncClient, _view: &View, _area: tui::Rect) {
         self.nucleo.tick(10);
 
         let snapshot = self.nucleo.snapshot();
@@ -226,8 +234,14 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
             .matched_items(..snapshot.matched_item_count().min(100))
             .map(|item| item.data.clone())
             .collect::<Vec<_>>();
+
         let display_view = self.display_view;
-        sender.queue(move |editor| {
+        let buf_id = self.id;
+        sender.request(move |editor| {
+            // call `select` on the current line as the set of items may have changed.
+            Self::select_current(buf_id, editor);
+
+            // update the display view with the new items
             use std::fmt::Write;
             let buf = editor.view(display_view).buffer();
             let text = editor.buffer(buf).text();

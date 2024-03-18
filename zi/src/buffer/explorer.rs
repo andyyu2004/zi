@@ -122,7 +122,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _sender: &TaskSender, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
         let mut rope = Rope::new();

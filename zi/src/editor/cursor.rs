@@ -12,6 +12,11 @@ bitflags::bitflags! {
 
 impl Editor {
     #[inline]
+    pub fn get_cursor(&self, view: impl HasViewId) -> Point {
+        self.view(view).cursor()
+    }
+
+    #[inline]
     pub fn set_cursor(&mut self, view: impl HasViewId, pos: impl Into<Point>) {
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());

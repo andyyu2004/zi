@@ -37,7 +37,7 @@ use crate::motion::{self, Motion};
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::Theme;
-use crate::view::{ViewGroup, ViewGroupId};
+use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
     LanguageServerId, Location, Mode, Point, Url, View, ViewId,
@@ -130,15 +130,15 @@ macro_rules! set_error {
 macro_rules! get {
     ($editor:ident as $ty:ty) => {{
         let view_id = $editor.tree().active();
-        get!($editor: view_id as $ty)
+        $crate::editor::get!($editor: view_id as $ty)
     }};
     ($editor:ident as $ty:ty) => {{
-        let view_id = $editor.tree.active();
-        active!($editor: view_id as $ty)
+        let view_id = $editor.tree().active();
+        $crate::editor::get!($editor: view_id as $ty)
     }};
     ($editor:ident) => {{
         let view_id = $editor.tree.active();
-        get!($editor: view_id)
+        $crate::editor::get!($editor: view_id)
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
         #[allow(unused_imports)]
@@ -158,11 +158,21 @@ macro_rules! get {
     }};
 }
 
-pub(crate) use get;
-
 macro_rules! get_ref {
+    ($editor:ident as $ty:ty) => {{
+        let view_id = $editor.tree().active();
+        $crate::editor::get_ref!($editor: view_id as $ty)
+    }};
+    ($editor:ident: $view:ident as $ty:ty) => {{
+        #[allow(unused_imports)]
+        use $crate::view::HasViewId as _;
+        let view_id = $view.view_id();
+        let view = &mut $editor.views[view_id];
+        let buf = $editor.buffers[view.buffer()].as_any().downcast_ref::<$ty>().expect("buffer downcast failed");
+        (view, buf)
+    }};
     ($editor:ident) => {
-        get_ref!($editor: $editor.tree.active())
+        $crate::editor::get_ref!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
         #[allow(unused_imports)]
@@ -172,6 +182,8 @@ macro_rules! get_ref {
         (view, buf)
     }};
 }
+
+pub(crate) use {get, get_ref};
 
 use self::cursor::SetCursorFlags;
 
@@ -718,8 +730,8 @@ impl Editor {
     }
 
     #[inline]
-    pub fn view(&self, id: ViewId) -> &View {
-        self.views.get(id).expect("bad view id")
+    pub fn view(&self, id: impl HasViewId) -> &View {
+        self.views.get(id.view_id()).expect("bad view id")
     }
 
     #[inline]
@@ -910,7 +922,7 @@ impl Editor {
             return;
         }
 
-        self.set_error(format!("no active language server supports go to definition"));
+        self.set_error("no active language server supports go to definition");
     }
 
     fn spawn_language_servers_for_lang(
@@ -1359,8 +1371,8 @@ impl Editor {
         Location { buf: buf.id(), point: view.cursor() }
     }
 
-    fn sender(&self) -> TaskSender {
-        TaskSender(self.callbacks_tx.clone())
+    fn sender(&self) -> SyncClient {
+        SyncClient(self.callbacks_tx.clone())
     }
 
     pub(crate) fn schedule(
@@ -1381,10 +1393,11 @@ impl Editor {
     }
 }
 
-pub struct TaskSender(CallbacksSender);
+/// A synchronous client to the editor.
+pub struct SyncClient(CallbacksSender);
 
-impl TaskSender {
-    pub fn queue(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+impl SyncClient {
+    pub fn request(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
         // no description needed as `ready()` will never timeout
         callback(&self.0, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
