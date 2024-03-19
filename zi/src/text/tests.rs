@@ -1,6 +1,30 @@
 use expect_test::{expect, Expect};
+use proptest::collection::vec;
+use proptest::{bool, proptest};
 
 use super::*;
+
+proptest! {
+    #[test]
+    fn bidirectional_chars_against_reference(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*", steps in vec(bool::ANY, 1..100)) {
+        let reference = Rope::from(s.as_ref());
+        for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
+            let i = 0;
+            let mut chars = reference.chars_at(i);
+            let mut imp_chars = imp.chars_at(i);
+
+            for &step in &steps {
+                if step {
+                    assert_eq!(chars.next(), imp_chars.next());
+                } else {
+                    assert_eq!(chars.prev(), imp_chars.prev());
+                }
+            }
+
+        }
+
+    }
+}
 
 #[test]
 fn str_text_impl() {
@@ -19,7 +43,7 @@ fn str_text_impl() {
     assert_eq!("a\n".line_to_char(1), 2);
 }
 
-proptest::proptest! {
+proptest! {
     // Ignore some annoying control characters like vertical tabs, nextline etc. No idea if anyone actually uses that in practice.
     // Also skipping \r as usually it's followed by \n.
     #[test]

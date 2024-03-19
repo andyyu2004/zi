@@ -13,14 +13,54 @@ impl Text for str {
     }
 
     #[inline]
-    fn chars_at(&self, _char_idx: usize) -> impl BidirectionalIterator<Item = char> {
-        let _x: ropey::iter::Chars<'_> = todo!();
-        _x
+    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+        Chars { s: self, byte_idx: self.char_to_byte(char_idx) }
     }
 
     #[inline]
     fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
         iter::once(&self[range])
+    }
+}
+
+struct Chars<'a> {
+    s: &'a str,
+    byte_idx: usize,
+}
+
+impl Iterator for Chars<'_> {
+    type Item = char;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.byte_idx >= self.s.len() {
+            return None;
+        }
+
+        let start = self.byte_idx;
+        self.byte_idx += 1;
+        while !self.s.is_char_boundary(self.byte_idx) {
+            self.byte_idx += 1;
+            debug_assert!(self.byte_idx <= self.s.len());
+        }
+
+        Some(self.s[start..].chars().next().expect("?"))
+    }
+}
+
+impl BidirectionalIterator for Chars<'_> {
+    #[inline]
+    fn prev(&mut self) -> Option<Self::Item> {
+        if self.byte_idx == 0 {
+            return None;
+        }
+
+        self.byte_idx -= 1;
+        while !self.s.is_char_boundary(self.byte_idx) {
+            self.byte_idx = self.byte_idx.checked_sub(1).unwrap();
+        }
+
+        Some(self.s[self.byte_idx..].chars().next().expect("?"))
     }
 }
 
