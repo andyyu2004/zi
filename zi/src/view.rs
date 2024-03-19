@@ -4,10 +4,8 @@ use unicode_width::UnicodeWidthChar;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::{
-    buffer, Buffer, BufferId, Col, Direction, Editor, JumpList, LazyText, Location, Mode, Point,
-    Url,
-};
+use crate::text::{self, TextBase as _};
+use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -407,7 +405,7 @@ impl View {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let chunks = buffer::annotate(buf.text().lines_at(line), highlights);
+        let chunks = text::annotate(buf.text().lines_at(line), highlights);
 
         let lines = tui::Lines::new(
             line,

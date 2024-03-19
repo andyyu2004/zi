@@ -25,8 +25,7 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{
-    BufferFlags, Delta, ExplorerBuffer, FilePicker, Injector, Picker, PickerBuffer, ReadonlyText,
-    TextBuffer,
+    BufferFlags, ExplorerBuffer, FilePicker, Injector, Picker, PickerBuffer, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -37,6 +36,7 @@ use crate::motion::{self, Motion};
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::Theme;
+use crate::text::{Delta, ReadonlyText};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,

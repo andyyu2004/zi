@@ -9,7 +9,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::buffer::{Delta, LazyText, TextMut};
+use crate::text::{AnyText, AnyTextMut, Delta};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -85,7 +85,7 @@ impl Syntax {
 
     /// Set the text of the syntax tree.
     /// Prefer using `edit` if you have a delta.
-    pub fn set(&mut self, text: &dyn LazyText) {
+    pub fn set(&mut self, text: &dyn AnyText) {
         self.tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
@@ -93,7 +93,11 @@ impl Syntax {
         });
     }
 
-    pub fn edit(&mut self, text: &mut dyn TextMut, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    pub fn edit(
+        &mut self,
+        text: &mut dyn AnyTextMut,
+        delta: &Delta<'_>,
+    ) -> Result<(), ropey::Error> {
         match &mut self.tree {
             Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)?),
             _ => text.edit(delta)?,
@@ -115,7 +119,7 @@ impl Syntax {
     pub fn highlights<'a, 'tree: 'a>(
         &'tree self,
         cursor: &'a mut QueryCursor,
-        source: &'a dyn LazyText,
+        source: &'a dyn AnyText,
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
@@ -134,7 +138,7 @@ impl Syntax {
 
 // tree-sitter point column is byte-indexed, but very poorly documented
 fn delta_to_ts_edit(
-    text: &mut dyn TextMut,
+    text: &mut dyn AnyTextMut,
     delta: &Delta<'_>,
 ) -> Result<tree_sitter::InputEdit, ropey::Error> {
     let byte_range = text.delta_to_byte_range(delta);
@@ -177,7 +181,7 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
     }
 }
 
-pub struct TextProvider<'a>(&'a dyn LazyText);
+pub struct TextProvider<'a>(&'a dyn AnyText);
 
 impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;

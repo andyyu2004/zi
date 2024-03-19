@@ -98,7 +98,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         4
     }
 
-    fn text(&self) -> &dyn Text {
+    fn text(&self) -> &dyn AnyText {
         &self.text
     }
 

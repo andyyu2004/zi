@@ -6,6 +6,7 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
+use crate::text::TextMut;
 use crate::{hashmap, trie, Direction, Editor, Mode, OpenFlags, ViewId};
 
 pub struct PickerBuffer<P: Picker> {
@@ -210,7 +211,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         4
     }
 
-    fn text(&self) -> &dyn Text {
+    fn text(&self) -> &dyn AnyText {
         &self.text
     }
 
@@ -219,7 +220,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
     }
 
     fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
-        self.text.edit(delta)?;
+        TextMut::edit(&mut self.text, delta)?;
 
         let search = Cow::from(&self.text);
         tracing::debug!(%search, "update picker search pattern");

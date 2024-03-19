@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::VecDeque;
-use std::fmt;
 use std::iter::Peekable;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::str::FromStr;
+use std::{fmt, ops};
 
 use stdx::merge::Merge;
 use tui::Rect;
@@ -208,13 +208,13 @@ where
     }
 }
 
-impl From<Range> for std::ops::Range<Point> {
+impl From<Range> for ops::Range<Point> {
     fn from(val: Range) -> Self {
         val.start..val.end
     }
 }
 
-impl From<Range> for std::ops::Range<(usize, usize)> {
+impl From<Range> for ops::Range<(usize, usize)> {
     #[inline]
     fn from(r: Range) -> Self {
         r.start.into()..r.end.into()

@@ -1,4 +1,5 @@
 use super::*;
+use crate::text::TextBase as _;
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -17,7 +18,7 @@ pub struct TextBuffer<X> {
     tab_width: u8,
 }
 
-impl<X: Text + 'static> Buffer for TextBuffer<X> {
+impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id
@@ -53,7 +54,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         self.tab_width
     }
 
-    fn text(&self) -> &dyn Text {
+    #[inline]
+    fn text(&self) -> &dyn AnyText {
         &self.text
     }
 
@@ -128,7 +130,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     }
 }
 
-impl<X: LazyText> TextBuffer<X> {
+impl<X: AnyText> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,

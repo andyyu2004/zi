@@ -23,6 +23,7 @@ mod motion;
 mod plugin;
 mod position;
 mod syntax;
+mod text;
 mod view;
 
 pub use tokio::sync::Notify;
@@ -30,7 +31,7 @@ pub use tree_sitter;
 pub use tui::Constraint;
 pub use zi_lsp::lsp_types::Url;
 
-pub use self::buffer::{Buffer, BufferFlags, BufferId, LazyText, PickerBuffer, TextBuffer};
+pub use self::buffer::{Buffer, BufferFlags, BufferId, PickerBuffer, TextBuffer};
 pub use self::editor::{Editor, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
