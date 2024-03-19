@@ -183,7 +183,7 @@ impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {
-        self.0.byte_slice(node.start_byte()..node.end_byte()).map(str::as_bytes)
+        self.0.chunks_in_byte_range(node.start_byte()..node.end_byte()).map(str::as_bytes)
     }
 }
 

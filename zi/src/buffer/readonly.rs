@@ -108,8 +108,8 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     }
 
     #[inline]
-    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
-        self.as_str().byte_slice(range)
+    fn chunks_in_byte_range(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+        self.as_str().chunks_in_byte_range(range)
     }
 
     #[inline]

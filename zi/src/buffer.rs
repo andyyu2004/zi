@@ -94,7 +94,10 @@ pub trait LazyText: fmt::Display {
 
     fn chunk_at_byte(&self, byte_idx: usize) -> &str;
 
-    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_>;
+    fn chunks_in_byte_range(
+        &self,
+        range: std::ops::Range<usize>,
+    ) -> Box<dyn Iterator<Item = &str> + '_>;
 
     fn as_text(&self) -> Option<&dyn Text>;
 
@@ -371,7 +374,10 @@ impl LazyText for str {
     }
 
     #[inline]
-    fn byte_slice(&self, range: ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+    fn chunks_in_byte_range(
+        &self,
+        range: ops::Range<usize>,
+    ) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(std::iter::once(&self[range]))
     }
 
@@ -462,7 +468,10 @@ impl LazyText for Rope {
     }
 
     #[inline]
-    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
+    fn chunks_in_byte_range(
+        &self,
+        range: std::ops::Range<usize>,
+    ) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(self.byte_slice(range).chunks())
     }
 
@@ -699,8 +708,11 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     }
 
     #[inline]
-    fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
-        (**self).byte_slice(range)
+    fn chunks_in_byte_range(
+        &self,
+        range: std::ops::Range<usize>,
+    ) -> Box<dyn Iterator<Item = &str> + '_> {
+        (**self).chunks_in_byte_range(range)
     }
 
     #[inline]
