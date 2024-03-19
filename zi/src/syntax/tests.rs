@@ -79,7 +79,7 @@ fn test_delta_to_ts_edit() {
                 new_end_byte: 2,
                 start_position: tree_sitter::Point { row: 0, column: 0 },
                 old_end_position: tree_sitter::Point { row: 0, column: 1 },
-                new_end_position: tree_sitter::Point { row: 0, column: 1 },
+                new_end_position: tree_sitter::Point { row: 0, column: 2 },
             },
             "©",
         ),

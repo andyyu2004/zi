@@ -78,6 +78,16 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     }
 
     #[inline]
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        self.as_str().byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        self.as_str().line_to_byte(line_idx)
+    }
+
+    #[inline]
     fn char_to_byte(&self, char_idx: usize) -> usize {
         self.as_str().char_to_byte(char_idx)
     }
@@ -93,6 +103,11 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     }
 
     #[inline]
+    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
+        self.as_str().rev_chars_at_end()
+    }
+
+    #[inline]
     fn chunk_at_byte(&self, byte_idx: usize) -> &str {
         self.as_str().chunk_at_byte(byte_idx)
     }
@@ -100,11 +115,6 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     #[inline]
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         self.as_str().byte_slice(range)
-    }
-
-    #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        self.as_str().rev_chars_at_end()
     }
 
     #[inline]

@@ -84,6 +84,9 @@ pub trait LazyText: fmt::Display {
     fn line_to_char(&self, line_idx: usize) -> usize;
     fn char_to_line(&self, char_idx: usize) -> usize;
 
+    fn byte_to_line(&self, byte_idx: usize) -> usize;
+    fn line_to_byte(&self, line_idx: usize) -> usize;
+
     fn char_to_byte(&self, char_idx: usize) -> usize;
 
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
@@ -99,6 +102,11 @@ pub trait LazyText: fmt::Display {
     fn as_text(&self) -> Option<&dyn Text>;
 
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut>;
+
+    fn byte_to_point(&self, byte_idx: usize) -> Point {
+        let line_idx = self.byte_to_line(byte_idx);
+        Point::new(line_idx, byte_idx - self.line_to_byte(line_idx))
+    }
 
     #[inline]
     fn char_to_point(&self, char_idx: usize) -> Point {
@@ -125,22 +133,50 @@ pub trait LazyText: fmt::Display {
         }
     }
 
+    #[inline]
+    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
+        match delta.range() {
+            DeltaRange::Point(range) => self.point_range_to_byte_range(range),
+            DeltaRange::Char(range) => self.char_range_to_byte_range(range),
+        }
+    }
+
+    #[inline]
     fn line_in_bounds(&self, line: usize) -> bool {
         self.get_line(line).is_some()
     }
 
+    #[inline]
     fn point_to_char(&self, point: Point) -> usize {
         self.line_to_char(point.line().idx()) + point.col().idx()
     }
 
+    #[inline]
+    fn point_to_byte(&self, point: Point) -> usize {
+        self.char_to_byte(self.point_to_char(point))
+    }
+
+    #[inline]
     fn point_range_to_char_range(&self, range: Range) -> ops::Range<usize> {
         self.point_to_char(range.start())..self.point_to_char(range.end())
     }
 
+    #[inline]
+    fn char_range_to_byte_range(&self, range: ops::Range<usize>) -> ops::Range<usize> {
+        self.char_to_byte(range.start)..self.char_to_byte(range.end)
+    }
+
+    #[inline]
+    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+        self.point_to_byte(range.start())..self.point_to_byte(range.end())
+    }
+
+    #[inline]
     fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
         self.lines_at(0)
     }
 
+    #[inline]
     fn line(&self, line: usize) -> Cow<'_, str> {
         self.get_line(line).unwrap_or_else(|| {
             panic!("line out of bounds: {line}");
@@ -283,6 +319,24 @@ impl LazyText for str {
     }
 
     #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        str_lines(self).take(line_idx).map(|l| l.len()).sum()
+    }
+
+    fn byte_to_line(&self, mut byte_idx: usize) -> usize {
+        assert!(byte_idx <= self.len(), "byte_idx out of bounds: {byte_idx}");
+        str_lines(self)
+            .take_while(|l| {
+                if l.len() > byte_idx {
+                    return false;
+                }
+                byte_idx -= l.len();
+                true
+            })
+            .count()
+    }
+
+    #[inline]
     fn char_to_line(&self, mut char_idx: usize) -> usize {
         // This should be a real assert, but it's expensive so we just return the last line
         // debug_assert!(char_idx < self.len_chars(), "char_idx out of bounds: {char_idx}");
@@ -363,6 +417,16 @@ impl LazyText for Rope {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn TextMut> {
         Some(self)
+    }
+
+    #[inline]
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        self.byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        self.line_to_byte(line_idx)
     }
 
     #[inline]
@@ -615,6 +679,16 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     #[inline]
     fn char_to_line(&self, char_idx: usize) -> usize {
         (**self).char_to_line(char_idx)
+    }
+
+    #[inline]
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        (**self).byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        (**self).line_to_byte(line_idx)
     }
 
     #[inline]

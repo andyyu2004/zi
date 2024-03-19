@@ -9,7 +9,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::buffer::{Delta, LazyText, Text as _, TextMut};
+use crate::buffer::{Delta, LazyText, TextMut};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -132,21 +132,21 @@ impl Syntax {
     }
 }
 
+// tree-sitter point column is byte-indexed, but very poorly documented
 fn delta_to_ts_edit(
     text: &mut dyn TextMut,
     delta: &Delta<'_>,
 ) -> Result<tree_sitter::InputEdit, ropey::Error> {
-    let char_range = text.delta_to_char_range(delta);
+    let byte_range = text.delta_to_byte_range(delta);
     let point_range = text.delta_to_point_range(delta);
 
-    let start_byte = text.char_to_byte(char_range.start);
-    let old_end_byte = text.char_to_byte(char_range.end);
+    let start_byte = byte_range.start;
+    let old_end_byte = byte_range.end;
     let new_end_byte = start_byte + delta.text().len();
 
     text.edit(delta)?;
 
-    let new_end_char = start_byte + delta.text().len_chars();
-    let new_end_position = text.char_to_point(new_end_char).into();
+    let new_end_position = text.byte_to_point(new_end_byte).into();
 
     Ok(tree_sitter::InputEdit {
         start_byte,
