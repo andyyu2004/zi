@@ -2,6 +2,7 @@ pub(crate) mod cursor;
 
 use std::any::Any;
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
@@ -18,6 +19,7 @@ use futures_util::{Stream, StreamExt};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::PathExt;
+use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
@@ -64,7 +66,7 @@ pub struct Editor {
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
     tree: layout::ViewTree,
-    pool: rayon::ThreadPool,
+    pool: OnceCell<rayon::ThreadPool>,
     /// error to be displayed in the status line
     status_error: Option<String>,
     /// Stores the command currently in the command line
@@ -284,17 +286,16 @@ impl Editor {
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
         let plugins = Plugins::new(Client { tx: requests_tx.clone() });
 
-        let pool = rayon::ThreadPoolBuilder::new().build().expect("rayon pool");
         let mut editor = Self {
             buffers,
             views,
             callbacks_tx,
             requests_tx,
             plugins,
-            pool,
             keymap: default_keymap(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
+            pool: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -422,6 +423,10 @@ impl Editor {
 
     pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
         self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
+    }
+
+    fn pool(&self) -> &rayon::ThreadPool {
+        self.pool.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
     }
 
     fn set_active_buffer(&mut self, buf: BufferId) {
@@ -585,7 +590,7 @@ impl Editor {
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        let plugin_handle = tokio::spawn(self.plugins.clone().run());
+        // let plugin_handle = tokio::spawn(self.plugins.clone().run());
 
         render(&mut self)?;
 
@@ -594,7 +599,7 @@ impl Editor {
 
         let mut events = pin!(events);
         loop {
-            tokio::select! {
+            select! {
                 biased;
                 Some(event) = events.next() => self.handle_input(event?),
                 () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
@@ -617,8 +622,8 @@ impl Editor {
             if self.should_quit() {
                 // The only time we abort the plugin system is when we're exiting the main loop so
                 // the assumptions above hold.
-                plugin_handle.abort();
-                let _ = plugin_handle.await;
+                // plugin_handle.abort();
+                // let _ = plugin_handle.await;
                 break;
             }
 
@@ -1065,7 +1070,7 @@ impl Editor {
                 .sort_by_file_name(std::cmp::Ord::cmp)
                 .build();
 
-            editor.pool.spawn(move || {
+            editor.pool().spawn(move || {
                 let _ = injector.push(PathBuf::from("..").display_owned());
                 for entry in walk {
                     let entry = match entry {
@@ -1281,7 +1286,7 @@ impl Editor {
             path,
             |editor, injector| {
                 let walk = ignore::WalkBuilder::new(path).build_parallel();
-                editor.pool.spawn(move || {
+                editor.pool().spawn(move || {
                     walk.run(|| {
                         Box::new(|entry| {
                             let entry = match entry {
