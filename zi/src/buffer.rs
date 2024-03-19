@@ -92,9 +92,6 @@ pub trait LazyText: fmt::Display {
     fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
 
-    // FIXME could be a bidirectional iterator if required (but requires some work to implement)
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_>;
-
     fn chunk_at_byte(&self, byte_idx: usize) -> &str;
 
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_>;
@@ -369,11 +366,6 @@ impl LazyText for str {
     }
 
     #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        Box::new(self.chars().rev())
-    }
-
-    #[inline]
     fn chunk_at_byte(&self, byte_idx: usize) -> &str {
         &self[byte_idx..]
     }
@@ -472,11 +464,6 @@ impl LazyText for Rope {
     #[inline]
     fn byte_slice(&self, range: std::ops::Range<usize>) -> Box<dyn Iterator<Item = &str> + '_> {
         Box::new(self.byte_slice(range).chunks())
-    }
-
-    #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        Box::new(self.chars_at(self.len_chars()).reversed())
     }
 
     #[inline]
@@ -704,11 +691,6 @@ impl<T: LazyText + ?Sized> LazyText for &T {
     #[inline]
     fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         (**self).chars_at(char_idx)
-    }
-
-    #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        (**self).rev_chars_at_end()
     }
 
     #[inline]

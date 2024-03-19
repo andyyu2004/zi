@@ -103,11 +103,6 @@ impl<B: Deref<Target = [u8]>> LazyText for ReadonlyText<B> {
     }
 
     #[inline]
-    fn rev_chars_at_end(&self) -> Box<dyn Iterator<Item = char> + '_> {
-        self.as_str().rev_chars_at_end()
-    }
-
-    #[inline]
     fn chunk_at_byte(&self, byte_idx: usize) -> &str {
         self.as_str().chunk_at_byte(byte_idx)
     }
