@@ -4,7 +4,7 @@ mod rope;
 mod str_impl;
 
 use std::borrow::Cow;
-use std::slice::SliceIndex;
+use std::ops::RangeBounds;
 use std::{fmt, iter, ops};
 
 use ropey::Rope;
@@ -180,16 +180,18 @@ pub trait Text: TextBase {
     }
 }
 
-/// The returned lines are guaranteed to be single-line
+/// The returned chunks are guaranteed to be single-line
 pub fn annotate<'a, T: Copy>(
     lines: impl Iterator<Item = Cow<'a, str>> + 'a,
     annotations: impl IntoIterator<Item = (Range, T)> + 'a,
 ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a {
     // A specialized slice that preserves the borrow if possible
-    fn slice_cow<'a, I: SliceIndex<str, Output = str>>(s: &Cow<'a, str>, index: I) -> Cow<'a, str> {
+    fn slice_cow<'a, R: RangeBounds<usize>>(s: &Cow<'a, str>, bounds: R) -> Cow<'a, str> {
+        let start = bounds.start_bound().map(|&c| s.char_to_byte(c));
+        let end = bounds.end_bound().map(|&c| s.char_to_byte(c));
         match s {
-            Cow::Borrowed(s) => Cow::Borrowed(&s[index]),
-            Cow::Owned(s) => Cow::Owned(s[index].to_owned()),
+            Cow::Borrowed(s) => Cow::Borrowed(&s[(start, end)]),
+            Cow::Owned(s) => Cow::Owned(s[(start, end)].to_owned()),
         }
     }
 
