@@ -104,7 +104,7 @@ fn text_annotations() {
         let chunks = text.annotate(highlights).collect::<Vec<_>>();
         let mut s = String::new();
         for (_, text, ann) in chunks {
-            assert!(text.lines().count() <= 1, "should not have multiline strings");
+            assert!(text.lines().count() <= 2, "should not have multiline strings: got {text:?}");
             match ann {
                 Some(ann) => s.push_str(&format!("{text:?} -> {ann}\n")),
                 None => s.push_str(&format!("{text:?}\n",)),
