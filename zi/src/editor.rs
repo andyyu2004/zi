@@ -1417,6 +1417,16 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
             if let (Some(server), Some(uri)) =
                 (editor.language_servers.get_mut(&server_id), buf.file_url())
             {
+                if !editor
+                    .language_config
+                    .languages
+                    .get(buf.file_type())
+                    .map(|c| &c.language_servers)
+                    .map_or(false, |servers| servers.contains(&server_id))
+                {
+                    return event::HandlerResult::Ok;
+                }
+
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
                 server
                     .did_change(lsp_types::DidChangeTextDocumentParams {
@@ -1446,7 +1456,7 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
                 .did_open(lsp_types::DidOpenTextDocumentParams {
                     text_document: lsp_types::TextDocumentItem {
                         uri: uri.clone(),
-                        language_id: buf.language_id().to_string(),
+                        language_id: buf.file_type().to_string(),
                         version: buf.version() as i32,
                         text: buf.text().to_string(),
                     },

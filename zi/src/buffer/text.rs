@@ -45,7 +45,7 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn language_id(&self) -> &FileType {
+    fn file_type(&self) -> &FileType {
         &self.language_id
     }
 

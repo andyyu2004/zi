@@ -90,7 +90,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         None
     }
 
-    fn language_id(&self) -> &FileType {
+    fn file_type(&self) -> &FileType {
         &FileType::EXPLORER
     }
 

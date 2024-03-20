@@ -203,7 +203,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         None
     }
 
-    fn language_id(&self) -> &FileType {
+    fn file_type(&self) -> &FileType {
         &FileType::PICKER
     }
 

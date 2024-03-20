@@ -53,7 +53,7 @@ pub trait Buffer {
     fn path(&self) -> &Path;
     fn url(&self) -> &Url;
     fn file_url(&self) -> Option<&Url>;
-    fn language_id(&self) -> &FileType;
+    fn file_type(&self) -> &FileType;
     fn tab_width(&self) -> u8;
     fn text(&self) -> &dyn AnyText;
     fn version(&self) -> u32;
@@ -130,8 +130,8 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn language_id(&self) -> &FileType {
-        self.as_ref().language_id()
+    fn file_type(&self) -> &FileType {
+        self.as_ref().file_type()
     }
 
     #[inline]
