@@ -70,7 +70,7 @@ proptest! {
                 assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
                 assert_eq!(reference.char_to_byte(c), imp.char_to_byte(c), "{s:?}: char {c}");
                 assert_eq!(reference.char_to_point(c), imp.char_to_point(c), "{s:?}: char {c}");
-                // assert!(reference.chars_at(c).eq(imp.chars_at(c)));
+                assert!(reference.chars_at(c).eq(imp.chars_at(c)));
             }
 
 
@@ -78,10 +78,10 @@ proptest! {
                 assert_eq!(reference.get_line(l), imp.get_line(l), "{s:?}: on line {l}");
                 assert_eq!(reference.line_to_char(l), imp.line_to_char(l), "{s:?}`: on line {l}");
                 assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
-                // assert!(reference.dyn_lines_at(l).eq(imp.dyn_lines_at(l)));
+                assert!(reference.lines_at(l).eq(imp.lines_at(l)));
             }
 
-            // assert!(reference.dyn_lines().eq(imp.dyn_lines()));
+            assert!(reference.lines().eq(imp.lines()));
 
         }
 
