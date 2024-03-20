@@ -58,6 +58,13 @@ proptest! {
             assert_eq!(reference.len_bytes(), imp.len_bytes());
             assert_eq!(reference.len_lines(), imp.len_lines());
 
+            // check that the line length is self consistent
+            assert_eq!(reference.len_lines(), reference.lines().count());
+            assert_eq!(imp.len_lines(), imp.lines().count());
+
+            assert_eq!(reference.len_chars(), reference.chars().count());
+            assert_eq!(imp.len_chars(), imp.chars().count());
+
             for b in 0..reference.len_bytes() {
                 assert_eq!(reference.get_char(b), imp.get_char(b), "{s:?}: byte {b}");
                 assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
