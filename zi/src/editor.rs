@@ -1471,8 +1471,8 @@ impl Editor {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let cursor = self.view.cursor();
                 let n = self.buf.text().len_lines();
-                for (i, line) in self.buf.text().lines().enumerate() {
-                    if i == n - 1 && line.trim().is_empty() {
+                for (i, line) in self.buf.text().dyn_lines().enumerate() {
+                    if i == n - 1 && line.is_empty() {
                         // avoid printing the last empty line
                         break;
                     }
@@ -1481,7 +1481,7 @@ impl Editor {
                     if !line.is_empty() {
                         write!(f, " ")?;
                     }
-                    for (j, c) in line.chars().enumerate() {
+                    for (j, c) in line.dyn_chars().enumerate() {
                         if cursor.line().idx() == i && cursor.col().idx() == j {
                             write!(f, "|")?;
                             if c == '\n' {

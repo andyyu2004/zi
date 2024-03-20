@@ -6,10 +6,29 @@ fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
     s.split_inclusive('\n').chain((s.is_empty() || s.ends_with('\n')).then_some("")).map(Into::into)
 }
 
-impl Text for str {
+impl<'a> TextSlice<'a> for &'a str {
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>> {
+    fn as_cow(&self) -> Cow<'a, str> {
+        Cow::Borrowed(*self)
+    }
+}
+
+impl Text for str {
+    type Slice<'a> = Cow<'a, str>;
+
+    #[inline]
+    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
         str_lines(self).skip(line_idx)
+    }
+
+    #[inline]
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+        str_lines(self)
+    }
+
+    #[inline]
+    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+        self.chars_at(0)
     }
 
     #[inline]

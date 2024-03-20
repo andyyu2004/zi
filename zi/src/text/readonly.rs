@@ -53,9 +53,21 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
 }
 
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
+    type Slice<'a> = Cow<'a, str> where Self: 'a;
+
+    #[inline]
+    fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
+        <str as Text>::lines(self.as_str())
+    }
+
     #[inline]
     fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>> {
         self.as_str().lines_at(line_idx)
+    }
+
+    #[inline]
+    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+        <str as Text>::chars(self.as_str())
     }
 
     #[inline]
@@ -69,10 +81,6 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 }
 
-/// We intentionally do not implement [`crate::buffer::Text`] for this type because computing
-/// those methods would require reading the entire file which we're trying to avoid.
-// TODO completely naive implementation that's the same as `str`
-// Should maintain an index or something to make this more efficient
 impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {

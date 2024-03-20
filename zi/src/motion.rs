@@ -12,7 +12,7 @@ pub struct PrevToken;
 impl Motion for PrevToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let mut chars = text.chars_at(start_char).reversed();
+        let mut chars = text.dyn_chars_at(start_char).reversed();
 
         let prev = chars.next().unwrap_or('x');
         let mut i = 0;
@@ -35,7 +35,7 @@ pub struct NextWord;
 impl Motion for NextWord {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = text.chars_at(start_char);
+        let chars = text.dyn_chars_at(start_char);
 
         let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
 
@@ -66,7 +66,7 @@ pub struct NextToken;
 impl Motion for NextToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = text.chars_at(start_char);
+        let chars = text.dyn_chars_at(start_char);
 
         let mut i = 0;
         let mut found_whitespace = false;

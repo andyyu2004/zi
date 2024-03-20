@@ -1,6 +1,8 @@
+mod cow_str_impl;
 mod delta;
 mod readonly;
 mod rope;
+mod rope_slice;
 mod str_impl;
 
 use std::borrow::Cow;
@@ -49,6 +51,11 @@ pub trait TextBase: fmt::Display {
     fn char_to_byte(&self, char_idx: usize) -> usize;
 
     fn chunk_at_byte(&self, byte_idx: usize) -> &str;
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.len_bytes() == 0
+    }
 
     #[inline]
     fn line(&self, line: usize) -> Cow<'_, str> {
@@ -127,30 +134,53 @@ pub trait TextBase: fmt::Display {
     }
 }
 
+pub trait AnyTextSlice<'a>: AnyText {
+    fn into_cow(self: Box<Self>) -> Cow<'a, str>;
+}
+
+impl<'a, T: TextSlice<'a>> AnyTextSlice<'a> for T {
+    fn into_cow(self: Box<Self>) -> Cow<'a, str> {
+        (*self).into()
+    }
+}
+
 pub trait AnyText: TextBase + fmt::Display {
-    fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
-    fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+    fn dyn_lines_at(
+        &self,
+        line_idx: usize,
+    ) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
+    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
 
-    fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_>;
+    fn dyn_chars(&self) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
 
-    fn chunks_in_byte_range(&self, range: ops::Range<usize>)
-    -> Box<dyn Iterator<Item = &str> + '_>;
+    fn dyn_chunks_in_byte_range(
+        &self,
+        range: ops::Range<usize>,
+    ) -> Box<dyn Iterator<Item = &str> + '_>;
 }
 
 impl<T: Text> AnyText for T {
-    fn lines_at(&self, line_idx: usize) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
-        Box::new(<T as Text>::lines_at(self, line_idx))
+    fn dyn_lines_at(
+        &self,
+        line_idx: usize,
+    ) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
+        Box::new(<T as Text>::lines_at(self, line_idx).map(|s| Box::new(s) as _))
     }
 
-    fn chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
+    fn dyn_chars(&self) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
+        Box::new(<T as Text>::chars(self))
+    }
+
+    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
         Box::new(<T as Text>::chars_at(self, char_idx))
     }
 
-    fn lines(&self) -> Box<dyn Iterator<Item = Cow<'_, str>> + '_> {
-        Box::new(<T as Text>::lines(self))
+    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
+        Box::new(<T as Text>::lines(self).map(|s| Box::new(s) as _))
     }
 
-    fn chunks_in_byte_range(
+    fn dyn_chunks_in_byte_range(
         &self,
         range: ops::Range<usize>,
     ) -> Box<dyn Iterator<Item = &str> + '_> {
@@ -158,16 +188,23 @@ impl<T: Text> AnyText for T {
     }
 }
 
+pub trait TextSlice<'a>: Text + Into<Cow<'a, str>> {
+    fn as_cow(&self) -> Cow<'a, str>;
+}
+
 pub trait Text: TextBase {
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>>;
+    type Slice<'a>: TextSlice<'a>
+    where
+        Self: 'a;
+
+    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>>;
     fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char>;
 
     fn chunks_in_byte_range(&self, byte_range: ops::Range<usize>) -> impl Iterator<Item = &str>;
 
-    #[inline]
-    fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
-        self.lines_at(0)
-    }
+    fn chars(&self) -> impl BidirectionalIterator<Item = char> + '_;
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>>;
 
     fn annotate<'a, T: Copy>(
         &'a self,
@@ -181,15 +218,23 @@ pub trait Text: TextBase {
 }
 
 /// The returned chunks are guaranteed to be single-line
-pub fn annotate<'a, T: Copy>(
-    lines: impl Iterator<Item = Cow<'a, str>> + 'a,
-    annotations: impl IntoIterator<Item = (Range, T)> + 'a,
-) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a {
+pub fn annotate<'a, S, A>(
+    lines: impl Iterator<Item = S> + 'a,
+    annotations: impl IntoIterator<Item = (Range, A)> + 'a,
+) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<A>)> + 'a
+where
+    S: TextSlice<'a>,
+    A: Copy,
+{
     // A specialized slice that preserves the borrow if possible
-    fn slice_cow<'a, R: RangeBounds<usize>>(s: &Cow<'a, str>, bounds: R) -> Cow<'a, str> {
+    fn slice<'a, R, S>(s: &S, bounds: R) -> Cow<'a, str>
+    where
+        R: RangeBounds<usize>,
+        S: TextSlice<'a>,
+    {
         let start = bounds.start_bound().map(|&c| s.char_to_byte(c));
         let end = bounds.end_bound().map(|&c| s.char_to_byte(c));
-        match s {
+        match s.as_cow() {
             Cow::Borrowed(s) => Cow::Borrowed(&s[(start, end)]),
             Cow::Owned(s) => Cow::Owned(s[(start, end)].to_owned()),
         }
@@ -198,6 +243,8 @@ pub fn annotate<'a, T: Copy>(
     let mut annotations = annotations.into_iter().peekable();
     iter::from_coroutine(move || {
         for (i, line) in lines.enumerate() {
+            let line_len_chars = line.len_chars();
+
             let line_idx = Line::from(i);
             let mut j = 0;
             while let Some(&(range, annotation)) = annotations.peek() {
@@ -212,9 +259,9 @@ pub fn annotate<'a, T: Copy>(
                     // If the highlight is a multi-line highlight,
                     // we style the entire line with that style and move on to highlight the next
                     // line (without next()ing the highlight iterator)
-                    yield (line_idx, line.clone(), Some(annotation));
+                    yield (line_idx, line.as_cow(), Some(annotation));
                     // set `j` here so we don't try to highlight the same range again
-                    j = line.len();
+                    j = line_len_chars;
                     break;
                 }
 
@@ -222,7 +269,7 @@ pub fn annotate<'a, T: Copy>(
                 let end_col = if range.end().line().idx() == i {
                     range.end().col().idx()
                 } else {
-                    line.len()
+                    line_len_chars
                 };
 
                 if start_col < j {
@@ -231,32 +278,32 @@ pub fn annotate<'a, T: Copy>(
                 }
 
                 if start_col > j {
-                    yield (line_idx, slice_cow(&line, j..start_col), None)
+                    yield (line_idx, slice(&line, j..start_col), None)
                 }
 
-                if end_col >= line.len() {
+                if end_col >= line_len_chars {
                     // We're allowed to annotate places with no text, so the range end might be out of bounds
                     // In which case, we add another span with the remaining space.
 
                     // There's a bit of a bug here:
                     // If the line ends with a newline, then the padded span will be on the next line.
                     // The workaround is to return the line number as well, so the renderer can handle it.
-                    yield (line_idx, slice_cow(&line, start_col..), Some(annotation));
+                    yield (line_idx, slice(&line, start_col..), Some(annotation));
                     yield (
                         line_idx,
-                        format!("{:width$}", "", width = end_col - line.len()).into(),
+                        format!("{:width$}", "", width = end_col - line_len_chars).into(),
                         Some(annotation),
                     )
                 } else {
-                    yield (line_idx, slice_cow(&line, start_col..end_col), Some(annotation));
+                    yield (line_idx, slice(&line, start_col..end_col), Some(annotation));
                 }
 
                 j = end_col;
             }
 
             // Add in a span for the rest of the line that wasn't annotated
-            if j < line.len() {
-                yield (line_idx, slice_cow(&line, j..), None);
+            if j < line_len_chars {
+                yield (line_idx, slice(&line, j..), None);
             }
         }
     })
@@ -266,8 +313,10 @@ pub fn annotate<'a, T: Copy>(
 }
 
 impl<T: Text + ?Sized> Text for &T {
+    type Slice<'a> = T::Slice<'a> where Self: 'a;
+
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>> {
+    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
         (**self).lines_at(line_idx)
     }
 
@@ -277,12 +326,17 @@ impl<T: Text + ?Sized> Text for &T {
     }
 
     #[inline]
+    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+        (**self).chars()
+    }
+
+    #[inline]
     fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
         (**self).chunks_in_byte_range(range)
     }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         (**self).lines()
     }
 }
@@ -351,6 +405,33 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn line(&self, line: usize) -> Cow<'_, str> {
         (**self).line(line)
+    }
+}
+
+impl Text for dyn AnyText + '_ {
+    type Slice<'a> = Cow<'a, str>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
+        self.dyn_lines_at(line_idx).map(|s| s.into_cow())
+    }
+
+    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+        self.dyn_chars_at(char_idx)
+    }
+
+    fn chunks_in_byte_range(&self, byte_range: ops::Range<usize>) -> impl Iterator<Item = &str> {
+        self.dyn_chunks_in_byte_range(byte_range)
+    }
+
+    fn chars(&self) -> impl BidirectionalIterator<Item = char> + '_ {
+        self.dyn_chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+        self.dyn_lines().map(|s| s.into_cow())
     }
 }
 

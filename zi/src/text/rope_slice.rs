@@ -2,18 +2,15 @@ use ropey::RopeSlice;
 
 use super::*;
 
-impl TextMut for Rope {
+impl<'a> TextSlice<'a> for RopeSlice<'a> {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
-        let range = self.delta_to_char_range(delta);
-        let start = range.start;
-        self.try_remove(range)?;
-        self.try_insert(start, delta.text())
+    fn as_cow(&self) -> Cow<'a, str> {
+        (*self).into()
     }
 }
 
-impl Text for Rope {
-    type Slice<'a> = RopeSlice<'a>;
+impl Text for RopeSlice<'_> {
+    type Slice<'a> = RopeSlice<'a> where Self: 'a;
 
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
@@ -41,10 +38,10 @@ impl Text for Rope {
     }
 }
 
-impl TextBase for Rope {
+impl TextBase for RopeSlice<'_> {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
-        Some(self)
+        None
     }
 
     #[inline]
