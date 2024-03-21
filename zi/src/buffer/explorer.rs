@@ -35,15 +35,15 @@ where
             let confirm: Action = |editor| {
                 let (view, buf) = get!(editor as Self);
                 let cursor = view.cursor();
-                let data = buf
+                if let Some(data) = buf
                     .nucleo
                     .snapshot()
                     .get_matched_item(cursor.line().raw())
-                    .expect("invalid line index")
-                    .data
-                    .clone();
-                let confirm = buf.confirm;
-                confirm(editor, data);
+                    .map(|item| item.data.clone())
+                {
+                    let confirm = buf.confirm;
+                    confirm(editor, data);
+                }
             };
             Keymap::from(hashmap! {
                 Mode::Normal => trie! ({
