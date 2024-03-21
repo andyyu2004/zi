@@ -1530,6 +1530,9 @@ fn callback<R: 'static>(
     .expect("send failed");
 }
 
+// pushing this static into the function causes compiler errors
+static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
+
 fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     // Same as `mem::drop` without the lints.
     // Used to avoid needing braces to ignore values.
@@ -1584,61 +1587,67 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const JUMP_PREV: Action = |editor| void(editor.jump_prev());
     const JUMP_NEXT: Action = |editor| void(editor.jump_next());
 
-    Keymap::from(hashmap! {
-        Mode::Command => trie!({
-            "<ESC>" | "<C-c>" => NORMAL_MODE,
-            "<CR>" => EXECUTE_COMMAND,
-        }),
-        Mode::Insert => trie!({
-            "<ESC>" | "<C-c>" => NORMAL_MODE,
-            "<CR>" => INSERT_NEWLINE,
-            "<BS>" => DELETE_CHAR_BACKWARD,
-            "f" => {
-                "d" => NORMAL_MODE,
-            },
-        }),
-        Mode::Normal => trie!({
-            "<C-o>" => JUMP_PREV,
-            "<C-i>" => JUMP_NEXT,
-            "<C-d>" => SCROLL_DOWN,
-            "<C-u>" => SCROLL_UP,
-            "<C-e>" => SCROLL_LINE_DOWN,
-            "<C-y>" => SCROLL_LINE_UP,
-            ":" => COMMAND_MODE,
-            "i" => INSERT_MODE,
-            "h" => MOVE_LEFT,
-            "l" => MOVE_RIGHT,
-            "j" => MOVE_DOWN,
-            "k" => MOVE_UP,
-            "o" => OPEN_NEWLINE,
-            "w" => NEXT_WORD,
-            // "b" => PREV_WORD,
-            "W" => NEXT_TOKEN,
-            "B" => PREV_TOKEN,
-            "a" => APPEND,
-            "A" => APPEND_EOL,
-            "<C-h>" => FOCUS_LEFT,
-            "<C-j>" => FOCUS_DOWN,
-            "<C-k>" => FOCUS_UP,
-            "<C-l>" => FOCUS_RIGHT,
-            "-" => OPEN_FILE_EXPLORER,
-            "<space>" => {
-                "e" => OPEN_FILE_EXPLORER,
-                "o" => OPEN_FILE_PICKER,
-                "j" => OPEN_JUMP_LIST,
-            },
-            "g" => {
-                "d" => GO_TO_DEFINITION,
-            },
-            "<C-w>" => {
-                "o" => VIEW_ONLY,
-                "v" | "<C-v>" => SPLIT_VERTICAL,
-                "s" | "<C-s>" => SPLIT_HORIZONTAL,
-                "h" | "<C-h>" => FOCUS_LEFT,
-                "k" | "<C-k>" => FOCUS_UP,
-                "j" | "<C-j>" => FOCUS_DOWN,
-                "l" | "<C-l>" => FOCUS_RIGHT,
-            },
-        }),
-    })
+    // Apparently the key event parser is incredibly slow, so we need to cache the keymap to help fuzzing run faster.
+
+    KEYMAP
+        .get_or_init(|| {
+            Keymap::from(hashmap! {
+                Mode::Command => trie!({
+                    "<ESC>" | "<C-c>" => NORMAL_MODE,
+                    "<CR>" => EXECUTE_COMMAND,
+                }),
+                Mode::Insert => trie!({
+                    "<ESC>" | "<C-c>" => NORMAL_MODE,
+                    "<CR>" => INSERT_NEWLINE,
+                    "<BS>" => DELETE_CHAR_BACKWARD,
+                    "f" => {
+                        "d" => NORMAL_MODE,
+                    },
+                }),
+                Mode::Normal => trie!({
+                    "<C-o>" => JUMP_PREV,
+                    "<C-i>" => JUMP_NEXT,
+                    "<C-d>" => SCROLL_DOWN,
+                    "<C-u>" => SCROLL_UP,
+                    "<C-e>" => SCROLL_LINE_DOWN,
+                    "<C-y>" => SCROLL_LINE_UP,
+                    ":" => COMMAND_MODE,
+                    "i" => INSERT_MODE,
+                    "h" => MOVE_LEFT,
+                    "l" => MOVE_RIGHT,
+                    "j" => MOVE_DOWN,
+                    "k" => MOVE_UP,
+                    "o" => OPEN_NEWLINE,
+                    "w" => NEXT_WORD,
+                    // "b" => PREV_WORD,
+                    "W" => NEXT_TOKEN,
+                    "B" => PREV_TOKEN,
+                    "a" => APPEND,
+                    "A" => APPEND_EOL,
+                    "<C-h>" => FOCUS_LEFT,
+                    "<C-j>" => FOCUS_DOWN,
+                    "<C-k>" => FOCUS_UP,
+                    "<C-l>" => FOCUS_RIGHT,
+                    "-" => OPEN_FILE_EXPLORER,
+                    "<space>" => {
+                        "e" => OPEN_FILE_EXPLORER,
+                        "o" => OPEN_FILE_PICKER,
+                        "j" => OPEN_JUMP_LIST,
+                    },
+                    "g" => {
+                        "d" => GO_TO_DEFINITION,
+                    },
+                    "<C-w>" => {
+                        "o" => VIEW_ONLY,
+                        "v" | "<C-v>" => SPLIT_VERTICAL,
+                        "s" | "<C-s>" => SPLIT_HORIZONTAL,
+                        "h" | "<C-h>" => FOCUS_LEFT,
+                        "k" | "<C-k>" => FOCUS_UP,
+                        "j" | "<C-j>" => FOCUS_DOWN,
+                        "l" | "<C-l>" => FOCUS_RIGHT,
+                    },
+                }),
+            })
+        })
+        .clone()
 }
