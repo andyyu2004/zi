@@ -459,7 +459,7 @@ impl Editor {
         set_error!(self, error);
     }
 
-    pub fn render(&mut self, frame: &mut tui::Frame<'_>) {
+    pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
         let area = self.tree.area();
         let sender = self.sender();
 

@@ -13,6 +13,25 @@ pub use ratatui::text::{Line, Span, Text};
 pub use ratatui::widgets::{Clear, Widget};
 pub use ratatui::{backend, Frame, Terminal};
 
+/// Convenience trait to allow replacing the frame with a faster implementation for testing.
+pub trait DynFrame {
+    fn buffer_mut(&mut self) -> &mut Buffer;
+
+    fn set_cursor(&mut self, x: u16, y: u16);
+}
+
+impl DynFrame for Frame<'_> {
+    #[inline]
+    fn buffer_mut(&mut self) -> &mut Buffer {
+        self.buffer_mut()
+    }
+
+    #[inline]
+    fn set_cursor(&mut self, x: u16, y: u16) {
+        self.set_cursor(x, y)
+    }
+}
+
 pub use self::element::Element;
 pub use self::sequence::ElementSeq;
 

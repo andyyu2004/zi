@@ -3,8 +3,6 @@
 use futures_util::stream;
 use libfuzzer_sys::fuzz_target;
 use zi::input::{KeyCode, KeyEvent};
-use zi_tui::backend::TestBackend;
-use zi_tui::Terminal;
 
 fuzz_target!(|inputs: Vec<zi::input::KeyEvent>| {
     // Keep inputting a quit sequence until we're done otherwise we will get stuck on one iteration.
@@ -22,14 +20,27 @@ fuzz_target!(|inputs: Vec<zi::input::KeyEvent>| {
 
     let inputs = inputs.into_iter().chain(quit_sequence.cycle());
 
-    let (width, height) = (80, 24);
+    let (width, height) = (24, 10);
     let (editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
-    let backend = TestBackend::new(width, height);
-    let mut term = Terminal::new(backend).unwrap();
+    let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
     let inputs = stream::iter(inputs.map(zi::input::Event::Key).map(Ok));
+
     futures_executor::block_on(editor.run(inputs, tasks, |editor| {
-        term.draw(|frame| editor.render(frame)).unwrap();
+        // don't use `term.draw()` as it's very slow
+        editor.render(&mut frame);
         Ok(())
     }))
     .unwrap();
 });
+
+struct TestFrame {
+    buffer: tui::Buffer,
+}
+
+impl tui::DynFrame for TestFrame {
+    fn buffer_mut(&mut self) -> &mut tui::Buffer {
+        &mut self.buffer
+    }
+
+    fn set_cursor(&mut self, _x: u16, _y: u16) {}
+}
