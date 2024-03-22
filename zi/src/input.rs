@@ -162,6 +162,7 @@ impl From<KeyCode> for KeyEvent {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KeySequence(Box<[KeyEvent]>);
 
 impl FromIterator<KeyEvent> for KeySequence {

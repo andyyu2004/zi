@@ -4,7 +4,7 @@ use futures_util::stream;
 use libfuzzer_sys::fuzz_target;
 use zi::input::{KeyCode, KeyEvent};
 
-fuzz_target!(|inputs: Vec<zi::input::KeyEvent>| {
+fuzz_target!(|inputs: zi::input::KeySequence| {
     // Keep inputting a quit sequence until we're done otherwise we will get stuck on one iteration.
     let quit_sequence = [
         KeyCode::Esc,
