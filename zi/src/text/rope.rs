@@ -3,6 +3,8 @@ use ropey::RopeSlice;
 use super::*;
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
+    type Slice = Self;
+
     fn to_cow(&self) -> Cow<'a, str> {
         let mut chunks = self.chunks();
         let fst = chunks.next().expect("RopeSlice is empty");
@@ -12,16 +14,24 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
         }
     }
 
-    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
-        self.byte_slice(byte_range)
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        (*self).byte_slice(byte_range)
+    }
+
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice {
+        (*self).line_slice(line_range)
     }
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
-        self.chars()
+        (*self).chars()
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        self.lines()
+        (*self).lines()
+    }
+
+    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+        (*self).chunks()
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {

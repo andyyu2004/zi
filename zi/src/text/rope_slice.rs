@@ -7,7 +7,7 @@ impl<'a> TextSlice<'a> for RopeSlice<'a> {
         (*self).into()
     }
 
-    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
         self.byte_slice(byte_range)
     }
 
@@ -21,6 +21,17 @@ impl<'a> TextSlice<'a> for RopeSlice<'a> {
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
         self.get_line(line_idx)
+    }
+
+    type Slice = Self;
+
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice {
+        // TODO remove impl
+        self.byte_slice(..)
+    }
+
+    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+        self.chunks()
     }
 }
 

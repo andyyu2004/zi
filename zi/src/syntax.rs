@@ -1,6 +1,7 @@
 mod highlight;
 
 use std::cell::RefCell;
+use std::ops::Bound;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
@@ -9,7 +10,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::text::{AnyText, AnyTextMut, Delta};
+use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextSlice};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -89,7 +90,10 @@ impl Syntax {
         self.tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), None)
+            parser.parse_with(
+                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap(),
+                None,
+            )
         });
     }
 
@@ -104,11 +108,13 @@ impl Syntax {
         }
 
         PARSER.with(|parser| {
+            let text = text as &dyn AnyText;
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            if let Some(tree) =
-                parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref())
-            {
+            if let Some(tree) = parser.parse_with(
+                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap(),
+                self.tree.as_ref(),
+            ) {
                 self.tree = Some(tree);
             }
         });
@@ -123,8 +129,11 @@ impl Syntax {
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
-                let captures =
-                    cursor.captures(self.highlights_query, tree.root_node(), TextProvider(source));
+                let captures = cursor.captures(
+                    self.highlights_query,
+                    tree.root_node(),
+                    TextProvider(source.dyn_byte_slice((Bound::Unbounded, Bound::Unbounded))),
+                );
                 Highlights::Captures(captures)
             }
             None => Highlights::Empty,
@@ -181,13 +190,14 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
     }
 }
 
-pub struct TextProvider<'a>(&'a dyn AnyText);
+pub struct TextProvider<'a>(Box<dyn AnyTextSlice<'a> + 'a>);
 
 impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {
-        self.0.dyn_chunks_in_byte_range(node.start_byte()..node.end_byte()).map(str::as_bytes)
+        let slice = self.0.byte_slice(node.start_byte()..node.end_byte());
+        slice.dyn_chunks().map(str::as_bytes)
     }
 }
 

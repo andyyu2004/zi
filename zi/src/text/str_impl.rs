@@ -7,12 +7,20 @@ fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
 }
 
 impl<'a> TextSlice<'a> for &'a str {
+    type Slice = Self;
+
     fn to_cow(&self) -> Cow<'a, str> {
         Cow::Borrowed(*self)
     }
 
-    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
-        &self[(byte_range.start_bound().cloned(), byte_range.end_bound().cloned())]
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        <str as Text>::byte_slice(*self, byte_range)
+    }
+
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice {
+        let start = line_range.start_bound().map(|&l| self.line_to_byte(l));
+        let end = line_range.end_bound().map(|&l| self.line_to_byte(l));
+        <str as Text>::byte_slice(*self, (start, end))
     }
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
@@ -25,6 +33,10 @@ impl<'a> TextSlice<'a> for &'a str {
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
         str::lines(*self).nth(line_idx)
+    }
+
+    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+        iter::once(*self)
     }
 }
 
