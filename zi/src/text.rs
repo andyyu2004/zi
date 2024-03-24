@@ -7,6 +7,7 @@ mod str_impl;
 
 use std::borrow::Cow;
 use std::ops::RangeBounds;
+use std::slice::SliceIndex;
 use std::{fmt, iter, ops};
 
 use ropey::Rope;
@@ -37,13 +38,8 @@ pub trait TextBase: fmt::Display {
     fn len_lines(&self) -> usize;
     fn len_bytes(&self) -> usize;
 
-    fn line_to_char(&self, line_idx: usize) -> usize;
-    fn char_to_line(&self, char_idx: usize) -> usize;
-
     fn byte_to_line(&self, byte_idx: usize) -> usize;
     fn line_to_byte(&self, line_idx: usize) -> usize;
-
-    fn char_to_byte(&self, char_idx: usize) -> usize;
 
     fn chunk_at_byte(&self, byte_idx: usize) -> &str;
 
@@ -59,27 +55,12 @@ pub trait TextBase: fmt::Display {
     }
 
     #[inline]
-    fn char_to_point(&self, char_idx: usize) -> Point {
-        let line = self.char_to_line(char_idx);
-        let col = char_idx - self.line_to_char(line);
-        Point::new(line, col)
-    }
-
-    #[inline]
     fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
         match delta.range() {
             DeltaRange::Point(p) => p,
             DeltaRange::Byte(range) => {
-                Range::new(self.char_to_point(range.start), self.char_to_point(range.end))
+                Range::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
             }
-        }
-    }
-
-    #[inline]
-    fn delta_to_char_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
-        match delta.range() {
-            DeltaRange::Point(range) => self.point_range_to_char_range(range),
-            DeltaRange::Byte(range) => range,
         }
     }
 
@@ -87,28 +68,13 @@ pub trait TextBase: fmt::Display {
     fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
         match delta.range() {
             DeltaRange::Point(range) => self.point_range_to_byte_range(range),
-            DeltaRange::Byte(range) => self.char_range_to_byte_range(range),
+            DeltaRange::Byte(range) => range,
         }
     }
 
     #[inline]
-    fn point_to_char(&self, point: Point) -> usize {
-        self.line_to_char(point.line().idx()) + point.col().idx()
-    }
-
-    #[inline]
     fn point_to_byte(&self, point: Point) -> usize {
-        self.char_to_byte(self.point_to_char(point))
-    }
-
-    #[inline]
-    fn point_range_to_char_range(&self, range: Range) -> ops::Range<usize> {
-        self.point_to_char(range.start())..self.point_to_char(range.end())
-    }
-
-    #[inline]
-    fn char_range_to_byte_range(&self, range: ops::Range<usize>) -> ops::Range<usize> {
-        self.char_to_byte(range.start)..self.char_to_byte(range.end)
+        self.line_to_byte(point.line().idx()) + point.col().idx()
     }
 
     #[inline]
@@ -218,16 +184,13 @@ where
     A: Copy,
 {
     // A specialized slice that preserves the borrow if possible
-    fn slice<'a, R, S>(s: &S, bounds: R) -> Cow<'a, str>
+    fn slice<'a, S>(s: &S, bounds: impl SliceIndex<str, Output = str>) -> Cow<'a, str>
     where
-        R: RangeBounds<usize>,
         S: TextSlice<'a>,
     {
-        let start = bounds.start_bound().map(|&c| s.char_to_byte(c));
-        let end = bounds.end_bound().map(|&c| s.char_to_byte(c));
         match s.as_cow() {
-            Cow::Borrowed(s) => Cow::Borrowed(&s[(start, end)]),
-            Cow::Owned(s) => Cow::Owned(s[(start, end)].to_owned()),
+            Cow::Borrowed(s) => Cow::Borrowed(&s[bounds]),
+            Cow::Owned(s) => Cow::Owned(s[bounds].to_owned()),
         }
     }
 
@@ -349,16 +312,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        (**self).line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        (**self).char_to_line(char_idx)
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         (**self).byte_to_line(byte_idx)
     }
@@ -366,11 +319,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         (**self).line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        (**self).char_to_byte(char_idx)
     }
 
     #[inline]

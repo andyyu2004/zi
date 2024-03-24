@@ -799,10 +799,11 @@ impl Editor {
         }
 
         let cursor = view.cursor();
-        let char_idx = buf.text().point_to_char(cursor);
-        let start_char_idx = char_idx.saturating_sub(1);
-        buf.edit(&Delta::delete(start_char_idx..char_idx)).unwrap();
-        let new_cursor = buf.text().char_to_point(start_char_idx);
+        let byte_idx = buf.text().point_to_byte(cursor);
+        // FIXME can't assume that the character is a byte long
+        let start_byte_idx = byte_idx.saturating_sub(1);
+        buf.edit(&Delta::delete(start_byte_idx..byte_idx)).unwrap();
+        let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
         view.set_cursor(
             self.mode,

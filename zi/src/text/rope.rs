@@ -19,27 +19,12 @@ impl TextBase for crop::RopeSlice<'_> {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        todo!()
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        todo!()
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         todo!()
     }
 
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
-        todo!()
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
         todo!()
     }
 
@@ -52,7 +37,7 @@ impl TextBase for crop::RopeSlice<'_> {
 impl TextMut for Rope {
     #[inline]
     fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
-        let range = self.delta_to_char_range(delta);
+        let range = self.delta_to_byte_range(delta);
         let start = range.start;
         self.try_remove(range)?;
         self.try_insert(start, delta.text())
@@ -111,16 +96,6 @@ impl TextBase for Rope {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.char_to_line(char_idx)
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.byte_to_line(byte_idx)
     }
@@ -128,11 +103,6 @@ impl TextBase for Rope {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.char_to_byte(char_idx)
     }
 
     #[inline]

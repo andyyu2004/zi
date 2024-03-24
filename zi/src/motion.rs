@@ -9,8 +9,8 @@ pub struct PrevToken;
 
 impl Motion for PrevToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         return pos;
+        // let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
         // let mut chars = text.chars_at(start_char).reversed();
         //
         // let prev = chars.next().unwrap_or('x');
@@ -33,29 +33,30 @@ pub struct NextWord;
 
 impl Motion for NextWord {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = text.dyn_chars_at(start_char);
-
-        let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
-
-        let mut i = 0;
-        let mut found_sep = false;
-        for c in chars {
-            if found_sep && !c.is_whitespace() {
-                break;
-            }
-
-            if is_sep(c) {
-                found_sep = true;
-            }
-
-            i += 1;
-        }
-
-        let char = start_char + i;
-        let line = text.char_to_line(char);
-        let col = char - text.line_to_char(line);
-        Point::new(line, col)
+        return pos;
+        // let start_byte = text.line_to_byte(pos.line().idx()) + pos.col().idx();
+        // let chars = text.dyn_chars_at(start_byte);
+        //
+        // let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
+        //
+        // let mut i = 0;
+        // let mut found_sep = false;
+        // for c in chars {
+        //     if found_sep && !c.is_whitespace() {
+        //         break;
+        //     }
+        //
+        //     if is_sep(c) {
+        //         found_sep = true;
+        //     }
+        //
+        //     i += 1;
+        // }
+        //
+        // let char = start_byte + i;
+        // let line = text.char_to_line(char);
+        // let col = char - text.line_to_char(line);
+        // Point::new(line, col)
     }
 }
 
@@ -64,26 +65,27 @@ pub struct NextToken;
 
 impl Motion for NextToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let chars = text.dyn_chars_at(start_char);
-
-        let mut i = 0;
-        let mut found_whitespace = false;
-        for c in chars {
-            if found_whitespace && !c.is_whitespace() {
-                break;
-            }
-
-            if c.is_whitespace() {
-                found_whitespace = true;
-            }
-
-            i += 1;
-        }
-
-        let char = start_char + i;
-        let line = text.char_to_line(char);
-        let col = char - text.line_to_char(line);
-        Point::new(line, col)
+        return pos;
+        // let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
+        // let chars = text.dyn_chars_at(start_char);
+        //
+        // let mut i = 0;
+        // let mut found_whitespace = false;
+        // for c in chars {
+        //     if found_whitespace && !c.is_whitespace() {
+        //         break;
+        //     }
+        //
+        //     if c.is_whitespace() {
+        //         found_whitespace = true;
+        //     }
+        //
+        //     i += 1;
+        // }
+        //
+        // let char = start_char + i;
+        // let line = text.char_to_line(char);
+        // let col = char - text.line_to_char(line);
+        // Point::new(line, col)
     }
 }

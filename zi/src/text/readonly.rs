@@ -101,16 +101,6 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.as_str().line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.as_str().char_to_line(char_idx)
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.as_str().byte_to_line(byte_idx)
     }
@@ -118,11 +108,6 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_str().line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.as_str().char_to_byte(char_idx)
     }
 
     #[inline]

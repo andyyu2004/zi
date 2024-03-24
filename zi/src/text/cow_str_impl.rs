@@ -57,16 +57,6 @@ impl TextBase for Cow<'_, str> {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.as_ref().line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.as_ref().char_to_line(char_idx)
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.as_ref().byte_to_line(byte_idx)
     }
@@ -74,11 +64,6 @@ impl TextBase for Cow<'_, str> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_ref().line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.as_ref().char_to_byte(char_idx)
     }
 
     #[inline]

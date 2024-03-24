@@ -61,11 +61,6 @@ impl TextBase for str {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        str_lines(self).take(line_idx).map(|l| l.chars().count()).sum()
-    }
-
-    #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         str_lines(self).take(line_idx).map(|l| l.len()).sum()
     }
@@ -81,28 +76,6 @@ impl TextBase for str {
                 true
             })
             .count()
-    }
-
-    #[inline]
-    fn char_to_line(&self, mut char_idx: usize) -> usize {
-        // This should be a real assert, but it's expensive so we just return the last line
-        // debug_assert!(char_idx < self.len_chars(), "char_idx out of bounds: {char_idx}");
-
-        str_lines(self)
-            .take_while(|l| {
-                let n = l.chars().count();
-                if n > char_idx {
-                    return false;
-                }
-                char_idx -= n;
-                true
-            })
-            .count()
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.chars().take(char_idx).map(|c| c.len_utf8()).sum()
     }
 
     #[inline]

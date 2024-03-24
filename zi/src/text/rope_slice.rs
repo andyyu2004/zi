@@ -62,16 +62,6 @@ impl TextBase for RopeSlice<'_> {
     }
 
     #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.char_to_line(char_idx)
-    }
-
-    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.byte_to_line(byte_idx)
     }
@@ -79,11 +69,6 @@ impl TextBase for RopeSlice<'_> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.char_to_byte(char_idx)
     }
 
     #[inline]
