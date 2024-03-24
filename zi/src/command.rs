@@ -80,17 +80,19 @@ fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simp
     //     .map(|text: Vec<Vec<char>>| {
     //         let mut words =
     //             text.into_iter().map(|word| Word::from(word.into_iter().collect::<String>()));
-    //         let cmd = words.next().expect("expect at least 1");
+    //         let cmd = words.next().expect("expect at least 1 word");
     //         let args = words.collect::<Box<_>>();
     //         CommandKind::Generic(cmd, args)
     //     })
 
-    any().repeated().at_least(1).map(|text: Vec<char>| {
+    any().repeated().at_least(1).try_map(|text, span| {
         let s = text.into_iter().collect::<String>();
         let mut words = s.split_whitespace().map(Word::try_from).map(Result::unwrap);
-        let cmd = words.next().expect("expect at least 1");
+        let cmd = words
+            .next()
+            .ok_or_else(|| chumsky::error::Simple::custom(span, "expected at least 1 word"))?;
         let args = words.collect::<Box<_>>();
-        CommandKind::Generic(cmd, args)
+        Ok(CommandKind::Generic(cmd, args))
     })
 }
 
@@ -295,6 +297,18 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
 
                 editor.open_jump_list();
 
+                Ok(())
+            })
+            .into(),
+        },
+        Handler {
+            name: "explore".try_into().unwrap(),
+            arity: Arity::ZERO,
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                editor.open_file_explorer(".");
                 Ok(())
             })
             .into(),

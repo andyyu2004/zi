@@ -29,6 +29,7 @@ fn parse_command() {
                 set x=y
             "#]],
         ),
+        (" \n", expect!["found end of input"]),
     ] {
         match src.parse::<Command>() {
             Ok(cmd) => expect.assert_debug_eq(&cmd),

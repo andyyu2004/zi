@@ -1530,13 +1530,12 @@ fn callback<R: 'static>(
     .expect("send failed");
 }
 
-// pushing this static into the function causes compiler errors
-static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
-
 fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     // Same as `mem::drop` without the lints.
     // Used to avoid needing braces to ignore values.
     fn void<T>(_: T) {}
+
+    static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
     const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
