@@ -19,11 +19,6 @@ impl TextBase for crop::RopeSlice<'_> {
     }
 
     #[inline]
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        todo!()
-    }
-
-    #[inline]
     fn line_to_char(&self, line_idx: usize) -> usize {
         todo!()
     }
@@ -113,11 +108,6 @@ impl TextBase for Rope {
     #[inline]
     fn len_bytes(&self) -> usize {
         self.len_bytes()
-    }
-
-    #[inline]
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        self.get_char(char_idx)
     }
 
     #[inline]

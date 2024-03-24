@@ -37,8 +37,6 @@ pub trait TextBase: fmt::Display {
     fn len_lines(&self) -> usize;
     fn len_bytes(&self) -> usize;
 
-    fn get_char(&self, char_idx: usize) -> Option<char>;
-
     fn line_to_char(&self, line_idx: usize) -> usize;
     fn char_to_line(&self, char_idx: usize) -> usize;
 
@@ -348,11 +346,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
-    }
-
-    #[inline]
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        (**self).get_char(char_idx)
     }
 
     #[inline]

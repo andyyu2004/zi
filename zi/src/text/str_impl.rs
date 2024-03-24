@@ -61,11 +61,6 @@ impl TextBase for str {
     }
 
     #[inline]
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        self.chars().nth(char_idx)
-    }
-
-    #[inline]
     fn line_to_char(&self, line_idx: usize) -> usize {
         str_lines(self).take(line_idx).map(|l| l.chars().count()).sum()
     }

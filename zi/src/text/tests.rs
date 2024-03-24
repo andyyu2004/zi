@@ -33,8 +33,6 @@ fn str_text_impl() {
     assert_eq!("x".len_lines(), 1);
     assert_eq!("\n".len_lines(), 2);
     assert_eq!("\n".get_line(1), Some("".into()));
-    assert_eq!("\n".get_char(0), Some('\n'));
-    assert_eq!("\nx".get_char(1), Some('x'));
     assert_eq!("\nx".char_to_line(0), 0);
     assert_eq!("\nx".char_to_line(1), 1);
     assert_eq!("\n".line_to_char(0), 0);
@@ -62,7 +60,6 @@ proptest! {
             assert_eq!(imp.len_lines(), imp.lines().count());
 
             for b in 0..reference.len_bytes() {
-                assert_eq!(reference.get_char(b), imp.get_char(b), "{s:?}: byte {b}");
                 assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
                 // assert_eq!(reference.byte_to_char(b), imp.byte_to_char(b), "{s:?}: byte {b}");
                 assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");

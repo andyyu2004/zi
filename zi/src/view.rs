@@ -235,7 +235,7 @@ impl View {
 
         // Pretending CRLF doesn't exist.
         // We don't allow the cursor on the newline character.
-        let n: usize = match line.get_char(line_len.saturating_sub(1)) {
+        let n: usize = match line.chars().next_back() {
             Some('\n') => 1,
             _ => 0,
         };
@@ -256,9 +256,11 @@ impl View {
         }
 
         // check column is in-bounds for the line
-        self.cursor.pos = match line.get_char(pos.col().idx()) {
-            // Cursor is in-bounds for the line
-            Some(char) if char != '\n' => pos,
+        self.cursor.pos = match pos.col().idx() {
+            i if line_len > 0 && i == line_len - 1 && &line[i..i + 1] == "\n" => {
+                pos.with_col(max_col)
+            }
+            i if i < line_len => pos,
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),

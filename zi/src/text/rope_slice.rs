@@ -61,10 +61,6 @@ impl TextBase for RopeSlice<'_> {
         self.len_bytes()
     }
 
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        self.get_char(char_idx)
-    }
-
     #[inline]
     fn line_to_char(&self, line_idx: usize) -> usize {
         self.line_to_char(line_idx)
