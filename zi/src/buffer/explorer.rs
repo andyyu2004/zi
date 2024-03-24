@@ -4,6 +4,7 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
+use crate::text::TextBase;
 use crate::{hashmap, trie, Editor, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
@@ -128,7 +129,7 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         let mut rope = Rope::new();
         let n = snapshot.matched_item_count().min(area.height as u32);
         for item in snapshot.matched_items(..n) {
-            rope.insert(rope.len_chars(), &format!("{}\n", item.data));
+            rope.insert(rope.len_bytes(), &format!("{}\n", item.data));
         }
         self.text = rope;
     }

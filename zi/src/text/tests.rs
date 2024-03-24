@@ -7,7 +7,7 @@ use super::*;
 proptest! {
     #[test]
     fn text_chars(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*", steps in vec(bool::ANY, 1..100)) {
-        let reference = Rope::from(s.as_ref());
+        let reference = crop::Rope::from(s.as_ref());
         for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
             let mut chars = reference.chars();
             let mut imp_chars = imp.chars();
@@ -16,7 +16,7 @@ proptest! {
                 if step {
                     assert_eq!(chars.next(), imp_chars.next());
                 } else {
-                    assert_eq!(chars.prev(), imp_chars.next_back());
+                    assert_eq!(chars.next_back(), imp_chars.next_back());
                 }
             }
 
@@ -28,10 +28,10 @@ proptest! {
 #[test]
 fn str_text_impl() {
     assert_eq!("".len_lines(), 1);
-    assert_eq!("".get_line(0), Some("".into()));
+    assert_eq!("".get_line(0), Some(""));
     assert_eq!("x".len_lines(), 1);
     assert_eq!("\n".len_lines(), 2);
-    assert_eq!("\n".get_line(1), Some("".into()));
+    assert_eq!("\n".get_line(1), Some(""));
 }
 
 proptest! {
@@ -41,7 +41,7 @@ proptest! {
     fn text_impls(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*") {
         // Test against the rope implementation as that one is probably correct
 
-        let rope = Rope::from(s.as_ref());
+        let rope = crop::Rope::from(s.as_ref());
         let reference = &rope as &dyn AnyText;
 
         for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {

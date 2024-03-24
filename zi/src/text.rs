@@ -9,8 +9,6 @@ use std::borrow::Cow;
 use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
-use ropey::Rope;
-
 pub use self::delta::{Delta, DeltaRange};
 pub use self::readonly::ReadonlyText;
 use crate::{Line, Point, Range};
@@ -178,22 +176,16 @@ impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
     }
 }
 
-impl Text for &dyn AnyText {
+impl Text for dyn AnyText + '_ {
     type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
     where
         Self: 'a;
 
-    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>,
-    {
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.dyn_line_slice((line_range.start_bound().cloned(), line_range.end_bound().cloned()))
     }
 
-    fn byte_slice<R>(&self, byte_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>,
-    {
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.dyn_byte_slice((byte_range.start_bound().cloned(), byte_range.end_bound().cloned()))
     }
 
@@ -301,13 +293,9 @@ pub trait Text: TextBase {
     where
         Self: 'a;
 
-    fn byte_slice<R>(&self, byte_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>;
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_>;
 
-    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>;
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_>;
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char>;
 
@@ -418,15 +406,12 @@ impl<T: Text + ?Sized> Text for &T {
     type Slice<'a> = T::Slice<'a> where Self: 'a;
 
     #[inline]
-    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         (**self).byte_slice(byte_range)
     }
 
     #[inline]
-    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>,
-    {
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         (**self).line_slice(line_range)
     }
 

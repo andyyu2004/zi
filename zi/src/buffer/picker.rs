@@ -222,7 +222,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
     fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         TextMut::edit(&mut self.text, delta)?;
 
-        let search = Cow::from(&self.text);
+        let search = self.text.to_string();
         tracing::debug!(%search, "update picker search pattern");
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
 

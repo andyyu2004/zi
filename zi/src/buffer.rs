@@ -3,11 +3,10 @@ mod picker;
 mod text;
 
 use std::any::Any;
-use std::borrow::Cow;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use ropey::Rope;
+use crop::Rope;
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 

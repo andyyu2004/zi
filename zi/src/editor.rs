@@ -15,7 +15,6 @@ use std::{fmt, io};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
-use ropey::Rope;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::PathExt;
@@ -271,7 +270,7 @@ impl Editor {
                 BufferFlags::empty(),
                 FileType::TEXT,
                 "scratch",
-                Rope::new(),
+                crop::Rope::new(),
                 &theme,
             )
             .boxed()
@@ -351,9 +350,9 @@ impl Editor {
                 && !open_flags.contains(OpenFlags::READONLY)
             {
                 let rope = if path.exists() {
-                    Rope::from_reader(BufReader::new(File::open(&path)?))?
+                    rope_from_reader(File::open(&path)?)?
                 } else {
-                    Rope::new()
+                    crop::Rope::new()
                 };
 
                 let buf = TextBuffer::new(
@@ -386,9 +385,9 @@ impl Editor {
                     .boxed()
                 } else {
                     let rope = if path.exists() {
-                        Rope::from_reader(BufReader::new(File::open(&path)?))?
+                        rope_from_reader(File::open(&path)?)?
                     } else {
-                        Rope::new()
+                        crop::Rope::new()
                     };
                     TextBuffer::new(
                         id,
@@ -1165,7 +1164,7 @@ impl Editor {
                 BufferFlags::empty(),
                 FileType::TEXT,
                 path,
-                Rope::new(),
+                crop::Rope::new(),
                 &self.theme,
             )
             .boxed()
@@ -1514,6 +1513,27 @@ impl Editor {
 
         Debug { view, buf }
     }
+}
+
+fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
+    use std::io::BufRead;
+
+    let mut reader = BufReader::new(reader);
+    let mut builder = crop::RopeBuilder::new();
+
+    loop {
+        let buf = reader.fill_buf()?;
+        if buf.is_empty() {
+            break;
+        }
+
+        let s = std::str::from_utf8(buf).map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("invalid utf-8: {err}"))
+        })?;
+        builder.append(s);
+    }
+
+    Ok(builder.build())
 }
 
 fn callback<R: 'static>(

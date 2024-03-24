@@ -84,7 +84,7 @@ fn test_delta_to_ts_edit() {
             "©",
         ),
     ] {
-        let mut rope = Rope::from(text);
+        let mut rope = crop::Rope::from(text);
         let actual = delta_to_ts_edit(&mut rope, delta).unwrap();
         assert_eq!(actual, input);
         assert_eq!(rope.to_string(), expected);

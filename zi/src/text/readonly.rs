@@ -53,14 +53,11 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     type Slice<'a> = &'a str where Self: 'a;
 
-    fn byte_slice<R: ops::RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+    fn byte_slice(&self, byte_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
         self.as_str().byte_slice(byte_range)
     }
 
-    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
-    where
-        R: ops::RangeBounds<usize>,
-    {
+    fn line_slice(&self, line_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
         self.as_str().line_slice(line_range)
     }
 

@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::text::{self, Text as _, TextBase as _, TextSlice};
+use crate::text::{self, Text as _, TextSlice};
 use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {

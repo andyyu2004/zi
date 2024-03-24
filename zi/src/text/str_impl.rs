@@ -24,15 +24,15 @@ impl<'a> TextSlice<'a> for &'a str {
     }
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
-        str::chars(*self)
+        str::chars(self)
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        str::lines(*self)
+        str::lines(self)
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
-        str::lines(*self).nth(line_idx)
+        str::lines(self).nth(line_idx)
     }
 
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
@@ -43,14 +43,11 @@ impl<'a> TextSlice<'a> for &'a str {
 impl Text for str {
     type Slice<'a> = &'a str;
 
-    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         &self[(byte_range.start_bound().cloned(), byte_range.end_bound().cloned())]
     }
 
-    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
-    where
-        R: RangeBounds<usize>,
-    {
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         let start = line_range.start_bound().map(|&l| self.line_to_byte(l));
         let end = line_range.end_bound().map(|&l| self.line_to_byte(l));
         self.byte_slice((start, end))
