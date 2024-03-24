@@ -254,7 +254,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
                 writeln!(s, "{item}")?;
             }
 
-            editor.edit(display_view, &Delta::new(0..text.len_chars(), s)).unwrap();
+            editor.edit(display_view, &Delta::new(0..text.len_bytes(), s)).unwrap();
             Ok(())
         });
     }

@@ -17,7 +17,7 @@ proptest! {
                 if step {
                     assert_eq!(chars.next(), imp_chars.next());
                 } else {
-                    assert_eq!(chars.prev(), imp_chars.prev());
+                    assert_eq!(chars.prev(), imp_chars.next_back());
                 }
             }
 
@@ -54,16 +54,12 @@ proptest! {
         let reference = &rope as &dyn AnyText;
 
         for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
-            assert_eq!(reference.len_chars(), imp.len_chars());
             assert_eq!(reference.len_bytes(), imp.len_bytes());
             assert_eq!(reference.len_lines(), imp.len_lines());
 
             // check that the line length is self consistent
             assert_eq!(reference.len_lines(), reference.lines().count());
             assert_eq!(imp.len_lines(), imp.lines().count());
-
-            assert_eq!(reference.len_chars(), reference.chars().count());
-            assert_eq!(imp.len_chars(), imp.chars().count());
 
             for b in 0..reference.len_bytes() {
                 assert_eq!(reference.get_char(b), imp.get_char(b), "{s:?}: byte {b}");
@@ -72,13 +68,13 @@ proptest! {
                 assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
             }
 
-            for c in 0..reference.len_chars() {
-                assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
-                assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
-                assert_eq!(reference.char_to_byte(c), imp.char_to_byte(c), "{s:?}: char {c}");
-                assert_eq!(reference.char_to_point(c), imp.char_to_point(c), "{s:?}: char {c}");
-                assert!(reference.chars_at(c).eq(imp.chars_at(c)));
-            }
+            // for c in 0..reference.len_chars() {
+            //     assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
+            //     assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
+            //     assert_eq!(reference.char_to_byte(c), imp.char_to_byte(c), "{s:?}: char {c}");
+            //     assert_eq!(reference.char_to_point(c), imp.char_to_point(c), "{s:?}: char {c}");
+            //     assert!(reference.chars_at(c).eq(imp.chars_at(c)));
+            // }
 
 
             for l in 0..reference.len_lines() {

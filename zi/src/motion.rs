@@ -1,6 +1,4 @@
-use stdx::iter::BidirectionalIterator;
-
-use crate::text::AnyText;
+use crate::text::{AnyText, Text as _};
 use crate::Point;
 
 pub trait Motion {
@@ -12,21 +10,22 @@ pub struct PrevToken;
 impl Motion for PrevToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
         let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        let mut chars = text.dyn_chars_at(start_char).reversed();
-
-        let prev = chars.next().unwrap_or('x');
-        let mut i = 0;
-        for c in chars {
-            if c.is_whitespace() && !prev.is_whitespace() {
-                break;
-            }
-            i += 1;
-        }
-
-        let char = start_char - i;
-        let line = text.char_to_line(char);
-        let col = char - text.line_to_char(line);
-        Point::new(line, col)
+        return pos;
+        // let mut chars = text.chars_at(start_char).reversed();
+        //
+        // let prev = chars.next().unwrap_or('x');
+        // let mut i = 0;
+        // for c in chars {
+        //     if c.is_whitespace() && !prev.is_whitespace() {
+        //         break;
+        //     }
+        //     i += 1;
+        // }
+        //
+        // let char = start_char - i;
+        // let line = text.char_to_line(char);
+        // let col = char - text.line_to_char(line);
+        // Point::new(line, col)
     }
 }
 

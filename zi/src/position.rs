@@ -479,7 +479,7 @@ impl Line {
     }
 }
 
-/// 1-based column index in characters (not bytes)
+/// 0-based column index in bytes
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Col(u32);
 

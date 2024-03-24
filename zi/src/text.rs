@@ -10,7 +10,6 @@ use std::ops::RangeBounds;
 use std::{fmt, iter, ops};
 
 use ropey::Rope;
-use stdx::iter::BidirectionalIterator;
 
 pub use self::delta::{Delta, DeltaRange};
 pub use self::readonly::ReadonlyText;
@@ -36,7 +35,6 @@ pub trait TextBase: fmt::Display {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut>;
 
     fn len_lines(&self) -> usize;
-    fn len_chars(&self) -> usize;
     fn len_bytes(&self) -> usize;
 
     fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>>;
@@ -81,7 +79,7 @@ pub trait TextBase: fmt::Display {
     fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
         match delta.range() {
             DeltaRange::Point(p) => p,
-            DeltaRange::Char(range) => {
+            DeltaRange::Byte(range) => {
                 Range::new(self.char_to_point(range.start), self.char_to_point(range.end))
             }
         }
@@ -91,7 +89,7 @@ pub trait TextBase: fmt::Display {
     fn delta_to_char_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
         match delta.range() {
             DeltaRange::Point(range) => self.point_range_to_char_range(range),
-            DeltaRange::Char(range) => range,
+            DeltaRange::Byte(range) => range,
         }
     }
 
@@ -99,7 +97,7 @@ pub trait TextBase: fmt::Display {
     fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
         match delta.range() {
             DeltaRange::Point(range) => self.point_range_to_byte_range(range),
-            DeltaRange::Char(range) => self.char_range_to_byte_range(range),
+            DeltaRange::Byte(range) => self.char_range_to_byte_range(range),
         }
     }
 
@@ -149,9 +147,9 @@ pub trait AnyText: TextBase + fmt::Display {
         &self,
         line_idx: usize,
     ) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
-    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
 
-    fn dyn_chars(&self) -> Box<dyn BidirectionalIterator<Item = char> + '_>;
+    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
     fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
 
     fn dyn_chunks_in_byte_range(
@@ -168,11 +166,11 @@ impl<T: Text> AnyText for T {
         Box::new(<T as Text>::lines_at(self, line_idx).map(|s| Box::new(s) as _))
     }
 
-    fn dyn_chars(&self) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
+    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_> {
         Box::new(<T as Text>::chars(self))
     }
 
-    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn BidirectionalIterator<Item = char> + '_> {
+    fn dyn_chars_at(&self, char_idx: usize) -> Box<dyn DoubleEndedIterator<Item = char> + '_> {
         Box::new(<T as Text>::chars_at(self, char_idx))
     }
 
@@ -198,11 +196,11 @@ pub trait Text: TextBase {
         Self: 'a;
 
     fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>>;
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char>;
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char>;
 
     fn chunks_in_byte_range(&self, byte_range: ops::Range<usize>) -> impl Iterator<Item = &str>;
 
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> + '_;
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_;
 
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>>;
 
@@ -243,7 +241,7 @@ where
     let mut annotations = annotations.into_iter().peekable();
     iter::from_coroutine(move || {
         for (i, line) in lines.enumerate() {
-            let line_len_chars = line.len_chars();
+            let line_len_bytes = line.len_bytes();
 
             let line_idx = Line::from(i);
             let mut j = 0;
@@ -261,7 +259,7 @@ where
                     // line (without next()ing the highlight iterator)
                     yield (line_idx, line.as_cow(), Some(annotation));
                     // set `j` here so we don't try to highlight the same range again
-                    j = line_len_chars;
+                    j = line_len_bytes;
                     break;
                 }
 
@@ -269,7 +267,7 @@ where
                 let end_col = if range.end().line().idx() == i {
                     range.end().col().idx()
                 } else {
-                    line_len_chars
+                    line_len_bytes
                 };
 
                 if start_col < j {
@@ -281,7 +279,7 @@ where
                     yield (line_idx, slice(&line, j..start_col), None)
                 }
 
-                if end_col >= line_len_chars {
+                if end_col >= line_len_bytes {
                     // We're allowed to annotate places with no text, so the range end might be out of bounds
                     // In which case, we add another span with the remaining space.
 
@@ -291,7 +289,7 @@ where
                     yield (line_idx, slice(&line, start_col..), Some(annotation));
                     yield (
                         line_idx,
-                        format!("{:width$}", "", width = end_col - line_len_chars).into(),
+                        format!("{:width$}", "", width = end_col - line_len_bytes).into(),
                         Some(annotation),
                     )
                 } else {
@@ -302,7 +300,7 @@ where
             }
 
             // Add in a span for the rest of the line that wasn't annotated
-            if j < line_len_chars {
+            if j < line_len_bytes {
                 yield (line_idx, slice(&line, j..), None);
             }
         }
@@ -321,12 +319,12 @@ impl<T: Text + ?Sized> Text for &T {
     }
 
     #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
         (**self).chars_at(char_idx)
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         (**self).chars()
     }
 
@@ -350,11 +348,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        (**self).len_chars()
     }
 
     #[inline]
@@ -418,7 +411,7 @@ impl Text for dyn AnyText + '_ {
         self.dyn_lines_at(line_idx).map(|s| s.into_cow())
     }
 
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
         self.dyn_chars_at(char_idx)
     }
 
@@ -426,7 +419,7 @@ impl Text for dyn AnyText + '_ {
         self.dyn_chunks_in_byte_range(byte_range)
     }
 
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> + '_ {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_ {
         self.dyn_chars()
     }
 

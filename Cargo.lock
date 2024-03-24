@@ -597,6 +597,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crop"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0c36a21e864b7accff2cf3bef09af553704556ff2fb704ebee242bfc5c89f10"
+dependencies = [
+ "str_indices",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1993,9 +2003,6 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stdx"
 version = "0.1.0"
-dependencies = [
- "ropey",
-]
 
 [[package]]
 name = "str_indices"
@@ -3134,6 +3141,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.5.0",
  "chumsky",
+ "crop",
  "crossterm",
  "directories-next",
  "duct",

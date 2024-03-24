@@ -7,7 +7,6 @@ use std::sync::OnceLock;
 use std::{io, str};
 
 use memmap2::{Mmap, MmapOptions};
-use stdx::iter::BidirectionalIterator;
 
 use crate::text::{AnyTextMut, Text, TextBase};
 
@@ -15,13 +14,12 @@ use crate::text::{AnyTextMut, Text, TextBase};
 pub struct ReadonlyText<B> {
     buf: B,
     len_lines: OnceLock<usize>,
-    len_chars: OnceLock<usize>,
 }
 
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
-        Self { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() }
+        Self { buf, len_lines: OnceLock::new() }
     }
 
     #[inline]
@@ -42,7 +40,7 @@ impl ReadonlyText<Mmap> {
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };
-        Ok(ReadonlyText { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() })
+        Ok(ReadonlyText { buf, len_lines: OnceLock::new() })
     }
 }
 
@@ -66,12 +64,12 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_str())
     }
 
     #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
         self.as_str().chars_at(char_idx)
     }
 
@@ -90,11 +88,6 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn len_lines(&self) -> usize {
         *self.len_lines.get_or_init(|| self.as_str().len_lines())
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        *self.len_chars.get_or_init(|| self.as_str().len_chars())
     }
 
     #[inline]

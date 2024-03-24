@@ -98,7 +98,7 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
                         let end = if idx == range.end_point.row {
                             range.end_point.column
                         } else {
-                            self.text.line(idx).len_chars()
+                            self.text.line(idx).len_bytes()
                         };
                         (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
                     })
@@ -152,7 +152,7 @@ impl<X: AnyText> TextBuffer<X> {
 
         // ensure the buffer ends with a newline
         if let Some(text) = text.as_text_mut() {
-            let idx = text.len_chars();
+            let idx = text.len_bytes();
             if text.get_char(idx.saturating_sub(1)) != Some('\n') {
                 text.edit(&Delta::insert_at(idx, "\n")).unwrap();
             }

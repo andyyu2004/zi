@@ -20,12 +20,12 @@ impl Text for Cow<'_, str> {
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_ref())
     }
 
     #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
         self.as_ref().chars_at(char_idx)
     }
 
@@ -44,11 +44,6 @@ impl TextBase for Cow<'_, str> {
     #[inline]
     fn len_lines(&self) -> usize {
         self.as_ref().len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        self.as_ref().len_chars()
     }
 
     #[inline]

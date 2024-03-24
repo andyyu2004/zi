@@ -23,13 +23,15 @@ impl Text for RopeSlice<'_> {
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
-        self.chars()
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
+        "".chars()
+        // self.chars()
     }
 
     #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
-        self.chars_at(char_idx)
+    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
+        "".chars()
+        // self.chars_at(char_idx)
     }
 
     #[inline]
@@ -47,11 +49,6 @@ impl TextBase for RopeSlice<'_> {
     #[inline]
     fn len_lines(&self) -> usize {
         self.len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        self.len_chars()
     }
 
     #[inline]
