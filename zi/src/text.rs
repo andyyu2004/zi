@@ -37,7 +37,6 @@ pub trait TextBase: fmt::Display {
     fn len_lines(&self) -> usize;
     fn len_bytes(&self) -> usize;
 
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>>;
     fn get_char(&self, char_idx: usize) -> Option<char>;
 
     fn line_to_char(&self, line_idx: usize) -> usize;
@@ -53,13 +52,6 @@ pub trait TextBase: fmt::Display {
     #[inline]
     fn is_empty(&self) -> bool {
         self.len_bytes() == 0
-    }
-
-    #[inline]
-    fn line(&self, line: usize) -> Cow<'_, str> {
-        self.get_line(line).unwrap_or_else(|| {
-            panic!("line out of bounds: {line}");
-        })
     }
 
     #[inline]
@@ -99,11 +91,6 @@ pub trait TextBase: fmt::Display {
             DeltaRange::Point(range) => self.point_range_to_byte_range(range),
             DeltaRange::Byte(range) => self.char_range_to_byte_range(range),
         }
-    }
-
-    #[inline]
-    fn line_in_bounds(&self, line: usize) -> bool {
-        self.get_line(line).is_some()
     }
 
     #[inline]
@@ -152,6 +139,8 @@ pub trait AnyText: TextBase + fmt::Display {
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
     fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
 
+    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
+
     fn dyn_chunks_in_byte_range(
         &self,
         range: ops::Range<usize>,
@@ -176,6 +165,10 @@ impl<T: Text> AnyText for T {
 
     fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
         Box::new(<T as Text>::lines(self).map(|s| Box::new(s) as _))
+    }
+
+    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
+        <T as Text>::get_line(self, line_idx).map(move |s| Box::new(s) as _)
     }
 
     fn dyn_chunks_in_byte_range(
@@ -203,6 +196,8 @@ pub trait Text: TextBase {
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_;
 
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>>;
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
     fn annotate<'a, T: Copy>(
         &'a self,
@@ -337,6 +332,11 @@ impl<T: Text + ?Sized> Text for &T {
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         (**self).lines()
     }
+
+    #[inline]
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        (**self).get_line(line_idx)
+    }
 }
 
 impl<T: TextBase + ?Sized> TextBase for &T {
@@ -348,11 +348,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        (**self).get_line(line_idx)
     }
 
     #[inline]
@@ -394,11 +389,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
         None
     }
-
-    #[inline]
-    fn line(&self, line: usize) -> Cow<'_, str> {
-        (**self).line(line)
-    }
 }
 
 impl Text for dyn AnyText + '_ {
@@ -425,6 +415,10 @@ impl Text for dyn AnyText + '_ {
 
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         self.dyn_lines().map(|s| s.into_cow())
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.dyn_get_line(line_idx).map(|s| s.into_cow())
     }
 }
 

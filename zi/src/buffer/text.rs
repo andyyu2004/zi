@@ -1,5 +1,5 @@
 use super::*;
-use crate::text::TextBase as _;
+use crate::text::Text;
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -18,7 +18,7 @@ pub struct TextBuffer<X> {
     tab_width: u8,
 }
 
-impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
+impl<X: Text + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id
@@ -98,7 +98,7 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
                         let end = if idx == range.end_point.row {
                             range.end_point.column
                         } else {
-                            self.text.line(idx).len_bytes()
+                            self.text.dyn_get_line(idx).unwrap().len_bytes()
                         };
                         (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
                     })

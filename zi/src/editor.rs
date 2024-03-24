@@ -36,7 +36,7 @@ use crate::motion::{self, Motion};
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::Theme;
-use crate::text::{Delta, ReadonlyText};
+use crate::text::{Delta, ReadonlyText, Text as _};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
@@ -865,14 +865,14 @@ impl Editor {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        text.line(cursor.line().idx())
+        text.get_line(cursor.line().idx()).unwrap()
     }
 
     pub fn current_char(&self) -> char {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        text.line(cursor.line().idx()).chars().nth(cursor.col().idx()).unwrap()
+        text.get_line(cursor.line().idx()).unwrap().chars().nth(cursor.col().idx()).unwrap()
     }
 
     pub fn theme(&self) -> &Theme {

@@ -2,6 +2,58 @@ use ropey::RopeSlice;
 
 use super::*;
 
+impl TextBase for crop::RopeSlice<'_> {
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
+        None
+    }
+
+    #[inline]
+    fn len_lines(&self) -> usize {
+        self.line_len()
+    }
+
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        self.byte_len()
+    }
+
+    #[inline]
+    fn get_char(&self, char_idx: usize) -> Option<char> {
+        todo!()
+    }
+
+    #[inline]
+    fn line_to_char(&self, line_idx: usize) -> usize {
+        todo!()
+    }
+
+    #[inline]
+    fn char_to_line(&self, char_idx: usize) -> usize {
+        todo!()
+    }
+
+    #[inline]
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        todo!()
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        todo!()
+    }
+
+    #[inline]
+    fn char_to_byte(&self, char_idx: usize) -> usize {
+        todo!()
+    }
+
+    #[inline]
+    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
+        todo!()
+    }
+}
+
 impl TextMut for Rope {
     #[inline]
     fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
@@ -18,6 +70,10 @@ impl Text for Rope {
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         self.lines()
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.get_line(line_idx)
     }
 
     #[inline]
@@ -60,10 +116,6 @@ impl TextBase for Rope {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.get_line(line_idx).map(Into::into)
-    }
-
     fn get_char(&self, char_idx: usize) -> Option<char> {
         self.get_char(char_idx)
     }

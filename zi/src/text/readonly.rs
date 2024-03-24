@@ -64,6 +64,11 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 
     #[inline]
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_str().get_line(line_idx)
+    }
+
+    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_str())
     }
@@ -93,11 +98,6 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn len_bytes(&self) -> usize {
         self.buf.len()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.as_str().get_line(line_idx)
     }
 
     #[inline]

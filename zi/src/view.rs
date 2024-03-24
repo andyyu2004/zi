@@ -154,7 +154,7 @@ impl View {
         );
 
         let line_idx = self.cursor.pos.line().idx();
-        let line = buf.text().line(line_idx);
+        let line = buf.text().get_line(line_idx).unwrap();
         let byte = line
             .chars()
             .take(self.cursor.pos.col().idx())
@@ -219,12 +219,12 @@ impl View {
         let mut line_idx = pos.line().idx();
         let line = match text.get_line(line_idx) {
             // Disallow putting cursor on the final empty line.
-            // Note we're using `line_in_bounds` instead of `line_idx < text.len_lines() - 1`
+            // Note we're using `get_line(idx).is_some()` instead of `line_idx < text.len_lines() - 1`
             // `line_in_bounds` is `O(line_idx)` and `len_lines` can be `O(n)`.
-            Some(line) if line != "" || text.line_in_bounds(line_idx + 2) => line,
+            Some(line) if line != "" || text.get_line(line_idx + 2).is_some() => line,
             _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
                 line_idx = text.len_lines().saturating_sub(2);
-                text.line(line_idx)
+                text.get_line(line_idx).unwrap()
             }
             _ => return self.cursor.pos,
         };

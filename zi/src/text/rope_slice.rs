@@ -38,6 +38,11 @@ impl Text for RopeSlice<'_> {
     fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
         self.byte_slice(range).chunks()
     }
+
+    #[inline]
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.get_line(line_idx)
+    }
 }
 
 impl TextBase for RopeSlice<'_> {
@@ -54,11 +59,6 @@ impl TextBase for RopeSlice<'_> {
     #[inline]
     fn len_bytes(&self) -> usize {
         self.len_bytes()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.get_line(line_idx).map(Into::into)
     }
 
     fn get_char(&self, char_idx: usize) -> Option<char> {

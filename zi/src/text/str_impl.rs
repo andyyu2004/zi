@@ -40,6 +40,11 @@ impl Text for str {
     fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
         iter::once(&self[range])
     }
+
+    #[inline]
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        str_lines(self).nth(line_idx)
+    }
 }
 
 /// Naive implementation of [`LazyText`] for `str`.
@@ -53,11 +58,6 @@ impl TextBase for str {
     #[inline]
     fn len_lines(&self) -> usize {
         1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        str_lines(self).nth(line_idx)
     }
 
     #[inline]

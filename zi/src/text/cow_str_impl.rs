@@ -30,6 +30,11 @@ impl Text for Cow<'_, str> {
     }
 
     #[inline]
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_ref().get_line(line_idx)
+    }
+
+    #[inline]
     fn chunks_in_byte_range(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = &str> {
         self.as_ref().chunks_in_byte_range(range)
     }
@@ -49,11 +54,6 @@ impl TextBase for Cow<'_, str> {
     #[inline]
     fn len_bytes(&self) -> usize {
         self.as_ref().len_bytes()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.as_ref().get_line(line_idx)
     }
 
     #[inline]
