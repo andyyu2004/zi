@@ -3,26 +3,29 @@ use ropey::RopeSlice;
 use super::*;
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
-    fn as_cow(&self) -> Cow<'a, str> {
-        self.to_string().into()
+    fn to_cow(&self) -> Cow<'a, str> {
+        let mut chunks = self.chunks();
+        let fst = chunks.next().expect("RopeSlice is empty");
+        match chunks.next() {
+            Some(_) => Cow::Owned(self.to_string()),
+            None => Cow::Borrowed(fst),
+        }
     }
-}
 
-impl Text for crop::RopeSlice<'_> {
-    type Slice<'a> = crop::RopeSlice<'a>
-    where
-        Self: 'a;
+    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        self.byte_slice(byte_range)
+    }
 
-    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_ {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
         self.chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> + '_ {
+    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
         self.lines()
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        todo!()
+    fn get_line(&self, line_idx: usize) -> Option<Self> {
+        if line_idx < self.len_lines() { Some(self.line(line_idx)) } else { None }
     }
 }
 
@@ -66,11 +69,25 @@ impl TextMut for Rope {
 impl Text for Rope {
     type Slice<'a> = RopeSlice<'a>;
 
+    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+        self.slice(byte_range)
+    }
+
+    #[inline]
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        // TODO will remove this
+        self.byte_slice(line_range)
+    }
+
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         self.lines()
     }
 
+    #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         self.get_line(line_idx)
     }
@@ -106,11 +123,5 @@ impl TextBase for Rope {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        let (chunk, start_byte, _, _) = self.chunk_at_byte(byte_idx);
-        &chunk[byte_idx - start_byte..]
     }
 }

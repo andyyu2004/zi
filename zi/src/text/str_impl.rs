@@ -7,18 +7,46 @@ fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
 }
 
 impl<'a> TextSlice<'a> for &'a str {
-    #[inline]
-    fn as_cow(&self) -> Cow<'a, str> {
+    fn to_cow(&self) -> Cow<'a, str> {
         Cow::Borrowed(*self)
+    }
+
+    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        &self[(byte_range.start_bound().cloned(), byte_range.end_bound().cloned())]
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
+        str::chars(*self)
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+        str::lines(*self)
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self> {
+        str::lines(*self).nth(line_idx)
     }
 }
 
 impl Text for str {
-    type Slice<'a> = Cow<'a, str>;
+    type Slice<'a> = &'a str;
+
+    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+        &self[(byte_range.start_bound().cloned(), byte_range.end_bound().cloned())]
+    }
+
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start = line_range.start_bound().map(|&l| self.line_to_byte(l));
+        let end = line_range.end_bound().map(|&l| self.line_to_byte(l));
+        self.byte_slice((start, end))
+    }
 
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
-        str_lines(self)
+        self.lines()
     }
 
     #[inline]
@@ -28,7 +56,7 @@ impl Text for str {
 
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        str_lines(self).nth(line_idx)
+        self.lines().nth(line_idx)
     }
 }
 
@@ -61,11 +89,6 @@ impl TextBase for str {
                 true
             })
             .count()
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        &self[byte_idx..]
     }
 
     #[inline]

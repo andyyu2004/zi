@@ -3,14 +3,41 @@ use ropey::RopeSlice;
 use super::*;
 
 impl<'a> TextSlice<'a> for RopeSlice<'a> {
-    #[inline]
-    fn as_cow(&self) -> Cow<'a, str> {
+    fn to_cow(&self) -> Cow<'a, str> {
         (*self).into()
+    }
+
+    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        self.byte_slice(byte_range)
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
+        "".chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+        self.lines()
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self> {
+        self.get_line(line_idx)
     }
 }
 
 impl Text for RopeSlice<'_> {
     type Slice<'a> = RopeSlice<'a> where Self: 'a;
+
+    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+        self.slice(byte_range)
+    }
+
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        // TODO will remove this
+        self.byte_slice(line_range)
+    }
 
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
@@ -53,11 +80,5 @@ impl TextBase for RopeSlice<'_> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        let (chunk, start_byte, _, _) = self.chunk_at_byte(byte_idx);
-        &chunk[byte_idx - start_byte..]
     }
 }

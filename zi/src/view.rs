@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::text::{self, Text as _, TextBase as _};
+use crate::text::{self, Text as _, TextBase as _, TextSlice};
 use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
@@ -154,7 +154,8 @@ impl View {
         );
 
         let line_idx = self.cursor.pos.line().idx();
-        let line = buf.text().get_line(line_idx).unwrap();
+        let text = buf.text();
+        let line = text.get_line(line_idx).unwrap();
         let byte = line
             .chars()
             .take(self.cursor.pos.col().idx())
@@ -221,7 +222,7 @@ impl View {
             // Disallow putting cursor on the final empty line.
             // Note we're using `get_line(idx).is_some()` instead of `line_idx < text.len_lines() - 1`
             // `line_in_bounds` is `O(line_idx)` and `len_lines` can be `O(n)`.
-            Some(line) if line != "" || text.get_line(line_idx + 2).is_some() => line,
+            Some(line) if line.to_cow() != "" || text.get_line(line_idx + 2).is_some() => line,
             _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
                 line_idx = text.len_lines().saturating_sub(2);
                 text.get_line(line_idx).unwrap()
@@ -257,9 +258,6 @@ impl View {
 
         // check column is in-bounds for the line
         self.cursor.pos = match pos.col().idx() {
-            i if line_len > 0 && i == line_len - 1 && &line[i..i + 1] == "\n" => {
-                pos.with_col(max_col)
-            }
             i if i < line_len => pos,
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
@@ -407,7 +405,8 @@ impl View {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let lines = buf.text().lines_at(line);
+        let text = buf.text();
+        let lines = text.line_slice(line..).lines();
         let chunks = text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(

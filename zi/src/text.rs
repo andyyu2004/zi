@@ -6,7 +6,7 @@ mod rope_slice;
 mod str_impl;
 
 use std::borrow::Cow;
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 use std::slice::SliceIndex;
 use std::{fmt, iter, ops};
 
@@ -81,39 +81,157 @@ pub trait TextBase: fmt::Display {
     }
 }
 
-pub trait AnyTextSlice<'a>: AnyText {
-    fn into_cow(self: Box<Self>) -> Cow<'a, str>;
+impl<T: TextBase + ?Sized> TextBase for Box<T> {
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
+        (**self).as_text_mut()
+    }
+
+    #[inline]
+    fn len_lines(&self) -> usize {
+        (**self).len_lines()
+    }
+
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        (**self).len_bytes()
+    }
+
+    #[inline]
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        (**self).byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        (**self).line_to_byte(line_idx)
+    }
 }
 
-impl<'a, T: TextSlice<'a>> AnyTextSlice<'a> for T {
-    fn into_cow(self: Box<Self>) -> Cow<'a, str> {
-        (*self).as_cow()
-    }
+pub trait AnyTextSlice<'a>: TextBase {
+    fn dyn_to_cow(&self) -> Cow<'a, str>;
+    fn dyn_slice(&self, byte_range: (Bound<usize>, Bound<usize>))
+    -> Box<dyn AnyTextSlice<'a> + 'a>;
+    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + 'a>;
+    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a>;
+    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>>;
 }
 
 pub trait AnyText: TextBase + fmt::Display {
+    fn dyn_byte_slice(
+        &self,
+        byte_range: (Bound<usize>, Bound<usize>),
+    ) -> Box<dyn AnyTextSlice<'_> + '_>;
+
+    fn dyn_line_slice(
+        &self,
+        line_range: (Bound<usize>, Bound<usize>),
+    ) -> Box<dyn AnyTextSlice<'_> + '_>;
+
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
     fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
-
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
 }
 
-impl<T: Text> AnyText for T {
-    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_> {
-        Box::new(<T as Text>::chars(self))
+impl Text for &dyn AnyText {
+    type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
+    where
+        Self: 'a;
+
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        self.dyn_line_slice((line_range.start_bound().cloned(), line_range.end_bound().cloned()))
     }
 
-    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
-        Box::new(<T as Text>::lines(self).map(|s| Box::new(s) as _))
+    fn byte_slice<R>(&self, byte_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        self.dyn_byte_slice((byte_range.start_bound().cloned(), byte_range.end_bound().cloned()))
     }
 
-    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
-        <T as Text>::get_line(self, line_idx).map(move |s| Box::new(s) as _)
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.dyn_get_line(line_idx)
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
+        self.dyn_chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+        self.dyn_lines()
     }
 }
 
-pub trait TextSlice<'a>: Text {
-    fn as_cow(&self) -> Cow<'a, str>;
+impl<T: Text + ?Sized> AnyText for T {
+    fn dyn_byte_slice(
+        &self,
+        byte_range: (Bound<usize>, Bound<usize>),
+    ) -> Box<dyn AnyTextSlice<'_> + '_> {
+        Box::new(self.byte_slice(byte_range))
+    }
+
+    fn dyn_line_slice(
+        &self,
+        line_range: (Bound<usize>, Bound<usize>),
+    ) -> Box<dyn AnyTextSlice<'_> + '_> {
+        Box::new(self.line_slice(line_range))
+    }
+
+    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_> {
+        Box::new(self.chars())
+    }
+
+    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
+        Box::new(self.lines().map(|s| Box::new(s) as _))
+    }
+
+    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
+        self.get_line(line_idx).map(|s| Box::new(s) as _)
+    }
+}
+
+impl<'a, T> AnyTextSlice<'a> for T
+where
+    T: TextSlice<'a> + 'a,
+{
+    fn dyn_to_cow(&self) -> Cow<'a, str> {
+        <T as TextSlice<'a>>::to_cow(self)
+    }
+
+    fn dyn_slice(
+        &self,
+        byte_range: (Bound<usize>, Bound<usize>),
+    ) -> Box<dyn AnyTextSlice<'a> + 'a> {
+        Box::new(<T as TextSlice<'a>>::slice(self, byte_range))
+    }
+
+    fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + 'a> {
+        Box::new(<T as TextSlice<'a>>::chars(self))
+    }
+
+    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a> {
+        Box::new(<T as TextSlice<'a>>::lines(self).map(|s| Box::new(s) as _))
+    }
+
+    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>> {
+        <T as TextSlice<'a>>::get_line(self, line_idx).map(move |s| Box::new(s) as _)
+    }
+}
+
+/// Similar to [`Text`] except the returned lifetimes are tied to `'a` instead of `'self`.
+pub trait TextSlice<'a>: TextBase + Sized {
+    fn to_cow(&self) -> Cow<'a, str>;
+
+    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self;
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a;
+
+    fn lines(&self) -> impl Iterator<Item = Self> + 'a;
+
+    fn get_line(&self, line_idx: usize) -> Option<Self>;
 }
 
 pub trait Text: TextBase {
@@ -121,9 +239,17 @@ pub trait Text: TextBase {
     where
         Self: 'a;
 
-    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_;
+    fn byte_slice<R>(&self, byte_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>;
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> + '_;
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>;
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char>;
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>>;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
@@ -147,15 +273,11 @@ where
     S: TextSlice<'a>,
     A: Copy,
 {
-    // A specialized slice that preserves the borrow if possible
-    fn slice<'a, S>(s: &S, bounds: impl SliceIndex<str, Output = str>) -> Cow<'a, str>
+    fn slice<'a, S>(s: &S, byte_range: impl RangeBounds<usize>) -> Cow<'a, str>
     where
         S: TextSlice<'a>,
     {
-        match s.as_cow() {
-            Cow::Borrowed(s) => Cow::Borrowed(&s[bounds]),
-            Cow::Owned(s) => Cow::Owned(s[bounds].to_owned()),
-        }
+        s.slice(byte_range).to_cow()
     }
 
     let mut annotations = annotations.into_iter().peekable();
@@ -177,7 +299,7 @@ where
                     // If the highlight is a multi-line highlight,
                     // we style the entire line with that style and move on to highlight the next
                     // line (without next()ing the highlight iterator)
-                    yield (line_idx, line.as_cow(), Some(annotation));
+                    yield (line_idx, slice(&line, ..), Some(annotation));
                     // set `j` here so we don't try to highlight the same range again
                     j = line_len_bytes;
                     break;
@@ -234,6 +356,19 @@ impl<T: Text + ?Sized> Text for &T {
     type Slice<'a> = T::Slice<'a> where Self: 'a;
 
     #[inline]
+    fn byte_slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+        (**self).byte_slice(byte_range)
+    }
+
+    #[inline]
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        (**self).line_slice(line_range)
+    }
+
+    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         (**self).chars()
     }
@@ -276,21 +411,26 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     }
 }
 
-impl Text for dyn AnyText + '_ {
-    type Slice<'a> = Cow<'a, str>
-    where
-        Self: 'a;
+impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
+    fn to_cow(&self) -> Cow<'a, str> {
+        (**self).dyn_to_cow()
+    }
 
-    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_ {
+    fn slice(&self, byte_range: impl RangeBounds<usize>) -> Self {
+        let range = (byte_range.start_bound().cloned(), byte_range.end_bound().cloned());
+        Box::new((**self).dyn_slice(range))
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
         self.dyn_chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
-        self.dyn_lines().map(|s| s.into_cow())
+    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+        self.dyn_lines()
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        self.dyn_get_line(line_idx).map(|s| s.into_cow())
+    fn get_line(&self, line_idx: usize) -> Option<Self> {
+        self.dyn_get_line(line_idx)
     }
 }
 

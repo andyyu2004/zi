@@ -36,7 +36,7 @@ use crate::motion::{self, Motion};
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::Theme;
-use crate::text::{Delta, ReadonlyText, Text as _};
+use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
@@ -862,18 +862,20 @@ impl Editor {
         }
     }
 
-    pub fn current_line(&self) -> Cow<'_, str> {
+    pub fn current_line(&self) -> String {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        text.get_line(cursor.line().idx()).unwrap()
+        let line = text.get_line(cursor.line().idx()).unwrap();
+        line.to_string()
     }
 
     pub fn current_char(&self) -> char {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        text.get_line(cursor.line().idx()).unwrap().chars().nth(cursor.col().idx()).unwrap()
+        let mut chars = text.get_line(cursor.line().idx()).unwrap().chars();
+        chars.nth(cursor.col().idx()).unwrap()
     }
 
     pub fn theme(&self) -> &Theme {
@@ -1482,7 +1484,7 @@ impl Editor {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let cursor = self.view.cursor();
                 let n = self.buf.text().len_lines();
-                for (i, line) in self.buf.text().dyn_lines().enumerate() {
+                for (i, line) in self.buf.text().byte_slice(..).lines().enumerate() {
                     if i == n - 1 && line.is_empty() {
                         // avoid printing the last empty line
                         break;

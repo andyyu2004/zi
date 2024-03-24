@@ -1,7 +1,7 @@
 use core::fmt;
 use std::borrow::Cow;
 use std::fs::File;
-use std::ops::Deref;
+use std::ops::{self, Deref};
 use std::path::Path;
 use std::sync::OnceLock;
 use std::{io, str};
@@ -51,10 +51,21 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
 }
 
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
-    type Slice<'a> = Cow<'a, str> where Self: 'a;
+    type Slice<'a> = &'a str where Self: 'a;
+
+    fn byte_slice<R: ops::RangeBounds<usize>>(&self, byte_range: R) -> Self::Slice<'_> {
+        self.as_str().byte_slice(byte_range)
+    }
+
+    fn line_slice<R>(&self, line_range: R) -> Self::Slice<'_>
+    where
+        R: ops::RangeBounds<usize>,
+    {
+        self.as_str().line_slice(line_range)
+    }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         <str as Text>::lines(self.as_str())
     }
 

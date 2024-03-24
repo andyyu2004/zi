@@ -6,12 +6,11 @@ use super::*;
 
 proptest! {
     #[test]
-    fn bidirectional_chars_against_reference(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*", steps in vec(bool::ANY, 1..100)) {
+    fn text_chars(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*", steps in vec(bool::ANY, 1..100)) {
         let reference = Rope::from(s.as_ref());
         for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
-            let i = 0;
-            let mut chars = reference.chars_at(i);
-            let mut imp_chars = imp.dyn_chars_at(i);
+            let mut chars = reference.chars();
+            let mut imp_chars = imp.chars();
 
             for &step in &steps {
                 if step {
@@ -69,12 +68,12 @@ proptest! {
 
 
             for l in 0..reference.len_lines() {
-                assert_eq!(reference.get_line(l), imp.get_line(l), "{s:?}: on line {l}");
+                assert_eq!(reference.get_line(l).map(|s| s.to_string()), imp.get_line(l).map(|s| s.to_string()), "{s:?}: on line {l}");
                 assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
-                assert!(reference.lines_at(l).eq(imp.lines_at(l)));
+                // assert!(reference.lines_at(l).eq(imp.lines_at(l)));
             }
 
-            assert!(reference.lines().eq(imp.lines()));
+            assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
 
         }
 

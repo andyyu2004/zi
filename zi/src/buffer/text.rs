@@ -1,5 +1,5 @@
 use super::*;
-use crate::text::Text;
+use crate::text::{AnyTextSlice, Text};
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -98,7 +98,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
                         let end = if idx == range.end_point.row {
                             range.end_point.column
                         } else {
-                            self.text.dyn_get_line(idx).unwrap().len_bytes()
+                            self.text.byte_slice(..).dyn_get_line(idx).unwrap().len_bytes()
                         };
                         (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
                     })
