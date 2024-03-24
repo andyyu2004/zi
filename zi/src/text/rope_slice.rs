@@ -1,5 +1,3 @@
-use ropey::RopeSlice;
-
 use super::*;
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
@@ -7,7 +5,7 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
 
     fn to_cow(&self) -> Cow<'a, str> {
         let mut chunks = self.chunks();
-        let fst = chunks.next().expect("RopeSlice is empty");
+        let fst = chunks.next().unwrap_or("");
         match chunks.next() {
             Some(_) => Cow::Owned(self.to_string()),
             None => Cow::Borrowed(fst),

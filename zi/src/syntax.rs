@@ -91,7 +91,7 @@ impl Syntax {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
             parser.parse_with(
-                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap(),
+                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap_or(""),
                 None,
             )
         });

@@ -1530,7 +1530,11 @@ fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
         let s = std::str::from_utf8(buf).map_err(|err| {
             io::Error::new(io::ErrorKind::InvalidData, format!("invalid utf-8: {err}"))
         })?;
+
         builder.append(s);
+
+        let n = buf.len();
+        reader.consume(n);
     }
 
     Ok(builder.build())

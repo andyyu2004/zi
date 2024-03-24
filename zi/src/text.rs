@@ -476,19 +476,19 @@ impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
     }
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a {
-        self.dyn_chars()
+        self.as_ref().dyn_chars()
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        self.dyn_lines()
+        self.as_ref().dyn_lines()
     }
 
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
-        self.dyn_chunks()
+        self.as_ref().dyn_chunks()
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
-        self.dyn_get_line(line_idx)
+        self.as_ref().dyn_get_line(line_idx)
     }
 }
 

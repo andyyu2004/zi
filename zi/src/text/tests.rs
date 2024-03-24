@@ -4,11 +4,15 @@ use proptest::{bool, proptest};
 
 use super::*;
 
+fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 2] {
+    [Box::new(ReadonlyText::new(s.as_bytes())) as Box<dyn AnyText>, Box::new(s)]
+}
+
 proptest! {
     #[test]
     fn text_chars(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*", steps in vec(bool::ANY, 1..100)) {
         let reference = crop::Rope::from(s.as_ref());
-        for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
+        for imp in impls(&s) {
             let mut chars = reference.chars();
             let mut imp_chars = imp.chars();
 
@@ -19,19 +23,8 @@ proptest! {
                     assert_eq!(chars.next_back(), imp_chars.next_back());
                 }
             }
-
         }
-
     }
-}
-
-#[test]
-fn str_text_impl() {
-    assert_eq!("".len_lines(), 1);
-    assert_eq!("".get_line(0), Some(""));
-    assert_eq!("x".len_lines(), 1);
-    assert_eq!("\n".len_lines(), 2);
-    assert_eq!("\n".get_line(1), Some(""));
 }
 
 proptest! {
@@ -40,11 +33,12 @@ proptest! {
     #[test]
     fn text_impls(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*") {
         // Test against the rope implementation as that one is probably correct
+        // TODO add more test cases and we're not testing the slice impls
 
         let rope = crop::Rope::from(s.as_ref());
         let reference = &rope as &dyn AnyText;
 
-        for imp in [&s.as_str() as &dyn AnyText, &ReadonlyText::new(s.as_bytes())] {
+        for imp in impls(&s) {
             assert_eq!(reference.len_bytes(), imp.len_bytes());
             assert_eq!(reference.len_lines(), imp.len_lines());
 
@@ -52,25 +46,16 @@ proptest! {
             assert_eq!(reference.len_lines(), reference.lines().count());
             assert_eq!(imp.len_lines(), imp.lines().count());
 
-            for b in 0..reference.len_bytes() {
+            let mut b = 0;
+            for c in reference.chars() {
                 assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
-                // assert_eq!(reference.byte_to_char(b), imp.byte_to_char(b), "{s:?}: byte {b}");
                 assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
+                b += c.len_utf8();
             }
-
-            // for c in 0..reference.len_chars() {
-            //     assert_eq!(reference.get_char(c), imp.get_char(c), "{s:?}: char {c}" );
-            //     assert_eq!(reference.char_to_line(c), imp.char_to_line(c), "{s:?}: char {c}");
-            //     assert_eq!(reference.char_to_byte(c), imp.char_to_byte(c), "{s:?}: char {c}");
-            //     assert_eq!(reference.char_to_point(c), imp.char_to_point(c), "{s:?}: char {c}");
-            //     assert!(reference.chars_at(c).eq(imp.chars_at(c)));
-            // }
-
 
             for l in 0..reference.len_lines() {
                 assert_eq!(reference.get_line(l).map(|s| s.to_string()), imp.get_line(l).map(|s| s.to_string()), "{s:?}: on line {l}");
                 assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
-                // assert!(reference.lines_at(l).eq(imp.lines_at(l)));
             }
 
             assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));

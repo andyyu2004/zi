@@ -79,7 +79,7 @@ impl TextBase for str {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        1 + str_lines(self).filter(|line| line.ends_with('\n')).count()
+        self.lines().count()
     }
 
     #[inline]
