@@ -18,25 +18,9 @@ impl Text for RopeSlice<'_> {
     }
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
-        self.lines_at(line_idx)
-    }
-
-    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         "".chars()
         // self.chars()
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
-        "".chars()
-        // self.chars_at(char_idx)
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
-        self.byte_slice(range).chunks()
     }
 
     #[inline]

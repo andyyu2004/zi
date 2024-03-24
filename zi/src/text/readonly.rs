@@ -59,11 +59,6 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>> {
-        self.as_str().lines_at(line_idx)
-    }
-
-    #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         self.as_str().get_line(line_idx)
     }
@@ -71,16 +66,6 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_str())
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
-        self.as_str().chars_at(char_idx)
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = &str> {
-        self.as_str().chunks_in_byte_range(range)
     }
 }
 
@@ -108,10 +93,5 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_str().line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        self.as_str().chunk_at_byte(byte_idx)
     }
 }

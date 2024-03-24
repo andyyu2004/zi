@@ -17,28 +17,13 @@ impl Text for str {
     type Slice<'a> = Cow<'a, str>;
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
-        str_lines(self).skip(line_idx)
-    }
-
-    #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         str_lines(self)
     }
 
     #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
-        self.chars_at(0)
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
-        "".chars()
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
-        iter::once(&self[range])
+        self.chars()
     }
 
     #[inline]

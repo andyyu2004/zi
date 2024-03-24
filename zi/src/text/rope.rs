@@ -2,6 +2,30 @@ use ropey::RopeSlice;
 
 use super::*;
 
+impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
+    fn as_cow(&self) -> Cow<'a, str> {
+        self.to_string().into()
+    }
+}
+
+impl Text for crop::RopeSlice<'_> {
+    type Slice<'a> = crop::RopeSlice<'a>
+    where
+        Self: 'a;
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> + '_ {
+        self.chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> + '_ {
+        self.lines()
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        todo!()
+    }
+}
+
 impl TextBase for crop::RopeSlice<'_> {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
@@ -20,17 +44,12 @@ impl TextBase for crop::RopeSlice<'_> {
 
     #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
-        todo!()
+        self.line_of_byte(byte_idx)
     }
 
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
-        todo!()
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        todo!()
+        self.byte_of_line(line_idx)
     }
 }
 
@@ -57,25 +76,9 @@ impl Text for Rope {
     }
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
-        self.lines_at(line_idx)
-    }
-
-    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         "".chars()
         // self.chars()
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl DoubleEndedIterator<Item = char> {
-        "".chars()
-        // self.chars_at(char_idx)
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
-        self.byte_slice(range).chunks()
     }
 }
 
