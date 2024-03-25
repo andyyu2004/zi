@@ -402,6 +402,10 @@ where
             if j < line_len_bytes {
                 yield (line_idx, slice(&line, j..), None);
             }
+
+            // unconditionally yields a newline regardless of whether the line actually had one, I
+            // don't think this causes any problems
+            yield (line_idx, "\n".into(), None);
         }
     })
     // fuse the iterator avoid panics due to misuse
