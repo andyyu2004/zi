@@ -293,6 +293,16 @@ pub trait TextSlice<'a>: TextBase + Sized {
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice>;
+
+    fn annotate<T: Copy>(
+        &self,
+        highlights: impl IntoIterator<Item = (Range, T)> + 'a,
+    ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a
+    where
+        Self: Sized,
+    {
+        annotate(self.lines(), highlights)
+    }
 }
 
 pub trait Text: TextBase {
