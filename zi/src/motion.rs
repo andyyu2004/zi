@@ -1,4 +1,4 @@
-use crate::text::{AnyText, Text as _};
+use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
 pub trait Motion {
@@ -9,23 +9,19 @@ pub struct PrevToken;
 
 impl Motion for PrevToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        return pos;
-        // let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        // let mut chars = text.chars_at(start_char).reversed();
-        //
-        // let prev = chars.next().unwrap_or('x');
-        // let mut i = 0;
-        // for c in chars {
-        //     if c.is_whitespace() && !prev.is_whitespace() {
-        //         break;
-        //     }
-        //     i += 1;
-        // }
-        //
-        // let char = start_char - i;
-        // let line = text.char_to_line(char);
-        // let col = char - text.line_to_char(line);
-        // Point::new(line, col)
+        let start_byte = text.point_to_byte(pos);
+        let mut chars = text.byte_slice(..start_byte).chars();
+
+        let prev = chars.next_back().unwrap_or('x');
+        let mut i = 0;
+        for c in chars.rev() {
+            if c.is_whitespace() && !prev.is_whitespace() {
+                break;
+            }
+            i += c.len_utf8();
+        }
+
+        text.byte_to_point(start_byte - i)
     }
 }
 
@@ -33,30 +29,25 @@ pub struct NextWord;
 
 impl Motion for NextWord {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        return pos;
-        // let start_byte = text.line_to_byte(pos.line().idx()) + pos.col().idx();
-        // let chars = text.dyn_chars_at(start_byte);
-        //
-        // let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
-        //
-        // let mut i = 0;
-        // let mut found_sep = false;
-        // for c in chars {
-        //     if found_sep && !c.is_whitespace() {
-        //         break;
-        //     }
-        //
-        //     if is_sep(c) {
-        //         found_sep = true;
-        //     }
-        //
-        //     i += 1;
-        // }
-        //
-        // let char = start_byte + i;
-        // let line = text.char_to_line(char);
-        // let col = char - text.line_to_char(line);
-        // Point::new(line, col)
+        let mut byte = text.point_to_byte(pos);
+        let chars = text.byte_slice(byte..).chars();
+
+        let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
+
+        let mut found_sep = false;
+        for c in chars {
+            if found_sep && !c.is_whitespace() {
+                break;
+            }
+
+            if is_sep(c) {
+                found_sep = true;
+            }
+
+            byte += c.len_utf8();
+        }
+
+        text.byte_to_point(byte)
     }
 }
 
@@ -65,27 +56,22 @@ pub struct NextToken;
 
 impl Motion for NextToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        return pos;
-        // let start_char = text.line_to_char(pos.line().idx()) + pos.col().idx();
-        // let chars = text.dyn_chars_at(start_char);
-        //
-        // let mut i = 0;
-        // let mut found_whitespace = false;
-        // for c in chars {
-        //     if found_whitespace && !c.is_whitespace() {
-        //         break;
-        //     }
-        //
-        //     if c.is_whitespace() {
-        //         found_whitespace = true;
-        //     }
-        //
-        //     i += 1;
-        // }
-        //
-        // let char = start_char + i;
-        // let line = text.char_to_line(char);
-        // let col = char - text.line_to_char(line);
-        // Point::new(line, col)
+        let mut byte = text.point_to_byte(pos);
+        let chars = text.byte_slice(byte..).chars();
+
+        let mut found_whitespace = false;
+        for c in chars {
+            if found_whitespace && !c.is_whitespace() {
+                break;
+            }
+
+            if c.is_whitespace() {
+                found_whitespace = true;
+            }
+
+            byte += c.len_utf8();
+        }
+
+        text.byte_to_point(byte)
     }
 }
