@@ -25,7 +25,7 @@ fuzz_target!(|inputs: zi::input::KeySequence| {
     let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
     let inputs = stream::iter(inputs.map(zi::input::Event::Key).map(Ok));
 
-    futures_executor::block_on(editor.run(inputs, tasks, |editor| {
+    futures_executor::block_on(editor.fuzz(inputs, tasks, |editor| {
         // don't use `term.draw()` as it's very slow
         editor.render(&mut frame);
         Ok(())

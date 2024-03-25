@@ -584,14 +584,14 @@ impl Editor {
         self.plugins.clone()
     }
 
-    pub async fn run(
+    // HACK, run without spawning the plugin system
+    // This can be executed with any executor
+    pub async fn fuzz(
         mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        // let plugin_handle = tokio::spawn(self.plugins.clone().run());
-
         render(&mut self)?;
 
         let mut requests = requests.fuse();
@@ -620,10 +620,6 @@ impl Editor {
             }
 
             if self.should_quit() {
-                // The only time we abort the plugin system is when we're exiting the main loop so
-                // the assumptions above hold.
-                // plugin_handle.abort();
-                // let _ = plugin_handle.await;
                 break;
             }
 
@@ -631,6 +627,20 @@ impl Editor {
         }
 
         self.cleanup().await;
+
+        Ok(())
+    }
+
+    pub async fn run(
+        self,
+        events: impl Stream<Item = io::Result<Event>>,
+        tasks: Tasks,
+        render: impl FnMut(&mut Self) -> io::Result<()>,
+    ) -> io::Result<()> {
+        let plugin_handle = tokio::spawn(self.plugins.clone().run());
+        self.fuzz(events, tasks, render).await?;
+        plugin_handle.abort();
+        let _ = plugin_handle.await;
 
         Ok(())
     }
