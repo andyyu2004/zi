@@ -6,6 +6,14 @@ use crate::api::{new, snapshot};
 fn delete_char_backward() {
     let mut editor = new("");
     editor.set_mode(zi::Mode::Insert);
+
+    // ensure that multi-byte characters are handled correctly
+    let c = '\u{100000}';
+    editor.insert_char(c);
+    assert_eq!(editor.active_cursor(), (0, c.len_utf8() as u32));
+    editor.delete_char_backward();
+    assert_eq!(editor.current_line(), "");
+
     editor.insert_char('a');
     editor.insert_char('b');
     editor.insert_char('c');

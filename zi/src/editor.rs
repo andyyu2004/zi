@@ -800,12 +800,11 @@ impl Editor {
         }
 
         let cursor = view.cursor();
-        let byte_idx = buf.text().point_to_byte(cursor);
-        // FIXME can't assume that the character is a byte long
-        let Some(start_byte_idx) = byte_idx.checked_sub(1) else {
-            // Already at the start of the text, nothing to delete
-            return;
-        };
+        let text = buf.text();
+        let byte_idx = text.point_to_byte(cursor);
+        let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
+        let start_byte_idx =
+            byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
         buf.edit(&Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
@@ -828,7 +827,7 @@ impl Editor {
         let area = self.tree.view_area(view.id());
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
-            _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
+            _ => view.move_cursor(self.mode, area, buf, Direction::Right, c.len_utf8() as u32),
         };
     }
 
