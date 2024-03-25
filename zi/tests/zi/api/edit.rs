@@ -11,27 +11,41 @@ fn delete_char_backward() {
     editor.insert_char('c');
 
     // works on single line
-    assert_eq!(editor.current_line(), "abc\n");
+    assert_eq!(editor.current_line(), "abc");
+    assert_eq!(editor.active_cursor(), (0, 3));
+
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "ab\n");
+    assert_eq!(editor.current_line(), "ab");
+    assert_eq!(editor.active_cursor(), (0, 2));
+
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "a\n");
+    assert_eq!(editor.current_line(), "a");
+    assert_eq!(editor.active_cursor(), (0, 1));
+
     editor.insert_char('x');
-    assert_eq!(editor.current_line(), "ax\n");
+    assert_eq!(editor.current_line(), "ax");
+    assert_eq!(editor.active_cursor(), (0, 2));
+
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "a\n");
+    assert_eq!(editor.current_line(), "a");
+    assert_eq!(editor.active_cursor(), (0, 1));
+
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "\n");
+    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.active_cursor(), (0, 0));
+
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "\n");
+    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.active_cursor(), (0, 0));
 
     // works on multiple lines
     editor.insert("abc\nd");
+    assert_eq!(editor.current_line(), "d");
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "\n");
+    assert_eq!(editor.current_line(), "");
     assert_eq!(editor.active_cursor(), (1, 0));
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "abc\n");
+    assert_eq!(editor.current_line(), "abc");
     assert_eq!(editor.active_cursor(), (0, 3));
 
     snapshot(
@@ -43,6 +57,8 @@ fn delete_char_backward() {
     );
 
     editor.input("<CR><ESC>oghi<ESC>kidef").unwrap();
+
+    assert_eq!(editor.mode(), zi::Mode::Insert);
 
     snapshot(
         &editor,
@@ -90,7 +106,7 @@ fn insert_char() {
     assert_eq!(editor.active_cursor(), (0, 1));
     editor.insert_char('b');
     assert_eq!(editor.active_cursor(), (0, 2));
-    assert_eq!(editor.current_line(), "ab\n");
+    assert_eq!(editor.current_line(), "ab");
 
     editor.set_mode(zi::Mode::Normal);
     assert_eq!(editor.active_cursor(), (0, 1), "insert mode should move cursor left on exit");
@@ -114,5 +130,16 @@ fn insert_into_readonly() -> zi::Result<()> {
 
     assert_eq!(editor.buffer(buf).text().to_string(), "");
     assert!(editor.get_error().is_some());
+    Ok(())
+}
+
+#[test]
+fn enter_normal_mode_on_last_line() -> zi::Result<()> {
+    let mut editor = new("");
+    editor.input("iabc<ESC>o").unwrap();
+    assert_eq!(editor.active_buffer().text().to_string(), "abc\n\n");
+    assert_eq!(editor.active_cursor(), (1, 0));
+    editor.input("<ESC>").unwrap();
+    assert_eq!(editor.active_cursor(), (1, 0));
     Ok(())
 }

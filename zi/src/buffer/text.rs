@@ -1,5 +1,5 @@
 use super::*;
-use crate::text::TextBase as _;
+use crate::text::{AnyTextSlice, Text};
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -18,7 +18,7 @@ pub struct TextBuffer<X> {
     tab_width: u8,
 }
 
-impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
+impl<X: Text + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id
@@ -59,13 +59,13 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
                 if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(text, delta)?
+                    syntax.edit(text, delta)
                 } else {
-                    text.edit(delta)?
+                    text.dyn_edit(delta)
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -73,8 +73,6 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
-
-        Ok(())
     }
 
     fn version(&self) -> u32 {
@@ -98,7 +96,7 @@ impl<X: AnyText + 'static> Buffer for TextBuffer<X> {
                         let end = if idx == range.end_point.row {
                             range.end_point.column
                         } else {
-                            self.text.line(idx).len_chars()
+                            self.text.byte_slice(..).dyn_get_line(idx).unwrap().len_bytes()
                         };
                         (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
                     })
@@ -152,9 +150,9 @@ impl<X: AnyText> TextBuffer<X> {
 
         // ensure the buffer ends with a newline
         if let Some(text) = text.as_text_mut() {
-            let idx = text.len_chars();
-            if text.get_char(idx.saturating_sub(1)) != Some('\n') {
-                text.edit(&Delta::insert_at(idx, "\n")).unwrap();
+            let idx = text.len_bytes();
+            if (text as &dyn AnyText).chars().next_back() != Some('\n') {
+                text.dyn_edit(&Delta::insert_at(idx, "\n"));
             }
         } else if !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")

@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
 use crate::position::{Offset, RangeMergeIter, Size};
-use crate::text::{self, Text as _, TextBase as _};
+use crate::text::{self, Text as _, TextSlice};
 use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
@@ -154,7 +154,8 @@ impl View {
         );
 
         let line_idx = self.cursor.pos.line().idx();
-        let line = buf.text().line(line_idx);
+        let text = buf.text();
+        let line = text.get_line(line_idx).unwrap_or_else(|| Box::new(""));
         let byte = line
             .chars()
             .take(self.cursor.pos.col().idx())
@@ -219,34 +220,31 @@ impl View {
         let mut line_idx = pos.line().idx();
         let line = match text.get_line(line_idx) {
             // Disallow putting cursor on the final empty line.
-            // Note we're using `line_in_bounds` instead of `line_idx < text.len_lines() - 1`
-            // `line_in_bounds` is `O(line_idx)` and `len_lines` can be `O(n)`.
-            Some(line) if line != "" || text.line_in_bounds(line_idx + 2) => line,
-            _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
-                line_idx = text.len_lines().saturating_sub(2);
-                text.line(line_idx)
+            // Note we're using `get_line(idx).is_some()` instead of `line_idx < text.len_lines() - 1`
+            // The former is `O(line_idx)` and `len_lines` can be `O(n)`.
+            Some(line) if line.to_cow() != "" || text.get_line(line_idx + 1).is_some() => line,
+            // _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
+            _ if mode == Mode::Insert => {
+                line_idx = text.len_lines().saturating_sub(1);
+                text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
             }
-            _ => return self.cursor.pos,
+            _ => {
+                line_idx = text.len_lines().saturating_sub(2);
+                text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
+            }
         };
 
-        let line_len = line.chars().count();
+        let line_len = line.len_bytes();
 
         let pos = Point::new(line_idx, pos.col());
 
-        // Pretending CRLF doesn't exist.
-        // We don't allow the cursor on the newline character.
-        let n: usize = match line.get_char(line_len.saturating_sub(1)) {
-            Some('\n') => 1,
-            _ => 0,
-        };
-
         // Normal mode not allowed to move past the end of the line.
-        let n = match mode {
-            Mode::Insert => n,
-            Mode::Normal | Mode::Command | Mode::Visual => n + 1,
+        let k = match mode {
+            Mode::Insert => 0,
+            Mode::Normal | Mode::Command | Mode::Visual => 1,
         };
 
-        let max_col = Col::from(line_len.saturating_sub(n));
+        let max_col = Col::from(line_len.saturating_sub(k));
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();
@@ -256,9 +254,8 @@ impl View {
         }
 
         // check column is in-bounds for the line
-        self.cursor.pos = match line.get_char(pos.col().idx()) {
-            // Cursor is in-bounds for the line
-            Some(char) if char != '\n' => pos,
+        self.cursor.pos = match pos.col().idx() {
+            i if i < line_len => pos,
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
@@ -405,7 +402,8 @@ impl View {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let lines = buf.text().lines_at(line);
+        let text = buf.text();
+        let lines = text.line_slice(line..).lines();
         let chunks = text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(

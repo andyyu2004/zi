@@ -1,13 +1,11 @@
 use core::fmt;
-use std::borrow::Cow;
 use std::fs::File;
-use std::ops::Deref;
+use std::ops::{self, Deref};
 use std::path::Path;
 use std::sync::OnceLock;
 use std::{io, str};
 
 use memmap2::{Mmap, MmapOptions};
-use stdx::iter::BidirectionalIterator;
 
 use crate::text::{AnyTextMut, Text, TextBase};
 
@@ -15,13 +13,12 @@ use crate::text::{AnyTextMut, Text, TextBase};
 pub struct ReadonlyText<B> {
     buf: B,
     len_lines: OnceLock<usize>,
-    len_chars: OnceLock<usize>,
 }
 
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
-        Self { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() }
+        Self { buf, len_lines: OnceLock::new() }
     }
 
     #[inline]
@@ -42,7 +39,7 @@ impl ReadonlyText<Mmap> {
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };
-        Ok(ReadonlyText { buf, len_lines: OnceLock::new(), len_chars: OnceLock::new() })
+        Ok(ReadonlyText { buf, len_lines: OnceLock::new() })
     }
 }
 
@@ -52,32 +49,36 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
     }
 }
 
+impl<B: Deref<Target = [u8]>> fmt::Debug for ReadonlyText<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
-    type Slice<'a> = Cow<'a, str> where Self: 'a;
+    type Slice<'a> = &'a str where Self: 'a;
+
+    fn byte_slice(&self, byte_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
+        self.as_str().byte_slice(byte_range)
+    }
+
+    fn line_slice(&self, line_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
+        self.as_str().line_slice(line_range)
+    }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
         <str as Text>::lines(self.as_str())
     }
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Cow<'_, str>> {
-        self.as_str().lines_at(line_idx)
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_str().get_line(line_idx)
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_str())
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
-        self.as_str().chars_at(char_idx)
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = &str> {
-        self.as_str().chunks_in_byte_range(range)
     }
 }
 
@@ -93,33 +94,8 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     }
 
     #[inline]
-    fn len_chars(&self) -> usize {
-        *self.len_chars.get_or_init(|| self.as_str().len_chars())
-    }
-
-    #[inline]
     fn len_bytes(&self) -> usize {
         self.buf.len()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.as_str().get_line(line_idx)
-    }
-
-    #[inline]
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        self.as_str().get_char(char_idx)
-    }
-
-    #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.as_str().line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.as_str().char_to_line(char_idx)
     }
 
     #[inline]
@@ -130,15 +106,5 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_str().line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.as_str().char_to_byte(char_idx)
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        self.as_str().chunk_at_byte(byte_idx)
     }
 }

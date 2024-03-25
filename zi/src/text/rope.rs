@@ -1,19 +1,24 @@
-use ropey::RopeSlice;
-
 use super::*;
 
-impl TextMut for Rope {
+impl TextMut for crop::Rope {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
-        let range = self.delta_to_char_range(delta);
-        let start = range.start;
-        self.try_remove(range)?;
-        self.try_insert(start, delta.text())
+    fn edit(&mut self, delta: &Delta<'_>) {
+        let range = self.delta_to_byte_range(delta);
+        self.replace(range, delta.text());
     }
 }
 
-impl Text for Rope {
-    type Slice<'a> = RopeSlice<'a>;
+impl Text for crop::Rope {
+    type Slice<'a> = crop::RopeSlice<'a>;
+
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        self.byte_slice(byte_range)
+    }
+
+    #[inline]
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        self.line_slice(line_range)
+    }
 
     #[inline]
     fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
@@ -21,27 +26,17 @@ impl Text for Rope {
     }
 
     #[inline]
-    fn lines_at(&self, line_idx: usize) -> impl Iterator<Item = Self::Slice<'_>> {
-        self.lines_at(line_idx)
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        if line_idx < self.len_lines() { Some(self.line(line_idx)) } else { None }
     }
 
     #[inline]
-    fn chars(&self) -> impl BidirectionalIterator<Item = char> {
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         self.chars()
-    }
-
-    #[inline]
-    fn chars_at(&self, char_idx: usize) -> impl BidirectionalIterator<Item = char> {
-        self.chars_at(char_idx)
-    }
-
-    #[inline]
-    fn chunks_in_byte_range(&self, range: ops::Range<usize>) -> impl Iterator<Item = &str> {
-        self.byte_slice(range).chunks()
     }
 }
 
-impl TextBase for Rope {
+impl TextBase for crop::Rope {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
         Some(self)
@@ -49,56 +44,21 @@ impl TextBase for Rope {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.len_lines()
-    }
-
-    #[inline]
-    fn len_chars(&self) -> usize {
-        self.len_chars()
+        self.line_len()
     }
 
     #[inline]
     fn len_bytes(&self) -> usize {
-        self.len_bytes()
-    }
-
-    #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Cow<'_, str>> {
-        self.get_line(line_idx).map(Into::into)
-    }
-
-    fn get_char(&self, char_idx: usize) -> Option<char> {
-        self.get_char(char_idx)
-    }
-
-    #[inline]
-    fn line_to_char(&self, line_idx: usize) -> usize {
-        self.line_to_char(line_idx)
-    }
-
-    #[inline]
-    fn char_to_line(&self, char_idx: usize) -> usize {
-        self.char_to_line(char_idx)
+        self.byte_len()
     }
 
     #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
-        self.byte_to_line(byte_idx)
+        self.line_of_byte(byte_idx)
     }
 
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
-        self.line_to_byte(line_idx)
-    }
-
-    #[inline]
-    fn char_to_byte(&self, char_idx: usize) -> usize {
-        self.char_to_byte(char_idx)
-    }
-
-    #[inline]
-    fn chunk_at_byte(&self, byte_idx: usize) -> &str {
-        let (chunk, start_byte, _, _) = self.chunk_at_byte(byte_idx);
-        &chunk[byte_idx - start_byte..]
+        self.byte_of_line(line_idx)
     }
 }

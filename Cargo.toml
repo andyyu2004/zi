@@ -19,5 +19,3 @@ rust_2018_idioms = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
-
-

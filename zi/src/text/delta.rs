@@ -13,10 +13,10 @@ pub struct Delta<'a> {
 
 #[derive(Clone, Debug)]
 pub enum DeltaRange {
-    /// The (line, col) range to replace
+    /// The point range to replace
     Point(Range),
-    /// The character index range to replace
-    Char(ops::Range<usize>),
+    /// The byte range to replace
+    Byte(ops::Range<usize>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,7 +44,7 @@ impl PointOrChar {
     fn empty_range(self) -> DeltaRange {
         match self {
             Self::Point(p) => DeltaRange::Point(Range::new(p, p)),
-            Self::Char(c) => DeltaRange::Char(c..c),
+            Self::Char(c) => DeltaRange::Byte(c..c),
         }
     }
 }
@@ -52,7 +52,7 @@ impl PointOrChar {
 impl From<ops::Range<usize>> for DeltaRange {
     #[inline]
     fn from(v: ops::Range<usize>) -> Self {
-        Self::Char(v)
+        Self::Byte(v)
     }
 }
 

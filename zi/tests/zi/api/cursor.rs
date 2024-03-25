@@ -6,8 +6,8 @@ use crate::api::new;
 fn set_cursor() {
     let mut editor = new("foo\ntest\n\n");
     assert_eq!(editor.active_cursor(), (0, 0), "cursor should start at (1, 0)");
-    assert_eq!(editor.current_line(), "foo\n");
-    assert_eq!(editor.current_char(), 'f');
+    assert_eq!(editor.current_line(), "foo");
+    assert_eq!(editor.current_char(), Some('f'));
 
     editor.set_active_cursor((0, 1));
     assert_eq!(editor.active_cursor(), (0, 1));
@@ -17,8 +17,8 @@ fn set_cursor() {
 
     editor.set_active_cursor((1, 2));
     assert_eq!(editor.active_cursor(), (1, 2));
-    assert_eq!(editor.current_line(), "test\n");
-    assert_eq!(editor.current_char(), 's');
+    assert_eq!(editor.current_line(), "test");
+    assert_eq!(editor.current_char(), Some('s'));
 
     editor.set_active_cursor((1, 4));
     assert_eq!(editor.active_cursor(), (1, 3), "cursor should not move past end of line");
@@ -80,7 +80,7 @@ fn move_cursor_empty() {
 #[test]
 fn move_cursor_horizontal_no_newline() {
     let mut editor = new("abc");
-    assert_eq!(editor.current_line(), "abc\n");
+    assert_eq!(editor.current_line(), "abc");
     assert_eq!(editor.active_cursor(), (0, 0));
     editor.move_active_cursor(Right, 1);
     assert_eq!(editor.active_cursor(), (0, 1));
@@ -117,7 +117,7 @@ short
     assert_eq!(editor.active_cursor(), (1, 2), "should remember the last column");
 
     editor.set_active_cursor((3, 11));
-    assert_eq!(editor.current_char(), '!');
+    assert_eq!(editor.current_char(), Some('!'));
     editor.move_active_cursor(Down, 1);
     assert_eq!(editor.active_cursor(), (4, 4));
     editor.move_active_cursor(Down, 1);
@@ -142,7 +142,7 @@ fn cursor_with_scroll() {
 
     editor.scroll_active_view(zi::Direction::Down, 2);
     assert_eq!(editor.active_cursor(), (2, 0));
-    assert_eq!(editor.current_line(), "baz\n");
+    assert_eq!(editor.current_line(), "baz");
     editor.move_active_cursor(Down, 1);
 
     // Cursor is already at the bottom, should not be able to move anymore.
@@ -152,6 +152,7 @@ fn cursor_with_scroll() {
 #[test]
 fn cursor_newline() {
     let mut editor = new("");
+    editor.set_mode(zi::Mode::Insert);
     editor.insert_char('\n');
     assert_eq!(editor.active_cursor(), (1, 0));
 }

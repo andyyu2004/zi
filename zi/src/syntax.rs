@@ -1,6 +1,7 @@
 mod highlight;
 
 use std::cell::RefCell;
+use std::ops::Bound;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
@@ -9,7 +10,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::text::{AnyText, AnyTextMut, Delta};
+use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextSlice};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -89,31 +90,30 @@ impl Syntax {
         self.tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), None)
+            parser.parse_with(
+                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap_or(""),
+                None,
+            )
         });
     }
 
-    pub fn edit(
-        &mut self,
-        text: &mut dyn AnyTextMut,
-        delta: &Delta<'_>,
-    ) -> Result<(), ropey::Error> {
+    pub fn edit(&mut self, text: &mut dyn AnyTextMut, delta: &Delta<'_>) {
         match &mut self.tree {
-            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)?),
-            _ => text.edit(delta)?,
+            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)),
+            _ => text.dyn_edit(delta),
         }
 
         PARSER.with(|parser| {
+            let text = text as &dyn AnyText;
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            if let Some(tree) =
-                parser.parse_with(&mut |byte, _point| text.chunk_at_byte(byte), self.tree.as_ref())
-            {
+            if let Some(tree) = parser.parse_with(
+                &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap(),
+                self.tree.as_ref(),
+            ) {
                 self.tree = Some(tree);
             }
         });
-
-        Ok(())
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -123,8 +123,11 @@ impl Syntax {
     ) -> Highlights<'a, 'tree> {
         match &self.tree {
             Some(tree) => {
-                let captures =
-                    cursor.captures(self.highlights_query, tree.root_node(), TextProvider(source));
+                let captures = cursor.captures(
+                    self.highlights_query,
+                    tree.root_node(),
+                    TextProvider(source.dyn_byte_slice((Bound::Unbounded, Bound::Unbounded))),
+                );
                 Highlights::Captures(captures)
             }
             None => Highlights::Empty,
@@ -137,10 +140,7 @@ impl Syntax {
 }
 
 // tree-sitter point column is byte-indexed, but very poorly documented
-fn delta_to_ts_edit(
-    text: &mut dyn AnyTextMut,
-    delta: &Delta<'_>,
-) -> Result<tree_sitter::InputEdit, ropey::Error> {
+fn delta_to_ts_edit(text: &mut dyn AnyTextMut, delta: &Delta<'_>) -> tree_sitter::InputEdit {
     let byte_range = text.delta_to_byte_range(delta);
     let point_range = text.delta_to_point_range(delta);
 
@@ -148,18 +148,18 @@ fn delta_to_ts_edit(
     let old_end_byte = byte_range.end;
     let new_end_byte = start_byte + delta.text().len();
 
-    text.edit(delta)?;
+    text.dyn_edit(delta);
 
     let new_end_position = text.byte_to_point(new_end_byte).into();
 
-    Ok(tree_sitter::InputEdit {
+    tree_sitter::InputEdit {
         start_byte,
         old_end_byte,
         new_end_byte,
         start_position: point_range.start().into(),
         old_end_position: point_range.end().into(),
         new_end_position,
-    })
+    }
 }
 
 /// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide
@@ -181,13 +181,14 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
     }
 }
 
-pub struct TextProvider<'a>(&'a dyn AnyText);
+pub struct TextProvider<'a>(Box<dyn AnyTextSlice<'a> + 'a>);
 
 impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {
-        self.0.dyn_chunks_in_byte_range(node.start_byte()..node.end_byte()).map(str::as_bytes)
+        let slice = self.0.byte_slice(node.start_byte()..node.end_byte());
+        slice.dyn_chunks().map(str::as_bytes)
     }
 }
 
