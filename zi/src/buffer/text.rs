@@ -65,7 +65,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
                 if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)?
                 } else {
-                    text.edit(delta)?
+                    text.dyn_edit(delta)?
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -154,7 +154,7 @@ impl<X: AnyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_bytes();
             if (text as &dyn AnyText).chars().next_back() != Some('\n') {
-                text.edit(&Delta::insert_at(idx, "\n")).unwrap();
+                text.dyn_edit(&Delta::insert_at(idx, "\n")).unwrap();
             }
         } else if !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")

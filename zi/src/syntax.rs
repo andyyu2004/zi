@@ -10,7 +10,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextSlice};
+use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -104,7 +104,7 @@ impl Syntax {
     ) -> Result<(), ropey::Error> {
         match &mut self.tree {
             Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)?),
-            _ => text.edit(delta)?,
+            _ => text.dyn_edit(delta)?,
         }
 
         PARSER.with(|parser| {
@@ -157,7 +157,7 @@ fn delta_to_ts_edit(
     let old_end_byte = byte_range.end;
     let new_end_byte = start_byte + delta.text().len();
 
-    text.edit(delta)?;
+    text.dyn_edit(delta)?;
 
     let new_end_position = text.byte_to_point(new_end_byte).into();
 

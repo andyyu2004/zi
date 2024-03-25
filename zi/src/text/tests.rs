@@ -4,8 +4,22 @@ use proptest::{bool, proptest};
 
 use super::*;
 
-fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 2] {
-    [Box::new(ReadonlyText::new(s.as_bytes())) as Box<dyn AnyText>, Box::new(s)]
+fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
+    [
+        Box::new(crop::Rope::from(s)) as Box<dyn AnyText>,
+        Box::new(ReadonlyText::new(s.as_bytes())),
+        Box::new(s),
+    ]
+}
+
+#[test]
+fn empty_text() {
+    let reference = crop::Rope::from("");
+    for imp in impls("") {
+        assert_eq!(reference.len_bytes(), imp.len_bytes());
+        assert_eq!(reference.len_lines(), imp.len_lines());
+        assert_eq!(reference.lines().count(), imp.lines().count());
+    }
 }
 
 proptest! {

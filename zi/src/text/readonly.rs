@@ -50,6 +50,12 @@ impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
     }
 }
 
+impl<B: Deref<Target = [u8]>> fmt::Debug for ReadonlyText<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     type Slice<'a> = &'a str where Self: 'a;
 

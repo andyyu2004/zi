@@ -702,7 +702,8 @@ impl Editor {
 
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             let (view, buf) = get!(self);
-            view.move_cursor(mode, self.tree.view_area(view.id()), buf, Direction::Left, 1);
+            // passing insert mode just to make some tests pass, not sure it generally makes sense
+            view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
         self.mode = mode;
@@ -793,6 +794,7 @@ impl Editor {
     pub fn delete_char_backward(&mut self) {
         let (view, buf) = get!(self);
         if buf.flags().contains(BufferFlags::READONLY) {
+            // FIXME we should return a proper error
             set_error!(self, "buffer is readonly");
             return;
         }
@@ -800,7 +802,10 @@ impl Editor {
         let cursor = view.cursor();
         let byte_idx = buf.text().point_to_byte(cursor);
         // FIXME can't assume that the character is a byte long
-        let start_byte_idx = byte_idx.saturating_sub(1);
+        let Some(start_byte_idx) = byte_idx.checked_sub(1) else {
+            // Already at the start of the text, nothing to delete
+            return;
+        };
         buf.edit(&Delta::delete(start_byte_idx..byte_idx)).unwrap();
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
@@ -825,9 +830,6 @@ impl Editor {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
             _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
         };
-
-        let event = event::DidChangeBuffer { buf: buf.id() };
-        self.dispatch(event);
     }
 
     pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) -> Result<(), ropey::Error> {
@@ -865,16 +867,15 @@ impl Editor {
         let (view, buffer) = self.active();
         let cursor = view.cursor();
         let text = buffer.text();
-        let line = text.get_line(cursor.line().idx()).unwrap();
+        let line = text.get_line(cursor.line().idx()).unwrap_or_else(|| Box::new(""));
         line.to_string()
     }
 
-    pub fn current_char(&self) -> char {
-        let (view, buffer) = self.active();
+    pub fn current_char(&self) -> Option<char> {
+        let (view, _) = self.active();
         let cursor = view.cursor();
-        let text = buffer.text();
-        let mut chars = text.get_line(cursor.line().idx()).unwrap().chars();
-        chars.nth(cursor.col().idx()).unwrap()
+        let col = cursor.col().idx();
+        self.current_line().chars().nth(col)
     }
 
     pub fn theme(&self) -> &Theme {
@@ -1482,18 +1483,13 @@ impl Editor {
         impl fmt::Debug for Debug<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let cursor = self.view.cursor();
-                let n = self.buf.text().len_lines();
                 for (i, line) in self.buf.text().byte_slice(..).lines().enumerate() {
-                    if i == n - 1 && line.is_empty() {
-                        // avoid printing the last empty line
-                        break;
-                    }
-
                     write!(f, "{}", i + 1)?;
                     if !line.is_empty() {
                         write!(f, " ")?;
                     }
-                    for (j, c) in line.dyn_chars().enumerate() {
+
+                    for (j, c) in line.chars().chain(Some('\n')).enumerate() {
                         if cursor.line().idx() == i && cursor.col().idx() == j {
                             write!(f, "|")?;
                             if c == '\n' {

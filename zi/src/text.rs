@@ -18,7 +18,7 @@ pub trait TextMut: Text {
 }
 
 pub trait AnyTextMut: AnyText {
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
+    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
 
     fn as_text(&self) -> &dyn AnyText;
 }
@@ -30,13 +30,13 @@ impl<T: AnyText + TextMut> AnyTextMut for T {
     }
 
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
         <T as TextMut>::edit(self, delta)
     }
 }
 
 /// dyn-safe interface for reading text
-pub trait TextBase: fmt::Display {
+pub trait TextBase: fmt::Display + fmt::Debug {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut>;
 
     fn len_lines(&self) -> usize;
@@ -109,6 +109,13 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         (**self).line_to_byte(line_idx)
+    }
+}
+
+impl<'a, T: TextSlice<'a>> PartialEq<T> for dyn AnyTextSlice<'a> {
+    #[inline]
+    fn eq(&self, other: &T) -> bool {
+        self.to_string() == other.to_string()
     }
 }
 
