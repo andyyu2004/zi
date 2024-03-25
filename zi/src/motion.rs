@@ -9,19 +9,18 @@ pub struct PrevToken;
 
 impl Motion for PrevToken {
     fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
-        let start_byte = text.point_to_byte(pos);
-        let mut chars = text.byte_slice(..start_byte).chars();
+        let mut byte = text.point_to_byte(pos);
+        let mut chars = text.byte_slice(..byte).chars();
 
         let prev = chars.next_back().unwrap_or('x');
-        let mut i = 0;
         for c in chars.rev() {
             if c.is_whitespace() && !prev.is_whitespace() {
                 break;
             }
-            i += c.len_utf8();
+            byte -= c.len_utf8();
         }
 
-        text.byte_to_point(start_byte - i)
+        text.byte_to_point(byte)
     }
 }
 
