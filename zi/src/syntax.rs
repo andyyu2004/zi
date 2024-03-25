@@ -104,7 +104,6 @@ impl Syntax {
         }
 
         PARSER.with(|parser| {
-            let text = text as &dyn AnyText;
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
             if let Some(tree) = parser.parse_with(

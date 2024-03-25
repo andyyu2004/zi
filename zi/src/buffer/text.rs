@@ -151,7 +151,7 @@ impl<X: AnyText> TextBuffer<X> {
         // ensure the buffer ends with a newline
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_bytes();
-            if (text as &dyn AnyText).chars().next_back() != Some('\n') {
+            if text.chars().next_back() != Some('\n') {
                 text.dyn_edit(&Delta::insert_at(idx, "\n"));
             }
         } else if !flags.contains(BufferFlags::READONLY) {

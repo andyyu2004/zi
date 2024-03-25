@@ -183,6 +183,32 @@ impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
     }
 }
 
+impl Text for dyn AnyTextMut + '_ {
+    type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
+    where
+        Self: 'a;
+
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        (self as &dyn AnyText).line_slice(line_range)
+    }
+
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        (self as &dyn AnyText).byte_slice(byte_range)
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        (self as &dyn AnyText).get_line(line_idx)
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
+        (self as &dyn AnyText).chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+        (self as &dyn AnyText).lines()
+    }
+}
+
 impl Text for dyn AnyText + '_ {
     type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
     where
