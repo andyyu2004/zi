@@ -1,5 +1,5 @@
 use super::*;
-use crate::text::{AnyTextSlice, Text};
+use crate::text::{AnyTextSlice, Text, TextMut};
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -65,7 +65,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
                 if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)
                 } else {
-                    text.dyn_edit(delta)
+                    text.edit(delta)
                 }
 
                 self.version.checked_add(1).unwrap();
@@ -152,7 +152,7 @@ impl<X: AnyText> TextBuffer<X> {
         if let Some(text) = text.as_text_mut() {
             let idx = text.len_bytes();
             if text.chars().next_back() != Some('\n') {
-                text.dyn_edit(&Delta::insert_at(idx, "\n"));
+                text.edit(&Delta::insert_at(idx, "\n"));
             }
         } else if !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")

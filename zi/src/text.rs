@@ -23,6 +23,13 @@ pub trait AnyTextMut: AnyText {
     fn as_text(&self) -> &dyn AnyText;
 }
 
+impl TextMut for dyn AnyTextMut + '_ {
+    #[inline]
+    fn edit(&mut self, delta: &Delta<'_>) {
+        self.dyn_edit(delta)
+    }
+}
+
 impl<T: AnyText + TextMut> AnyTextMut for T {
     #[inline]
     fn as_text(&self) -> &dyn AnyText {
