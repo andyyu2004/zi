@@ -2,10 +2,9 @@ use super::*;
 
 impl TextMut for crop::Rope {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    fn edit(&mut self, delta: &Delta<'_>) {
         let range = self.delta_to_byte_range(delta);
         self.replace(range, delta.text());
-        Ok(())
     }
 }
 

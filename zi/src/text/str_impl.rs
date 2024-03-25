@@ -1,6 +1,5 @@
 use super::*;
 
-/// Some magic to match the behaviour of `[ropey::Ropey]`
 fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
     // append an empty line if the string ends with a newline or is empty (to match ropey's behaviour)
     s.split_inclusive('\n').chain((s.is_empty() || s.ends_with('\n')).then_some("")).map(Into::into)

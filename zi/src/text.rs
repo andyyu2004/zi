@@ -14,11 +14,11 @@ pub use self::readonly::ReadonlyText;
 use crate::{Line, Point, Range};
 
 pub trait TextMut: Text {
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
+    fn edit(&mut self, delta: &Delta<'_>);
 }
 
 pub trait AnyTextMut: AnyText {
-    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
+    fn dyn_edit(&mut self, delta: &Delta<'_>);
 
     fn as_text(&self) -> &dyn AnyText;
 }
@@ -30,7 +30,7 @@ impl<T: AnyText + TextMut> AnyTextMut for T {
     }
 
     #[inline]
-    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    fn dyn_edit(&mut self, delta: &Delta<'_>) {
         <T as TextMut>::edit(self, delta)
     }
 }

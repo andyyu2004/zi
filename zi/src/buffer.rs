@@ -59,7 +59,7 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error>;
+    fn edit(&mut self, delta: &Delta<'_>);
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
@@ -159,7 +159,7 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Result<(), ropey::Error> {
+    fn edit(&mut self, delta: &Delta<'_>) {
         self.as_mut().edit(delta)
     }
 

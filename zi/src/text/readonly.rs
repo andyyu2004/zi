@@ -1,5 +1,4 @@
 use core::fmt;
-use std::borrow::Cow;
 use std::fs::File;
 use std::ops::{self, Deref};
 use std::path::Path;

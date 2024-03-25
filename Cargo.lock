@@ -1714,16 +1714,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
-name = "ropey"
-version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
-dependencies = [
- "smallvec 1.13.1",
- "str_indices",
-]
-
-[[package]]
 name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3155,7 +3145,6 @@ dependencies = [
  "parking_lot",
  "proptest",
  "rayon",
- "ropey",
  "rustc-hash",
  "slotmap",
  "smallvec 2.0.0-alpha.4",

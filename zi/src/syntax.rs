@@ -10,7 +10,7 @@ use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor,
 
 pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
-use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
+use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextSlice};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
@@ -97,14 +97,10 @@ impl Syntax {
         });
     }
 
-    pub fn edit(
-        &mut self,
-        text: &mut dyn AnyTextMut,
-        delta: &Delta<'_>,
-    ) -> Result<(), ropey::Error> {
+    pub fn edit(&mut self, text: &mut dyn AnyTextMut, delta: &Delta<'_>) {
         match &mut self.tree {
-            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)?),
-            _ => text.dyn_edit(delta)?,
+            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)),
+            _ => text.dyn_edit(delta),
         }
 
         PARSER.with(|parser| {
@@ -118,8 +114,6 @@ impl Syntax {
                 self.tree = Some(tree);
             }
         });
-
-        Ok(())
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -146,10 +140,7 @@ impl Syntax {
 }
 
 // tree-sitter point column is byte-indexed, but very poorly documented
-fn delta_to_ts_edit(
-    text: &mut dyn AnyTextMut,
-    delta: &Delta<'_>,
-) -> Result<tree_sitter::InputEdit, ropey::Error> {
+fn delta_to_ts_edit(text: &mut dyn AnyTextMut, delta: &Delta<'_>) -> tree_sitter::InputEdit {
     let byte_range = text.delta_to_byte_range(delta);
     let point_range = text.delta_to_point_range(delta);
 
@@ -157,18 +148,18 @@ fn delta_to_ts_edit(
     let old_end_byte = byte_range.end;
     let new_end_byte = start_byte + delta.text().len();
 
-    text.dyn_edit(delta)?;
+    text.dyn_edit(delta);
 
     let new_end_position = text.byte_to_point(new_end_byte).into();
 
-    Ok(tree_sitter::InputEdit {
+    tree_sitter::InputEdit {
         start_byte,
         old_end_byte,
         new_end_byte,
         start_position: point_range.start().into(),
         old_end_position: point_range.end().into(),
         new_end_position,
-    })
+    }
 }
 
 /// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide

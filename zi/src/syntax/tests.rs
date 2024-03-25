@@ -1,5 +1,3 @@
-use ropey::Rope;
-
 use super::*;
 
 #[test]
@@ -85,7 +83,7 @@ fn test_delta_to_ts_edit() {
         ),
     ] {
         let mut rope = crop::Rope::from(text);
-        let actual = delta_to_ts_edit(&mut rope, delta).unwrap();
+        let actual = delta_to_ts_edit(&mut rope, delta);
         assert_eq!(actual, input);
         assert_eq!(rope.to_string(), expected);
     }
