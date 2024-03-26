@@ -2,13 +2,35 @@ use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
 pub trait Motion {
-    fn motion(self, text: &dyn AnyText, pos: Point) -> Point;
+    fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point;
+
+    fn repeated(self, n: usize) -> Repeated<Self>
+    where
+        Self: Sized,
+    {
+        Repeated { motion: self, n }
+    }
+}
+
+pub struct Repeated<M> {
+    motion: M,
+    n: usize,
+}
+
+impl<M: Motion> Motion for Repeated<M> {
+    fn motion(&mut self, text: &dyn AnyText, mut pos: Point) -> Point {
+        while self.n > 0 {
+            pos = self.motion.motion(text, pos);
+            self.n -= 1;
+        }
+        pos
+    }
 }
 
 pub struct PrevToken;
 
 impl Motion for PrevToken {
-    fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
+    fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point {
         let mut byte = text.point_to_byte(pos);
         let mut chars = text.byte_slice(..byte).chars();
 
@@ -27,7 +49,7 @@ impl Motion for PrevToken {
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
+    fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point {
         let mut byte = text.point_to_byte(pos);
         let chars = text.byte_slice(byte..).chars();
 
@@ -54,7 +76,7 @@ impl Motion for NextWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(self, text: &dyn AnyText, pos: Point) -> Point {
+    fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point {
         let mut byte = text.point_to_byte(pos);
         let chars = text.byte_slice(byte..).chars();
 
