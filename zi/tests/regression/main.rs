@@ -11,9 +11,7 @@ fn test(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path)?;
     let u = Unstructured::new(&bytes);
     let seq = <KeySequence as Arbitrary>::arbitrary_take_rest(u)?;
-
-    // run(seq)
-    ksksks()
+    run(seq)
 }
 
 fn run(seq: KeySequence) -> Result<()> {
@@ -55,32 +53,4 @@ impl tui::DynFrame for TestFrame {
     }
 
     fn set_cursor(&mut self, _x: u16, _y: u16) {}
-}
-
-fn ksksks() -> Result<()> {
-    use zi::input::KeyCode::*;
-    let seq = KeySequence::from_iter([
-        KeyEvent { code: Char('i'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('\u{a002d}'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('\u{fe2c}'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('\0'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('-'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Char('\u{a05cc}'), modifiers: KeyModifiers::empty() },
-        KeyEvent { code: Right, modifiers: KeyModifiers::empty() },
-    ]);
-
-    run(seq)
 }

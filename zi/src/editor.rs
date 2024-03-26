@@ -842,7 +842,7 @@ impl Editor {
         let area = self.tree.view_area(view.id());
         match c {
             '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
-            _ => view.move_cursor(self.mode, area, buf, Direction::Right, c.len_utf8() as u32),
+            _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
         };
     }
 

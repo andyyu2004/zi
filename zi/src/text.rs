@@ -363,6 +363,16 @@ pub trait Text: TextBase {
         self.byte_slice(byte_idx..).chars().next()
     }
 
+    #[inline]
+    fn char_before_byte(&self, byte_idx: usize) -> Option<char> {
+        self.byte_slice(..byte_idx).chars().next_back()
+    }
+
+    #[inline]
+    fn char_before_point(&self, point: Point) -> Option<char> {
+        self.char_before_byte(self.point_to_byte(point))
+    }
+
     fn annotate<'a, T: Copy>(
         &'a self,
         highlights: impl IntoIterator<Item = (Range, T)> + 'a,

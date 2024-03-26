@@ -166,6 +166,7 @@ impl View {
         (x.try_into().unwrap(), y.try_into().unwrap())
     }
 
+    /// `amt` is measured in characters
     pub(crate) fn move_cursor(
         &mut self,
         mode: Mode,
@@ -177,8 +178,14 @@ impl View {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
-            Direction::Left => self.cursor.pos.left(amt),
-            Direction::Right => self.cursor.pos.right(amt),
+            Direction::Left => match buf.text().char_before_point(self.cursor.pos) {
+                Some(c) => self.cursor.pos.left(c.len_utf8() as u32 * amt),
+                None => return self.cursor.pos,
+            },
+            Direction::Right => match buf.text().char_at_point(self.cursor.pos) {
+                Some(c) => self.cursor.pos.right(c.len_utf8() as u32 * amt),
+                None => return self.cursor.pos,
+            },
             // Horizontal movements set the target column.
             // Vertical movements try to keep moving to the target column.
             Direction::Up => self.cursor.pos.up(amt).with_col(self.cursor.target_col),
