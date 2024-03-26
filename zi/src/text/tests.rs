@@ -13,6 +13,16 @@ fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
 }
 
 #[test]
+fn char_at_byte() {
+    assert_eq!("abc".char_at_byte(0), Some('a'));
+    assert_eq!("abc".char_at_byte(1), Some('b'));
+    assert_eq!("abc".char_at_byte(2), Some('c'));
+    assert_eq!("abc".char_at_byte(3), None);
+    assert_eq!("ab©d".char_at_byte(2), Some('©'));
+    assert_eq!("ab©d".char_at_byte(4), Some('d'));
+}
+
+#[test]
 fn empty_text() {
     let reference = crop::Rope::from("");
     for imp in impls("") {

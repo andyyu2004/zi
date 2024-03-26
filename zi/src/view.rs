@@ -1,5 +1,4 @@
 use tui::{LineNumber, Rect, Widget as _};
-use unicode_width::UnicodeWidthChar;
 
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::Resource;
@@ -159,12 +158,7 @@ impl View {
         let byte = line
             .chars()
             .take(self.cursor.pos.col().idx())
-            .map(|c| {
-                c.width().unwrap_or_else(|| match c {
-                    '\t' => buf.tab_width() as usize,
-                    _ => 0,
-                })
-            })
+            .map(|c| buf.char_width(c))
             .sum::<usize>();
         // TODO need tests for the column adjustment
         let x = byte as u32 - self.offset.col;
@@ -267,6 +261,11 @@ impl View {
         } else if self.cursor.pos.line().raw() >= self.offset.line + size.height as u32 {
             self.offset.line = self.cursor.pos.line().idx() as u32 - size.height as u32 + 1;
         }
+
+        // Assert that the cursor is in valid byte position. This will panic if the cursor is in
+        // the middle of a code point.
+        #[cfg(debug_assertions)]
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
 
         self.cursor.pos
     }
@@ -392,7 +391,7 @@ impl View {
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
         let overlay_highlights = buf
-            .overlay_highlights(self, area.into())
+            .overlay_highlights(editor, self, area.into())
             .skip_while(|(range, _)| range.end().line().idx() < line)
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));

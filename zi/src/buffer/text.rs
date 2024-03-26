@@ -1,5 +1,5 @@
 use super::*;
-use crate::text::{AnyTextSlice, Text, TextMut};
+use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -106,14 +106,27 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
 
     fn overlay_highlights(
         &self,
+        editor: &Editor,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
         assert_eq!(view.buffer(), self.id);
         let cursor = view.cursor();
+        let text = editor[view.buffer()].text();
+
+        // We have to be careful that we don't set the end column to the middle of a char
+        let end = match text.get_line(cursor.line().idx()) {
+            Some(line) => {
+                let line_byte_width =
+                    line.chars().take(size.width as usize).map(|c| c.len_utf8()).sum::<usize>();
+                size.width.max(line_byte_width as u16) as u32
+            }
+            _ => size.width as u32,
+        };
+
         // The current_line highlight
         Box::new(std::iter::once((
-            Range::new(cursor.with_col(0), cursor.with_col(size.width as u32)),
+            Range::new(cursor.with_col(0), cursor.with_col(end)),
             // FIXME don't use random highlight id
             HighlightId(0),
         )))

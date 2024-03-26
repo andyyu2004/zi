@@ -353,6 +353,16 @@ pub trait Text: TextBase {
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
+    #[inline]
+    fn char_at_point(&self, point: Point) -> Option<char> {
+        self.char_at_byte(self.point_to_byte(point))
+    }
+
+    #[inline]
+    fn char_at_byte(&self, byte_idx: usize) -> Option<char> {
+        self.byte_slice(byte_idx..).chars().next()
+    }
+
     fn annotate<'a, T: Copy>(
         &'a self,
         highlights: impl IntoIterator<Item = (Range, T)> + 'a,

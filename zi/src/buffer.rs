@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use crop::Rope;
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
+use unicode_width::UnicodeWidthChar;
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::picker::{FilePicker, Picker, PickerBuffer};
@@ -17,7 +18,7 @@ use crate::editor::{Resource, SyncClient};
 use crate::keymap::Keymap;
 use crate::syntax::{HighlightId, HighlightMap, Highlights, Syntax, Theme};
 use crate::text::{AnyText, Delta};
-use crate::{FileType, Point, Range, Size, Url, View};
+use crate::{Editor, FileType, Point, Range, Size, Url, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -75,6 +76,7 @@ pub trait Buffer {
     /// All ranges must be single-line ranges.
     fn overlay_highlights(
         &self,
+        _editor: &Editor,
         _view: &View,
         _size: Size,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
@@ -99,6 +101,13 @@ pub trait Buffer {
 
     /// Called when a view is closed that was displaying this buffer
     fn on_leave(&mut self) {}
+
+    fn char_width(&self, c: char) -> usize {
+        c.width().unwrap_or(match c {
+            '\t' => self.tab_width() as usize,
+            _ => 0,
+        })
+    }
 }
 
 // NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
@@ -174,10 +183,11 @@ impl Buffer for Box<dyn Buffer + Send> {
     #[inline]
     fn overlay_highlights(
         &self,
+        editor: &Editor,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
-        self.as_ref().overlay_highlights(view, size)
+        self.as_ref().overlay_highlights(editor, view, size)
     }
 
     #[inline]

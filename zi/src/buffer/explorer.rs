@@ -5,7 +5,7 @@ use nucleo::Nucleo;
 use super::*;
 use crate::editor::{get, Action};
 use crate::text::TextBase;
-use crate::{hashmap, trie, Editor, Mode};
+use crate::{hashmap, trie, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
     id: BufferId,

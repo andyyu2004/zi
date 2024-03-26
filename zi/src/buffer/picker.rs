@@ -7,7 +7,7 @@ use nucleo::Nucleo;
 use super::*;
 use crate::editor::{get, Action};
 use crate::text::TextMut;
-use crate::{hashmap, trie, Direction, Editor, Mode, OpenFlags, ViewId};
+use crate::{hashmap, trie, Direction, Mode, OpenFlags, ViewId};
 
 pub struct PickerBuffer<P: Picker> {
     id: BufferId,
