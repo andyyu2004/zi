@@ -51,7 +51,10 @@ pub struct NextWord;
 impl Motion for NextWord {
     fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point {
         let mut byte = text.point_to_byte(pos);
-        let chars = text.byte_slice(byte..).chars();
+        let mut chars = text.byte_slice(byte..).chars();
+
+        let Some(c) = chars.next() else { return pos };
+        byte += c.len_utf8();
 
         let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
 
