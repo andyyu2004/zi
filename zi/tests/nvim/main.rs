@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
+use anyhow::{ensure, Context};
 use datatest_stable::harness;
 use nvim_rs::error::LoopError;
 use tokio::process::{ChildStdin, Command};
@@ -74,10 +75,12 @@ impl Nvim {
         self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
         self.assert_eq(editor).await?;
 
-        for key in seq {
+        for (i, key) in seq.clone().into_iter().enumerate() {
             self.nvim.feedkeys(&key.to_string(), "m", true).await?;
-            editor.handle_input(key);
-            self.assert_eq(editor).await?;
+            editor.handle_input(key.clone());
+            self.assert_eq(editor)
+                .await
+                .with_context(|| format!("index {i} in key sequence: `{seq}`, key: `{key}`"))?;
         }
 
         Ok(())
@@ -120,10 +123,10 @@ impl Nvim {
             _ => panic!("unknown mode: {vi_mode}"),
         };
 
-        assert_eq!(mode, editor.mode());
-        assert_eq!(vi_lines, zi_lines);
-        assert_eq!(line as usize, zi_cursor.line().idx());
-        assert_eq!(col as usize, zi_cursor.col().idx());
+        ensure!(mode == editor.mode());
+        ensure!(vi_lines == zi_lines);
+        ensure!(line as usize == zi_cursor.line().idx());
+        ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
     }
 }

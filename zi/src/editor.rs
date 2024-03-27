@@ -1596,7 +1596,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
     const NEXT_TOKEN: Action = |editor| editor.motion(motion::NextToken);
     const PREV_TOKEN: Action = |editor| editor.motion(motion::PrevToken);
     const NEXT_WORD: Action = |editor| editor.motion(motion::NextWord);
-    // const PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
+    const PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
     const APPEND_EOL: Action = |editor| {
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.set_mode(Mode::Insert);
@@ -1660,7 +1660,7 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                     "k" => MOVE_UP,
                     "o" => OPEN_NEWLINE,
                     "w" => NEXT_WORD,
-                    // "b" => PREV_WORD,
+                    "b" => PREV_WORD,
                     "W" => NEXT_TOKEN,
                     "B" => PREV_TOKEN,
                     "a" => APPEND,

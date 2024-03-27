@@ -75,6 +75,29 @@ impl Motion for NextWord {
     }
 }
 
+pub struct PrevWord;
+
+impl Motion for PrevWord {
+    fn motion(&mut self, text: &dyn AnyText, pos: Point) -> Point {
+        let mut byte = text.point_to_byte(pos);
+        let mut chars = text.byte_slice(..byte).chars().rev();
+
+        let Some(c) = chars.next() else { return pos };
+        byte -= c.len_utf8();
+
+        for c in chars {
+            // FIXME should check other characters not just whitespace
+            if c.is_whitespace() {
+                break;
+            }
+
+            byte -= c.len_utf8();
+        }
+
+        text.byte_to_point(byte)
+    }
+}
+
 /// Whitespace delimited word
 pub struct NextToken;
 
