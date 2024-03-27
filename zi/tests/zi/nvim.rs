@@ -13,19 +13,11 @@ async fn nvim_vs_zi_test() {
     nvim_vs_zi(size, inputs).await.unwrap();
 }
 
-async fn nvim_vs_zi(size: zi::Size, inputs: KeySequence) -> zi::Result<()> {
-    let input_str = inputs.to_string();
-
-    // reparse to make sure nothing funky is going on
-    let seq = input_str.parse::<KeySequence>().unwrap();
-    assert_eq!(input_str, seq.to_string());
-
+async fn nvim_vs_zi(size: zi::Size, seq: KeySequence) -> zi::Result<()> {
     let nvim = Nvim::spawn(size.width, size.height).await?;
-    nvim.input(&input_str).await?;
     let (mut editor, _tasks) = zi::Editor::new(size);
-    editor.input(seq)?;
 
-    nvim.compare(&editor).await?;
+    nvim.run(&mut editor, seq).await?;
 
     Ok(())
 }
@@ -39,13 +31,18 @@ struct Nvim {
 }
 
 impl Nvim {
-    pub async fn input(&self, keys: &str) -> zi::Result<()> {
-        // Must use feedkeys not input as the latter runs asynchronously
-        self.nvim.feedkeys(keys, "", true).await?;
+    pub async fn run(&self, editor: &mut zi::Editor, seq: KeySequence) -> zi::Result<()> {
+        for key in seq {
+            self.nvim.feedkeys(&key.to_string(), "m", true).await?;
+            editor.handle_input(key);
+            self.compare(editor).await?;
+        }
+
         Ok(())
     }
 
-    pub async fn compare(&self, editor: &zi::Editor) -> zi::Result<()> {
+    // Compare the state of the editor with the state of the nvim instance
+    async fn compare(&self, editor: &zi::Editor) -> zi::Result<()> {
         let vi_buf = self.nvim.get_current_buf().await?;
         let mut vi_lines = vi_buf.get_lines(0, -1, false).await?.join("\n");
         // zi always adds a newline at the end
