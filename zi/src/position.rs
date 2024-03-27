@@ -89,6 +89,7 @@ impl Location {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Range {
+    // TODO these should maybe each be Bound<Point> to be more flexible
     /// The start of the range (inclusive)
     start: Point,
     /// The end of the range (exclusive)

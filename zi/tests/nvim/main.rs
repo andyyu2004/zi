@@ -1,23 +1,52 @@
-//! Test against a headless neovim instance
+//! Tests against a headless neovim instance
 
+use std::path::Path;
 use std::str::FromStr;
 
+use datatest_stable::harness;
 use nvim_rs::error::LoopError;
 use tokio::process::{ChildStdin, Command};
 use zi::input::KeySequence;
 
-#[tokio::test]
-async fn nvim_vs_zi_test() {
-    let size = zi::Size::new(80, 24);
-    let inputs = KeySequence::from_str("itest").unwrap();
-    nvim_vs_zi(size, inputs).await.unwrap();
+harness!(nvim_vs_zi_test, "tests/nvim/testdata", r"^.*/*");
+
+struct Fixture {
+    text: String,
+    size: zi::Size,
+    inputs: KeySequence,
 }
 
-async fn nvim_vs_zi(size: zi::Size, seq: KeySequence) -> zi::Result<()> {
+impl Fixture {
+    fn load(path: &Path) -> zi::Result<Self> {
+        let reader = std::fs::read_to_string(path)?;
+        let mut text = String::new();
+        let mut lines = reader.split_inclusive('\n');
+        const SEP: &str = "----";
+        for line in lines.by_ref().take_while(|line| !line.starts_with(SEP)) {
+            text.push_str(line);
+        }
+
+        let line = lines.next().expect("expected input key sequence line after ----");
+        let inputs = KeySequence::from_str(line.trim()).expect("could not parse key sequence");
+
+        assert!(lines.next().is_none(), "expected EOF after key sequence");
+
+        Ok(Self { text, size: zi::Size::new(80, 24), inputs })
+    }
+}
+
+#[tokio::main]
+async fn nvim_vs_zi_test(path: &Path) -> datatest_stable::Result<()> {
+    let fixture = Fixture::load(path)?;
+    Ok(nvim_vs_zi(fixture).await?)
+}
+
+async fn nvim_vs_zi(fixture: Fixture) -> zi::Result<()> {
+    let size = fixture.size;
     let nvim = Nvim::spawn(size.width, size.height).await?;
     let (mut editor, _tasks) = zi::Editor::new(size);
 
-    nvim.run(&mut editor, seq).await?;
+    nvim.run(&mut editor, &fixture.text, fixture.inputs).await?;
 
     Ok(())
 }
@@ -31,18 +60,31 @@ struct Nvim {
 }
 
 impl Nvim {
-    pub async fn run(&self, editor: &mut zi::Editor, seq: KeySequence) -> zi::Result<()> {
+    pub async fn run(
+        &self,
+        editor: &mut zi::Editor,
+        initial: &str,
+        seq: KeySequence,
+    ) -> zi::Result<()> {
+        let initial = initial.trim_end();
+        editor.active_buffer_mut().edit(&zi::Delta::new(zi::Range::default(), initial));
+        self.nvim
+            .put(initial.lines().map(|line| line.to_string()).collect::<Vec<_>>(), "c", true, false)
+            .await?;
+        self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
+        self.assert_eq(editor).await?;
+
         for key in seq {
             self.nvim.feedkeys(&key.to_string(), "m", true).await?;
             editor.handle_input(key);
-            self.compare(editor).await?;
+            self.assert_eq(editor).await?;
         }
 
         Ok(())
     }
 
     // Compare the state of the editor with the state of the nvim instance
-    async fn compare(&self, editor: &zi::Editor) -> zi::Result<()> {
+    async fn assert_eq(&self, editor: &zi::Editor) -> zi::Result<()> {
         let vi_buf = self.nvim.get_current_buf().await?;
         let mut vi_lines = vi_buf.get_lines(0, -1, false).await?.join("\n");
         // zi always adds a newline at the end

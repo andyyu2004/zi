@@ -54,3 +54,7 @@ arbitrary = ["dep:arbitrary", "bitflags/arbitrary"]
 [[test]]
 name = "regression"
 harness = false
+
+[[test]]
+name = "nvim"
+harness = false

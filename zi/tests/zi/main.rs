@@ -2,6 +2,5 @@
 
 mod api;
 mod keymap;
-mod nvim;
 mod perf;
 mod render;

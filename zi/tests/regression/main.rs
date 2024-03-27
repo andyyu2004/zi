@@ -5,7 +5,7 @@ use datatest_stable::{harness, Result};
 use futures_executor::block_on;
 use zi::input::{KeyCode, KeyEvent, KeySequence};
 
-harness!(test, "tests/regression/fuzz", r"^.*/*",);
+harness!(test, "tests/regression/fuzz", r"^.*/*");
 
 fn test(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path)?;
