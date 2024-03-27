@@ -3,7 +3,7 @@ use std::path::Path;
 use arbitrary::{Arbitrary, Unstructured};
 use datatest_stable::{harness, Result};
 use futures_executor::block_on;
-use zi::input::{KeyCode, KeyEvent, KeyModifiers, KeySequence};
+use zi::input::{KeyCode, KeyEvent, KeySequence};
 
 harness!(test, "tests/regression/fuzz", r"^.*/*",);
 
@@ -15,7 +15,7 @@ fn test(path: &Path) -> Result<()> {
 }
 
 fn run(seq: KeySequence) -> Result<()> {
-    eprintln!("{seq}\n{seq:#?}");
+    eprintln!("{seq:#?}\n{seq}");
 
     let (width, height) = (24, 10);
     let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };

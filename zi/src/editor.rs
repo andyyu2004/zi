@@ -460,7 +460,9 @@ impl Editor {
     }
 
     pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
-        let area = self.tree.area();
+        let buffer_area = frame.buffer_mut().area;
+        let tree_area = self.tree.area();
+        assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
         let sender = self.sender();
 
         // Only iterate over the views that are in the view tree, as otherwise they are definitely
@@ -500,7 +502,7 @@ impl Editor {
 
         // FIXME probably a better way than manually padding the right
         status_spans.push(tui::Span::styled(
-            " ".repeat(area.width as usize),
+            " ".repeat(tree_area.width as usize),
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
@@ -521,7 +523,12 @@ impl Editor {
         let widget = tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (status, cmd));
 
         widget.render(
-            tui::Rect { x: 0, y: area.height, width: area.width, height: Self::BOTTOM_BAR_HEIGHT },
+            tui::Rect {
+                x: 0,
+                y: tree_area.height,
+                width: tree_area.width,
+                height: Self::BOTTOM_BAR_HEIGHT,
+            },
             frame.buffer_mut(),
         );
 

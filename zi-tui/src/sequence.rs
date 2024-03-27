@@ -21,8 +21,8 @@ pub trait ElementSeq {
 impl<const N: usize, T: Element> ElementSeq for [T; N] {
     fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
         assert_eq!(areas.len(), N);
-        for (view, area) in self.into_iter().zip(areas.iter()) {
-            view.render(*area, buf);
+        for (view, &area) in self.into_iter().zip(areas.iter()) {
+            view.render(area, buf);
         }
     }
 
@@ -34,8 +34,8 @@ impl<const N: usize, T: Element> ElementSeq for [T; N] {
 impl<T: Element> ElementSeq for Vec<T> {
     fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
         assert_eq!(areas.len(), self.len());
-        for (view, area) in self.into_iter().zip(areas.iter()) {
-            view.render(*area, buf);
+        for (view, &area) in self.into_iter().zip(areas.iter()) {
+            view.render(area, buf);
         }
     }
 
@@ -50,10 +50,11 @@ macro_rules! impl_element_seq_tuple {
         where
             $($t: Element,)*
         {
-            fn render(self, areas: Rc<[Rect]>, _buf: &mut Buffer) {
+            #[allow(unused)]
+            fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
                 assert_eq!(areas.len(), self.len());
                 $(
-                    self.$idx.render(areas[$idx], _buf);
+                    self.$idx.render(areas[$idx], buf);
                 )*
             }
 

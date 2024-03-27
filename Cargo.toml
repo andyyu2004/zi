@@ -19,3 +19,7 @@ rust_2018_idioms = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
+
+# https://github.com/ratatui-org/ratatui/pull/1001
+[patch.crates-io]
+ratatui = { git = "https://github.com/andyyu2004/ratatui", branch = "zero-width-grapheme-span-panic-fix" }
