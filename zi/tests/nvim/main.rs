@@ -11,28 +11,68 @@ use zi::input::KeySequence;
 
 harness!(nvim_vs_zi_test, "tests/nvim/testdata", r"^.*/*");
 
+/// A fixture is a list of test cases. See [`TestCase`] for more information.
 struct Fixture {
-    text: String,
     size: zi::Size,
+    cases: Box<[TestCase]>,
+}
+
+/// A test case is a text buffer and a sequence of key inputs.
+/// Text format:
+/// ```
+/// ==== any text here until new line
+/// some text
+/// that can span multiple lines
+///
+/// with empty lines
+/// ----
+/// input key sequence
+///
+/// (optional empty line)
+///
+/// ==== next test case
+/// ```
+struct TestCase {
+    text: String,
     inputs: KeySequence,
 }
 
 impl Fixture {
     fn load(path: &Path) -> zi::Result<Self> {
-        let reader = std::fs::read_to_string(path)?;
-        let mut text = String::new();
-        let mut lines = reader.split_inclusive('\n');
+        let mut cases = vec![];
+
+        const TEST_CASE_HEADER: &str = "====";
         const SEP: &str = "----";
-        for line in lines.by_ref().take_while(|line| !line.starts_with(SEP)) {
-            text.push_str(line);
+
+        let file = std::fs::read_to_string(path)?;
+        let mut sections = file.split(TEST_CASE_HEADER).peekable();
+        if let Some(first) = sections.peek() {
+            assert!(first.is_empty(), "missing initial test case header ====");
+            sections.next().unwrap();
         }
 
-        let line = lines.next().expect("expected input key sequence line after ----");
-        let inputs = KeySequence::from_str(line.trim()).expect("could not parse key sequence");
+        for section in sections {
+            let mut text = String::new();
+            let mut lines = section.split_inclusive('\n');
+            lines.next().expect("expected newline after after ====");
 
-        assert!(lines.next().is_none(), "expected EOF after key sequence");
+            for line in lines.by_ref().take_while(|line| !line.starts_with(SEP)) {
+                text.push_str(line);
+            }
 
-        Ok(Self { text, size: zi::Size::new(80, 24), inputs })
+            let line = lines.next().expect("expected input key sequence line after ----");
+            let inputs = KeySequence::from_str(line.trim()).expect("could not parse key sequence");
+            cases.push(TestCase { text, inputs });
+
+            for line in lines {
+                assert!(
+                    line.trim_end().is_empty(),
+                    "unexpected non-empty line after input key sequence before next test case: `{line}`"
+                );
+            }
+        }
+
+        Ok(Self { size: zi::Size::new(80, 24), cases: cases.into_boxed_slice() })
     }
 }
 
@@ -47,7 +87,9 @@ async fn nvim_vs_zi(fixture: Fixture) -> zi::Result<()> {
     let nvim = Nvim::spawn(size.width, size.height).await?;
     let (mut editor, _tasks) = zi::Editor::new(size);
 
-    nvim.run(&mut editor, &fixture.text, fixture.inputs).await?;
+    for case in &fixture.cases[..] {
+        nvim.run(&mut editor, case).await?;
+    }
 
     Ok(())
 }
@@ -61,26 +103,27 @@ struct Nvim {
 }
 
 impl Nvim {
-    pub async fn run(
-        &self,
-        editor: &mut zi::Editor,
-        initial: &str,
-        seq: KeySequence,
-    ) -> zi::Result<()> {
-        let initial = initial.trim_end();
-        editor.active_buffer_mut().edit(&zi::Delta::new(zi::Range::default(), initial));
+    pub async fn run(&self, editor: &mut zi::Editor, case: &TestCase) -> zi::Result<()> {
+        let initial = case.text.trim_end();
+        let inputs = &case.inputs;
+        let n = editor.active_buffer().text().len_bytes();
+        editor.active_buffer_mut().edit(&zi::Delta::new(0..n, initial));
+        editor.set_active_cursor((0, 0));
+
         self.nvim
-            .put(initial.lines().map(|line| line.to_string()).collect::<Vec<_>>(), "c", true, false)
+            .get_current_buf()
+            .await?
+            .set_lines(0, -1, false, initial.lines().map(ToOwned::to_owned).collect())
             .await?;
         self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
-        self.assert_eq(editor).await?;
+        self.assert_eq(editor).await.context("did not reset state properly after test case")?;
 
-        for (i, key) in seq.clone().into_iter().enumerate() {
+        for (i, key) in inputs.clone().into_iter().enumerate() {
             self.nvim.feedkeys(&key.to_string(), "m", true).await?;
             editor.handle_input(key.clone());
             self.assert_eq(editor)
                 .await
-                .with_context(|| format!("index {i} in key sequence: `{seq}`, key: `{key}`"))?;
+                .with_context(|| format!("index {i} in key sequence: `{inputs}`, key: `{key}`"))?;
         }
 
         Ok(())
@@ -89,9 +132,7 @@ impl Nvim {
     // Compare the state of the editor with the state of the nvim instance
     async fn assert_eq(&self, editor: &zi::Editor) -> zi::Result<()> {
         let vi_buf = self.nvim.get_current_buf().await?;
-        let mut vi_lines = vi_buf.get_lines(0, -1, false).await?.join("\n");
-        // zi always adds a newline at the end
-        vi_lines.push('\n');
+        let vi_lines = vi_buf.get_lines(0, -1, false).await?.join("\n");
         let vi_win = self.nvim.get_current_win().await?;
         let (line, col) = vi_win.get_cursor().await?;
         let line = line.checked_sub(1).expect("1-indexed lines");
@@ -124,7 +165,7 @@ impl Nvim {
         };
 
         ensure!(mode == editor.mode());
-        ensure!(vi_lines == zi_lines);
+        ensure!(vi_lines == zi_lines, "{vi_lines:?}\n{zi_lines:?}");
         ensure!(line as usize == zi_cursor.line().idx());
         ensure!(col as usize == zi_cursor.col().idx());
         Ok(())

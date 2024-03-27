@@ -56,16 +56,23 @@ impl Motion for NextWord {
         let Some(c) = chars.next() else { return pos };
         byte += c.len_utf8();
 
-        let is_sep = |c: char| c.is_whitespace() || !c.is_alphanumeric() || c.is_uppercase();
+        let is_special = |c: char| !c.is_alphanumeric();
 
-        let mut found_sep = false;
+        if is_special(c) {
+            // If we were on a separator, then we just move a character.
+            return text.byte_to_point(byte);
+        }
+
+        let mut found_whitespace = false;
         for c in chars {
-            if found_sep && !c.is_whitespace() {
+            if found_whitespace && !c.is_whitespace() {
                 break;
             }
 
-            if is_sep(c) {
-                found_sep = true;
+            if c.is_whitespace() {
+                found_whitespace = true;
+            } else if is_special(c) {
+                break;
             }
 
             byte += c.len_utf8();
