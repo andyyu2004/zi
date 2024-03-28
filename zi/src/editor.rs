@@ -904,7 +904,7 @@ impl Editor {
     pub fn motion(&mut self, mut motion: impl Motion) {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
-        let pos = motion.motion(buf.text(), view.cursor());
+        let pos = motion.point_motion(buf.text(), view.cursor());
         view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
     }
 

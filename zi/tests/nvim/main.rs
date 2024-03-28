@@ -9,7 +9,7 @@ use nvim_rs::error::LoopError;
 use tokio::process::{ChildStdin, Command};
 use zi::input::KeySequence;
 
-harness!(nvim_vs_zi_test, "tests/nvim/testdata", r"^.*/*");
+harness!(nvim_vs_zi_test, "tests/nvim/testdata", r"^.*/*.test");
 
 /// A fixture is a list of test cases. See [`TestCase`] for more information.
 struct Fixture {
@@ -53,7 +53,7 @@ impl Fixture {
 
         for section in sections {
             let mut text = String::new();
-            let mut lines = section.split_inclusive('\n');
+            let mut lines = section.split_inclusive('\n').filter(|line| !line.starts_with('#'));
             lines.next().expect("expected newline after after ====");
 
             for line in lines.by_ref().take_while(|line| !line.starts_with(SEP)) {
@@ -166,7 +166,7 @@ impl Nvim {
 
         ensure!(mode == editor.mode());
         ensure!(vi_lines == zi_lines, "{vi_lines:?}\n{zi_lines:?}");
-        ensure!(line as usize == zi_cursor.line().idx());
+        ensure!(line as usize == zi_cursor.line().idx(),);
         ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
     }

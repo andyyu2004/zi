@@ -4,7 +4,8 @@
     trait_upcasting,
     is_sorted,
     coroutines,
-    iter_from_coroutine
+    iter_from_coroutine,
+    iter_map_windows
 )]
 
 mod boring_impls;
