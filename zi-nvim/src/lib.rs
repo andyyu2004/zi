@@ -47,21 +47,33 @@ impl TestCase {
     }
 }
 
+pub async fn spawn(width: u16, height: u16) -> Nvim {
+    Nvim::spawn(width, height).await.expect("could not spawn neovim")
+}
+
 impl Fixture {
     pub fn new(cases: impl IntoIterator<Item = TestCase>) -> Self {
         Self { size: zi::Size::new(80, 24), cases: cases.into_iter().collect() }
     }
 
-    pub async fn nvim_vs_zi(self) -> zi::Result<()> {
-        let size = self.size;
-        let nvim = Nvim::spawn(size.width, size.height).await?;
-        let (mut editor, _tasks) = zi::Editor::new(size);
+    pub async fn nvim_vs_zi_with(self, nvim: &Nvim) -> zi::Result<()> {
+        let (mut editor, _tasks) = zi::Editor::new(self.size);
 
         for case in &self.cases[..] {
             nvim.run(&mut editor, case).await?;
         }
 
         Ok(())
+    }
+
+    pub async fn spawn(self) -> zi::Result<Nvim> {
+        Nvim::spawn(self.size.width, self.size.height).await
+    }
+
+    pub async fn nvim_vs_zi(self) -> zi::Result<()> {
+        let size = self.size;
+        let nvim = Nvim::spawn(size.width, size.height).await?;
+        self.nvim_vs_zi_with(&nvim).await
     }
 
     pub fn load(path: &Path) -> zi::Result<Self> {
@@ -99,6 +111,10 @@ impl Fixture {
         }
 
         Ok(Self::new(cases))
+    }
+
+    pub fn size(&self) -> &zi::Size {
+        &self.size
     }
 }
 
