@@ -299,7 +299,23 @@ fn key_event() -> impl Parser<char, KeyEvent, Error = chumsky::error::Simple<cha
 
     let modified_key = modifiers
         .then(choice((special_key, key)))
-        .map(|(modifiers, code)| KeyEvent { modifiers, code })
+        .map(|(modifiers, code)| {
+            // normalize
+            match code {
+                // ensure capital letters have the shift modifier
+                KeyCode::Char(c) if c.is_uppercase() => {
+                    KeyEvent { code: KeyCode::Char(c), modifiers: modifiers | KeyModifiers::SHIFT }
+                }
+                // <C-S-x> should be the same as <C-S-X>
+                KeyCode::Char(c)
+                    if c.is_ascii_lowercase() && modifiers.contains(KeyModifiers::SHIFT) =>
+                {
+                    KeyEvent { code: KeyCode::Char(c.to_ascii_uppercase()), modifiers }
+                }
+
+                _ => KeyEvent { code, modifiers },
+            }
+        })
         .delimited_by(just("<"), just(">"));
 
     let unmodified_key = choice((special_key.delimited_by(just("<"), just(">")), key))
@@ -312,23 +328,7 @@ impl FromStr for KeyEvent {
     type Err = Vec<chumsky::error::Simple<char>>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let event = key_event().then_ignore(chumsky::primitive::end()).parse(s)?;
-        // normalize
-        Ok(match event.code {
-            // ensure capital letters have the shift modifier
-            KeyCode::Char(c) if c.is_uppercase() => KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: event.modifiers | KeyModifiers::SHIFT,
-            },
-            // <C-S-x> should be the same as <C-S-X>
-            KeyCode::Char(c)
-                if c.is_ascii_lowercase() && event.modifiers.contains(KeyModifiers::SHIFT) =>
-            {
-                KeyEvent { code: KeyCode::Char(c.to_ascii_uppercase()), modifiers: event.modifiers }
-            }
-
-            _ => event,
-        })
+        key_event().then_ignore(chumsky::primitive::end()).parse(s)
     }
 }
 

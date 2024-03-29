@@ -23,3 +23,19 @@ fn motion_next_word() {
     assert_eq!(motion.motion(&"a-A", 0), 2);
     assert_eq!(motion.motion(&"AAa", 0), 1);
 }
+
+#[test]
+fn motion_next_token() {
+    let motion = NextToken;
+    assert_eq!(motion.motion(&" a", 0), 1);
+    assert_eq!(motion.motion(&"00", 0), 2);
+}
+
+#[test]
+fn motion_prev_token() {
+    let motion = PrevToken;
+    assert_eq!(motion.motion(&"01", 1), 0);
+    assert_eq!(motion.motion(&"-01", 2), 0);
+    assert_eq!(motion.motion(&"  A", 2), 0);
+    assert_eq!(motion.motion(&" Aa", 2), 1);
+}

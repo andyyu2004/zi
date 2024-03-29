@@ -199,7 +199,7 @@ impl Nvim {
 
         ensure!(mode == editor.mode());
         ensure!(vi_lines == zi_lines, "{vi_lines:?}\n{zi_lines:?}");
-        ensure!(line as usize == zi_cursor.line().idx(),);
+        ensure!(line as usize == zi_cursor.line().idx());
         ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
     }

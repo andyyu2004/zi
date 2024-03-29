@@ -40,21 +40,81 @@ impl<M: Motion> Motion for Repeated<M> {
     }
 }
 
-pub struct PrevToken;
+fn copy<T: Copy>(&x: &T) -> T {
+    x
+}
 
-impl Motion for PrevToken {
+trait CharExt {
+    /// Returns true if the character is a word separator. This is whitespace, `-`, and `_`.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_separator(self) -> bool;
+
+    /// Returns true if the character is a word start.
+    /// This includes non-alphanumeric characters and capital letters.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_start(self) -> bool;
+}
+
+impl CharExt for char {
+    #[inline]
+    fn is_word_separator(self) -> bool {
+        self.is_whitespace() || matches!(self, '-' | '_')
+    }
+
+    #[inline]
+    fn is_word_start(self) -> bool {
+        (self.is_uppercase() || !self.is_alphanumeric()) && !self.is_word_separator()
+    }
+}
+
+struct Prev {
+    is_sep: fn(char) -> bool,
+    is_start: fn(char, char) -> bool,
+}
+
+impl Motion for Prev {
     fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
-        let mut chars = text.byte_slice(..byte).chars();
+        let mut chars = text.byte_slice(..byte).chars().rev().peekable();
 
-        let prev = chars.next_back().unwrap_or('x');
-        for c in chars.rev() {
-            if c.is_whitespace() && !prev.is_whitespace() {
+        let c = chars.peek().copied();
+        let mut windows = chars.by_ref().map_windows::<_, _, 2>(copy).peekable();
+
+        if windows.peek().is_none() {
+            // If there is only one character left, then the windowed iterator is empty.
+            // In this case, we just move back one character if possible.
+            // Note that `c` must be saved before peeking the windows as that would consume it with
+            // no way of getting it back.
+            return byte - c.map_or(0, |c| c.len_utf8());
+        }
+
+        while let Some([c, next]) = windows.next() {
+            byte -= c.len_utf8();
+
+            if ((self.is_sep)(next) || (self.is_start)(c, next))
+                && (!(self.is_sep)(c) || !(self.is_sep)(next))
+            {
                 break;
             }
-            byte -= c.len_utf8();
+
+            // last iteration of the loop, deal with the final character
+            if windows.peek().is_none() {
+                byte -= next.len_utf8();
+            }
         }
 
         byte
+    }
+}
+
+pub struct PrevToken;
+
+impl Motion for PrevToken {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        Prev {
+            is_sep: char::is_whitespace,
+            is_start: |c, next| !c.is_whitespace() && next.is_whitespace(),
+        }
+        .motion(text, byte)
     }
 }
 
@@ -85,64 +145,12 @@ impl Motion for NextWord {
     }
 }
 
-fn copy<T: Copy>(&x: &T) -> T {
-    x
-}
-
-trait CharExt {
-    /// Returns true if the character is a word separator. This is whitespace, `-`, and `_`.
-    #[allow(clippy::wrong_self_convention)]
-    fn is_word_separator(self) -> bool;
-
-    /// Returns true if the character is a word start.
-    /// This includes non-alphanumeric characters and capital letters.
-    #[allow(clippy::wrong_self_convention)]
-    fn is_word_start(self) -> bool;
-}
-
-impl CharExt for char {
-    #[inline]
-    fn is_word_separator(self) -> bool {
-        self.is_whitespace() || matches!(self, '-' | '_')
-    }
-
-    #[inline]
-    fn is_word_start(self) -> bool {
-        (self.is_uppercase() || !self.is_alphanumeric()) && !self.is_word_separator()
-    }
-}
-
 pub struct PrevWord;
 
 impl Motion for PrevWord {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
-        let mut chars = text.byte_slice(..byte).chars().rev().peekable();
-
-        let c = chars.peek().copied();
-
-        let mut windows = chars.by_ref().map_windows(copy).peekable();
-        if windows.peek().is_none() {
-            // If there is only one character left, then the windowed iterator is empty.
-            // In this case, we just move back one character if possible.
-            // Note that `c` must be saved before peeking the windows as that would consume it with
-            // no way of getting it back.
-            return byte - c.map_or(0, |c| c.len_utf8());
-        }
-
-        while let Some([c, next]) = windows.next() {
-            byte -= c.len_utf8();
-
-            if next.is_word_separator() || c.is_word_start() {
-                break;
-            }
-
-            // last iteration of the loop, deal with the final character
-            if windows.peek().is_none() && !next.is_word_separator() {
-                byte -= next.len_utf8();
-            }
-        }
-
-        byte
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        Prev { is_sep: char::is_word_separator, is_start: |c, _| c.is_word_start() }
+            .motion(text, byte)
     }
 }
 
@@ -159,10 +167,7 @@ impl Motion for NextToken {
                 break;
             }
 
-            if c.is_whitespace() {
-                found_whitespace = true;
-            }
-
+            found_whitespace |= c.is_whitespace();
             byte += c.len_utf8();
         }
 
