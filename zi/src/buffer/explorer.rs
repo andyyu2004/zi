@@ -1,3 +1,4 @@
+use std::path::MAIN_SEPARATOR;
 use std::sync::Arc;
 
 use nucleo::Nucleo;
@@ -130,6 +131,21 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         for item in snapshot.matched_items(..n) {
             self.text.push_str(&format!("{}\n", item.data));
         }
+    }
+
+    fn overlay_highlights(
+        &self,
+        _editor: &Editor,
+        _view: &View,
+        _size: Size,
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+        Box::new(
+            self.text
+                .lines()
+                .enumerate()
+                .filter(|(_i, line)| line.ends_with(MAIN_SEPARATOR))
+                .map(|(i, line)| (Range::new((i, 0), (i, line.len())), HighlightId(1))),
+        )
     }
 
     fn on_leave(&mut self) {
