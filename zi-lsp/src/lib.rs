@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::io;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::path::Path;
 use std::process::Stdio;
@@ -11,6 +12,8 @@ pub use async_lsp::{
     lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
     ServerSocket,
 };
+use tokio::io::AsyncWriteExt;
+use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 
 pub struct Server {
@@ -53,11 +56,22 @@ impl Server {
             .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()?;
         let stdout = child.stdout.take().unwrap();
         let stdin = child.stdin.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        // write stderr to a file /tmp/zi-lsp-log
+        tokio::spawn(async move {
+            let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
+            let mut writer = tokio::io::BufWriter::new(file);
+            let mut reader = tokio::io::BufReader::new(stderr.compat());
+            tokio::io::copy(&mut reader, &mut writer).await?;
+            writer.flush().await?;
+            Ok::<_, io::Error>(())
+        });
 
         let handle = tokio::spawn(async move {
             let _ = main_loop.run_buffered(stdout, stdin).await;
