@@ -12,13 +12,13 @@ use std::pin::{pin, Pin};
 use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use std::{fmt, io};
+use std::{cmp, fmt, io};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
-use stdx::path::PathExt;
+use stdx::path::{PathExt, Relative};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
@@ -1064,7 +1064,7 @@ impl Editor {
                     id,
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
-                    |editor, path: stdx::path::Display| {
+                    |editor, path: Relative| {
                         let path = path.into_inner();
                         if path.is_dir() {
                             editor.open_file_explorer(path);
@@ -1084,18 +1084,23 @@ impl Editor {
             // Cannot use parallel iterator as it doesn't sort.
             let walk = ignore::WalkBuilder::new(path)
                 .max_depth(Some(1))
-                .sort_by_file_name(std::cmp::Ord::cmp)
+                .sort_by_file_path(|a, b| {
+                    if a.is_dir() && !b.is_dir() {
+                        cmp::Ordering::Less
+                    } else if !a.is_dir() && b.is_dir() {
+                        cmp::Ordering::Greater
+                    } else {
+                        a.cmp(b)
+                    }
+                })
                 .build();
 
+            let path = path.to_path_buf();
             editor.pool().spawn(move || {
-                let _ = injector.push(PathBuf::from("..").display_owned());
+                let _ = injector.push(PathBuf::from("..").display_relative_to(&path));
                 for entry in walk {
-                    let entry = match entry {
-                        Ok(entry) => entry,
-                        Err(_) => continue,
-                    };
-
-                    if let Err(()) = injector.push(entry.into_path().display_owned()) {
+                    let Ok(entry) = entry else { continue };
+                    if let Err(()) = injector.push(entry.into_path().display_relative_to(&path)) {
                         break;
                     }
                 }
