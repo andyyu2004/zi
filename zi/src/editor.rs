@@ -661,8 +661,8 @@ impl Editor {
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
         tracing::debug!(?key, "handling key");
-        match &key.code {
-            &KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
+        match key.code() {
+            KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
                 let (res, buffered) = keymap.on_key(self.mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
@@ -670,7 +670,7 @@ impl Editor {
                 }
 
                 for event in buffered {
-                    match event.code {
+                    match event.code() {
                         KeyCode::Char(c) => match self.mode {
                             Mode::Insert => self.insert_char(c),
                             Mode::Command => self.command.push(c),

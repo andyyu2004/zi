@@ -129,14 +129,14 @@ impl TryFrom<crossterm::event::Event> for Event {
         match event {
             crossterm::event::Event::Key(event) => match event.code {
                 // weird crossterm case, we just convert this to `<S-Tab>`
-                crossterm::event::KeyCode::BackTab => Ok(Event::Key(KeyEvent {
-                    code: KeyCode::Tab,
-                    modifiers: KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
-                })),
-                _ => Ok(Event::Key(KeyEvent {
-                    code: event.code.try_into()?,
-                    modifiers: event.modifiers.try_into()?,
-                })),
+                crossterm::event::KeyCode::BackTab => Ok(Event::Key(KeyEvent::new(
+                    KeyCode::Tab,
+                    KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
+                ))),
+                _ => Ok(Event::Key(KeyEvent::new(
+                    event.code.try_into()?,
+                    event.modifiers.try_into()?,
+                ))),
             },
 
             crossterm::event::Event::Resize(width, height) => {
@@ -150,8 +150,37 @@ impl TryFrom<crossterm::event::Event> for Event {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KeyEvent {
-    pub code: KeyCode,
-    pub modifiers: KeyModifiers,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+}
+
+impl KeyEvent {
+    pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Self {
+        // normalize
+        match code {
+            // ensure capital letters have the shift modifier
+            KeyCode::Char(c) if c.is_uppercase() => {
+                KeyEvent { code: KeyCode::Char(c), modifiers: modifiers | KeyModifiers::SHIFT }
+            }
+            // <C-S-x> should be the same as <C-S-X>
+            KeyCode::Char(c)
+                if c.is_ascii_lowercase() && modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                KeyEvent { code: KeyCode::Char(c.to_ascii_uppercase()), modifiers }
+            }
+            _ => KeyEvent { code, modifiers },
+        }
+    }
+
+    #[inline]
+    pub fn code(&self) -> KeyCode {
+        self.code
+    }
+
+    #[inline]
+    pub fn modifiers(&self) -> KeyModifiers {
+        self.modifiers
+    }
 }
 
 impl From<KeyCode> for KeyEvent {
@@ -299,27 +328,11 @@ fn key_event() -> impl Parser<char, KeyEvent, Error = chumsky::error::Simple<cha
 
     let modified_key = modifiers
         .then(choice((special_key, key)))
-        .map(|(modifiers, code)| {
-            // normalize
-            match code {
-                // ensure capital letters have the shift modifier
-                KeyCode::Char(c) if c.is_uppercase() => {
-                    KeyEvent { code: KeyCode::Char(c), modifiers: modifiers | KeyModifiers::SHIFT }
-                }
-                // <C-S-x> should be the same as <C-S-X>
-                KeyCode::Char(c)
-                    if c.is_ascii_lowercase() && modifiers.contains(KeyModifiers::SHIFT) =>
-                {
-                    KeyEvent { code: KeyCode::Char(c.to_ascii_uppercase()), modifiers }
-                }
-
-                _ => KeyEvent { code, modifiers },
-            }
-        })
+        .map(|(modifiers, code)| KeyEvent::new(code, modifiers))
         .delimited_by(just("<"), just(">"));
 
     let unmodified_key = choice((special_key.delimited_by(just("<"), just(">")), key))
-        .map(|code| KeyEvent { code, modifiers: KeyModifiers::empty() });
+        .map(|code| KeyEvent::new(code, KeyModifiers::empty()));
 
     choice((modified_key, unmodified_key))
 }
