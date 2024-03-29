@@ -40,7 +40,7 @@ pub use self::position::{Col, Direction, Line, Location, Point, Range, Size};
 pub use self::syntax::{Color, Style};
 pub use self::text::Delta;
 pub use self::view::{View, ViewId};
-pub use self::wit::zi::api::editor::Mode;
+pub use self::wit::zi::api::editor::{Mode, Operator};
 
 // Consider a proper error type
 pub type Error = anyhow::Error;

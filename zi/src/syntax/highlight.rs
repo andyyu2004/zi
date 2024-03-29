@@ -44,6 +44,7 @@ impl Default for Theme {
                 (Highlight::CURSORLINE, None, Some(0x07364200)),
                 (Highlight::DIRECTORY, Some(0x268bd200), None),
                 ("namespace", Some(0x39a6b900), None),
+                ("module", Some(0x39a6b900), None),
                 ("function.macro", Some(0x298cba00), None),
                 ("function", Some(0x298cba00), None),
                 ("property", Some(0x41978900), None),

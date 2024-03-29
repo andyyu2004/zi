@@ -8,6 +8,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::wit::exports::zi::api::command::{Arity, Command};
 use crate::wit::exports::zi::api::lifecycle::InitializeResult;
+use crate::wit::zi::api::editor::Operator;
 use crate::Mode;
 
 impl PartialEq for InitializeResult {
@@ -35,6 +36,7 @@ impl PartialEq for Mode {
             Mode::Insert => matches!(other, Mode::Insert),
             Mode::Command => matches!(other, Mode::Command),
             Mode::Visual => matches!(other, Mode::Visual),
+            Mode::OperatorPending(x) => matches!(other, Mode::OperatorPending(y) if x == y),
         }
     }
 }
@@ -60,11 +62,21 @@ impl fmt::Display for Mode {
             f,
             "{}",
             match self {
-                Mode::Normal => "NORMAL",
+                Mode::Normal | Mode::OperatorPending(_) => "",
                 Mode::Command => "COMMAND",
                 Mode::Insert => "INSERT",
                 Mode::Visual => "VISUAL",
             }
         )
+    }
+}
+
+impl PartialEq for Operator {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Operator::Delete => matches!(other, Operator::Delete),
+            Operator::Change => matches!(other, Operator::Change),
+            Operator::Yank => matches!(other, Operator::Yank),
+        }
     }
 }

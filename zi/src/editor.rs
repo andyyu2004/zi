@@ -41,7 +41,7 @@ use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Location, Mode, Point, Url, View, ViewId,
+    LanguageServerId, Location, Mode, Operator, Point, Url, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -517,6 +517,7 @@ impl Editor {
         let cmd = tui::Text::styled(
             match self.mode {
                 Mode::Command => format!(":{}", self.command),
+                Mode::Normal | Mode::OperatorPending(_) => String::new(),
                 mode => format!("-- {mode} --",),
             },
             tui::Style::new()
@@ -667,7 +668,7 @@ impl Editor {
         tracing::debug!(?key, "handling key");
         match key.code() {
             KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
-                let (res, buffered) = keymap.on_key(self.mode, key);
+                let (res, buffered) = keymap.on_key(&self.mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
                     TrieResult::Partial | TrieResult::Nothing => (),
@@ -684,11 +685,15 @@ impl Editor {
                     }
                 }
             }
-            _ => {
-                if let (TrieResult::Found(f), _) = keymap.on_key(self.mode, key) {
-                    f(self);
+            _ => match keymap.on_key(&self.mode, key).0 {
+                TrieResult::Found(f) => f(self),
+                TrieResult::Partial => (),
+                TrieResult::Nothing => {
+                    if matches!(self.mode, Mode::OperatorPending(_)) {
+                        self.set_mode(Mode::Normal)
+                    }
                 }
-            }
+            },
         }
     }
 
@@ -908,8 +913,13 @@ impl Editor {
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
-        let pos = motion.point_motion(buf.text(), view.cursor());
-        view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
+        match self.mode {
+            Mode::OperatorPending(operator) => todo!(),
+            _ => {
+                let pos = motion.point_motion(buf.text(), view.cursor());
+                view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
+            }
+        }
     }
 
     pub(crate) fn go_to_definition(&mut self) {
@@ -1581,13 +1591,19 @@ fn callback<R: 'static>(
     .expect("send failed");
 }
 
-fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
+fn default_keymap() -> Keymap {
     // Same as `mem::drop` without the lints.
     // Used to avoid needing braces to ignore values.
     fn void<T>(_: T) {}
 
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
+    const DELETE_OPERATOR_PENDING: Action =
+        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
+    const CHANGE_OPERATOR_PENDING: Action =
+        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
+    const YANK_OPERATOR_PENDING: Action =
+        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
     const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
@@ -1654,6 +1670,11 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                         "d" => NORMAL_MODE,
                     },
                 }),
+                // The payload doesn't matter here as it's keyed off the enum discriminant
+                Mode::OperatorPending(Operator::Delete) => trie!({
+                    "<ESC>" | "<C-c>" => NORMAL_MODE,
+                    "w" => NEXT_WORD,
+                }),
                 Mode::Normal => trie!({
                     "<C-o>" => JUMP_PREV,
                     "<C-i>" => JUMP_NEXT,
@@ -1661,6 +1682,9 @@ fn default_keymap() -> Keymap<Mode, KeyEvent, Action> {
                     "<C-u>" => SCROLL_UP,
                     "<C-e>" => SCROLL_LINE_DOWN,
                     "<C-y>" => SCROLL_LINE_UP,
+                    "d" => DELETE_OPERATOR_PENDING,
+                    "c" => CHANGE_OPERATOR_PENDING,
+                    "y" => YANK_OPERATOR_PENDING,
                     ":" => COMMAND_MODE,
                     "i" => INSERT_MODE,
                     "h" => MOVE_LEFT,

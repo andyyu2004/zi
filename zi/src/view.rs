@@ -232,7 +232,7 @@ impl View {
         // Normal mode not allowed to move past the end of the line.
         let k = match mode {
             Mode::Insert => 0,
-            Mode::Normal | Mode::Command | Mode::Visual => {
+            Mode::Normal | Mode::Command | Mode::Visual | Mode::OperatorPending(..) => {
                 line.chars().next_back().map_or(0, |c| c.len_utf8())
             }
         };

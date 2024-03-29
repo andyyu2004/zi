@@ -50,11 +50,18 @@ interface command {
 }
 
 interface editor {
+    variant operator {
+        delete,
+        change,
+        yank,
+    }
+
     variant mode {
         normal,
         insert,
         visual,
         command,
+        operator-pending(operator),
     }
 
     type line = u32;
