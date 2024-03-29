@@ -912,10 +912,20 @@ impl Editor {
 
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = get!(self);
-        let area = self.tree.view_area(view.id());
+        let view_id = view.id();
         match self.mode {
-            Mode::OperatorPending(operator) => todo!(),
+            Mode::OperatorPending(operator) => {
+                let text = buf.text();
+                let range = motion.byte_range(text, text.point_to_byte(view.cursor()));
+                let delta = match operator {
+                    Operator::Delete | Operator::Change => Delta::delete(range),
+                    Operator::Yank => todo!(),
+                };
+                self.edit(view_id, &delta);
+                self.set_mode(Mode::Normal);
+            }
             _ => {
+                let area = self.tree.view_area(view_id);
                 let pos = motion.point_motion(buf.text(), view.cursor());
                 view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
             }
@@ -1598,12 +1608,15 @@ fn default_keymap() -> Keymap {
 
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
-    const DELETE_OPERATOR_PENDING: Action =
-        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
+    // maybe should rewrite as functions
+    fn delete_operator(editor: &mut Editor) {
+        editor.set_mode(Mode::OperatorPending(Operator::Delete));
+    }
+
     const CHANGE_OPERATOR_PENDING: Action =
-        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
+        |editor| editor.set_mode(Mode::OperatorPending(Operator::Change));
     const YANK_OPERATOR_PENDING: Action =
-        |editor| editor.set_mode(Mode::OperatorPending(Operator::Delete));
+        |editor| editor.set_mode(Mode::OperatorPending(Operator::Yank));
     const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
     const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
     const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
@@ -1682,7 +1695,7 @@ fn default_keymap() -> Keymap {
                     "<C-u>" => SCROLL_UP,
                     "<C-e>" => SCROLL_LINE_DOWN,
                     "<C-y>" => SCROLL_LINE_UP,
-                    "d" => DELETE_OPERATOR_PENDING,
+                    "d" => delete_operator,
                     "c" => CHANGE_OPERATOR_PENDING,
                     "y" => YANK_OPERATOR_PENDING,
                     ":" => COMMAND_MODE,

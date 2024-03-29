@@ -55,7 +55,7 @@ where
     // This method should be useful eventually, just cfg it to hide warnings
     #[cfg(test)]
     pub fn insert(&mut self, mode: &M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {
-        self.maps.entry(discriminant(&mode)).or_default().insert(keys.into_iter().peekable(), value)
+        self.maps.entry(discriminant(mode)).or_default().insert(keys.into_iter().peekable(), value)
     }
 
     /// Returns the result of the key sequence and the keys that were discarded
@@ -90,7 +90,7 @@ where
                 // Start a new sequence with the key that wasn't found
                 let trie = self
                     .maps
-                    .get(&discriminant(&mode))
+                    .get(&discriminant(mode))
                     .expect("we wouldn't be here if this didn't exist");
                 // We check if the key could potentially be the start of a new sequence
                 if let TrieResult::Nothing = trie.get(iter::once(key)) {

@@ -1,3 +1,5 @@
+use std::ops;
+
 use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
@@ -10,6 +12,12 @@ pub trait Motion {
     fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
         let byte = self.motion(text, text.point_to_byte(point));
         text.byte_to_point(byte)
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> ops::Range<usize> {
+        let end = self.motion(text, start);
+        start..end
     }
 
     fn repeated(self, n: usize) -> Repeated<Self>

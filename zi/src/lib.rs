@@ -21,6 +21,7 @@ mod language;
 mod layout;
 mod lsp;
 mod motion;
+mod operator;
 mod plugin;
 mod position;
 mod syntax;
