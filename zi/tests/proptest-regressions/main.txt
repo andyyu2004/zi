@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 913cc5e9668b2e03d2cad12cd61ea4fe17ded886117abec093ef4caca6e7a0e9 # shrinks to input = _NvimHorizontalWordMotionArgs
+cc 20e52da009bc17cd66b662bb9291a4bca1b27fc24d0d20ac2a00c6d7c6a5a204 # shrinks to input = _NvimHorizontalWordMotionArgs { text: "a-A", inputs: "w" }
+cc b48ed452995cc07be9cefdb911dbd6f5e2d98246f8c24c9622713aba2bcefee4 # shrinks to input = _NvimHorizontalWordMotionArgs { text: "_a-", inputs: "w" }

@@ -901,7 +901,7 @@ impl Editor {
         &self.theme
     }
 
-    pub fn motion(&mut self, mut motion: impl Motion) {
+    pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         let pos = motion.point_motion(buf.text(), view.cursor());

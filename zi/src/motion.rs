@@ -2,10 +2,12 @@ use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
 pub trait Motion {
-    fn motion(&mut self, text: &dyn AnyText, byte: usize) -> usize;
+    /// Returns the new byte position after performing the motion.
+    /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize;
 
     #[inline]
-    fn point_motion(&mut self, text: &dyn AnyText, point: Point) -> Point {
+    fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
         let byte = self.motion(text, text.point_to_byte(point));
         text.byte_to_point(byte)
     }
@@ -18,13 +20,19 @@ pub trait Motion {
     }
 }
 
+impl<M: Motion> Motion for &M {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        (**self).motion(text, byte)
+    }
+}
+
 pub struct Repeated<M> {
     motion: M,
     n: usize,
 }
 
 impl<M: Motion> Motion for Repeated<M> {
-    fn motion(&mut self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         for _ in 0..self.n {
             byte = self.motion.motion(text, byte);
         }
@@ -35,7 +43,7 @@ impl<M: Motion> Motion for Repeated<M> {
 pub struct PrevToken;
 
 impl Motion for PrevToken {
-    fn motion(&mut self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let mut chars = text.byte_slice(..byte).chars();
 
         let prev = chars.next_back().unwrap_or('x');
@@ -53,29 +61,21 @@ impl Motion for PrevToken {
 pub struct NextWord;
 
 impl Motion for NextWord {
-    fn motion(&mut self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let mut chars = text.byte_slice(byte..).chars();
 
         let Some(c) = chars.next() else { return byte };
         byte += c.len_utf8();
 
-        let is_special = |c: char| !c.is_ascii_alphanumeric();
-
-        if is_special(c) {
-            // If we were on a separator, then we just move a character.
-            return byte;
-        }
-
-        let mut found_whitespace = false;
+        let mut found_sep = c.is_word_separator();
         for c in chars {
-            if found_whitespace && !c.is_whitespace() {
+            let is_sep = c.is_word_separator();
+            if found_sep && !is_sep || c.is_word_start() {
                 break;
             }
 
-            if c.is_whitespace() {
-                found_whitespace = true;
-            } else if is_special(c) {
-                break;
+            if c.is_word_separator() {
+                found_sep = true;
             }
 
             byte += c.len_utf8();
@@ -90,19 +90,32 @@ fn copy<T: Copy>(&x: &T) -> T {
 }
 
 trait CharExt {
-    fn is_word_boundary(&self) -> bool;
+    /// Returns true if the character is a word separator. This is whitespace, `-`, and `_`.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_separator(self) -> bool;
+
+    /// Returns true if the character is a word start.
+    /// This includes non-alphanumeric characters and capital letters.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_start(self) -> bool;
 }
 
 impl CharExt for char {
-    fn is_word_boundary(&self) -> bool {
-        self.is_whitespace() || !self.is_alphanumeric()
+    #[inline]
+    fn is_word_separator(self) -> bool {
+        self.is_whitespace() || matches!(self, '-' | '_')
+    }
+
+    #[inline]
+    fn is_word_start(self) -> bool {
+        (self.is_uppercase() || !self.is_alphanumeric()) && !self.is_word_separator()
     }
 }
 
 pub struct PrevWord;
 
 impl Motion for PrevWord {
-    fn motion(&mut self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let mut chars = text.byte_slice(..byte).chars().rev().peekable();
 
         let c = chars.peek().copied();
@@ -119,12 +132,12 @@ impl Motion for PrevWord {
         while let Some([c, next]) = windows.next() {
             byte -= c.len_utf8();
 
-            if (next.is_word_boundary() || !c.is_alphanumeric()) && !c.is_whitespace() {
+            if next.is_word_separator() || c.is_word_start() {
                 break;
             }
 
             // last iteration of the loop, deal with the final character
-            if windows.peek().is_none() && !next.is_word_boundary() {
+            if windows.peek().is_none() && !next.is_word_separator() {
                 byte -= next.len_utf8();
             }
         }
@@ -137,7 +150,7 @@ impl Motion for PrevWord {
 pub struct NextToken;
 
 impl Motion for NextToken {
-    fn motion(&mut self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let chars = text.byte_slice(byte..).chars();
 
         let mut found_whitespace = false;
