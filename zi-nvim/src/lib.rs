@@ -1,5 +1,6 @@
 //! Tests against a headless neovim instance
 
+use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -34,7 +35,23 @@ pub struct TestCase {
     inputs: KeySequence,
 }
 
+impl TestCase {
+    pub fn new(
+        text: impl Into<String>,
+        inputs: impl TryInto<KeySequence, Error: fmt::Debug>,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            inputs: inputs.try_into().expect("could not convert into KeySequence"),
+        }
+    }
+}
+
 impl Fixture {
+    pub fn new(cases: impl IntoIterator<Item = TestCase>) -> Self {
+        Self { size: zi::Size::new(80, 24), cases: cases.into_iter().collect() }
+    }
+
     pub async fn nvim_vs_zi(self) -> zi::Result<()> {
         let size = self.size;
         let nvim = Nvim::spawn(size.width, size.height).await?;
@@ -81,7 +98,7 @@ impl Fixture {
             }
         }
 
-        Ok(Self { size: zi::Size::new(80, 24), cases: cases.into_boxed_slice() })
+        Ok(Self::new(cases))
     }
 }
 

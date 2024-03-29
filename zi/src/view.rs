@@ -192,14 +192,11 @@ impl View {
             Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
         };
 
-        let mut flags = if direction.is_vertical() {
+        let flags = if direction.is_vertical() {
             SetCursorFlags::NO_COLUMN_BOUNDS_CHECK
         } else {
             SetCursorFlags::empty()
         };
-
-        // If we're moving down and we overshoot, move to the last line instead of doing nothing.
-        flags |= SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS;
 
         self.set_cursor(mode, size, buf, pos, flags)
     }
@@ -224,7 +221,6 @@ impl View {
             // Note we're using `get_line(idx).is_some()` instead of `line_idx < text.len_lines() - 1`
             // The former is `O(line_idx)` and `len_lines` can be `O(n)`.
             Some(line) if line.to_cow() != "" || text.get_line(line_idx + 1).is_some() => line,
-            // _ if flags.contains(SetCursorFlags::MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS) => {
             _ if mode == Mode::Insert => {
                 line_idx = text.len_lines().saturating_sub(1);
                 text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
@@ -242,7 +238,9 @@ impl View {
         // Normal mode not allowed to move past the end of the line.
         let k = match mode {
             Mode::Insert => 0,
-            Mode::Normal | Mode::Command | Mode::Visual => 1,
+            Mode::Normal | Mode::Command | Mode::Visual => {
+                line.chars().next_back().map_or(0, |c| c.len_utf8())
+            }
         };
 
         let max_col = Col::from(line_len.saturating_sub(k));

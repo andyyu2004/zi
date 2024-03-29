@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 913cc5e9668b2e03d2cad12cd61ea4fe17ded886117abec093ef4caca6e7a0e9 # shrinks to input = _NvimHorizontalWordMotionArgs

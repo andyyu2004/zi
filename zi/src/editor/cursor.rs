@@ -6,7 +6,6 @@ bitflags::bitflags! {
     // A bunch of hacks, don't make this public
     pub(crate) struct SetCursorFlags: u8 {
         const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
-        const MOVE_TO_LAST_LINE_IF_OUT_OF_BOUNDS = 1 << 1;
     }
 }
 

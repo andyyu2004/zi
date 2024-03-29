@@ -59,7 +59,7 @@ impl Motion for NextWord {
         let Some(c) = chars.next() else { return byte };
         byte += c.len_utf8();
 
-        let is_special = |c: char| !c.is_alphanumeric();
+        let is_special = |c: char| !c.is_ascii_alphanumeric();
 
         if is_special(c) {
             // If we were on a separator, then we just move a character.

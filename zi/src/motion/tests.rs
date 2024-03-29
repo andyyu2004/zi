@@ -21,3 +21,10 @@ fn motion_prev_word() {
         assert_eq!(motion.motion(&text, 2), next_byte);
     }
 }
+
+#[test]
+fn motion_next_word() {
+    let text = "AୟX";
+    assert_eq!(NextWord.motion(&text, 0), 1);
+    assert_eq!(NextWord.motion(&text, 1), 4);
+}
