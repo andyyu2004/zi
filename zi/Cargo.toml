@@ -46,7 +46,7 @@ tempfile = "3.10.0"
 test-strategy = "0.3.1"
 futures-executor = "0.3.30"
 zi = { path = ".", features = ["arbitrary"] }
-nvim-rs = { version = "0.7.0", features = ["use_tokio"] }
+zi-nvim = { path = "../zi-nvim" }
 
 [features]
 arbitrary = ["dep:arbitrary", "bitflags/arbitrary"]

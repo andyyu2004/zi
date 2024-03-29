@@ -3374,7 +3374,6 @@ dependencies = [
  "memchr",
  "memmap2",
  "nucleo",
- "nvim-rs",
  "parking_lot",
  "proptest",
  "rayon",
@@ -3393,6 +3392,7 @@ dependencies = [
  "wasmtime",
  "zi",
  "zi-lsp",
+ "zi-nvim",
  "zi-tui",
 ]
 
@@ -3416,6 +3416,17 @@ dependencies = [
  "async-process",
  "tokio",
  "tower",
+]
+
+[[package]]
+name = "zi-nvim"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "nvim-rs",
+ "tokio",
+ "zi",
 ]
 
 [[package]]
