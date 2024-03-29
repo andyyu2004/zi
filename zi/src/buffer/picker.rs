@@ -96,9 +96,9 @@ where
                 display_view,
                 cancel,
                 nucleo,
-                url: Url::parse("buffer://zi/picker").unwrap(),
-                text: Rope::new(),
                 picker,
+                url: Url::parse("buffer://zi/picker").unwrap(),
+                text: Default::default(),
                 keymap: {
                     let next: Action = |editor| Self::select(editor, Direction::Down);
                     let prev: Action = |editor| Self::select(editor, Direction::Up);

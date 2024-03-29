@@ -104,3 +104,62 @@ impl TextBase for str {
         None
     }
 }
+
+impl TextBase for String {
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        self.as_str().len()
+    }
+
+    #[inline]
+    fn len_lines(&self) -> usize {
+        self.as_str().len_lines()
+    }
+
+    #[inline]
+    fn line_to_byte(&self, line_idx: usize) -> usize {
+        self.as_str().line_to_byte(line_idx)
+    }
+
+    fn byte_to_line(&self, byte_idx: usize) -> usize {
+        self.as_str().byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
+        Some(self)
+    }
+}
+
+impl Text for String {
+    type Slice<'a> = &'a str
+    where
+        Self: 'a;
+
+    fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        self.as_str().byte_slice(byte_range)
+    }
+
+    fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
+        self.as_str().line_slice(line_range)
+    }
+
+    fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
+        self.as_str().chars()
+    }
+
+    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+        self.as_str().lines()
+    }
+
+    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_str().get_line(line_idx)
+    }
+}
+
+impl TextMut for String {
+    fn edit(&mut self, delta: &Delta<'_>) {
+        let byte_range = self.delta_to_byte_range(delta);
+        self.replace_range(byte_range, delta.text())
+    }
+}

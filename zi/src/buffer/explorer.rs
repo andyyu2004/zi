@@ -57,12 +57,12 @@ where
         (
             Self {
                 id,
-                url: Url::parse("buffer://zi/explorer").unwrap(),
                 nucleo,
                 cancel,
                 keymap,
                 confirm,
-                text: Rope::new(),
+                url: Url::parse("buffer://zi/explorer").unwrap(),
+                text: Default::default(),
             },
             injector,
         )

@@ -1,24 +1,5 @@
 use super::*;
 
-// impl Text for Cow<'_, str> {
-//     type Slice<'a> = Cow<'a, str> where Self: 'a;
-//
-//     #[inline]
-//     fn lines(&self) -> impl Iterator<Item = Cow<'_, str>> {
-//         <str as Text>::lines(self.as_ref())
-//     }
-//
-//     #[inline]
-//     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
-//         <str as Text>::chars(self.as_ref())
-//     }
-//
-//     #[inline]
-//     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-//         self.as_ref().get_line(line_idx)
-//     }
-// }
-
 impl TextBase for Cow<'_, str> {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
