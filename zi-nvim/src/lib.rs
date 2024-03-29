@@ -205,13 +205,16 @@ impl Nvim {
     }
 }
 
+const DIR: &str = env!("CARGO_MANIFEST_DIR");
+
 impl Nvim {
     async fn spawn(width: u16, height: u16) -> zi::Result<Nvim> {
         let (nvim, join_handle, child) = nvim_rs::create::tokio::new_child_cmd(
             Command::new("nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
-                .arg("--clean")
+                .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early
+                .args(["-u", &format!("{DIR}/init.vim")])
                 .arg("-n") // disable swap
                 .arg("-m"), // disable writing files to disk to avoid potential mayhem
             Handler,
