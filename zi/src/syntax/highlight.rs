@@ -7,19 +7,42 @@ use stdx::merge::Merge;
 
 pub struct Theme {
     highlights: Vec<(Cow<'static, str>, Style)>,
+    default_style: Style,
+}
+
+pub enum Highlight {}
+
+impl Highlight {
+    pub const CURSORLINE: &'static str = "cursorline";
+    pub const DIRECTORY: &'static str = "directory";
 }
 
 impl Theme {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn default_style(&self) -> Style {
+        self.default_style
+    }
+
+    pub fn id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
+        let name = name.as_ref();
+        self.highlights
+            .iter()
+            .position(|(key, _)| key == name)
+            .map(|i| HighlightId(i as u32))
+            .unwrap_or_default()
+    }
 }
 
 impl Default for Theme {
     fn default() -> Self {
         Self {
+            default_style: Style { fg: Some(Color::rgba(0x83949600)), bg: None },
             highlights: [
-                ("line", None, Some(0x07364200)),
+                (Highlight::CURSORLINE, None, Some(0x07364200)),
+                (Highlight::DIRECTORY, Some(0x268bd200), None),
                 ("namespace", Some(0x39a6b900), None),
                 ("function.macro", Some(0x298cba00), None),
                 ("function", Some(0x298cba00), None),
@@ -48,13 +71,9 @@ impl Default for Theme {
             ]
             .into_iter()
             .map(|(name, fg, bg)| {
-                let mut style = Style::default();
-                if let Some(fg) = fg {
-                    style.with_fg(Color::rgba(fg));
-                }
-                if let Some(bg) = bg {
-                    style.with_bg(Color::rgba(bg));
-                }
+                let mut style = Style::empty();
+                style.fg = fg.map(Color::rgba);
+                style.bg = bg.map(Color::rgba);
                 (name.into(), style)
             })
             .collect(),
@@ -62,7 +81,8 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
+// Don't implement default to avoid misuse. Should always get the default style off the theme.
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -88,7 +108,7 @@ impl FromStr for Style {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut style = Style::default();
+        let mut style = Style::empty();
         for part in s.split_whitespace() {
             let (key, value) = part
                 .split_once('=')
@@ -100,13 +120,14 @@ impl FromStr for Style {
                 _ => return Err(anyhow::anyhow!("invalid style field: {part}")),
             };
         }
+
         Ok(style)
     }
 }
 
 impl Style {
-    pub fn new() -> Self {
-        Self::default()
+    fn empty() -> Self {
+        Self { fg: None, bg: None }
     }
 
     pub fn with_fg(&mut self, fg: Color) -> &mut Self {
@@ -186,7 +207,7 @@ impl Color {
 pub struct HighlightMap(Arc<[HighlightId]>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HighlightId(pub u32);
+pub struct HighlightId(u32);
 
 impl HighlightId {
     pub const DEFAULT: HighlightId = HighlightId(u32::MAX);
@@ -198,6 +219,10 @@ impl HighlightId {
     }
 
     pub fn style(self, theme: &Theme) -> Option<Style> {
+        if self.is_default() {
+            return Some(theme.default_style);
+        }
+
         theme.highlights.get(self.0 as usize).map(|(_, style)| style).copied()
     }
 
@@ -261,13 +286,14 @@ mod tests {
     #[test]
     fn highlight_map() {
         let theme = Theme {
+            default_style: Style::empty(),
             highlights: [
-                ("function", Style::default()),
-                ("function.method", Style::default()),
-                ("function.async", Style::default()),
-                ("variable.builtin.self.rust", Style::default()),
-                ("variable.builtin", Style::default()),
-                ("variable", Style::default()),
+                ("function", Style::empty()),
+                ("function.method", Style::empty()),
+                ("function.async", Style::empty()),
+                ("variable.builtin.self.rust", Style::empty()),
+                ("variable.builtin", Style::empty()),
+                ("variable", Style::empty()),
             ]
             .into_iter()
             .map(|(name, color)| (name.into(), color))

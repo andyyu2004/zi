@@ -1,4 +1,5 @@
 use super::*;
+use crate::syntax::{Highlight, HighlightMap};
 use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
 
 pub struct TextBuffer<X> {
@@ -81,6 +82,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
 
     fn syntax_highlights<'a>(
         &'a self,
+        _editor: &Editor,
         cursor: &'a mut QueryCursor,
     ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         Box::new(
@@ -127,8 +129,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         // The current_line highlight
         Box::new(std::iter::once((
             Range::new(cursor.with_col(0), cursor.with_col(end)),
-            // FIXME don't use random highlight id
-            HighlightId(0),
+            editor.highlight_id_by_name(Highlight::CURSORLINE),
         )))
     }
 

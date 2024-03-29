@@ -5,6 +5,7 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
+use crate::syntax::Highlight;
 use crate::{hashmap, trie, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
@@ -133,18 +134,21 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         }
     }
 
-    fn overlay_highlights(
-        &self,
-        _editor: &Editor,
+    fn overlay_highlights<'a>(
+        &'a self,
+        editor: &'a Editor,
         _view: &View,
         _size: Size,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
         Box::new(
-            self.text
-                .lines()
-                .enumerate()
-                .filter(|(_i, line)| line.ends_with(MAIN_SEPARATOR))
-                .map(|(i, line)| (Range::new((i, 0), (i, line.len())), HighlightId(1))),
+            self.text.lines().enumerate().filter(|(_i, line)| line.ends_with(MAIN_SEPARATOR)).map(
+                |(i, line)| {
+                    (
+                        Range::new((i, 0), (i, line.len())),
+                        editor.highlight_id_by_name(Highlight::DIRECTORY),
+                    )
+                },
+            ),
         )
     }
 

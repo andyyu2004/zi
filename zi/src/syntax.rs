@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
 
 pub use self::highlight::{Color, Style};
-pub(crate) use self::highlight::{HighlightId, HighlightMap, Theme};
+pub(crate) use self::highlight::{Highlight, HighlightId, HighlightMap, Theme};
 use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 use crate::{dirs, FileType};
 

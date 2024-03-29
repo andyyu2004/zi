@@ -36,7 +36,7 @@ use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
 use crate::plugin::Plugins;
 use crate::position::Size;
-use crate::syntax::Theme;
+use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
@@ -435,6 +435,10 @@ impl Editor {
 
     pub(crate) fn set_buffer(&mut self, view: ViewId, buf: BufferId) {
         self.views[view].set_buffer(buf);
+    }
+
+    pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
+        self.theme.id_by_name(name)
     }
 
     pub async fn cleanup(&mut self) {

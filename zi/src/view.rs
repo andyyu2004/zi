@@ -1,3 +1,4 @@
+use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
 use crate::editor::cursor::SetCursorFlags;
@@ -390,7 +391,7 @@ impl View {
 
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
-            .syntax_highlights(&mut query_cursor)
+            .syntax_highlights(editor, &mut query_cursor)
             .skip_while(|(range, _)| range.end().line().idx() < line)
             .filter_map(|(range, id)| Some((range, id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
@@ -414,9 +415,14 @@ impl View {
             line,
             self.line_number,
             buf.tab_width(),
-            chunks
-                .inspect(|(_, text, _)| tracing::trace!(?text, "render chunk"))
-                .map(|(line, text, style)| (line.idx(), text, style.unwrap_or_default().into())),
+            chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
+                |(line, text, style)| {
+                    let default_style = theme.default_style();
+                    // The merge is still necessary to fill in the missing fields in the style.
+                    let style = default_style.merge(style.unwrap_or(default_style));
+                    (line.idx(), text, style.into())
+                },
+            ),
         );
 
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
