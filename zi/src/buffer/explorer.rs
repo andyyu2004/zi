@@ -4,13 +4,12 @@ use nucleo::Nucleo;
 
 use super::*;
 use crate::editor::{get, Action};
-use crate::text::TextBase;
 use crate::{hashmap, trie, Mode};
 
 pub struct ExplorerBuffer<T: Item, F: 'static> {
     id: BufferId,
     url: Url,
-    text: Rope,
+    text: String,
     nucleo: Nucleo<T>,
     cancel: Cancel,
     keymap: Keymap,
@@ -126,12 +125,11 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
     fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) {
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
-        let mut rope = Rope::new();
+        self.text.clear();
         let n = snapshot.matched_item_count().min(area.height as u32);
         for item in snapshot.matched_items(..n) {
-            rope.insert(rope.len_bytes(), &format!("{}\n", item.data));
+            self.text.push_str(&format!("{}\n", item.data));
         }
-        self.text = rope;
     }
 
     fn on_leave(&mut self) {
