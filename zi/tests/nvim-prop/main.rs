@@ -26,18 +26,25 @@ async fn nvim(fixture: &Fixture) -> &'static Nvim {
 //      run(TestCase::new(text, inputs.as_str()))
 // }
 
-#[allow(non_snake_case)]
 #[proptest]
 fn nvim_token_motions(
     #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
     #[strategy("[WBjk]+")] inputs: String,
 ) {
-    run(TestCase::new(text, inputs.as_str()))
+    run(text, inputs)
 }
 
-fn run(case: TestCase) {
+// #[proptest]
+// fn nvim_delete_operator(
+//     #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
+//     #[strategy("[dWBjk]+")] inputs: String,
+// ) {
+//     run(text, inputs)
+// }
+
+fn run(text: String, inputs: String) {
     rt().block_on(async move {
-        let fixture = Fixture::new([case]);
+        let fixture = Fixture::new([TestCase::new(text, inputs.as_str())]);
         let nvim = nvim(&fixture).await;
         fixture.nvim_vs_zi_with(nvim).await.unwrap();
     })

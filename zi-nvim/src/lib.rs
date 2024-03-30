@@ -143,8 +143,13 @@ impl Nvim {
         self.assert_eq(editor).await.context("did not reset state properly after test case")?;
 
         for (i, key) in inputs.clone().into_iter().enumerate() {
-            self.nvim.feedkeys(&key.to_string(), "m", true).await?;
+            // https://github.com/neovim/neovim/issues/6159
+            // Can't use feedkeys as it will cause hangs
+            // Not sure if input is guaranteed to work though since I'm not sure what guarantees
+            // nvim provides about when the input will be processed.
+            self.nvim.input(&key.to_string()).await?;
             editor.handle_input(key.clone());
+
             self.assert_eq(editor)
                 .await
                 .with_context(|| format!("index {i} in key sequence: `{inputs}`, key: `{key}`"))?;
@@ -155,7 +160,27 @@ impl Nvim {
 
     // Compare the state of the editor with the state of the nvim instance
     async fn assert_eq(&self, editor: &zi::Editor) -> zi::Result<()> {
-        let (vi_lines, (line, col), vi_mode) = tokio::try_join!(
+        let (mut vi_mode, mut blocking) = (None, None);
+        self.nvim.get_mode().await?.into_iter().for_each(|(key, value)| {
+            match key.as_str().unwrap() {
+                "mode" => vi_mode = Some(value.as_str().unwrap().to_owned()),
+                "blocking" => blocking = Some(value.as_bool().unwrap()),
+                _ => unreachable!(),
+            }
+        });
+
+        let (vi_mode, blocking) = (vi_mode.unwrap(), blocking.unwrap());
+        if blocking {
+            // nvim is waiting for input, can't do anything else until it's done.
+            // It is important to check this upfront otherwise we will probably get stuck.
+            // Even if we try and do this concurrently with the other operations below it won't
+            // work since `join!` is concurrent but not parallel.
+            //
+            // The proptests are a bit slower due to making two serial calls though :/
+            return Ok(());
+        }
+
+        let (vi_lines, (line, col)) = tokio::try_join!(
             async {
                 let buf = self.nvim.get_current_buf().await?;
                 let lines = buf.get_lines(0, -1, false).await?.join("\n");
@@ -166,21 +191,6 @@ impl Nvim {
                 let (line, col) = vi_win.get_cursor().await?;
                 let line = line.checked_sub(1).expect("1-indexed lines");
                 Ok((line, col))
-            },
-            async {
-                Ok(self
-                    .nvim
-                    .get_mode()
-                    .await?
-                    .into_iter()
-                    .find_map(|(key, value)| {
-                        if key.as_str() == Some("mode") {
-                            Some(value.as_str().unwrap().to_owned())
-                        } else {
-                            None
-                        }
-                    })
-                    .expect("Could not find mode value"))
             }
         )?;
 
@@ -188,17 +198,17 @@ impl Nvim {
         let zi_lines = zi_buf.text().to_string();
         let zi_cursor = editor.active_cursor();
 
-        let mode = match vi_mode.as_ref() {
-            "i" => zi::Mode::Insert,
-            "n" => zi::Mode::Normal,
-            "v" => zi::Mode::Visual,
+        match vi_mode.as_ref() {
+            "i" => ensure!(editor.mode() == zi::Mode::Insert),
+            "n" => ensure!(matches!(editor.mode(), zi::Mode::Normal)),
+            "no" => ensure!(matches!(editor.mode(), zi::Mode::OperatorPending(_))),
+            "v" => ensure!(editor.mode() == zi::Mode::Visual),
             // "V" => zi::Mode::VisualLine,
             // "\x16" => zi::Mode::VisualBlock,
             _ => panic!("unknown mode: {vi_mode}"),
         };
 
-        ensure!(mode == editor.mode());
-        ensure!(vi_lines == zi_lines, "{vi_lines:?}\n{zi_lines:?}");
+        ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
         ensure!(line as usize == zi_cursor.line().idx());
         ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
@@ -213,7 +223,7 @@ impl Nvim {
             Command::new("nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
-                .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early
+                // .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early
                 .args(["-u", &format!("{DIR}/init.vim")])
                 .arg("-n") // disable swap
                 .arg("-m"), // disable writing files to disk to avoid potential mayhem

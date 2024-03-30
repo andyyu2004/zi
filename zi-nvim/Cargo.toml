@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1"
+anyhow = "1.0.81"
 nvim-rs = { version = "0.7.0", features = ["use_tokio"] }
 zi = { path = "../zi" }
 tokio = { version = "1", features = ["process"], default-features = false }

@@ -922,7 +922,12 @@ impl Editor {
                     Operator::Yank => todo!(),
                 };
                 self.edit(view_id, &delta);
-                self.set_mode(Mode::Normal);
+
+                let mode = match operator {
+                    Operator::Change => Mode::Insert,
+                    Operator::Delete | Operator::Yank => Mode::Normal,
+                };
+                self.set_mode(mode);
             }
             _ => {
                 let area = self.tree.view_area(view_id);
