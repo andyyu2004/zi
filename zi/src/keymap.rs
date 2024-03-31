@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::mem::{discriminant, Discriminant};
 use std::{fmt, iter};
 
 use rustc_hash::FxHashMap;
@@ -12,39 +11,37 @@ use crate::Mode;
 mod macros;
 
 pub trait DynKeymap<M = Mode, K = KeyEvent, V = Action> {
-    fn on_key(&mut self, mode: &M, key: K) -> (TrieResult<V>, Vec<K>);
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>);
 }
 
-/// Note: the keymap keys based on the discriminant of the mode, not the value.
-/// Therefore it is unspecified (but not undefined) behavior to key this by a non-enum as per [`std::mem::discriminant`].
 #[derive(Debug, Clone)]
 pub struct Keymap<M = Mode, K = KeyEvent, V = Action> {
-    maps: FxHashMap<Discriminant<M>, Trie<K, V>>,
+    maps: FxHashMap<M, Trie<K, V>>,
     /// The keys that have been pressed so far
     buffer: Vec<K>,
     /// The last mode that was used
-    last_mode: Option<Discriminant<M>>,
+    last_mode: Option<M>,
 }
-impl<M, K, V> From<FxHashMap<Discriminant<M>, Trie<K, V>>> for Keymap<M, K, V> {
-    fn from(maps: FxHashMap<Discriminant<M>, Trie<K, V>>) -> Self {
+impl<M, K, V> From<FxHashMap<M, Trie<K, V>>> for Keymap<M, K, V> {
+    fn from(maps: FxHashMap<M, Trie<K, V>>) -> Self {
         Self { maps, buffer: Default::default(), last_mode: Default::default() }
     }
 }
 
 impl<M, K, V> DynKeymap<M, K, V> for Keymap<M, K, V>
 where
-    M: Eq + Hash,
+    M: Eq + Hash + Clone,
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    fn on_key(&mut self, mode: &M, key: K) -> (TrieResult<V>, Vec<K>) {
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
         self.on_key(mode, key)
     }
 }
 
 impl<M, K, V> Keymap<M, K, V>
 where
-    M: Eq + Hash,
+    M: Eq + Hash + Clone,
     K: Eq + Hash + Clone,
     V: Clone,
 {
@@ -54,22 +51,22 @@ where
 
     // This method should be useful eventually, just cfg it to hide warnings
     #[cfg(test)]
-    pub fn insert(&mut self, mode: &M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {
-        self.maps.entry(discriminant(mode)).or_default().insert(keys.into_iter().peekable(), value)
+    pub fn insert(&mut self, mode: M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {
+        self.maps.entry(mode).or_default().insert(keys.into_iter().peekable(), value)
     }
 
     /// Returns the result of the key sequence and the keys that were discarded
-    pub fn on_key(&mut self, mode: &M, key: K) -> (TrieResult<V>, Vec<K>) {
-        if let Some(last_mode) = self.last_mode {
-            if last_mode != discriminant(mode) {
+    pub fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
+        if let Some(last_mode) = &self.last_mode {
+            if last_mode != &mode {
                 self.buffer.clear();
-                self.last_mode = Some(discriminant(mode));
+                self.last_mode = Some(mode.clone());
             }
         } else {
-            self.last_mode = Some(discriminant(mode));
+            self.last_mode = Some(mode.clone());
         }
 
-        let trie = match self.maps.get(&discriminant(mode)) {
+        let trie = match self.maps.get(&mode) {
             Some(trie) => trie,
             None => return (TrieResult::Nothing, vec![key]),
         };
@@ -88,10 +85,7 @@ where
                 let key = cancelled.last().expect("buffer can't be empty");
 
                 // Start a new sequence with the key that wasn't found
-                let trie = self
-                    .maps
-                    .get(&discriminant(mode))
-                    .expect("we wouldn't be here if this didn't exist");
+                let trie = self.maps.get(&mode).expect("we wouldn't be here if this didn't exist");
                 // We check if the key could potentially be the start of a new sequence
                 if let TrieResult::Nothing = trie.get(iter::once(key)) {
                     // If not, we don't recurse. (necessarily to avoid infinite loop)
@@ -257,26 +251,26 @@ impl<'a, M, K, V> PairedKeymap<'a, M, K, V> {
 
 impl<'a, M, K, V> DynKeymap<M, K, V> for PairedKeymap<'a, M, K, V>
 where
-    M: Eq + Hash,
+    M: Eq + Hash + Clone,
     K: Eq + Hash + Clone + fmt::Debug,
     V: Clone,
 {
-    fn on_key(&mut self, mode: &M, key: K) -> (TrieResult<V>, Vec<K>) {
+    fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
         use State::*;
         use TrieResult::*;
 
         let (lhs, lbuf, rhs, rbuf) = match self.state {
             State::Both => {
-                let (lhs, lbuf) = self.a.on_key(mode, key.clone());
+                let (lhs, lbuf) = self.a.on_key(mode.clone(), key.clone());
                 let (rhs, rbuf) = self.b.on_key(mode, key);
                 (lhs, lbuf, rhs, rbuf)
             }
             State::Left => {
-                let (lhs, lbuf) = self.a.on_key(mode, key.clone());
+                let (lhs, lbuf) = self.a.on_key(mode.clone(), key.clone());
                 (lhs, lbuf, Nothing, vec![])
             }
             State::Right => {
-                let (rhs, rbuf) = self.b.on_key(mode, key.clone());
+                let (rhs, rbuf) = self.b.on_key(mode.clone(), key.clone());
                 (Nothing, vec![], rhs, rbuf)
             }
         };

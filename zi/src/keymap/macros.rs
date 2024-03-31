@@ -9,7 +9,7 @@ macro_rules! hashmap {
             let cap = hashmap!(@count $($key),*);
             let mut map = ::std::collections::HashMap::with_capacity_and_hasher(cap, ::std::hash::BuildHasherDefault::<::rustc_hash::FxHasher>::default());
             $(
-                let _ = map.insert(::std::mem::discriminant(&$key), $value);
+                let _ = map.insert($key, $value);
             )*
             map
         }

@@ -18,6 +18,7 @@ use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
+use stdx::merge::Merge;
 use stdx::path::{PathExt, Relative};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
@@ -668,7 +669,7 @@ impl Editor {
         tracing::debug!(?key, "handling key");
         match key.code() {
             KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
-                let (res, buffered) = keymap.on_key(&self.mode, key);
+                let (res, buffered) = keymap.on_key(self.mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
                     TrieResult::Partial | TrieResult::Nothing => (),
@@ -685,7 +686,7 @@ impl Editor {
                     }
                 }
             }
-            _ => match keymap.on_key(&self.mode, key).0 {
+            _ => match keymap.on_key(self.mode, key).0 {
                 TrieResult::Found(f) => f(self),
                 TrieResult::Partial => (),
                 TrieResult::Nothing => {
@@ -1675,6 +1676,14 @@ fn default_keymap() -> Keymap {
 
     KEYMAP
         .get_or_init(|| {
+            let operator_pending_trie = trie!({
+                "<ESC>" | "<C-c>" => NORMAL_MODE,
+                "w" => NEXT_WORD,
+                "W" => NEXT_TOKEN,
+                "b" => PREV_WORD,
+                "B" => PREV_TOKEN,
+            });
+
             Keymap::from(hashmap! {
                 Mode::Command => trie!({
                     "<ESC>" | "<C-c>" => NORMAL_MODE,
@@ -1688,14 +1697,15 @@ fn default_keymap() -> Keymap {
                         "d" => NORMAL_MODE,
                     },
                 }),
-                // The payload doesn't matter here as it's keyed off the enum discriminant
-                Mode::OperatorPending(Operator::Delete) => trie!({
-                    "<ESC>" | "<C-c>" => NORMAL_MODE,
-                    "w" => NEXT_WORD,
-                    "W" => NEXT_TOKEN,
-                    "b" => PREV_WORD,
-                    "B" => PREV_TOKEN,
-                }),
+                Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
+                    "d" => NEXT_WORD, // FIXME should be the line motion
+                })),
+                Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
+                    "c" => NEXT_WORD, // FIXME should be the line motion
+                })),
+                Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
+                    "y" => NEXT_WORD, // FIXME should be the line motion
+                })),
                 Mode::Normal => trie!({
                     "<C-o>" => JUMP_PREV,
                     "<C-i>" => JUMP_NEXT,
