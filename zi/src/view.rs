@@ -202,6 +202,32 @@ impl View {
         self.set_cursor(mode, size, buf, pos, flags)
     }
 
+    // HACK clean this up and try not have two different implementations for a cursor move.
+    // This is handling the case where motions may return an exclusive endpoint that is out of bounds.
+    // We want to instead move to the last non-newline character in the text.
+    pub(crate) fn set_cursor_bytewise(&mut self, buf: &dyn Buffer, mut byte: usize) {
+        assert_eq!(buf.id(), self.buf);
+        let text = buf.text();
+        if byte >= text.len_bytes() {
+            assert!(byte == text.len_bytes(), "too far out of bounds");
+            let mut chars = text.chars().rev();
+            if let Some(c) = chars.next() {
+                byte -= c.len_utf8();
+                for c in chars {
+                    if c != '\n' {
+                        break;
+                    }
+                    byte -= c.len_utf8();
+                }
+            }
+        }
+        let pos = text.byte_to_point(byte);
+
+        #[cfg(debug_assertions)]
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
+        self.cursor = Cursor::new(pos);
+    }
+
     #[inline]
     pub(crate) fn set_cursor(
         &mut self,

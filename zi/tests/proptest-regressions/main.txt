@@ -10,3 +10,5 @@ cc b48ed452995cc07be9cefdb911dbd6f5e2d98246f8c24c9622713aba2bcefee4 # shrinks to
 cc 6ffe5da557fe8ffcdcfb35d740273fd523d27e21b40039a87713f3e7b85a8284 # shrinks to input = _NvimTokenMotionsArgs { text: "  A", inputs: "WB" }
 cc 4aba2ba753abb70ef2a903204c62e6803bdf58de6e52c26342efc4401a530c31 # shrinks to input = _NvimTokenMotionsArgs { text: " ", inputs: "j" }
 cc bfa50e3696f48c7b47005a8146be9970d635077f0cd1376f6e679e8adcfefbb6 # shrinks to input = _NvimDeleteOperatorArgs { text: " _a", inputs: "WdB" }
+cc e3e2955a6d9d8e3547af6050840125c3e7e53fc3c37ee3480a0b1e7a8ae4a26c # shrinks to input = _NvimTokenMotionsArgs { text: "a", inputs: "W" }
+cc aa98fbb31396628f52eb9c0006f5ee646b3328850c0b74517cf7d292911a17da # shrinks to input = _NvimDeleteOperatorArgs { text: "A", inputs: "W" }

@@ -922,7 +922,11 @@ impl Editor {
         let text = buf.text();
         let range = obj.byte_range(text, text.point_to_byte(view.cursor()));
         let delta = match operator {
-            Operator::Delete | Operator::Change => Delta::delete(range),
+            Operator::Delete | Operator::Change => {
+                // deletions moves the cursor to the start of the range
+                view.set_cursor_bytewise(buf, range.start);
+                Delta::delete(range.clone())
+            }
             Operator::Yank => todo!(),
         };
         self.edit(view_id, &delta);
@@ -937,14 +941,12 @@ impl Editor {
 
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = get!(self);
-        let view_id = view.id();
         match self.mode {
             Mode::OperatorPending(_) => self.text_object(motion),
             _ => {
-                let area = self.tree.view_area(view_id);
                 let text = buf.text();
-                let pos = motion.point_motion(text, view.cursor());
-                view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
+                let byte = motion.motion(text, text.point_to_byte(view.cursor()));
+                view.set_cursor_bytewise(buf, byte);
             }
         }
     }

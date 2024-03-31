@@ -1,4 +1,4 @@
-use std::ops;
+use std::{cmp, ops};
 
 use crate::motion::Motion;
 use crate::text::{AnyText, Text};
@@ -9,9 +9,14 @@ pub trait TextObject {
 
 impl<M: Motion> TextObject for M {
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize> {
-        let end = self.motion(text, byte);
-        if byte < end { byte..end } else { end..byte }
+    fn byte_range(&self, text: &dyn AnyText, a: usize) -> ops::Range<usize> {
+        let b = self.motion(text, a);
+
+        match a.cmp(&b) {
+            cmp::Ordering::Equal => a..a,
+            cmp::Ordering::Less => a..b,
+            cmp::Ordering::Greater => b..a,
+        }
     }
 }
 
