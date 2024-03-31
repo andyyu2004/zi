@@ -53,7 +53,7 @@ impl Text for str {
     }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.lines()
     }
 
@@ -148,7 +148,7 @@ impl Text for String {
         self.as_str().chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.as_str().lines()
     }
 

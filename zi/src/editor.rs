@@ -942,7 +942,8 @@ impl Editor {
             Mode::OperatorPending(_) => self.text_object(motion),
             _ => {
                 let area = self.tree.view_area(view_id);
-                let pos = motion.point_motion(buf.text(), view.cursor());
+                let text = buf.text();
+                let pos = motion.point_motion(text, view.cursor());
                 view.set_cursor(self.mode, area, buf, pos, SetCursorFlags::empty());
             }
         }

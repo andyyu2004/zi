@@ -21,7 +21,7 @@ impl Text for crop::Rope {
     }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.lines()
     }
 

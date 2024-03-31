@@ -154,7 +154,8 @@ pub trait AnyText: TextBase + fmt::Display {
     ) -> Box<dyn AnyTextSlice<'_> + '_>;
 
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
-    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
+    fn dyn_lines(&self)
+    -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
 }
 
@@ -211,7 +212,7 @@ impl Text for dyn AnyTextMut + '_ {
         (self as &dyn AnyText).chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         (self as &dyn AnyText).lines()
     }
 }
@@ -237,7 +238,7 @@ impl Text for dyn AnyText + '_ {
         self.dyn_chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.dyn_lines()
     }
 }
@@ -261,7 +262,9 @@ impl<T: Text + ?Sized> AnyText for T {
         Box::new(self.chars())
     }
 
-    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
+    fn dyn_lines(
+        &self,
+    ) -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
         Box::new(self.lines().map(|s| Box::new(s) as _))
     }
 
@@ -349,7 +352,7 @@ pub trait Text: TextBase {
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char>;
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>>;
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>>;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
@@ -495,7 +498,7 @@ impl<T: Text + ?Sized> Text for &T {
     }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         (**self).lines()
     }
 

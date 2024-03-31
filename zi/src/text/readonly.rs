@@ -67,7 +67,7 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 
     #[inline]
-    fn lines(&self) -> impl Iterator<Item = Self::Slice<'_>> {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         <str as Text>::lines(self.as_str())
     }
 
