@@ -35,13 +35,14 @@ use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
+use crate::object::TextObject;
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
-    event, hashmap, language, layout, trie, Buffer, BufferId, Direction, Error, FileType,
+    event, hashmap, language, layout, object, trie, Buffer, BufferId, Direction, Error, FileType,
     LanguageServerId, Location, Mode, Operator, Point, Url, View, ViewId,
 };
 
@@ -911,25 +912,34 @@ impl Editor {
         &self.theme
     }
 
+    pub fn text_object(&mut self, obj: impl TextObject) {
+        let (view, buf) = get!(self);
+        let view_id = view.id();
+
+        // text objects only have meaning in operator pending mode
+        let Mode::OperatorPending(operator) = self.mode else { return };
+
+        let text = buf.text();
+        let range = obj.byte_range(text, text.point_to_byte(view.cursor()));
+        let delta = match operator {
+            Operator::Delete | Operator::Change => Delta::delete(range),
+            Operator::Yank => todo!(),
+        };
+        self.edit(view_id, &delta);
+
+        let mode = match operator {
+            Operator::Change => Mode::Insert,
+            Operator::Delete | Operator::Yank => Mode::Normal,
+        };
+
+        self.set_mode(mode);
+    }
+
     pub fn motion(&mut self, motion: impl Motion) {
         let (view, buf) = get!(self);
         let view_id = view.id();
         match self.mode {
-            Mode::OperatorPending(operator) => {
-                let text = buf.text();
-                let range = motion.byte_range(text, text.point_to_byte(view.cursor()));
-                let delta = match operator {
-                    Operator::Delete | Operator::Change => Delta::delete(range),
-                    Operator::Yank => todo!(),
-                };
-                self.edit(view_id, &delta);
-
-                let mode = match operator {
-                    Operator::Change => Mode::Insert,
-                    Operator::Delete | Operator::Yank => Mode::Normal,
-                };
-                self.set_mode(mode);
-            }
+            Mode::OperatorPending(_) => self.text_object(motion),
             _ => {
                 let area = self.tree.view_area(view_id);
                 let pos = motion.point_motion(buf.text(), view.cursor());
@@ -1637,10 +1647,11 @@ fn default_keymap() -> Keymap {
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.insert_char('\n');
     };
-    const NEXT_TOKEN: Action = |editor| editor.motion(motion::NextToken);
-    const PREV_TOKEN: Action = |editor| editor.motion(motion::PrevToken);
-    const NEXT_WORD: Action = |editor| editor.motion(motion::NextWord);
-    const PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
+    const MOTION_NEXT_TOKEN: Action = |editor| editor.motion(motion::NextToken);
+    const MOTION_PREV_TOKEN: Action = |editor| editor.motion(motion::PrevToken);
+    const MOTION_NEXT_WORD: Action = |editor| editor.motion(motion::NextWord);
+    const MOTION_PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
+    const TEXT_OBJECT_CURRENT_LINE: Action = |editor| editor.text_object(object::CurrentLine);
     const APPEND_EOL: Action = |editor| {
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.set_mode(Mode::Insert);
@@ -1678,10 +1689,10 @@ fn default_keymap() -> Keymap {
         .get_or_init(|| {
             let operator_pending_trie = trie!({
                 "<ESC>" | "<C-c>" => NORMAL_MODE,
-                "w" => NEXT_WORD,
-                "W" => NEXT_TOKEN,
-                "b" => PREV_WORD,
-                "B" => PREV_TOKEN,
+                "w" => MOTION_NEXT_WORD,
+                "W" => MOTION_NEXT_TOKEN,
+                "b" => MOTION_PREV_WORD,
+                "B" => MOTION_PREV_TOKEN,
             });
 
             Keymap::from(hashmap! {
@@ -1698,13 +1709,13 @@ fn default_keymap() -> Keymap {
                     },
                 }),
                 Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
-                    "d" => NEXT_WORD, // FIXME should be the line motion
+                    "d" => TEXT_OBJECT_CURRENT_LINE,
                 })),
                 Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
-                    "c" => NEXT_WORD, // FIXME should be the line motion
+                    "c" => TEXT_OBJECT_CURRENT_LINE,
                 })),
                 Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
-                    "y" => NEXT_WORD, // FIXME should be the line motion
+                    "y" => TEXT_OBJECT_CURRENT_LINE,
                 })),
                 Mode::Normal => trie!({
                     "<C-o>" => JUMP_PREV,
@@ -1723,10 +1734,10 @@ fn default_keymap() -> Keymap {
                     "j" => MOVE_DOWN,
                     "k" => MOVE_UP,
                     "o" => OPEN_NEWLINE,
-                    "w" => NEXT_WORD,
-                    "b" => PREV_WORD,
-                    "W" => NEXT_TOKEN,
-                    "B" => PREV_TOKEN,
+                    "w" => MOTION_NEXT_WORD,
+                    "b" => MOTION_PREV_WORD,
+                    "W" => MOTION_NEXT_TOKEN,
+                    "B" => MOTION_PREV_TOKEN,
                     "a" => APPEND,
                     "A" => APPEND_EOL,
                     "<C-h>" => FOCUS_LEFT,
