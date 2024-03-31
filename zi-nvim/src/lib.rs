@@ -133,6 +133,7 @@ impl Nvim {
         let n = editor.active_buffer().text().len_bytes();
         editor.active_buffer_mut().edit(&zi::Delta::new(0..n, initial));
         editor.set_active_cursor((0, 0));
+        editor.set_mode(zi::Mode::Normal);
 
         self.nvim
             .get_current_buf()
@@ -140,6 +141,7 @@ impl Nvim {
             .set_lines(0, -1, false, initial.lines().map(ToOwned::to_owned).collect())
             .await?;
         self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
+        self.nvim.input("<ESC><ESC>").await?;
         self.assert_eq(editor).await.context("did not reset state properly after test case")?;
 
         for (i, key) in inputs.clone().into_iter().enumerate() {

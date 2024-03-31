@@ -17,6 +17,7 @@ pub trait Motion {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> ops::Range<usize> {
         let end = self.motion(text, start);
+        tracing::error!(x = ?(start..end));
         start..end
     }
 

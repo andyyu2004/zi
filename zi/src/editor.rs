@@ -1613,7 +1613,7 @@ fn default_keymap() -> Keymap {
 
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
-    // maybe should rewrite as functions
+    // maybe should rewrite all as functions
     fn delete_operator(editor: &mut Editor) {
         editor.set_mode(Mode::OperatorPending(Operator::Delete));
     }
@@ -1692,6 +1692,9 @@ fn default_keymap() -> Keymap {
                 Mode::OperatorPending(Operator::Delete) => trie!({
                     "<ESC>" | "<C-c>" => NORMAL_MODE,
                     "w" => NEXT_WORD,
+                    "W" => NEXT_TOKEN,
+                    "b" => PREV_WORD,
+                    "B" => PREV_TOKEN,
                 }),
                 Mode::Normal => trie!({
                     "<C-o>" => JUMP_PREV,

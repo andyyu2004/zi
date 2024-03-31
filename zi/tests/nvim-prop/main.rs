@@ -34,14 +34,15 @@ fn nvim_token_motions(
     run(text, inputs)
 }
 
-// #[proptest]
-// fn nvim_delete_operator(
-//     #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
-//     #[strategy("[dWBjk]+")] inputs: String,
-// ) {
-//     run(text, inputs)
-// }
+#[proptest]
+fn nvim_delete_operator(
+    #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
+    #[strategy("[dWBjk]+")] inputs: String,
+) {
+    run(text, inputs)
+}
 
+#[track_caller]
 fn run(text: String, inputs: String) {
     rt().block_on(async move {
         let fixture = Fixture::new([TestCase::new(text, inputs.as_str())]);
