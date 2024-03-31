@@ -36,7 +36,7 @@ fn scroll() {
     assert_eq!(editor.active_view().offset(), (0, 0));
     assert_eq!(editor.active_view().cursor(), (0, 0));
 
-    let mut editor = new("foo\nbar\n");
+    let mut editor = new("foo\nbar");
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.active_view().offset(), (0, 0));
     assert_eq!(editor.active_view().cursor(), (0, 0));
@@ -54,11 +54,6 @@ fn scroll() {
     editor.scroll_active_view(Up, 1);
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.active_view().offset(), (0, 0));
-
-    // Not allowed to go on the empty line
-    editor.scroll_active_view(Down, 2);
-    assert_eq!(editor.active_view().offset(), (1, 0));
-    assert_eq!(editor.current_line(), "bar");
 
     // Bounds check below
     // Should not be able to scroll where all text is not visible.
@@ -80,7 +75,7 @@ fn scroll() {
 
 #[test]
 fn scroll_bounds_check() {
-    let mut editor = new("1\n2\n3\n4\n5\n");
+    let mut editor = new("1\n2\n3\n4\n5");
 
     // Move cursor down one so it's desyned from the scroll
     editor.move_active_cursor(Down, 1);

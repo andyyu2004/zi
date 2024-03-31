@@ -218,16 +218,9 @@ impl View {
         // Check line is in-bounds
         let mut line_idx = pos.line().idx();
         let line = match text.get_line(line_idx) {
-            // Disallow putting cursor on the final empty line.
-            // Note we're using `get_line(idx).is_some()` instead of `line_idx < text.len_lines() - 1`
-            // The former is `O(line_idx)` and `len_lines` can be `O(n)`.
-            Some(line) if line.to_cow() != "" || text.get_line(line_idx + 1).is_some() => line,
-            _ if mode == Mode::Insert => {
-                line_idx = text.len_lines().saturating_sub(1);
-                text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
-            }
+            Some(line) => line,
             _ => {
-                line_idx = text.len_lines().saturating_sub(2);
+                line_idx = text.len_lines().saturating_sub(1);
                 text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
             }
         };
