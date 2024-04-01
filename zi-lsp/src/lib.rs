@@ -3,6 +3,7 @@ use std::io;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::path::Path;
 use std::process::Stdio;
+use std::time::Duration;
 
 use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
@@ -28,7 +29,10 @@ impl Server {
     pub async fn shutdown(mut self) -> crate::Result<()> {
         self.server.shutdown(()).await?;
         self.server.exit(())?;
-        self.handle.await.expect("server task failed");
+        if tokio::time::timeout(Duration::from_millis(100), &mut self.handle).await.is_err() {
+            // If the server doesn't exit in time, abort the task
+            self.handle.abort()
+        }
         Ok(())
     }
 
