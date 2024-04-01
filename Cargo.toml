@@ -23,5 +23,5 @@ dbg_macro = "deny"
 [patch.crates-io]
 # https://github.com/ratatui-org/ratatui/pull/1001
 ratatui = { git = "https://github.com/andyyu2004/ratatui", branch = "zero-width-grapheme-span-panic-fix" }
-# https://github.com/nomad/crop/pull/17
-crop = { git = "https://github.com/andyyu2004/crop", branch = "builder-finish-fix" }
+# https://github.com/nomad/crop/pull/17 merged but not released
+crop = { git = "https://github.com/nomad/crop", branch = "main" }
