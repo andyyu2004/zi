@@ -1588,13 +1588,20 @@ fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
             break;
         }
 
-        let s = std::str::from_utf8(buf).map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("invalid utf-8: {err}"))
-        })?;
+        let s = match std::str::from_utf8(buf) {
+            Ok(s) => s,
+            Err(err) => {
+                let n = err.valid_up_to();
+                if n == 0 {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, err));
+                }
+                unsafe { std::str::from_utf8_unchecked(&buf[..n]) }
+            }
+        };
 
         builder.append(s);
 
-        let n = buf.len();
+        let n = s.len();
         reader.consume(n);
     }
 

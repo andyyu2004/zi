@@ -6,7 +6,12 @@ use super::*;
 
 fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
     [
-        Box::new(crop::Rope::from(s)) as Box<dyn AnyText>,
+        // could use crop::Rope::from directly, but using the building is more realistic
+        Box::new({
+            let mut builder = crop::RopeBuilder::new();
+            builder.append(s);
+            builder.build()
+        }) as Box<dyn AnyText>,
         Box::new(ReadonlyText::new(s.as_bytes())),
         Box::new(s),
     ]
@@ -29,6 +34,13 @@ fn empty_text() {
         assert_eq!(reference.len_bytes(), imp.len_bytes());
         assert_eq!(reference.len_lines(), imp.len_lines());
         assert_eq!(reference.lines().count(), imp.lines().count());
+    }
+}
+
+#[test]
+fn new_line() {
+    for imp in impls("\n") {
+        assert_eq!(imp.len_lines(), 1);
     }
 }
 

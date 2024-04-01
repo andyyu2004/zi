@@ -5,7 +5,7 @@ use crate::api::new;
 #[test]
 fn set_cursor() {
     let mut editor = new("foo\ntest\n");
-    assert_eq!(editor.active_cursor(), (0, 0), "cursor should start at (1, 0)");
+    assert_eq!(editor.active_cursor(), (0, 0), "cursor should start at (0, 0)");
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.current_char(), Some('f'));
 
@@ -24,17 +24,7 @@ fn set_cursor() {
     assert_eq!(editor.active_cursor(), (1, 3), "cursor should not move past end of line");
 
     editor.set_active_cursor((2, 0));
-    assert_eq!(
-        editor.active_cursor(),
-        (2, 0),
-        "this should be ok because the line exists (but is empty)"
-    );
-
-    editor.set_active_cursor((2, 1));
-    assert_eq!(editor.active_cursor(), (2, 0));
-
-    editor.set_active_cursor((3, 0));
-    assert_eq!(editor.active_cursor(), (2, 0), "cursor should not move past end of buffer");
+    assert_eq!(editor.active_cursor(), (1, 0), "cursor should not move past end of buffer");
 }
 
 #[test]
@@ -144,4 +134,11 @@ fn cursor_newline() {
     editor.set_mode(zi::Mode::Insert);
     editor.insert_char('\n');
     assert_eq!(editor.active_cursor(), (1, 0));
+}
+
+#[test]
+fn cursor_trailing_newline() {
+    let mut editor = new("\n");
+    editor.move_active_cursor(Down, 1);
+    assert_eq!(editor.active_cursor(), (0, 0));
 }
