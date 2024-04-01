@@ -120,7 +120,8 @@ impl Default for Config {
         let language_servers = BTreeMap::from([
             (
                 LanguageServerId::RUST_ANALYZER,
-                LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+                // LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+                LanguageServerConfig { command: "ra-multiplex".into(), args: Box::new([]) },
             ),
             (
                 LanguageServerId::GOPLS,
