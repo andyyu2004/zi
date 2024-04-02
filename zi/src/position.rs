@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::iter::Peekable;
-use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Bound, RangeBounds, Sub, SubAssign};
 use std::str::FromStr;
 use std::{fmt, ops};
 
@@ -96,6 +96,18 @@ pub struct Range {
     end: Point,
 }
 
+impl RangeBounds<Point> for Range {
+    #[inline]
+    fn start_bound(&self) -> Bound<&Point> {
+        Bound::Included(&self.start)
+    }
+
+    #[inline]
+    fn end_bound(&self) -> Bound<&Point> {
+        Bound::Excluded(&self.end)
+    }
+}
+
 impl Range {
     #[inline]
     pub fn new(start: impl Into<Point>, end: impl Into<Point>) -> Self {
@@ -184,28 +196,6 @@ impl From<tree_sitter::Range> for Range {
     #[inline]
     fn from(range: tree_sitter::Range) -> Self {
         Self::new(range.start_point, range.end_point)
-    }
-}
-
-impl<R> From<R> for Range
-where
-    R: RangeBounds<Point>,
-{
-    #[inline]
-    fn from(value: R) -> Self {
-        let start = match value.start_bound() {
-            std::ops::Bound::Included(&start) => start,
-            std::ops::Bound::Excluded(&start) => start.right(1),
-            std::ops::Bound::Unbounded => Point::default(),
-        };
-
-        let end = match value.end_bound() {
-            std::ops::Bound::Included(&end) => end.right(1),
-            std::ops::Bound::Excluded(&end) => end,
-            std::ops::Bound::Unbounded => panic!("range must be bounded above"),
-        };
-
-        Self::new(start, end)
     }
 }
 

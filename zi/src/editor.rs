@@ -6,7 +6,7 @@ use std::cell::OnceCell;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
-use std::ops::{Deref, Index};
+use std::ops::{Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
 use std::sync::OnceLock;
@@ -27,7 +27,8 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{
-    BufferFlags, ExplorerBuffer, FilePicker, Injector, Picker, PickerBuffer, TextBuffer,
+    BufferFlags, ExplorerBuffer, FilePicker, Injector, InspectorBuffer, Picker, PickerBuffer,
+    TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -92,6 +93,13 @@ impl Index<BufferId> for Editor {
     #[inline]
     fn index(&self, index: BufferId) -> &Self::Output {
         &self.buffers[index]
+    }
+}
+
+impl IndexMut<BufferId> for Editor {
+    #[inline]
+    fn index_mut(&mut self, index: BufferId) -> &mut Self::Output {
+        &mut self.buffers[index]
     }
 }
 
@@ -1095,6 +1103,13 @@ impl Editor {
         view.scroll(self.mode, area, buf, direction, amount);
     }
 
+    pub(crate) fn inspect(&mut self) {
+        let inspector_view = self.active_view().id();
+        self.split_active_view(Direction::Up, tui::Constraint::Percentage(70));
+        let buf = self.buffers.insert_with_key(|id| InspectorBuffer::new(id).boxed());
+        self.set_buffer(inspector_view, buf);
+    }
+
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
 
@@ -1212,7 +1227,6 @@ impl Editor {
         let mode = self.mode;
         self.mode = Mode::Insert;
 
-        // FIXME we need to automatically select the first item once available
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
         let preview = self.views.insert_with_key(|id| {
             View::new(id, preview_buf)
@@ -1637,10 +1651,6 @@ fn callback<R: 'static>(
 }
 
 fn default_keymap() -> Keymap {
-    // Same as `mem::drop` without the lints.
-    // Used to avoid needing braces to ignore values.
-    fn void<T>(_: T) {}
-
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
     // maybe should rewrite all as functions
@@ -1769,11 +1779,11 @@ fn default_keymap() -> Keymap {
     }
 
     fn open_file_picker(editor: &mut Editor) {
-        void(editor.open_file_picker("."));
+        editor.open_file_picker(".");
     }
 
     fn open_jump_list(editor: &mut Editor) {
-        void(editor.open_jump_list());
+        editor.open_jump_list();
     }
 
     fn open_file_explorer(editor: &mut Editor) {
@@ -1781,27 +1791,27 @@ fn default_keymap() -> Keymap {
     }
 
     fn split_vertical(editor: &mut Editor) {
-        void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));
+        editor.split_active_view(Direction::Right, tui::Constraint::Fill(1));
     }
 
     fn split_horizontal(editor: &mut Editor) {
-        void(editor.split_active_view(Direction::Down, tui::Constraint::Fill(1)));
+        editor.split_active_view(Direction::Down, tui::Constraint::Fill(1));
     }
 
     fn focus_left(editor: &mut Editor) {
-        void(editor.move_focus(Direction::Left));
+        editor.move_focus(Direction::Left);
     }
 
     fn focus_right(editor: &mut Editor) {
-        void(editor.move_focus(Direction::Right));
+        editor.move_focus(Direction::Right);
     }
 
     fn focus_up(editor: &mut Editor) {
-        void(editor.move_focus(Direction::Up));
+        editor.move_focus(Direction::Up);
     }
 
     fn focus_down(editor: &mut Editor) {
-        void(editor.move_focus(Direction::Down));
+        editor.move_focus(Direction::Down);
     }
 
     fn view_only(editor: &mut Editor) {
@@ -1817,11 +1827,15 @@ fn default_keymap() -> Keymap {
     }
 
     fn jump_prev(editor: &mut Editor) {
-        void(editor.jump_prev());
+        editor.jump_prev();
     }
 
     fn jump_next(editor: &mut Editor) {
-        void(editor.jump_next());
+        editor.jump_next();
+    }
+
+    fn inspect(editor: &mut Editor) {
+        editor.inspect();
     }
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
@@ -1894,6 +1908,9 @@ fn default_keymap() -> Keymap {
                     "g" => {
                         "d" => goto_definition,
                         "g" => goto_start,
+                    },
+                    "t" => {
+                        "s" => inspect,
                     },
                     "z" => {
                         "t" => align_view_top,

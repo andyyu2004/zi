@@ -227,7 +227,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
     }
 
-    fn pre_render(&mut self, sender: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
         self.nucleo.tick(10);
 
         let snapshot = self.nucleo.snapshot();
@@ -238,7 +238,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
 
         let display_view = self.display_view;
         let buf_id = self.id;
-        sender.request(move |editor| {
+        client.request(move |editor| {
             // call `select` on the current line as the set of items may have changed.
             Self::select_current(buf_id, editor);
 

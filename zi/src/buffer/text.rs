@@ -1,5 +1,5 @@
 use super::*;
-use crate::syntax::{Highlight, HighlightMap};
+use crate::syntax::{HighlightMap, HighlightName};
 use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
 
 pub struct TextBuffer<X> {
@@ -60,6 +60,11 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &self.text
     }
 
+    #[inline]
+    fn syntax(&self) -> Option<&Syntax> {
+        self.syntax.as_ref()
+    }
+
     fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
@@ -84,26 +89,30 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &'a self,
         _editor: &Editor,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
-        Box::new(
-            self.syntax
-                .as_ref()
-                .map_or(Highlights::Empty, |syntax| syntax.highlights(cursor, &self.text))
-                .map(|capture| (capture.node.range(), self.highlight_map.get(capture.index)))
-                .flat_map(move |(range, id)| {
-                    // Split multi-line highlights into single-line highlights
-                    (range.start_point.row..=range.end_point.row).map(move |idx| {
-                        let start =
-                            if idx == range.start_point.row { range.start_point.column } else { 0 };
-                        let end = if idx == range.end_point.row {
-                            range.end_point.column
-                        } else {
-                            self.text.byte_slice(..).dyn_get_line(idx).unwrap().len_bytes()
-                        };
-                        (Range::new(Point::new(idx, start), Point::new(idx, end)), id)
-                    })
-                }),
-        )
+    ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
+        let Some(syntax) = &self.syntax else {
+            return Box::new(std::iter::empty());
+        };
+
+        Box::new(syntax.highlights(cursor, &self.text).flat_map(move |capture| {
+            let range = capture.node.range();
+            let id = self.highlight_map.get(capture.index);
+            // Split multi-line highlights into single-line highlights
+            (range.start_point.row..=range.end_point.row).map(move |idx| {
+                let start = if idx == range.start_point.row { range.start_point.column } else { 0 };
+                let end = if idx == range.end_point.row {
+                    range.end_point.column
+                } else {
+                    self.text.byte_slice(..).dyn_get_line(idx).unwrap().len_bytes()
+                };
+
+                SyntaxHighlight {
+                    range: Range::new(Point::new(idx, start), Point::new(idx, end)),
+                    capture_idx: capture.index,
+                    id,
+                }
+            })
+        }))
     }
 
     fn overlay_highlights(
@@ -111,7 +120,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         editor: &Editor,
         view: &View,
         size: Size,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+    ) -> Box<dyn Iterator<Item = Highlight> + '_> {
         assert_eq!(view.buffer(), self.id);
         let cursor = view.cursor();
         let text = editor[view.buffer()].text();
@@ -127,10 +136,10 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         };
 
         // The current_line highlight
-        Box::new(std::iter::once((
-            Range::new(cursor.with_col(0), cursor.with_col(end)),
-            editor.highlight_id_by_name(Highlight::CURSORLINE),
-        )))
+        Box::new(std::iter::once(Highlight {
+            range: Range::new(cursor.with_col(0), cursor.with_col(end)),
+            id: editor.highlight_id_by_name(HighlightName::CURSORLINE),
+        }))
     }
 
     fn as_any(&self) -> &dyn Any {

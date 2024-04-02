@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
 
 pub use self::highlight::{Color, Style};
-pub(crate) use self::highlight::{Highlight, HighlightId, HighlightMap, Theme};
+pub(crate) use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
 use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 use crate::{dirs, FileType};
 
@@ -119,7 +119,7 @@ impl Syntax {
         &'tree self,
         cursor: &'a mut QueryCursor,
         source: &'a dyn AnyText,
-    ) -> Highlights<'a, 'tree> {
+    ) -> impl Iterator<Item = QueryCapture<'tree>> + 'a {
         match &self.tree {
             Some(tree) => {
                 let captures = cursor.captures(
@@ -161,9 +161,9 @@ fn delta_to_ts_edit(text: &mut dyn AnyTextMut, delta: &Delta<'_>) -> tree_sitter
     }
 }
 
-/// A wrapper type that allows us to construct an empty iterator if we have no highlights to provide
+/// A private wrapper type that allows us to construct an empty iterator if we have no highlights to provide
 #[derive(Default)]
-pub enum Highlights<'a, 'tree> {
+enum Highlights<'a, 'tree> {
     Captures(QueryCaptures<'a, 'tree, TextProvider<'a>, &'a [u8]>),
     #[default]
     Empty,

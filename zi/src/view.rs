@@ -439,14 +439,14 @@ impl View {
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
             .syntax_highlights(editor, &mut query_cursor)
-            .skip_while(|(range, _)| range.end().line().idx() < line)
-            .filter_map(|(range, id)| Some((range, id.style(theme)?)))
+            .skip_while(|hl| hl.range.end().line().idx() < line)
+            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
         let overlay_highlights = buf
             .overlay_highlights(editor, self, area.into())
-            .skip_while(|(range, _)| range.end().line().idx() < line)
-            .filter_map(|(range, id)| Some((range, id.style(theme)?)))
+            .skip_while(|hl| hl.range.end().line().idx() < line)
+            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
         let highlights =

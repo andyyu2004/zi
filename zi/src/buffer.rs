@@ -1,4 +1,5 @@
 mod explorer;
+mod inspector;
 mod picker;
 mod text;
 
@@ -12,11 +13,12 @@ use tree_sitter::QueryCursor;
 use unicode_width::UnicodeWidthChar;
 
 pub use self::explorer::ExplorerBuffer;
+pub use self::inspector::InspectorBuffer;
 pub use self::picker::{FilePicker, Picker, PickerBuffer};
 pub use self::text::TextBuffer;
 use crate::editor::{Resource, SyncClient};
 use crate::keymap::Keymap;
-use crate::syntax::{HighlightId, Highlights, Syntax, Theme};
+use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::text::{AnyText, Delta};
 use crate::{Editor, FileType, Point, Range, Size, Url, View};
 
@@ -29,6 +31,19 @@ bitflags::bitflags! {
     pub struct BufferFlags: u32 {
         const READONLY = 0b0000_0001;
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Highlight {
+    pub range: Range,
+    pub id: HighlightId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SyntaxHighlight {
+    pub range: Range,
+    pub id: HighlightId,
+    pub capture_idx: u32,
 }
 
 impl Resource for dyn Buffer {
@@ -62,13 +77,18 @@ pub trait Buffer {
 
     fn edit(&mut self, delta: &Delta<'_>);
 
+    fn syntax(&self) -> Option<&Syntax> {
+        None
+    }
+
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
     fn syntax_highlights<'a>(
         &'a self,
-        _editor: &Editor,
-        _cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
+        editor: &Editor,
+        cursor: &'a mut QueryCursor,
+    ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
+        let _ = (editor, cursor);
         Box::new(std::iter::empty())
     }
 
@@ -77,10 +97,11 @@ pub trait Buffer {
     /// All ranges must be single-line ranges.
     fn overlay_highlights<'a>(
         &'a self,
-        _editor: &'a Editor,
-        _view: &View,
-        _size: Size,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
+        editor: &'a Editor,
+        view: &View,
+        size: Size,
+    ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
+        let _ = (editor, view, size);
         Box::new(std::iter::empty())
     }
 
@@ -159,6 +180,11 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
+    fn syntax(&self) -> Option<&Syntax> {
+        self.as_ref().syntax()
+    }
+
+    #[inline]
     fn as_any(&self) -> &dyn Any {
         self.as_ref().as_any()
     }
@@ -178,7 +204,7 @@ impl Buffer for Box<dyn Buffer + Send> {
         &'a self,
         editor: &Editor,
         cursor: &'a mut QueryCursor,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + 'a> {
+    ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
         self.as_ref().syntax_highlights(editor, cursor)
     }
 
@@ -188,7 +214,7 @@ impl Buffer for Box<dyn Buffer + Send> {
         editor: &'a Editor,
         view: &View,
         size: Size,
-    ) -> Box<dyn Iterator<Item = (Range, HighlightId)> + '_> {
+    ) -> Box<dyn Iterator<Item = Highlight> + '_> {
         self.as_ref().overlay_highlights(editor, view, size)
     }
 

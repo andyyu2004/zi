@@ -302,6 +302,18 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             .into(),
         },
         Handler {
+            name: "inspect".try_into().unwrap(),
+            arity: Arity::ZERO,
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                editor.inspect();
+                Ok(())
+            })
+            .into(),
+        },
+        Handler {
             name: "explore".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),

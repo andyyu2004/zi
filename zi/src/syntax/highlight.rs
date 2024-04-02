@@ -10,9 +10,9 @@ pub struct Theme {
     default_style: Style,
 }
 
-pub enum Highlight {}
+pub enum HighlightName {}
 
-impl Highlight {
+impl HighlightName {
     pub const CURSORLINE: &'static str = "cursorline";
     pub const DIRECTORY: &'static str = "directory";
 }
@@ -41,8 +41,8 @@ impl Default for Theme {
         Self {
             default_style: Style { fg: Some(Color::rgba(0x83949600)), bg: None },
             highlights: [
-                (Highlight::CURSORLINE, None, Some(0x07364200)),
-                (Highlight::DIRECTORY, Some(0x268bd200), None),
+                (HighlightName::CURSORLINE, None, Some(0x07364200)),
+                (HighlightName::DIRECTORY, Some(0x268bd200), None),
                 ("namespace", Some(0x39a6b900), None),
                 ("module", Some(0x39a6b900), None),
                 ("function.macro", Some(0x298cba00), None),
@@ -204,10 +204,7 @@ impl Color {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct HighlightMap(Arc<[HighlightId]>);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HighlightId(u32);
 
 impl HighlightId {
@@ -238,6 +235,9 @@ impl Default for HighlightId {
         Self::DEFAULT
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct HighlightMap(Arc<[HighlightId]>);
 
 impl HighlightMap {
     pub(crate) fn new(
@@ -274,8 +274,8 @@ impl HighlightMap {
         )
     }
 
-    pub fn get(&self, capture_id: u32) -> HighlightId {
-        self.0.get(capture_id as usize).copied().unwrap_or_default()
+    pub fn get(&self, capture_idx: u32) -> HighlightId {
+        self.0.get(capture_idx as usize).copied().unwrap_or_default()
     }
 }
 
