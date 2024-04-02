@@ -1371,6 +1371,10 @@ impl Editor {
         )
     }
 
+    pub fn align_active_view(&mut self, alignment: VerticalAlignment) {
+        self.align_view(self.active_view().id(), alignment)
+    }
+
     pub fn align_view(&mut self, view: impl HasViewId, alignment: VerticalAlignment) {
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
@@ -1416,6 +1420,7 @@ impl Editor {
         // FIXME what if buffer is gone
         self.set_active_buffer(buf);
         self.set_active_cursor(point);
+        self.align_active_view(VerticalAlignment::Center);
     }
 
     pub fn jump_next(&mut self) -> Option<Location> {
