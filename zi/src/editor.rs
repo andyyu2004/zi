@@ -1637,138 +1637,236 @@ fn default_keymap() -> Keymap {
         editor.set_mode(Mode::OperatorPending(Operator::Delete));
     }
 
-    const CHANGE_OPERATOR_PENDING: Action =
-        |editor| editor.set_mode(Mode::OperatorPending(Operator::Change));
-    const YANK_OPERATOR_PENDING: Action =
-        |editor| editor.set_mode(Mode::OperatorPending(Operator::Yank));
-    const INSERT_MODE: Action = |editor| editor.set_mode(Mode::Insert);
-    const COMMAND_MODE: Action = |editor| editor.set_mode(Mode::Command);
-    const INSERT_NEWLINE: Action = |editor| editor.insert_char('\n');
-    const NORMAL_MODE: Action = |editor| editor.set_mode(Mode::Normal);
-    const MOVE_LEFT: Action = |editor| editor.move_active_cursor(Direction::Left, 1);
-    const MOVE_RIGHT: Action = |editor| editor.move_active_cursor(Direction::Right, 1);
-    const MOVE_UP: Action = |editor| editor.move_active_cursor(Direction::Up, 1);
-    const MOVE_DOWN: Action = |editor| editor.move_active_cursor(Direction::Down, 1);
-    const GO_TO_DEFINITION: Action = |editor| editor.go_to_definition();
-    const OPEN_NEWLINE: Action = |editor| {
+    fn change_operator_pending(editor: &mut Editor) {
+        editor.set_mode(Mode::OperatorPending(Operator::Change));
+    }
+
+    fn yank_operator_pending(editor: &mut Editor) {
+        editor.set_mode(Mode::OperatorPending(Operator::Yank));
+    }
+
+    fn insert_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::Insert);
+    }
+
+    fn command_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::Command);
+    }
+
+    fn insert_newline(editor: &mut Editor) {
+        editor.insert_char('\n');
+    }
+
+    fn normal_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::Normal);
+    }
+
+    fn move_left(editor: &mut Editor) {
+        editor.move_active_cursor(Direction::Left, 1);
+    }
+
+    fn move_right(editor: &mut Editor) {
+        editor.move_active_cursor(Direction::Right, 1);
+    }
+
+    fn move_up(editor: &mut Editor) {
+        editor.move_active_cursor(Direction::Up, 1);
+    }
+
+    fn move_down(editor: &mut Editor) {
+        editor.move_active_cursor(Direction::Down, 1);
+    }
+
+    fn go_to_definition(editor: &mut Editor) {
+        editor.go_to_definition();
+    }
+
+    fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.insert_char('\n');
-    };
-    const MOTION_NEXT_TOKEN: Action = |editor| editor.motion(motion::NextToken);
-    const MOTION_PREV_TOKEN: Action = |editor| editor.motion(motion::PrevToken);
-    const MOTION_NEXT_WORD: Action = |editor| editor.motion(motion::NextWord);
-    const MOTION_PREV_WORD: Action = |editor| editor.motion(motion::PrevWord);
-    const TEXT_OBJECT_CURRENT_LINE: Action = |editor| editor.text_object(object::CurrentLine);
-    const APPEND_EOL: Action = |editor| {
+    }
+
+    fn motion_next_token(editor: &mut Editor) {
+        editor.motion(motion::NextToken);
+    }
+
+    fn motion_prev_token(editor: &mut Editor) {
+        editor.motion(motion::PrevToken);
+    }
+
+    fn motion_next_word(editor: &mut Editor) {
+        editor.motion(motion::NextWord);
+    }
+
+    fn motion_prev_word(editor: &mut Editor) {
+        editor.motion(motion::PrevWord);
+    }
+
+    fn text_object_current_line(editor: &mut Editor) {
+        editor.text_object(object::CurrentLine);
+    }
+
+    fn append_eol(editor: &mut Editor) {
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
         editor.set_mode(Mode::Insert);
         editor.move_active_cursor(Direction::Right, 1);
-    };
-    const APPEND: Action = |editor| {
+    }
+
+    fn append(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.move_active_cursor(Direction::Right, 1);
-    };
+    }
 
-    const SCROLL_LINE_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 1);
-    const SCROLL_LINE_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 1);
-    const SCROLL_DOWN: Action = |editor| editor.scroll_active_view(Direction::Down, 20);
-    const SCROLL_UP: Action = |editor| editor.scroll_active_view(Direction::Up, 20);
-    const OPEN_FILE_PICKER: Action = |editor| void(editor.open_file_picker("."));
-    const OPEN_JUMP_LIST: Action = |editor| void(editor.open_jump_list());
-    const OPEN_FILE_EXPLORER: Action = |editor| editor.open_file_explorer(".");
-    const SPLIT_VERTICAL: Action =
-        |editor| void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));
-    const SPLIT_HORIZONTAL: Action =
-        |editor| void(editor.split_active_view(Direction::Down, tui::Constraint::Fill(1)));
-    const FOCUS_LEFT: Action = |editor| void(editor.move_focus(Direction::Left));
-    const FOCUS_RIGHT: Action = |editor| void(editor.move_focus(Direction::Right));
-    const FOCUS_UP: Action = |editor| void(editor.move_focus(Direction::Up));
-    const FOCUS_DOWN: Action = |editor| void(editor.move_focus(Direction::Down));
-    const VIEW_ONLY: Action = |editor| editor.view_only(editor.active_view().id());
-    const EXECUTE_COMMAND: Action = |editor| editor.execute_command();
-    const DELETE_CHAR_BACKWARD: Action = |editor| editor.delete_char_backward();
-    const JUMP_PREV: Action = |editor| void(editor.jump_prev());
-    const JUMP_NEXT: Action = |editor| void(editor.jump_next());
+    fn scroll_line_down(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Down, 1);
+    }
 
-    // Apparently the key event parser is incredibly slow, so we need to cache the keymap to help fuzzing run faster.
+    fn scroll_line_up(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Up, 1);
+    }
 
+    fn scroll_down(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Down, 20);
+    }
+
+    fn scroll_up(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Up, 20);
+    }
+
+    fn open_file_picker(editor: &mut Editor) {
+        void(editor.open_file_picker("."));
+    }
+
+    fn open_jump_list(editor: &mut Editor) {
+        void(editor.open_jump_list());
+    }
+
+    fn open_file_explorer(editor: &mut Editor) {
+        editor.open_file_explorer(".");
+    }
+
+    fn split_vertical(editor: &mut Editor) {
+        void(editor.split_active_view(Direction::Right, tui::Constraint::Fill(1)));
+    }
+
+    fn split_horizontal(editor: &mut Editor) {
+        void(editor.split_active_view(Direction::Down, tui::Constraint::Fill(1)));
+    }
+
+    fn focus_left(editor: &mut Editor) {
+        void(editor.move_focus(Direction::Left));
+    }
+
+    fn focus_right(editor: &mut Editor) {
+        void(editor.move_focus(Direction::Right));
+    }
+
+    fn focus_up(editor: &mut Editor) {
+        void(editor.move_focus(Direction::Up));
+    }
+
+    fn focus_down(editor: &mut Editor) {
+        void(editor.move_focus(Direction::Down));
+    }
+
+    fn view_only(editor: &mut Editor) {
+        editor.view_only(editor.active_view().id());
+    }
+
+    fn execute_command(editor: &mut Editor) {
+        editor.execute_command();
+    }
+
+    fn delete_char_backward(editor: &mut Editor) {
+        editor.delete_char_backward();
+    }
+
+    fn jump_prev(editor: &mut Editor) {
+        void(editor.jump_prev());
+    }
+
+    fn jump_next(editor: &mut Editor) {
+        void(editor.jump_next());
+    }
+
+    // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP
         .get_or_init(|| {
             let operator_pending_trie = trie!({
-                "<ESC>" | "<C-c>" => NORMAL_MODE,
-                "w" => MOTION_NEXT_WORD,
-                "W" => MOTION_NEXT_TOKEN,
-                "b" => MOTION_PREV_WORD,
-                "B" => MOTION_PREV_TOKEN,
+                "<ESC>" | "<C-c>" => normal_mode,
+                "w" => motion_next_word,
+                "W" => motion_next_token,
+                "b" => motion_prev_word,
+                "B" => motion_prev_token,
             });
 
             Keymap::from(hashmap! {
                 Mode::Command => trie!({
-                    "<ESC>" | "<C-c>" => NORMAL_MODE,
-                    "<CR>" => EXECUTE_COMMAND,
+                    "<ESC>" | "<C-c>" => normal_mode,
+                    "<CR>" => execute_command,
                 }),
                 Mode::Insert => trie!({
-                    "<ESC>" | "<C-c>" => NORMAL_MODE,
-                    "<CR>" => INSERT_NEWLINE,
-                    "<BS>" => DELETE_CHAR_BACKWARD,
+                    "<ESC>" | "<C-c>" => normal_mode,
+                    "<CR>" => insert_newline,
+                    "<BS>" => delete_char_backward,
                     "f" => {
-                        "d" => NORMAL_MODE,
+                        "d" => normal_mode,
                     },
                 }),
                 Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
-                    "d" => TEXT_OBJECT_CURRENT_LINE,
+                    "d" => text_object_current_line,
                 })),
                 Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
-                    "c" => TEXT_OBJECT_CURRENT_LINE,
+                    "c" => text_object_current_line,
                 })),
                 Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
-                    "y" => TEXT_OBJECT_CURRENT_LINE,
+                    "y" => text_object_current_line,
                 })),
                 Mode::Normal => trie!({
-                    "<C-o>" => JUMP_PREV,
-                    "<C-i>" => JUMP_NEXT,
-                    "<C-d>" => SCROLL_DOWN,
-                    "<C-u>" => SCROLL_UP,
-                    "<C-e>" => SCROLL_LINE_DOWN,
-                    "<C-y>" => SCROLL_LINE_UP,
+                    "<C-o>" => jump_prev,
+                    "<C-i>" => jump_next,
+                    "<C-d>" => scroll_down,
+                    "<C-u>" => scroll_up,
+                    "<C-e>" => scroll_line_down,
+                    "<C-y>" => scroll_line_up,
                     "d" => delete_operator,
-                    "c" => CHANGE_OPERATOR_PENDING,
-                    "y" => YANK_OPERATOR_PENDING,
-                    ":" => COMMAND_MODE,
-                    "i" => INSERT_MODE,
-                    "h" => MOVE_LEFT,
-                    "l" => MOVE_RIGHT,
-                    "j" => MOVE_DOWN,
-                    "k" => MOVE_UP,
-                    "o" => OPEN_NEWLINE,
-                    "w" => MOTION_NEXT_WORD,
-                    "b" => MOTION_PREV_WORD,
-                    "W" => MOTION_NEXT_TOKEN,
-                    "B" => MOTION_PREV_TOKEN,
-                    "a" => APPEND,
-                    "A" => APPEND_EOL,
-                    "<C-h>" => FOCUS_LEFT,
-                    "<C-j>" => FOCUS_DOWN,
-                    "<C-k>" => FOCUS_UP,
-                    "<C-l>" => FOCUS_RIGHT,
-                    "-" => OPEN_FILE_EXPLORER,
+                    "c" => change_operator_pending,
+                    "y" => yank_operator_pending,
+                    ":" => command_mode,
+                    "i" => insert_mode,
+                    "h" => move_left,
+                    "l" => move_right,
+                    "j" => move_down,
+                    "k" => move_up,
+                    "o" => open_newline,
+                    "w" => motion_next_word,
+                    "b" => motion_prev_word,
+                    "W" => motion_next_token,
+                    "B" => motion_prev_token,
+                    "a" => append,
+                    "A" => append_eol,
+                    "<C-h>" => focus_left,
+                    "<C-j>" => focus_down,
+                    "<C-k>" => focus_up,
+                    "<C-l>" => focus_right,
+                    "-" => open_file_explorer,
                     "<space>" => {
-                        "e" => OPEN_FILE_EXPLORER,
-                        "o" => OPEN_FILE_PICKER,
-                        "j" => OPEN_JUMP_LIST,
+                        "e" => open_file_explorer,
+                        "o" => open_file_picker,
+                        "j" => open_jump_list,
                     },
                     "g" => {
-                        "d" => GO_TO_DEFINITION,
+                        "d" => go_to_definition,
                     },
                     "<C-w>" => {
-                        "o" => VIEW_ONLY,
-                        "v" | "<C-v>" => SPLIT_VERTICAL,
-                        "s" | "<C-s>" => SPLIT_HORIZONTAL,
-                        "h" | "<C-h>" => FOCUS_LEFT,
-                        "k" | "<C-k>" => FOCUS_UP,
-                        "j" | "<C-j>" => FOCUS_DOWN,
-                        "l" | "<C-l>" => FOCUS_RIGHT,
+                        "o" => view_only,
+                        "v" | "<C-v>" => split_vertical,
+                        "s" | "<C-s>" => split_horizontal,
+                        "h" | "<C-h>" => focus_left,
+                        "k" | "<C-k>" => focus_up,
+                        "j" | "<C-j>" => focus_down,
+                        "l" | "<C-l>" => focus_right,
                     },
                 }),
             })
