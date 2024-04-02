@@ -949,7 +949,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn go_to_definition(&mut self) {
+    pub(crate) fn goto_definition(&mut self) {
         for server in self.language_servers.values_mut() {
             match &server.capabilities.definition_provider {
                 Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => (),
@@ -1677,8 +1677,16 @@ fn default_keymap() -> Keymap {
         editor.move_active_cursor(Direction::Down, 1);
     }
 
-    fn go_to_definition(editor: &mut Editor) {
-        editor.go_to_definition();
+    fn goto_definition(editor: &mut Editor) {
+        editor.goto_definition();
+    }
+
+    fn goto_start(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Up, u32::MAX);
+    }
+
+    fn goto_end(editor: &mut Editor) {
+        editor.scroll_active_view(Direction::Down, u32::MAX);
     }
 
     fn open_newline(editor: &mut Editor) {
@@ -1851,13 +1859,15 @@ fn default_keymap() -> Keymap {
                     "<C-k>" => focus_up,
                     "<C-l>" => focus_right,
                     "-" => open_file_explorer,
+                    "G" => goto_end,
                     "<space>" => {
                         "e" => open_file_explorer,
                         "o" => open_file_picker,
                         "j" => open_jump_list,
                     },
                     "g" => {
-                        "d" => go_to_definition,
+                        "d" => goto_definition,
+                        "g" => goto_start,
                     },
                     "<C-w>" => {
                         "o" => view_only,
