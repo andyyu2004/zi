@@ -12,6 +12,13 @@ slotmap::new_key_type! {
     pub struct ViewGroupId;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalAlignment {
+    Top,
+    Center,
+    Bottom,
+}
+
 /// A view is a viewport into a buffer.
 #[derive(Debug, Clone)]
 pub struct View {
@@ -116,25 +123,46 @@ impl View {
     }
 
     #[inline]
+    pub fn cursor(&self) -> Point {
+        self.cursor.pos
+    }
+
+    #[inline]
     pub fn set_group(&mut self, group: ViewGroupId) {
         self.group = Some(group);
     }
 
     #[inline]
-    pub fn with_group(self, group: ViewGroupId) -> Self {
+    pub(crate) fn with_group(self, group: ViewGroupId) -> Self {
         Self { group: Some(group), ..self }
     }
 
     #[inline]
-    pub fn set_buffer(&mut self, buf: BufferId) {
+    pub(crate) fn set_buffer(&mut self, buf: BufferId) {
         self.buf = buf;
         self.cursor = Cursor::default();
         self.offset = Offset::default();
     }
 
-    #[inline]
-    pub fn cursor(&self) -> Point {
-        self.cursor.pos
+    pub(crate) fn align(
+        &mut self,
+        size: impl Into<Size>,
+        buf: &dyn Buffer,
+        alignment: VerticalAlignment,
+    ) {
+        assert_eq!(buf.id(), self.buf);
+        let cursor = self.cursor();
+        let size = size.into();
+
+        let line = match alignment {
+            VerticalAlignment::Top => cursor.line().raw(),
+            VerticalAlignment::Center => cursor.line().raw().saturating_sub(size.height as u32 / 2),
+            VerticalAlignment::Bottom => {
+                cursor.line().raw().saturating_sub(size.height.saturating_sub(1) as u32)
+            }
+        };
+
+        self.offset = Offset::new(line, 0);
     }
 
     /// Returns the cursor coordinates in the buffer in cells (not characters) relative to the viewport.

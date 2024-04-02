@@ -43,7 +43,7 @@ use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::view::{HasViewId, ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, object, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Location, Mode, Operator, Point, Url, View, ViewId,
+    LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -1371,6 +1371,12 @@ impl Editor {
         )
     }
 
+    pub fn align_view(&mut self, view: impl HasViewId, alignment: VerticalAlignment) {
+        let (view, buf) = get!(self: view);
+        let area = self.tree.view_area(view.id());
+        view.align(area, buf, alignment)
+    }
+
     fn jump_to_definition(
         &mut self,
         res: Option<lsp_types::GotoDefinitionResponse>,
@@ -1689,6 +1695,21 @@ fn default_keymap() -> Keymap {
         editor.scroll_active_view(Direction::Down, u32::MAX);
     }
 
+    fn align_view_top(editor: &mut Editor) {
+        let view = editor.active_view().id();
+        editor.align_view(view, VerticalAlignment::Top);
+    }
+
+    fn align_view_center(editor: &mut Editor) {
+        let view = editor.active_view().id();
+        editor.align_view(view, VerticalAlignment::Center);
+    }
+
+    fn align_view_bottom(editor: &mut Editor) {
+        let view = editor.active_view().id();
+        editor.align_view(view, VerticalAlignment::Bottom);
+    }
+
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
@@ -1868,6 +1889,11 @@ fn default_keymap() -> Keymap {
                     "g" => {
                         "d" => goto_definition,
                         "g" => goto_start,
+                    },
+                    "z" => {
+                        "t" => align_view_top,
+                        "z" => align_view_center,
+                        "b" => align_view_bottom,
                     },
                     "<C-w>" => {
                         "o" => view_only,
