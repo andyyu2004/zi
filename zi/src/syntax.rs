@@ -133,8 +133,12 @@ impl Syntax {
         }
     }
 
-    pub fn highlights_query(&self) -> &'static Query {
-        self.highlights_query
+    pub fn capture_names(&self) -> &'static [&'static str] {
+        self.highlights_query.capture_names()
+    }
+
+    pub fn capture_index_to_name(&self, idx: u32) -> &'static str {
+        self.highlights_query.capture_names()[idx as usize]
     }
 }
 

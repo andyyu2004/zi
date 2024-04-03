@@ -14,7 +14,7 @@ impl InspectorBuffer {
         Self {
             id,
             path: PathBuf::from("inspector"),
-            url: Url::parse(&format!("buffer://zi/inspector")).unwrap(),
+            url: Url::parse("buffer://zi/inspector").unwrap(),
             text: Default::default(),
         }
     }
@@ -85,11 +85,10 @@ impl Buffer for InspectorBuffer {
                         let capture_name = target_buffer
                             .syntax()
                             .expect("if buffer has syntax highlights it must have syntax")
-                            .highlights_query()
-                            .capture_names()[hl.capture_idx as usize];
+                            .capture_index_to_name(hl.capture_idx);
                         match hl.id.style(editor.theme()) {
                             Some(style) => format!("{capture_name} -> {style}"),
-                            None => format!("{capture_name}"),
+                            None => capture_name.to_string(),
                         }
                     }
                     None => "no highlights".to_string(),

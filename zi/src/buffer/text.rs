@@ -204,7 +204,7 @@ impl<X: AnyText> TextBuffer<X> {
             language_id,
             version: 0,
             highlight_map: HighlightMap::new(
-                syntax.as_ref().map_or(&[][..], |syntax| syntax.highlights_query().capture_names()),
+                syntax.as_ref().map_or(&[][..], |syntax| syntax.capture_names()),
                 theme,
             ),
             syntax,
