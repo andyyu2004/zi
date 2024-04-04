@@ -1,6 +1,5 @@
 use std::sync::OnceLock;
 
-use test_strategy::proptest;
 use tokio::sync::OnceCell;
 use zi_nvim::{spawn, Fixture, Nvim, TestCase};
 
@@ -16,31 +15,29 @@ async fn nvim(fixture: &Fixture) -> &'static Nvim {
     NVIM.get_or_init(|| spawn(size.height, size.width)).await
 }
 
-// Too many annoying cases here :)
+macro_rules! t {
+    ( $text:tt, $inputs:tt, $name:ident $(, $filter:expr)?) => {
+        ::proptest::proptest! {
+            #[test]
+            fn $name(text in $text, inputs in $inputs) {
+                $( $filter(&inputs)?; )?
+
+                run(text, inputs)
+            }
+        }
+    };
+}
+
+// Too many annoying cases here for word motions :)
 // Also the default behaviour is not great anyway so leave this for later.
-// #[proptest]
-// fn nvim_word_motions(
-//     #[strategy(r"(?s)[ A-Za-z-_]+")] text: String,
-//     #[strategy("[wbjk]+")] inputs: String,
-// ) {
-//      run(TestCase::new(text, inputs.as_str()))
-// }
+// We probably want to implement something closer to vim-wordmotion by default
+// t!(r"(?s)[ -~]*", "[wbjk]+", nvim_word_motions);
 
-#[proptest]
-fn nvim_token_motions(
-    #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
-    #[strategy("[WBjk]+")] inputs: String,
-) {
-    run(text, inputs)
-}
+t!(r"(?s)[ a-z]*", "<ESC>", nvim_test);
 
-#[proptest]
-fn nvim_delete_operator(
-    #[strategy(r"(?s)[ A-Za-z0-9-_]+")] text: String,
-    #[strategy("[dWBjk]+")] inputs: String,
-) {
-    run(text, inputs)
-}
+t!(r"(?s)[ -~]*", "[WBjk]+", nvim_token_motions);
+t!(r"(?s)[ -~]*", "[dWBjk]+", nvim_delete_operator);
+t!(r"(?s)[ -~]*", "([udWBjk]|(<ESC>))+", nvim_undo);
 
 #[track_caller]
 fn run(text: String, inputs: String) {

@@ -6,3 +6,11 @@ map cw dwi
 
 " make it obvious that something is wrong if this is hit
 set timeoutlen=5000
+
+function! ClearUndoHistory()
+    let old_undolevels = &undolevels
+    set undolevels=-1
+    exe "normal ax\<BS>\<Esc>"
+    let &undolevels = old_undolevels
+    unlet old_undolevels
+endfunction

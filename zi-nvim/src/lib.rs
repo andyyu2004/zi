@@ -138,18 +138,22 @@ impl Nvim {
         let initial = &case.text;
         let inputs = &case.inputs;
         let n = editor.buffer(zi::Active).text().len_bytes();
-        editor.buffer_mut(zi::Active).edit(&zi::Delta::new(0..n, initial));
+        let cursor = editor.cursor(zi::Active);
+        editor.buffer_mut(zi::Active).edit(cursor, &zi::Delta::new(0..n, initial));
         editor.set_cursor(zi::Active, (0, 0));
         editor.set_mode(zi::Mode::Normal);
+        editor.clear_undo();
 
         self.nvim
             .get_current_buf()
             .await?
             .set_lines(0, -1, false, initial.lines().map(ToOwned::to_owned).collect())
             .await?;
+        self.nvim.call_function("ClearUndoHistory", vec![]).await?;
         self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
         self.nvim.input("<ESC><ESC>").await?;
-        self.assert_eq(editor).await.context("did not reset state properly after test case")?;
+
+        self.assert_eq(editor).await.context("did not reset state properly before test case")?;
 
         for (i, key) in inputs.clone().into_iter().enumerate() {
             // https://github.com/neovim/neovim/issues/6159

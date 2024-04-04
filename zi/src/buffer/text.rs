@@ -1,6 +1,7 @@
 use super::*;
 use crate::syntax::{HighlightMap, HighlightName};
 use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
+use crate::undo::UndoTree;
 
 pub struct TextBuffer<X> {
     id: BufferId,
@@ -17,6 +18,7 @@ pub struct TextBuffer<X> {
     highlight_map: HighlightMap,
     version: u32,
     tab_width: u8,
+    undo_tree: UndoTree<UndoEntry>,
 }
 
 impl<X: Text + 'static> Buffer for TextBuffer<X> {
@@ -65,29 +67,34 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         self.syntax.as_ref()
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) {
-        match self.text.as_text_mut() {
-            Some(text) => {
-                if !delta.text().is_empty() && text.chars().next_back() != Some('\n') {
-                    // Ensure the buffer ends with a newline before any insert.
-                    text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
-                }
-
-                if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(text, delta)
-                } else {
-                    text.edit(delta)
-                }
-
-                self.version.checked_add(1).unwrap();
-            }
-            // FIXME need to check flags and prevent this
-            None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
-        }
+    fn edit(&mut self, cursor: Point, delta: &Delta<'_>) {
+        self.edit(cursor, delta, EditFlags::PUSH_UNDO);
     }
 
     fn version(&self) -> u32 {
         self.version
+    }
+
+    fn undo(&mut self) -> Option<UndoEntry> {
+        // Nothing to undo if the buffer is readonly
+        let _text = self.text.as_text_mut()?;
+
+        let entry = self.undo_tree.undo().cloned()?;
+        self.edit(entry.cursor, &entry.inverse_delta, EditFlags::NO_APPEND_NEWLINE);
+        Some(entry)
+    }
+
+    fn redo(&mut self) -> Option<UndoEntry> {
+        // Nothing to redo if the buffer is readonly
+        let _text = self.text.as_text_mut()?;
+
+        let entry = self.undo_tree.redo().cloned()?;
+        self.edit(entry.cursor, &entry.delta, EditFlags::NO_APPEND_NEWLINE);
+        Some(entry)
+    }
+
+    fn clear_undo(&mut self) {
+        self.undo_tree.clear();
     }
 
     fn syntax_highlights<'a>(
@@ -156,7 +163,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     }
 }
 
-impl<X: AnyText> TextBuffer<X> {
+impl<X: Text> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,
@@ -193,6 +200,11 @@ impl<X: AnyText> TextBuffer<X> {
             syntax.set(&text);
         }
 
+        let highlight_map = HighlightMap::new(
+            syntax.as_ref().map_or(&[][..], |syntax| syntax.capture_names()),
+            theme,
+        );
+
         Self {
             id,
             flags,
@@ -201,13 +213,49 @@ impl<X: AnyText> TextBuffer<X> {
             file_url,
             text,
             language_id,
-            version: 0,
-            highlight_map: HighlightMap::new(
-                syntax.as_ref().map_or(&[][..], |syntax| syntax.capture_names()),
-                theme,
-            ),
             syntax,
             tab_width: 4,
+            highlight_map,
+            version: Default::default(),
+            undo_tree: Default::default(),
+        }
+    }
+
+    fn edit(&mut self, cursor: Point, delta: &Delta<'_>, flags: EditFlags) {
+        if delta.is_identity() {
+            return;
+        }
+
+        match self.text.as_text_mut() {
+            Some(text) => {
+                if !flags.contains(EditFlags::NO_APPEND_NEWLINE)
+                    && !delta.text().is_empty()
+                    && text.chars().next_back() != Some('\n')
+                {
+                    // Ensure the buffer ends with a newline before any insert.
+                    // It's fine to do this without editing the syntax as a trailing
+                    // newline will affect it.
+                    text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
+                }
+
+                let (inverse_delta, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
+                    syntax.edit(text, delta)
+                } else {
+                    (text.edit(delta), None)
+                };
+
+                if flags.contains(EditFlags::PUSH_UNDO) {
+                    self.undo_tree.push(UndoEntry {
+                        cursor,
+                        delta: delta.to_owned(),
+                        inverse_delta,
+                    });
+                }
+
+                self.version.checked_add(1).unwrap();
+            }
+            // FIXME need to check flags and prevent this
+            None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
     }
 }

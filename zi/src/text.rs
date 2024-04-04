@@ -4,39 +4,46 @@ mod readonly;
 mod rope;
 mod str_impl;
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
-pub use self::delta::{Delta, DeltaRange};
+use dyn_clone::DynClone;
+
+pub use self::delta::{Delta, DeltaRange, PointOrByte};
 pub use self::readonly::ReadonlyText;
 use crate::{Line, Point, Range};
 
-pub trait TextMut: Text {
-    fn edit(&mut self, delta: &Delta<'_>);
+/// Text that can be modified.
+/// Required to be cloneable to store snapshots in the undo tree.
+pub trait TextMut: Text + DynClone {
+    fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
 }
 
-pub trait AnyTextMut: AnyText {
-    fn dyn_edit(&mut self, delta: &Delta<'_>);
+pub trait AnyTextMut: AnyText + Send + DynClone + 'static {
+    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
 
     fn as_text(&self) -> &dyn AnyText;
 }
 
+dyn_clone::clone_trait_object!(AnyTextMut);
+
 impl TextMut for dyn AnyTextMut + '_ {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) {
+    fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static> {
         self.dyn_edit(delta)
     }
 }
 
-impl<T: AnyText + TextMut> AnyTextMut for T {
+impl<T: AnyText + TextMut + Send + 'static> AnyTextMut for T {
     #[inline]
     fn as_text(&self) -> &dyn AnyText {
         self
     }
 
     #[inline]
-    fn dyn_edit(&mut self, delta: &Delta<'_>) {
+    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Delta<'static> {
         <T as TextMut>::edit(self, delta)
     }
 }
@@ -94,6 +101,22 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     #[inline]
     fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
         self.point_to_byte(range.start())..self.point_to_byte(range.end())
+    }
+
+    #[inline]
+    fn point_or_byte_to_byte(&self, point_or_byte: PointOrByte) -> usize {
+        match point_or_byte {
+            PointOrByte::Point(p) => self.point_to_byte(p),
+            PointOrByte::Byte(b) => b,
+        }
+    }
+
+    #[inline]
+    fn point_or_byte_to_point(&self, point_or_byte: PointOrByte) -> Point {
+        match point_or_byte {
+            PointOrByte::Point(p) => p,
+            PointOrByte::Byte(b) => self.byte_to_point(b),
+        }
     }
 }
 
@@ -159,9 +182,15 @@ pub trait AnyText: TextBase + fmt::Display {
     ) -> Box<dyn AnyTextSlice<'_> + '_>;
 
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_>;
+
     fn dyn_lines(&self)
     -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
+
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
+
+    fn as_boxed_any(self: Box<Self>) -> Box<dyn Any>
+    where
+        Self: 'static;
 }
 
 impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
@@ -248,7 +277,7 @@ impl Text for dyn AnyText + '_ {
     }
 }
 
-impl<T: Text + ?Sized> AnyText for T {
+impl<T: Text> AnyText for T {
     fn dyn_byte_slice(
         &self,
         byte_range: (Bound<usize>, Bound<usize>),
@@ -275,6 +304,13 @@ impl<T: Text + ?Sized> AnyText for T {
 
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
         self.get_line(line_idx).map(|s| Box::new(s) as _)
+    }
+
+    fn as_boxed_any(self: Box<Self>) -> Box<dyn Any>
+    where
+        Self: 'static,
+    {
+        self
     }
 }
 

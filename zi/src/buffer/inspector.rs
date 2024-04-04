@@ -66,7 +66,7 @@ impl Buffer for InspectorBuffer {
         self
     }
 
-    fn edit(&mut self, _delta: &Delta<'_>) {
+    fn edit(&mut self, _cursor: Point, _delta: &Delta<'_>) {
         panic!("is readonly")
     }
 

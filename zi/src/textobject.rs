@@ -3,8 +3,19 @@ use std::ops;
 use crate::motion::Motion;
 use crate::text::AnyText;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextObjectKind {
+    Linewise,
+    Charwise,
+}
+
 pub trait TextObject {
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize>;
+
+    #[inline]
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
 }
 
 impl<M: Motion> TextObject for M {
@@ -17,6 +28,12 @@ impl<M: Motion> TextObject for M {
 pub struct Line;
 
 impl TextObject for Line {
+    #[inline]
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Linewise
+    }
+
+    #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize> {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);

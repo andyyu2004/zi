@@ -97,22 +97,34 @@ impl Syntax {
         });
     }
 
-    pub fn edit(&mut self, text: &mut dyn AnyTextMut, delta: &Delta<'_>) {
-        match &mut self.tree {
-            Some(tree) => tree.edit(&delta_to_ts_edit(text, delta)),
-            _ => text.edit(delta),
-        }
+    pub fn edit(
+        &mut self,
+        text: &mut dyn AnyTextMut,
+        delta: &Delta<'_>,
+    ) -> (Delta<'static>, Option<Tree>) {
+        let delta = match &mut self.tree {
+            Some(tree) => {
+                let (delta, edit) = delta_to_ts_edit(text, delta);
+                tree.edit(&edit);
+                delta
+            }
+            _ => text.edit(delta).to_owned(),
+        };
 
-        PARSER.with(|parser| {
+        let prev_tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
             if let Some(tree) = parser.parse_with(
                 &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap_or(""),
                 self.tree.as_ref(),
             ) {
-                self.tree = Some(tree);
+                std::mem::replace(&mut self.tree, Some(tree))
+            } else {
+                self.tree.clone()
             }
         });
+
+        (delta, prev_tree)
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -143,7 +155,10 @@ impl Syntax {
 }
 
 // tree-sitter point column is byte-indexed, but very poorly documented
-fn delta_to_ts_edit(text: &mut dyn AnyTextMut, delta: &Delta<'_>) -> tree_sitter::InputEdit {
+fn delta_to_ts_edit(
+    text: &mut dyn AnyTextMut,
+    delta: &Delta<'_>,
+) -> (Delta<'static>, tree_sitter::InputEdit) {
     let byte_range = text.delta_to_byte_range(delta);
     let point_range = text.delta_to_point_range(delta);
 
@@ -151,18 +166,21 @@ fn delta_to_ts_edit(text: &mut dyn AnyTextMut, delta: &Delta<'_>) -> tree_sitter
     let old_end_byte = byte_range.end;
     let new_end_byte = start_byte + delta.text().len();
 
-    text.edit(delta);
+    let delta = text.edit(delta).to_owned();
 
     let new_end_position = text.byte_to_point(new_end_byte).into();
 
-    tree_sitter::InputEdit {
-        start_byte,
-        old_end_byte,
-        new_end_byte,
-        start_position: point_range.start().into(),
-        old_end_position: point_range.end().into(),
-        new_end_position,
-    }
+    (
+        delta,
+        tree_sitter::InputEdit {
+            start_byte,
+            old_end_byte,
+            new_end_byte,
+            start_position: point_range.start().into(),
+            old_end_position: point_range.end().into(),
+            new_end_position,
+        },
+    )
 }
 
 /// A private wrapper type that allows us to construct an empty iterator if we have no highlights to provide

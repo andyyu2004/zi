@@ -28,6 +28,7 @@ mod private;
 mod syntax;
 mod text;
 mod textobject;
+mod undo;
 mod view;
 
 pub use tokio::sync::Notify;

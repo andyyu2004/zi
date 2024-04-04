@@ -38,8 +38,14 @@ impl Selector<Self> for BufferId {
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
-    pub struct BufferFlags: u32 {
+    pub struct BufferFlags: u8 {
         const READONLY = 0b0000_0001;
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    struct EditFlags: u8 {
+        const PUSH_UNDO = 1 << 0;
+        const NO_APPEND_NEWLINE = 1 << 1;
     }
 }
 
@@ -72,6 +78,17 @@ impl Resource for dyn Buffer {
     }
 }
 
+// FIXME bad name, used for redo too
+// Should also not be public (however needs to be because it's exposed by the buffer trait for now)
+#[derive(Clone)]
+pub struct UndoEntry {
+    pub cursor: Point,
+    pub delta: Delta<'static>,
+    pub inverse_delta: Delta<'static>,
+}
+
+// FIXME this type should not be public (transitively for most of the types too)
+// This shouldn't be directly exposed by the editor api.
 pub trait Buffer {
     fn id(&self) -> BufferId;
     fn flags(&self) -> BufferFlags;
@@ -85,7 +102,19 @@ pub trait Buffer {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn edit(&mut self, delta: &Delta<'_>);
+    fn redo(&mut self) -> Option<UndoEntry> {
+        None
+    }
+
+    fn undo(&mut self) -> Option<UndoEntry> {
+        None
+    }
+
+    fn clear_undo(&mut self) {}
+
+    /// Edit the buffer with a delta.
+    /// The cursor is the current cursor position in the buffer as of the edit.
+    fn edit(&mut self, cursor: Point, delta: &Delta<'_>);
 
     fn syntax(&self) -> Option<&Syntax> {
         None
@@ -205,8 +234,22 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.as_mut().edit(delta)
+    fn edit(&mut self, cursor: Point, delta: &Delta<'_>) {
+        self.as_mut().edit(cursor, delta)
+    }
+
+    #[inline]
+    fn undo(&mut self) -> Option<UndoEntry> {
+        self.as_mut().undo()
+    }
+
+    #[inline]
+    fn redo(&mut self) -> Option<UndoEntry> {
+        self.as_mut().redo()
+    }
+
+    fn clear_undo(&mut self) {
+        self.as_mut().clear_undo()
     }
 
     #[inline]

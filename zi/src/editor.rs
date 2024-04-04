@@ -41,7 +41,7 @@ use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
-use crate::textobject::TextObject;
+use crate::textobject::{TextObject, TextObjectKind};
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, textobject, trie, Buffer, BufferId, Direction, Error,
@@ -601,6 +601,7 @@ impl Editor {
 
     // HACK, run without spawning the plugin system
     // This can be executed with any executor
+    #[doc(hidden)]
     pub async fn fuzz(
         mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
@@ -668,7 +669,7 @@ impl Editor {
         let (_, buf) = get!(self);
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
-        tracing::debug!(?key, "handling key");
+        tracing::debug!(%key, "handling key");
         match key.code() {
             KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
                 let (res, buffered) = keymap.on_key(self.mode, key);
@@ -794,7 +795,8 @@ impl Editor {
         split_view
     }
 
-    pub fn focus_view(&mut self, id: ViewId) {
+    pub fn focus_view(&mut self, selector: impl Selector<ViewId>) {
+        let id = selector.select(self);
         self.tree.focus(id);
     }
 
@@ -816,7 +818,7 @@ impl Editor {
         let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
         let start_byte_idx =
             byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
-        buf.edit(&Delta::delete(start_byte_idx..byte_idx));
+        buf.edit(cursor, &Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
         view.set_cursor_linewise(
@@ -842,7 +844,8 @@ impl Editor {
         };
     }
 
-    pub fn edit(&mut self, view_id: ViewId, delta: &Delta<'_>) {
+    pub fn edit(&mut self, selector: impl Selector<ViewId>, delta: &Delta<'_>) {
+        let view_id = selector.select(self);
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self: view_id);
 
@@ -852,13 +855,13 @@ impl Editor {
         }
 
         let cursor = view.cursor();
-        buf.edit(delta);
+        tracing::error!(?cursor, ?delta, "edit");
+        buf.edit(cursor, delta);
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
         self.set_cursor(view_id, cursor);
 
-        let event = event::DidChangeBuffer { buf };
-        self.dispatch(event);
+        self.dispatch(event::DidChangeBuffer { buf });
     }
 
     fn dispatch(&mut self, event: impl event::Event) {
@@ -890,7 +893,7 @@ impl Editor {
         &self.theme
     }
 
-    pub fn text_object(&mut self, obj: impl TextObject) {
+    pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
         let view_id = view.id();
 
@@ -904,17 +907,29 @@ impl Editor {
             Operator::Yank => todo!(),
         };
 
-        self.edit(view_id, &delta);
+        let new_cursor = match operator {
+            // deletions moves the cursor to the start of the range
+            Operator::Delete | Operator::Change => Some(range.start),
+            Operator::Yank => None,
+        };
 
-        // need to make this change for the undo branch,
-        match operator {
-            Operator::Delete | Operator::Change => {
-                let (view, buf) = get!(self);
-                // deletions moves the cursor to the start of the range
-                let area = self.tree.view_area(view.id());
-                view.set_cursor_bytewise(buf, area, range.start);
+        // `edit` saves the cursor position when pushing it to the undo tree
+        // - If we're editing linewise, we want to save the current cursor position.
+        // - If we're editing charwise, we want to save the cursor position after the edit.
+        // These rules are to roughly keep neovim compatibility (enough to pass some basic tests anyway)
+        match obj.kind() {
+            TextObjectKind::Linewise => {
+                self.edit(view_id, &delta);
+                if let Some(new_cursor) = new_cursor {
+                    self.set_cursor_bytewise(view_id, new_cursor);
+                }
             }
-            Operator::Yank => (),
+            TextObjectKind::Charwise => {
+                if let Some(new_cursor) = new_cursor {
+                    self.set_cursor_bytewise(view_id, new_cursor);
+                }
+                self.edit(view_id, &delta);
+            }
         }
 
         let mode = match operator {
@@ -936,6 +951,32 @@ impl Editor {
                 view.set_cursor_bytewise(buf, area, byte);
             }
         }
+    }
+
+    pub fn redo(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
+        let Some(entry) = buf.redo() else { return };
+
+        let byte = buf.text().point_to_byte(entry.cursor);
+        let area = self.tree.view_area(view.id());
+        view.set_cursor_bytewise(buf, area, byte);
+    }
+
+    pub fn undo(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
+        let Some(entry) = buf.undo() else { return };
+
+        let area = self.tree.view_area(view.id());
+        let byte = buf.text().point_to_byte(entry.cursor);
+        view.set_cursor_bytewise(buf, area, byte);
+    }
+
+    // Don't think we want this to be a public api, used for tests for now
+    #[doc(hidden)]
+    pub fn clear_undo(&mut self) {
+        self.buffer_mut(Active).clear_undo()
     }
 
     pub(crate) fn goto_definition(&mut self) {
@@ -1081,8 +1122,8 @@ impl Editor {
         direction: Direction,
         amount: u32,
     ) {
-        let view_id = selector.select(self);
-        let (view, buf) = get!(self: view_id);
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
         view.scroll(self.mode, area, buf, direction, amount);
     }
@@ -1786,10 +1827,6 @@ fn default_keymap() -> Keymap {
         editor.open_file_picker(".");
     }
 
-    fn open_jump_list(editor: &mut Editor) {
-        editor.open_jump_list();
-    }
-
     fn open_file_explorer(editor: &mut Editor) {
         editor.open_file_explorer(".");
     }
@@ -1822,25 +1859,25 @@ fn default_keymap() -> Keymap {
         editor.view_only(editor.view(Active).id());
     }
 
-    fn execute_command(editor: &mut Editor) {
-        editor.execute_command();
+    fn undo(editor: &mut Editor) {
+        editor.undo(Active);
     }
 
-    fn delete_char_backward(editor: &mut Editor) {
-        editor.delete_char_backward();
+    fn redo(editor: &mut Editor) {
+        editor.redo(Active);
     }
 
-    fn jump_prev(editor: &mut Editor) {
-        editor.jump_prev();
+    macro_rules! action {
+        ($($name:ident),*) => {
+            $(
+                fn $name(editor: &mut Editor) {
+                    editor.$name();
+                }
+            )*
+        };
     }
 
-    fn jump_next(editor: &mut Editor) {
-        editor.jump_next();
-    }
-
-    fn inspect(editor: &mut Editor) {
-        editor.inspect();
-    }
+    action!(jump_prev, jump_next, inspect, delete_char_backward, execute_command, open_jump_list);
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP
@@ -1898,6 +1935,8 @@ fn default_keymap() -> Keymap {
                     "B" => motion_prev_token,
                     "a" => append,
                     "A" => append_eol,
+                    "u" => undo,
+                    "<C-r>" => redo,
                     "<C-h>" => focus_left,
                     "<C-j>" => focus_down,
                     "<C-k>" => focus_up,
