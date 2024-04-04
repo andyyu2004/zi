@@ -233,7 +233,12 @@ impl View {
     // HACK clean this up and try not have two different implementations for a cursor move.
     // This is handling the case where motions may return an exclusive endpoint that is out of bounds.
     // We want to instead move to the last non-newline character in the text.
-    pub(crate) fn set_cursor_bytewise(&mut self, buf: &dyn Buffer, mut byte: usize) {
+    pub(crate) fn set_cursor_bytewise(
+        &mut self,
+        buf: &dyn Buffer,
+        size: impl Into<Size>,
+        mut byte: usize,
+    ) {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
         if byte >= text.len_bytes() {
@@ -254,6 +259,7 @@ impl View {
         #[cfg(debug_assertions)]
         std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
         self.cursor = Cursor::new(pos);
+        self.ensure_scroll_in_bounds(size);
     }
 
     #[inline]
@@ -308,19 +314,24 @@ impl View {
             _ => pos.with_col(max_col),
         };
 
+        // Assert that the cursor is in valid byte position. This will panic if the cursor is in
+        // the middle of a code point.
+        #[cfg(debug_assertions)]
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
+
+        self.ensure_scroll_in_bounds(size);
+
+        self.cursor.pos
+    }
+
+    fn ensure_scroll_in_bounds(&mut self, size: impl Into<Size>) {
+        let size = size.into();
         // Scroll the view if the cursor moves out of bounds
         if self.cursor.pos.line().raw() < self.offset.line {
             self.offset.line = self.cursor.pos.line().idx() as u32;
         } else if self.cursor.pos.line().raw() >= self.offset.line + size.height as u32 {
             self.offset.line = self.cursor.pos.line().idx() as u32 - size.height as u32 + 1;
         }
-
-        // Assert that the cursor is in valid byte position. This will panic if the cursor is in
-        // the middle of a code point.
-        #[cfg(debug_assertions)]
-        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
-
-        self.cursor.pos
     }
 
     pub(crate) fn scroll(

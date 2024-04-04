@@ -930,7 +930,8 @@ impl Editor {
         let delta = match operator {
             Operator::Delete | Operator::Change => {
                 // deletions moves the cursor to the start of the range
-                view.set_cursor_bytewise(buf, range.start);
+                let area = self.tree.view_area(view.id());
+                view.set_cursor_bytewise(buf, area, range.start);
                 Delta::delete(range.clone())
             }
             Operator::Yank => todo!(),
@@ -952,7 +953,8 @@ impl Editor {
             _ => {
                 let text = buf.text();
                 let byte = motion.motion(text, text.point_to_byte(view.cursor()));
-                view.set_cursor_bytewise(buf, byte);
+                let area = self.tree.view_area(view.id());
+                view.set_cursor_bytewise(buf, area, byte);
             }
         }
     }

@@ -4,6 +4,7 @@ use expect_test::Expect;
 
 mod cursor;
 mod edit;
+mod motion;
 mod open;
 mod picker;
 mod scroll;
