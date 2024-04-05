@@ -39,9 +39,10 @@ use crate::motion::{self, Motion};
 use crate::object::TextObject;
 use crate::plugin::Plugins;
 use crate::position::Size;
+use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
-use crate::view::{HasViewId, ViewGroup, ViewGroupId};
+use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, object, trie, Buffer, BufferId, Direction, Error, FileType,
     LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
@@ -152,18 +153,12 @@ macro_rules! get {
         $crate::editor::get!($editor: view_id)
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
-        #[allow(unused_imports)]
-        use $crate::view::HasViewId as _;
-        let view_id = $view.view_id();
-        let view = &mut $editor.views[view_id];
+        let view = &mut $editor.views[$view];
         let buf = $editor.buffers[view.buffer()].as_any_mut().downcast_mut::<$ty>().expect("buffer downcast failed");
         (view, buf)
     }};
-    ($editor:ident: $view:ident) => {{
-        #[allow(unused_imports)]
-        use $crate::view::HasViewId as _;
-        let view_id = $view.view_id();
-        let view = &mut $editor.views[view_id];
+    ($editor:ident: $view:expr) => {{
+        let view = &mut $editor.views[$view];
         let buf = &mut $editor.buffers[view.buffer()];
         (view, buf)
     }};
@@ -187,8 +182,7 @@ macro_rules! get_ref {
     };
     ($editor:ident: $view:expr) => {{
         #[allow(unused_imports)]
-        use $crate::view::HasViewId as _;
-        let view = &$editor.views[$view.view_id()];
+        let view = &$editor.views[$view];
         let buf = &$editor.buffers[view.buffer()];
         (view, buf)
     }};
@@ -749,35 +743,13 @@ impl Editor {
     }
 
     #[inline]
-    pub fn active_view(&self) -> &View {
-        self.view(self.tree.active())
+    pub fn view(&self, selector: impl Selector<ViewId>) -> &View {
+        self.views.get(selector.select(self)).expect("bad view id")
     }
 
     #[inline]
-    pub fn active_buffer(&self) -> &dyn Buffer {
-        self.buffer(self.active_view().buffer())
-    }
-
-    #[inline]
-    pub fn active_buffer_mut(&mut self) -> &mut dyn Buffer {
-        let id = self.active_view().buffer();
-        &mut self.buffers[id]
-    }
-
-    #[inline]
-    pub fn active_view_mut(&mut self) -> &mut View {
-        let id = self.tree.active();
-        &mut self.views[id]
-    }
-
-    #[inline]
-    pub fn view(&self, id: impl HasViewId) -> &View {
-        self.views.get(id.view_id()).expect("bad view id")
-    }
-
-    #[inline]
-    pub fn view_mut(&mut self, id: ViewId) -> &mut View {
-        self.views.get_mut(id).expect("bad view id")
+    pub fn view_mut(&mut self, selector: impl Selector<ViewId>) -> &mut View {
+        self.views.get_mut(selector.select(self)).expect("bad view id")
     }
 
     #[inline]
@@ -793,15 +765,12 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffer(&self, id: BufferId) -> &dyn Buffer {
-        self.buffers.get(id).expect("got bad buffer id?")
+    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &dyn Buffer {
+        self.buffers.get(selector.select(self)).expect("got bad buffer id")
     }
 
-    #[inline]
-    pub fn active(&self) -> (&View, &dyn Buffer) {
-        let view = self.active_view();
-        let buffer = self.buffer(view.buffer());
-        (view, buffer)
+    pub fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut dyn Buffer {
+        self.buffers.get_mut(selector.select(self)).expect("got bad buffer id")
     }
 
     #[inline]
@@ -809,12 +778,14 @@ impl Editor {
         self.tree.view_only(view);
     }
 
-    pub fn split_active_view(
+    pub fn split_view(
         &mut self,
+        selector: impl Selector<ViewId>,
         direction: Direction,
         constraint: tui::Constraint,
     ) -> ViewId {
-        let (view, _) = get_ref!(self);
+        let view_id = selector.select(self);
+        let (view, _) = get_ref!(self: view_id);
         let id = view.id();
         let view = view.clone();
         let split_view = self.views.insert_with_key(|id| View::split_from(id, view));
@@ -858,7 +829,7 @@ impl Editor {
 
     pub fn insert_char(&mut self, c: char) {
         let mut cbuf = [0; 4];
-        let view = self.active_view();
+        let view = self.view(Active);
         let cursor = view.cursor();
         self.edit(view.id(), &Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
 
@@ -900,7 +871,7 @@ impl Editor {
     }
 
     pub fn current_line(&self) -> String {
-        let (view, buffer) = self.active();
+        let (view, buffer) = get_ref!(self);
         let cursor = view.cursor();
         let text = buffer.text();
         let line = text.get_line(cursor.line().idx()).unwrap_or_else(|| Box::new(""));
@@ -908,7 +879,7 @@ impl Editor {
     }
 
     pub fn current_char(&self) -> Option<char> {
-        let (view, _) = self.active();
+        let (view, _) = get_ref!(self);
         let cursor = view.cursor();
         let col = cursor.col().idx();
         self.current_line().chars().nth(col)
@@ -1069,11 +1040,8 @@ impl Editor {
         self.buffers[buf].on_leave();
     }
 
-    pub fn close_active_view(&mut self) {
-        self.close_view(self.tree.active())
-    }
-
-    pub fn close_view(&mut self, view: ViewId) {
+    pub fn close_view(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
         if self.tree.close_view(view).is_err() {
             // already closed
             return;
@@ -1099,15 +1067,21 @@ impl Editor {
         }
     }
 
-    pub fn scroll_active_view(&mut self, direction: Direction, amount: u32) {
-        let (view, buf) = get!(self);
+    pub fn scroll_view(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        direction: Direction,
+        amount: u32,
+    ) {
+        let view_id = selector.select(self);
+        let (view, buf) = get!(self: view_id);
         let area = self.tree.view_area(view.id());
         view.scroll(self.mode, area, buf, direction, amount);
     }
 
     pub(crate) fn inspect(&mut self) {
-        let inspector_view = self.active_view().id();
-        self.split_active_view(Direction::Up, tui::Constraint::Percentage(70));
+        let inspector_view = self.view(Active).id();
+        self.split_view(Active, Direction::Up, tui::Constraint::Percentage(70));
         let buf = self.buffers.insert_with_key(|id| InspectorBuffer::new(id).boxed());
         self.set_buffer(inspector_view, buf);
     }
@@ -1239,7 +1213,7 @@ impl Editor {
             tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)[1]
         }));
 
-        let display_view = self.split_active_view(Direction::Left, tui::Constraint::Fill(1));
+        let display_view = self.split_view(Active, Direction::Left, tui::Constraint::Fill(1));
         self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
             TextBuffer::new(
                 id,
@@ -1252,7 +1226,7 @@ impl Editor {
             .boxed()
         }));
 
-        let search_view = self.split_active_view(Direction::Up, tui::Constraint::Max(1));
+        let search_view = self.split_view(Active, Direction::Up, tui::Constraint::Max(1));
         assert_eq!(self.tree().active(), search_view);
 
         // ensure all views are in the same group so they close together
@@ -1343,7 +1317,7 @@ impl Editor {
         }
 
         // Save the current view so the jumps we get are from the right view.
-        let view = self.active_view().id();
+        let view = self.view(Active).id();
         self.open_picker::<JumpListPicker>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
@@ -1387,11 +1361,8 @@ impl Editor {
         )
     }
 
-    pub fn align_active_view(&mut self, alignment: VerticalAlignment) {
-        self.align_view(self.active_view().id(), alignment)
-    }
-
-    pub fn align_view(&mut self, view: impl HasViewId, alignment: VerticalAlignment) {
+    pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {
+        let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
         view.align(area, buf, alignment)
@@ -1427,7 +1398,7 @@ impl Editor {
     }
 
     fn jump(&mut self, from: Location, to: Location) {
-        let jumps = self.active_view_mut().jump_list_mut();
+        let jumps = self.view_mut(Active).jump_list_mut();
         jumps.push(from);
         self.goto(to);
     }
@@ -1436,18 +1407,18 @@ impl Editor {
         // FIXME what if buffer is gone
         self.set_active_buffer(buf);
         self.set_active_cursor(point);
-        self.align_active_view(VerticalAlignment::Center);
+        self.align_view(Active, VerticalAlignment::Center);
     }
 
     pub fn jump_next(&mut self) -> Option<Location> {
-        let loc = self.active_view_mut().jump_list_mut().next().copied()?;
+        let loc = self.view_mut(Active).jump_list_mut().next().copied()?;
         self.goto(loc);
         Some(loc)
     }
 
     pub fn jump_prev(&mut self) -> Option<Location> {
         let current = self.current_location();
-        let loc = self.active_view_mut().jump_list_mut().prev(current).copied()?;
+        let loc = self.view_mut(Active).jump_list_mut().prev(current).copied()?;
         self.goto(loc);
         Some(loc)
     }
@@ -1564,8 +1535,8 @@ fn register_lsp_event_handlers(server_id: LanguageServerId) {
 
 impl Editor {
     /// Return a debug representation of the text and cursor in the active view.
-    pub fn display_active(&self) -> impl fmt::Debug + '_ {
-        let (view, buf) = self.active();
+    pub fn display_view(&self, selector: impl Selector<ViewId>) -> impl fmt::Debug + '_ {
+        let (view, buf) = get_ref!(self: selector.select(self));
 
         struct Debug<'a> {
             view: &'a View,
@@ -1633,6 +1604,28 @@ fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
     }
 
     Ok(builder.build())
+}
+
+pub trait Selector<T>: Sealed {
+    fn select(&self, editor: &Editor) -> T;
+}
+
+pub struct Active;
+
+impl Sealed for Active {}
+
+impl Selector<ViewId> for Active {
+    #[inline]
+    fn select(&self, editor: &Editor) -> ViewId {
+        editor.tree.active()
+    }
+}
+
+impl Selector<BufferId> for Active {
+    #[inline]
+    fn select(&self, editor: &Editor) -> BufferId {
+        editor.view(Active).buffer()
+    }
 }
 
 fn callback<R: 'static>(
@@ -1705,25 +1698,25 @@ fn default_keymap() -> Keymap {
     }
 
     fn goto_start(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Up, u32::MAX);
+        editor.scroll_view(Active, Direction::Up, u32::MAX);
     }
 
     fn goto_end(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Down, u32::MAX);
+        editor.scroll_view(Active, Direction::Down, u32::MAX);
     }
 
     fn align_view_top(editor: &mut Editor) {
-        let view = editor.active_view().id();
+        let view = editor.view(Active).id();
         editor.align_view(view, VerticalAlignment::Top);
     }
 
     fn align_view_center(editor: &mut Editor) {
-        let view = editor.active_view().id();
+        let view = editor.view(Active).id();
         editor.align_view(view, VerticalAlignment::Center);
     }
 
     fn align_view_bottom(editor: &mut Editor) {
-        let view = editor.active_view().id();
+        let view = editor.view(Active).id();
         editor.align_view(view, VerticalAlignment::Bottom);
     }
 
@@ -1765,19 +1758,19 @@ fn default_keymap() -> Keymap {
     }
 
     fn scroll_line_down(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Down, 1);
+        editor.scroll_view(Active, Direction::Down, 1);
     }
 
     fn scroll_line_up(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Up, 1);
+        editor.scroll_view(Active, Direction::Up, 1);
     }
 
     fn scroll_down(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Down, 20);
+        editor.scroll_view(Active, Direction::Down, 20);
     }
 
     fn scroll_up(editor: &mut Editor) {
-        editor.scroll_active_view(Direction::Up, 20);
+        editor.scroll_view(Active, Direction::Up, 20);
     }
 
     fn open_file_picker(editor: &mut Editor) {
@@ -1793,11 +1786,11 @@ fn default_keymap() -> Keymap {
     }
 
     fn split_vertical(editor: &mut Editor) {
-        editor.split_active_view(Direction::Right, tui::Constraint::Fill(1));
+        editor.split_view(Active, Direction::Right, tui::Constraint::Fill(1));
     }
 
     fn split_horizontal(editor: &mut Editor) {
-        editor.split_active_view(Direction::Down, tui::Constraint::Fill(1));
+        editor.split_view(Active, Direction::Down, tui::Constraint::Fill(1));
     }
 
     fn focus_left(editor: &mut Editor) {
@@ -1817,7 +1810,7 @@ fn default_keymap() -> Keymap {
     }
 
     fn view_only(editor: &mut Editor) {
-        editor.view_only(editor.active_view().id());
+        editor.view_only(editor.view(Active).id());
     }
 
     fn execute_command(editor: &mut Editor) {

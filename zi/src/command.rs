@@ -8,7 +8,7 @@ use smol_str::SmolStr;
 
 use crate::plugin::PluginId;
 use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
-use crate::{Editor, Error};
+use crate::{Active, Editor, Error};
 
 pub enum CommandRange {}
 
@@ -282,7 +282,7 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             handler: LocalHandler(|editor, range, args| {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.close_active_view();
+                editor.close_view(Active);
                 Ok(())
             })
             .into(),

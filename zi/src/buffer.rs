@@ -16,14 +16,24 @@ pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
 pub use self::picker::{FilePicker, Picker, PickerBuffer};
 pub use self::text::TextBuffer;
-use crate::editor::{Resource, SyncClient};
+use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
+use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::text::{AnyText, Delta};
 use crate::{Editor, FileType, Point, Range, Size, Url, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
+}
+
+impl Sealed for BufferId {}
+
+impl Selector<Self> for BufferId {
+    #[inline]
+    fn select(&self, _: &Editor) -> Self {
+        *self
+    }
 }
 
 bitflags::bitflags! {

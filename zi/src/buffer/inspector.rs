@@ -1,6 +1,7 @@
 use std::ops::RangeBounds;
 
 use super::*;
+use crate::editor::Active;
 
 pub struct InspectorBuffer {
     id: BufferId,
@@ -74,7 +75,7 @@ impl Buffer for InspectorBuffer {
         client.request(move |editor| {
             let mut query_cursor = QueryCursor::new();
             let output = {
-                let target_view = editor.active_view();
+                let target_view = editor.view(Active);
                 let target_buffer = editor.buffer(target_view.buffer());
                 let cursor = target_view.cursor();
                 match target_buffer

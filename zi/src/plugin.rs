@@ -14,7 +14,7 @@ use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
 
 use crate::command::{CommandHandler, CommandRange, Handler, Word};
-use crate::editor::Client as EditorClient;
+use crate::editor::{Active, Client as EditorClient};
 use crate::wit::zi::api::editor;
 use crate::wit::Plugin;
 
@@ -102,7 +102,7 @@ impl editor::Host for EditorClient {
     }
 
     async fn get_active_view(&mut self) -> wasmtime::Result<Resource<editor::View>> {
-        let v = self.request(|editor| editor.active_view().id().data().as_ffi() as u32).await;
+        let v = self.request(|editor| editor.view(Active).id().data().as_ffi() as u32).await;
         Ok(Resource::new_own(v))
     }
 }

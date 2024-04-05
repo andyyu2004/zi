@@ -19,7 +19,7 @@ fn jump_list() {
         BufferId(2v1):0:0
          <<<
     "#]]
-    .assert_debug_eq(&editor.active_view().jump_list());
+    .assert_debug_eq(&editor.view(zi::Active).jump_list());
 
     editor.jump_to(zi::Location::new(b, (0, 1)));
     expect![[r#"
@@ -27,7 +27,7 @@ fn jump_list() {
         BufferId(3v1):0:0
          <<<
     "#]]
-    .assert_debug_eq(&editor.active_view().jump_list());
+    .assert_debug_eq(&editor.view(zi::Active).jump_list());
 
     let loc_a = zi::Location::new(a, (0, 0));
     let loc_b = zi::Location::new(b, (0, 1));
@@ -49,7 +49,7 @@ fn jump_list() {
         BufferId(3v1):0:0 <<<
         BufferId(4v1):0:1
     "#]]
-    .assert_debug_eq(&editor.active_view().jump_list());
+    .assert_debug_eq(&editor.view(zi::Active).jump_list());
 }
 
 #[test]
@@ -63,15 +63,15 @@ fn view_group() {
         "should return the same group given the same url"
     );
 
-    editor.active_view_mut().set_group(group);
-    assert_eq!(editor.active_view().group(), Some(group));
+    editor.view_mut(zi::Active).set_group(group);
+    assert_eq!(editor.view(zi::Active).group(), Some(group));
 
-    let v = editor.split_active_view(Right, Fill(1));
+    let v = editor.split_view(zi::Active, Right, Fill(1));
     assert!(editor.view(v).group().is_none(), "split view should not copy the group");
 
     editor.view_mut(v).set_group(group);
 
-    editor.close_active_view();
+    editor.close_view(zi::Active);
 
     assert!(
         editor.should_quit(),
@@ -83,23 +83,23 @@ fn view_group() {
 fn test_split() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
 
-    let left = editor.active_view().id();
-    let right = editor.split_active_view(Right, Fill(1));
+    let left = editor.view(zi::Active).id();
+    let right = editor.split_view(zi::Active, Right, Fill(1));
     assert_ne!(left, right, "splitting should create a new view");
-    assert_eq!(editor.active_view().id(), right, "new view should be active");
+    assert_eq!(editor.view(zi::Active).id(), right, "new view should be active");
 
     // should preserve cursor and offsets
     assert_eq!(editor.view(left).cursor(), editor.view(right).cursor());
     assert_eq!(editor.view(left).offset(), editor.view(right).offset());
 
-    editor.scroll_active_view(zi::Direction::Down, 1);
+    editor.scroll_view(zi::Active, zi::Direction::Down, 1);
     assert_ne!(editor.view(left).offset(), editor.view(right).offset());
 }
 
 #[test]
 fn test_directional_focus() {
     let mut editor = new("");
-    let a = editor.active_view().id();
+    let a = editor.view(zi::Active).id();
     assert_eq!(editor.move_focus(Up), a);
     assert_eq!(editor.move_focus(Down), a);
     assert_eq!(editor.move_focus(Right), a);
@@ -116,19 +116,19 @@ fn test_directional_focus() {
     // |   (e)    |         |
     // +--------------------+
 
-    let b = editor.split_active_view(Right, Fill(1));
-    let c = editor.split_active_view(Down, Fill(1));
+    let b = editor.split_view(zi::Active, Right, Fill(1));
+    let c = editor.split_view(zi::Active, Down, Fill(1));
     editor.focus_view(a);
-    assert_eq!(editor.active_view().id(), a);
-    let d = editor.split_active_view(Down, Fill(1));
-    let e = editor.split_active_view(Down, Fill(1));
+    assert_eq!(editor.view(zi::Active).id(), a);
+    let d = editor.split_view(zi::Active, Down, Fill(1));
+    let e = editor.split_view(zi::Active, Down, Fill(1));
 
-    assert_eq!(editor.active_view().id(), e);
+    assert_eq!(editor.view(zi::Active).id(), e);
 
     let mut check = #[track_caller]
     |direction, expected| {
         assert_eq!(editor.move_focus(direction), expected);
-        assert_eq!(editor.active_view().id(), expected);
+        assert_eq!(editor.view(zi::Active).id(), expected);
     };
 
     check(Up, d);

@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use rustc_hash::FxHashMap;
 use tui::{Constraint, Layout, Rect, Widget as _};
 
-use crate::view::HasViewId;
 use crate::{Direction, Editor, Size, ViewId};
 
 pub(crate) struct ViewTree {
@@ -22,8 +21,7 @@ impl ViewTree {
     }
 
     /// Get the area of a view in the tree, returns the last known area if the view is no longer in the tree
-    pub fn view_area(&self, view: impl HasViewId) -> Rect {
-        let id = view.view_id();
+    pub fn view_area(&self, id: ViewId) -> Rect {
         for layer in self.layers.iter().rev() {
             if let Some(area) = layer.view_area(self.area(), id) {
                 self.last_known_area.borrow_mut().insert(id, area);
@@ -137,8 +135,8 @@ impl Layer {
         Layer { active, root: Node::View(active), compute_area: Box::new(compute_area) }
     }
 
-    pub fn view_area(&self, area: Rect, view: impl HasViewId) -> Option<Rect> {
-        self.root.view_area((self.compute_area)(area), view.view_id())
+    pub fn view_area(&self, area: Rect, view: ViewId) -> Option<Rect> {
+        self.root.view_area((self.compute_area)(area), view)
     }
 
     pub fn split(

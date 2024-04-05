@@ -25,6 +25,7 @@ mod object;
 mod operator;
 mod plugin;
 mod position;
+mod private;
 mod syntax;
 mod text;
 mod view;
@@ -35,7 +36,7 @@ pub use tui::Constraint;
 pub use zi_lsp::lsp_types::Url;
 
 pub use self::buffer::{Buffer, BufferFlags, BufferId, PickerBuffer, TextBuffer};
-pub use self::editor::{Editor, OpenFlags, Tasks};
+pub use self::editor::{Active, Editor, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
 pub use self::position::{Col, Direction, Line, Location, Offset, Point, Range, Size};

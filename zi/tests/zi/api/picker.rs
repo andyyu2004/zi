@@ -5,18 +5,18 @@ fn picker() {
     let mut editor = new("");
 
     assert_eq!(editor.views().count(), 1);
-    let current_buf = editor.active_buffer().id();
+    let current_buf = editor.buffer(zi::Active).id();
 
     editor.open_file_picker(".");
     assert_ne!(
-        editor.active_buffer().id(),
+        editor.buffer(zi::Active).id(),
         current_buf,
         "view should be focused on new buffer of picker"
     );
 
-    editor.close_active_view();
+    editor.close_view(zi::Active);
     assert_eq!(
-        editor.active_buffer().id(),
+        editor.buffer(zi::Active).id(),
         current_buf,
         "view should be focused on original buffer after closing picker"
     );

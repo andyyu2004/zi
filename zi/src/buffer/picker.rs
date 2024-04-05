@@ -7,7 +7,7 @@ use nucleo::Nucleo;
 use super::*;
 use crate::editor::{get, Action};
 use crate::text::TextMut;
-use crate::{hashmap, trie, Direction, Mode, OpenFlags, ViewId};
+use crate::{hashmap, trie, Active, Direction, Mode, OpenFlags, ViewId};
 
 pub struct PickerBuffer<P: Picker> {
     id: BufferId,
@@ -103,7 +103,7 @@ where
                     let next: Action = |editor| Self::select(editor, Direction::Down);
                     let prev: Action = |editor| Self::select(editor, Direction::Up);
                     let confirm: Action = |editor| Self::confirm(editor);
-                    let close: Action = |editor| editor.close_active_view();
+                    let close: Action = |editor| editor.close_view(Active);
 
                     Keymap::from(hashmap! {
                         Mode::Insert => trie! ({

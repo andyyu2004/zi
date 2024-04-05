@@ -130,8 +130,8 @@ impl Nvim {
     pub async fn run(&self, editor: &mut zi::Editor, case: &TestCase) -> zi::Result<()> {
         let initial = case.text.trim_end();
         let inputs = &case.inputs;
-        let n = editor.active_buffer().text().len_bytes();
-        editor.active_buffer_mut().edit(&zi::Delta::new(0..n, initial));
+        let n = editor.buffer(zi::Active).text().len_bytes();
+        editor.buffer_mut(zi::Active).edit(&zi::Delta::new(0..n, initial));
         editor.set_active_cursor((0, 0));
         editor.set_mode(zi::Mode::Normal);
 
@@ -196,7 +196,7 @@ impl Nvim {
             }
         )?;
 
-        let zi_buf = editor.active_buffer();
+        let zi_buf = editor.buffer(zi::Active);
         let zi_lines = zi_buf.text().to_string();
         let zi_cursor = editor.active_cursor();
 

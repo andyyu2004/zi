@@ -2,8 +2,9 @@ use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
 use crate::editor::cursor::SetCursorFlags;
-use crate::editor::Resource;
+use crate::editor::{Resource, Selector};
 use crate::position::{Offset, RangeMergeIter, Size};
+use crate::private::Sealed;
 use crate::text::{self, Text as _, TextSlice};
 use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
@@ -17,6 +18,14 @@ pub enum VerticalAlignment {
     Top,
     Center,
     Bottom,
+}
+
+impl Sealed for ViewId {}
+
+impl Selector<Self> for ViewId {
+    fn select(&self, _: &Editor) -> Self {
+        *self
+    }
 }
 
 /// A view is a viewport into a buffer.
@@ -407,31 +416,6 @@ impl View {
 
     pub fn jump_list_mut(&mut self) -> &mut JumpList<Location> {
         &mut self.jumps
-    }
-}
-
-pub trait HasViewId {
-    fn view_id(&self) -> ViewId;
-}
-
-impl<V: HasViewId> HasViewId for &V {
-    #[inline]
-    fn view_id(&self) -> ViewId {
-        (*self).view_id()
-    }
-}
-
-impl HasViewId for ViewId {
-    #[inline]
-    fn view_id(&self) -> ViewId {
-        *self
-    }
-}
-
-impl HasViewId for View {
-    #[inline]
-    fn view_id(&self) -> ViewId {
-        self.id
     }
 }
 

@@ -145,7 +145,7 @@ fn insert_into_readonly() -> zi::Result<()> {
 fn enter_normal_mode_on_last_line() -> zi::Result<()> {
     let mut editor = new("");
     editor.input("iabc<ESC>o").unwrap();
-    assert_eq!(editor.active_buffer().text().to_string(), "abc\n\n");
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n\n");
     assert_eq!(editor.active_cursor(), (1, 0));
     editor.input("<ESC>").unwrap();
     assert_eq!(editor.active_cursor(), (1, 0));
