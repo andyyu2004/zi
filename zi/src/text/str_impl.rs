@@ -2,9 +2,9 @@ use stdx::iter::IteratorExt;
 
 use super::*;
 
-fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
-    // append an empty line if the string ends with a newline or is empty (to match ropey's behaviour)
-    s.split_inclusive('\n').chain((s.is_empty() || s.ends_with('\n')).then_some("")).map(Into::into)
+fn str_lines_inclusive(s: &str) -> impl Iterator<Item = &str> {
+    // TODO CRLF?
+    s.split_inclusive('\n')
 }
 
 impl<'a> TextSlice<'a> for &'a str {
@@ -93,12 +93,12 @@ impl TextBase for str {
 
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
-        str_lines(self).take(line_idx).map(|l| l.len()).sum()
+        str_lines_inclusive(self).take(line_idx).map(|l| l.len()).sum()
     }
 
     fn byte_to_line(&self, mut byte_idx: usize) -> usize {
         assert!(byte_idx <= self.len(), "byte_idx out of bounds: {byte_idx}");
-        str_lines(self)
+        str_lines_inclusive(self)
             .take_while(|l| {
                 if l.len() > byte_idx {
                     return false;
