@@ -132,7 +132,7 @@ impl Nvim {
         let inputs = &case.inputs;
         let n = editor.buffer(zi::Active).text().len_bytes();
         editor.buffer_mut(zi::Active).edit(&zi::Delta::new(0..n, initial));
-        editor.set_active_cursor((0, 0));
+        editor.set_cursor(zi::Active, (0, 0));
         editor.set_mode(zi::Mode::Normal);
 
         self.nvim
@@ -198,7 +198,7 @@ impl Nvim {
 
         let zi_buf = editor.buffer(zi::Active);
         let zi_lines = zi_buf.text().to_string();
-        let zi_cursor = editor.active_cursor();
+        let zi_cursor = editor.cursor(zi::Active);
 
         match vi_mode.as_ref() {
             "i" => ensure!(editor.mode() == zi::Mode::Insert),

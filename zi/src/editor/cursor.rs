@@ -1,4 +1,4 @@
-use super::{get, Active, Selector};
+use super::{get, Selector};
 use crate::{Direction, Editor, Point, ViewId};
 
 bitflags::bitflags! {
@@ -35,19 +35,8 @@ impl Editor {
         view.move_cursor(self.mode, area, buf, direction, amt)
     }
 
-    // FIXME change this to accept a view selector
     #[inline]
-    pub fn move_active_cursor(&mut self, direction: Direction, amt: u32) {
-        self.move_cursor(self.tree.active(), direction, amt);
-    }
-
-    #[inline]
-    pub fn active_cursor(&self) -> Point {
-        self.view(Active).cursor()
-    }
-
-    #[inline]
-    pub fn set_active_cursor(&mut self, cursor: impl Into<Point>) {
-        self.set_cursor(self.tree.active(), cursor);
+    pub fn cursor(&self, selector: impl Selector<ViewId>) -> Point {
+        self.view(selector).cursor()
     }
 }

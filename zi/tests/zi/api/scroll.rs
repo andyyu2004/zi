@@ -10,20 +10,20 @@ fn cursor_scrolls_when_out_of_bounds() {
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
 
     // scrolling the cursor off the screen should also scroll the view
-    editor.move_active_cursor(Up, 1);
+    editor.move_cursor(zi::Active, Up, 1);
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
 
-    editor.move_active_cursor(Down, 1);
+    editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
 
     // scrolling down past the editor size
-    editor.move_active_cursor(Down, 1);
+    editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (2, 0));
 
-    editor.move_active_cursor(Down, 2);
+    editor.move_cursor(zi::Active, Down, 2);
     assert_eq!(editor.view(zi::Active).offset(), (3, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (4, 0));
 }
@@ -78,7 +78,7 @@ fn scroll_bounds_check() {
     let mut editor = new("1\n2\n3\n4\n5");
 
     // Move cursor down one so it's desyned from the scroll
-    editor.move_active_cursor(Down, 1);
+    editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
 

@@ -10,7 +10,7 @@ fn delete_char_backward() {
     // ensure that multi-byte characters are handled correctly
     let c = '\u{100000}';
     editor.insert_char(c);
-    assert_eq!(editor.active_cursor(), (0, c.len_utf8() as u32));
+    assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8() as u32));
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
 
@@ -20,41 +20,41 @@ fn delete_char_backward() {
 
     // works on single line
     assert_eq!(editor.current_line(), "abc");
-    assert_eq!(editor.active_cursor(), (0, 3));
+    assert_eq!(editor.cursor(zi::Active), (0, 3));
 
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "ab");
-    assert_eq!(editor.active_cursor(), (0, 2));
+    assert_eq!(editor.cursor(zi::Active), (0, 2));
 
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "a");
-    assert_eq!(editor.active_cursor(), (0, 1));
+    assert_eq!(editor.cursor(zi::Active), (0, 1));
 
     editor.insert_char('x');
     assert_eq!(editor.current_line(), "ax");
-    assert_eq!(editor.active_cursor(), (0, 2));
+    assert_eq!(editor.cursor(zi::Active), (0, 2));
 
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "a");
-    assert_eq!(editor.active_cursor(), (0, 1));
+    assert_eq!(editor.cursor(zi::Active), (0, 1));
 
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
-    assert_eq!(editor.active_cursor(), (0, 0));
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
-    assert_eq!(editor.active_cursor(), (0, 0));
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     // works on multiple lines
     editor.insert("abc\nd");
     assert_eq!(editor.current_line(), "d");
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
-    assert_eq!(editor.active_cursor(), (1, 0));
+    assert_eq!(editor.cursor(zi::Active), (1, 0));
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "abc");
-    assert_eq!(editor.active_cursor(), (0, 3));
+    assert_eq!(editor.cursor(zi::Active), (0, 3));
 
     snapshot(
         &editor,
@@ -105,24 +105,24 @@ fn delete_char_backward() {
 #[test]
 fn insert_char() {
     let mut editor = new("");
-    assert_eq!(editor.active_cursor(), (0, 0));
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.set_mode(zi::Mode::Insert);
-    assert_eq!(editor.active_cursor(), (0, 0));
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
 
-    assert_eq!(editor.active_cursor(), (0, 0));
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.insert_char('a');
-    assert_eq!(editor.active_cursor(), (0, 1));
+    assert_eq!(editor.cursor(zi::Active), (0, 1));
     editor.insert_char('b');
-    assert_eq!(editor.active_cursor(), (0, 2));
+    assert_eq!(editor.cursor(zi::Active), (0, 2));
     assert_eq!(editor.current_line(), "ab");
 
     editor.set_mode(zi::Mode::Normal);
-    assert_eq!(editor.active_cursor(), (0, 1), "insert mode should move cursor left on exit");
+    assert_eq!(editor.cursor(zi::Active), (0, 1), "insert mode should move cursor left on exit");
 
-    editor.set_active_cursor((1, 0));
+    editor.set_cursor(zi::Active, (1, 0));
     editor.set_mode(zi::Mode::Insert);
     editor.set_mode(zi::Mode::Normal);
-    assert_eq!(editor.active_cursor(), (0, 0), "nowhere left to move");
+    assert_eq!(editor.cursor(zi::Active), (0, 0), "nowhere left to move");
 }
 
 #[test]
@@ -146,8 +146,8 @@ fn enter_normal_mode_on_last_line() -> zi::Result<()> {
     let mut editor = new("");
     editor.input("iabc<ESC>o").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n\n");
-    assert_eq!(editor.active_cursor(), (1, 0));
+    assert_eq!(editor.cursor(zi::Active), (1, 0));
     editor.input("<ESC>").unwrap();
-    assert_eq!(editor.active_cursor(), (1, 0));
+    assert_eq!(editor.cursor(zi::Active), (1, 0));
     Ok(())
 }

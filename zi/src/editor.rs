@@ -1406,7 +1406,7 @@ impl Editor {
     fn goto(&mut self, Location { buf, point }: Location) {
         // FIXME what if buffer is gone
         self.set_active_buffer(buf);
-        self.set_active_cursor(point);
+        self.set_cursor(Active, point);
         self.align_view(Active, VerticalAlignment::Center);
     }
 
@@ -1678,19 +1678,19 @@ fn default_keymap() -> Keymap {
     }
 
     fn move_left(editor: &mut Editor) {
-        editor.move_active_cursor(Direction::Left, 1);
+        editor.move_cursor(Active, Direction::Left, 1);
     }
 
     fn move_right(editor: &mut Editor) {
-        editor.move_active_cursor(Direction::Right, 1);
+        editor.move_cursor(Active, Direction::Right, 1);
     }
 
     fn move_up(editor: &mut Editor) {
-        editor.move_active_cursor(Direction::Up, 1);
+        editor.move_cursor(Active, Direction::Up, 1);
     }
 
     fn move_down(editor: &mut Editor) {
-        editor.move_active_cursor(Direction::Down, 1);
+        editor.move_cursor(Active, Direction::Down, 1);
     }
 
     fn goto_definition(editor: &mut Editor) {
@@ -1722,7 +1722,7 @@ fn default_keymap() -> Keymap {
 
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
         editor.insert_char('\n');
     }
 
@@ -1747,14 +1747,14 @@ fn default_keymap() -> Keymap {
     }
 
     fn append_eol(editor: &mut Editor) {
-        editor.set_active_cursor(editor.active_cursor().with_col(u32::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
         editor.set_mode(Mode::Insert);
-        editor.move_active_cursor(Direction::Right, 1);
+        editor.move_cursor(Active, Direction::Right, 1);
     }
 
     fn append(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.move_active_cursor(Direction::Right, 1);
+        editor.move_cursor(Active, Direction::Right, 1);
     }
 
     fn scroll_line_down(editor: &mut Editor) {
