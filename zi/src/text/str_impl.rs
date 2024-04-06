@@ -1,3 +1,5 @@
+use stdx::iter::IteratorExt;
+
 use super::*;
 
 fn str_lines(s: &str) -> impl Iterator<Item = Cow<'_, str>> {
@@ -54,7 +56,7 @@ impl Text for str {
 
     #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
-        self.lines()
+        self.lines().default_if_empty("")
     }
 
     #[inline]
@@ -64,7 +66,11 @@ impl Text for str {
 
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        self.lines().nth(line_idx)
+        match self.lines().nth(line_idx) {
+            Some(line) => Some(line),
+            None if line_idx == 0 => Some(""),
+            None => None,
+        }
     }
 }
 
@@ -78,7 +84,7 @@ impl TextBase for str {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.lines().count()
+        self.lines().count().max(1)
     }
 
     #[inline]

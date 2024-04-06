@@ -818,7 +818,7 @@ impl Editor {
         buf.edit(&Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
-        view.set_cursor(
+        view.set_cursor_linewise(
             self.mode,
             self.tree.view_area(view.id()),
             buf,

@@ -236,7 +236,7 @@ impl View {
             SetCursorFlags::empty()
         };
 
-        self.set_cursor(mode, size, buf, pos, flags)
+        self.set_cursor_linewise(mode, size, buf, pos, flags)
     }
 
     // HACK clean this up and try not have two different implementations for a cursor move.
@@ -272,7 +272,7 @@ impl View {
     }
 
     #[inline]
-    pub(crate) fn set_cursor(
+    pub(crate) fn set_cursor_linewise(
         &mut self,
         mode: Mode,
         size: impl Into<Size>,

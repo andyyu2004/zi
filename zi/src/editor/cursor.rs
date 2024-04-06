@@ -19,7 +19,7 @@ impl Editor {
         let view_id = selector.select(self);
         let (view, buf) = get!(self: view_id);
         let area = self.tree.view_area(view.id());
-        view.set_cursor(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
+        view.set_cursor_linewise(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
     }
 
     #[inline]
@@ -35,6 +35,7 @@ impl Editor {
         view.move_cursor(self.mode, area, buf, direction, amt)
     }
 
+    // FIXME change this to accept a view selector
     #[inline]
     pub fn move_active_cursor(&mut self, direction: Direction, amt: u32) {
         self.move_cursor(self.tree.active(), direction, amt);

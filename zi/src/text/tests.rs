@@ -29,18 +29,37 @@ fn char_at_byte() {
 
 #[test]
 fn empty_text() {
-    let reference = crop::Rope::from("");
     for imp in impls("") {
-        assert_eq!(reference.len_bytes(), imp.len_bytes());
-        assert_eq!(reference.len_lines(), imp.len_lines());
-        assert_eq!(reference.lines().count(), imp.lines().count());
+        assert_eq!(imp.len_bytes(), 0);
+        assert_eq!(imp.len_lines(), 1);
+        assert_eq!(imp.lines().count(), 1);
+        assert_eq!(imp.get_line(0).unwrap().to_string(), "");
     }
 }
 
 #[test]
 fn new_line() {
     for imp in impls("\n") {
+        assert_eq!(imp.len_bytes(), 1);
         assert_eq!(imp.len_lines(), 1);
+        assert_eq!(imp.lines().count(), 1);
+        assert_eq!(imp.get_line(0).unwrap().to_string(), "");
+    }
+}
+
+#[test]
+fn line_bounds() {
+    for imp in impls("") {
+        assert!(imp.get_line(0).is_some());
+        assert!(imp.get_line(1).is_none());
+    }
+
+    assert!("\n".get_line(0).is_some());
+    assert!("\n".get_line(1).is_none());
+
+    for imp in impls("\n") {
+        assert!(imp.get_line(0).is_some());
+        assert!(imp.get_line(1).is_none());
     }
 }
 
@@ -127,7 +146,13 @@ fn text_annotations() {
         expect.assert_eq(&s);
     }
 
-    check::<i32>("", [], expect![""]);
+    check::<i32>(
+        "",
+        [],
+        expect![[r#"
+        "\n"
+    "#]],
+    );
 
     check(
         "abc",
