@@ -2,7 +2,6 @@ mod cow_str_impl;
 mod delta;
 mod readonly;
 mod rope;
-mod rope_slice;
 mod str_impl;
 
 use std::borrow::Cow;
@@ -355,6 +354,7 @@ pub trait Text: TextBase {
     fn chars(&self) -> impl DoubleEndedIterator<Item = char>;
 
     /// Returns an iterator over the lines of the text.
+    /// Each line should not include the newline character(s).
     /// This must always return at least one line, even if the text is empty.
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>>;
 

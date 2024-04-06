@@ -29,11 +29,15 @@ impl<'a> TextSlice<'a> for &'a str {
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        str::lines(self)
+        str::lines(self).default_if_empty("")
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
-        str::lines(self).nth(line_idx)
+        match str::lines(self).nth(line_idx) {
+            Some(line) => Some(line),
+            None if line_idx == 0 => Some(""),
+            None => None,
+        }
     }
 
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {

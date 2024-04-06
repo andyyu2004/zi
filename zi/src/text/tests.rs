@@ -34,6 +34,12 @@ fn empty_text() {
         assert_eq!(imp.len_lines(), 1);
         assert_eq!(imp.lines().count(), 1);
         assert_eq!(imp.get_line(0).unwrap().to_string(), "");
+
+        let slice = imp.line_slice(0..);
+        assert_eq!(slice.len_bytes(), 0);
+        assert_eq!(slice.len_lines(), 1);
+        assert_eq!(slice.lines().count(), 1);
+        assert_eq!(slice.get_line(0).unwrap().to_string(), "");
     }
 }
 
@@ -53,9 +59,6 @@ fn line_bounds() {
         assert!(imp.get_line(0).is_some());
         assert!(imp.get_line(1).is_none());
     }
-
-    assert!("\n".get_line(0).is_some());
-    assert!("\n".get_line(1).is_none());
 
     for imp in impls("\n") {
         assert!(imp.get_line(0).is_some());
@@ -94,17 +97,32 @@ proptest! {
         let reference = &rope as &dyn AnyText;
 
         for imp in impls(&s) {
+            let line_slice = imp.line_slice(..);
+            let byte_slice = imp.line_slice(..);
+
             assert_eq!(reference.len_bytes(), imp.len_bytes());
+            assert_eq!(reference.len_lines(), line_slice.len_lines());
+            assert_eq!(reference.len_lines(), byte_slice.len_lines());
+
             assert_eq!(reference.len_lines(), imp.len_lines());
+            assert_eq!(reference.len_lines(), line_slice.len_lines());
+            assert_eq!(reference.len_lines(), byte_slice.len_lines());
 
             // check that the line length is self consistent
             assert_eq!(reference.len_lines(), reference.lines().count());
             assert_eq!(imp.len_lines(), imp.lines().count());
 
+
             let mut b = 0;
             for c in reference.chars() {
                 assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
+                assert_eq!(reference.byte_to_line(b), line_slice.byte_to_line(b), "{s:?}: byte {b}");
+                assert_eq!(reference.byte_to_line(b), byte_slice.byte_to_line(b), "{s:?}: byte {b}");
+
                 assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
+                assert_eq!(reference.byte_to_point(b), line_slice.byte_to_point(b), "{s:?}: byte {b}");
+                assert_eq!(reference.byte_to_point(b), byte_slice.byte_to_point(b), "{s:?}: byte {b}");
+
                 b += c.len_utf8();
             }
 
@@ -114,9 +132,7 @@ proptest! {
             }
 
             assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
-
         }
-
     }
 }
 
