@@ -27,7 +27,12 @@ pub fn new_with_size(content: &str, view_size: zi::Size) -> zi::Editor {
     let buf = editor.open_active(tmpfile.path()).expect("failed to open buffer");
     assert_eq!(editor.buffer(zi::Active).id(), buf);
 
-    assert_eq!(editor.buffer(zi::Active).text().to_string(), content);
+    if content.ends_with('\n') {
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), content);
+    } else {
+        // zi appends a newline to the end of the buffer if there isn't one already
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), format!("{content}\n"));
+    }
     editor
 }
 

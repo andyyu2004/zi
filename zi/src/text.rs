@@ -46,7 +46,7 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut>;
 
     /// Returns the number of lines in the text.
-    /// This must be consistent with `self.lines.count()` if `Text` is also implemented.
+    /// This must be consistent with `self.lines.count()` if `Text` is also implemented
     fn len_lines(&self) -> usize;
     fn len_bytes(&self) -> usize;
 
@@ -360,7 +360,6 @@ pub trait Text: TextBase {
     /// Returns an iterator over the lines of the text.
     /// Each line should not include the newline character(s).
     /// This must always return at least one line, even if the text is empty.
-    /// If there is a trailing newline, this must yield an empty line at the end.
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>>;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;

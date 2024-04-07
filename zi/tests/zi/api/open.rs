@@ -20,7 +20,7 @@ fn test_open() -> zi::Result<()> {
         .expect_err("should not be allowed to open non-existing files in readonly mode");
 
     let buf = editor.open_active(&non_existing_path).expect("should be allowed to open new files");
-    assert_eq!(editor.buffer(buf).text().to_string(), "");
+    assert_eq!(editor.buffer(buf).text().to_string(), "\n");
 
     assert!(!non_existing_path.exists(), "should not create new file until saved");
     Ok(())

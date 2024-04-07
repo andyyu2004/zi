@@ -4,7 +4,7 @@ use proptest::{bool, proptest};
 
 use super::*;
 
-fn impls<'a>(s: &'a str) -> impl Iterator<Item = Box<dyn AnyText + 'a>> {
+fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
     [
         // could use crop::Rope::from directly, but using the building is more realistic
         Box::new({
@@ -15,7 +15,6 @@ fn impls<'a>(s: &'a str) -> impl Iterator<Item = Box<dyn AnyText + 'a>> {
         Box::new(ReadonlyText::new(s.as_bytes())),
         Box::new(s),
     ]
-    .into_iter()
 }
 
 #[test]
@@ -32,20 +31,19 @@ fn char_at_byte() {
 fn empty_text() {
     macro_rules! test {
         ($text:expr) => {
-            assert_eq!($text.len_bytes(), 0, "len_bytes");
-            assert_eq!($text.len_lines(), 1, "len_lines");
-            assert_eq!($text.lines().count(), 1, "lines().count()");
-            assert_eq!($text.get_line(0).unwrap().to_string(), "", "get_line(0)");
-            assert!($text.get_line(1).is_none(), "get_line(1)");
+            let text = $text;
+            assert_eq!(text.len_bytes(), 0, "len_bytes");
+            assert_eq!(text.len_lines(), 1, "len_lines");
+            assert_eq!(text.lines().count(), 1, "lines().count()");
+            assert_eq!(text.get_line(0).unwrap().to_string(), "", "get_line(0)");
+            assert!(text.get_line(1).is_none(), "get_line(1)");
         };
     }
 
     for imp in impls("") {
-        test!(imp);
-        let line_slice = imp.line_slice(..);
-        test!(line_slice);
-        let byte_slice = imp.byte_slice(..);
-        test!(byte_slice);
+        test!(&imp);
+        test!(imp.byte_slice(..));
+        test!(imp.line_slice(..));
     }
 }
 
@@ -53,37 +51,25 @@ fn empty_text() {
 fn new_line() {
     macro_rules! test {
         ($text:expr) => {
-            assert_eq!($text.len_bytes(), 1, "len_bytes");
-            assert_eq!($text.len_lines(), 2, "len_lines");
-            assert_eq!($text.lines().count(), 2, "lines().count()");
-            assert_eq!(
-                $text.get_line(0).map(|t| t.to_string()).as_deref(),
-                Some(""),
-                "get_line(0)"
-            );
-            assert_eq!(
-                $text.get_line(1).map(|t| t.to_string()).as_deref(),
-                Some(""),
-                "get_line(1)"
-            );
-            assert!($text.get_line(2).is_none(), "get_line(2)");
+            let text = $text;
+            assert_eq!(text.len_bytes(), 1, "len_bytes");
+            assert_eq!(text.len_lines(), 1, "len_lines");
+            assert_eq!(text.lines().count(), 1, "lines().count()");
+            assert_eq!(text.get_line(0).map(|t| t.to_string()).as_deref(), Some(""), "get_line(0)");
+            assert!(text.get_line(1).is_none(), "get_line(2)");
 
-            assert_eq!($text.byte_to_line(0), 0, "byte_to_line(0)");
-            assert_eq!($text.byte_to_line(1), 1, "byte_to_line(1)");
+            assert_eq!(text.byte_to_line(0), 0, "byte_to_line(0)");
+            assert_eq!(text.byte_to_line(1), 1, "byte_to_line(1)");
 
-            assert_eq!($text.line_to_byte(0), 0, "line_to_byte(0)");
-            assert_eq!($text.line_to_byte(1), 1, "line_to_byte(1)");
+            assert_eq!(text.line_to_byte(0), 0, "line_to_byte(0)");
+            assert_eq!(text.line_to_byte(1), 1, "line_to_byte(1)");
         };
     }
 
     for imp in impls("\n") {
-        test!(imp);
-
-        let line_slice = imp.line_slice(..);
-        test!(line_slice);
-
-        let byte_slice = imp.line_slice(..);
-        test!(byte_slice);
+        test!(&imp);
+        test!(imp.byte_slice(..));
+        test!(imp.line_slice(..));
     }
 }
 
@@ -96,8 +82,7 @@ fn line_bounds() {
 
     for imp in impls("\n") {
         assert!(imp.get_line(0).is_some());
-        assert!(imp.get_line(1).is_some());
-        assert!(imp.get_line(2).is_none());
+        assert!(imp.get_line(1).is_none());
     }
 }
 
@@ -251,7 +236,6 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "\n"
-            "\n"
         "#]],
     );
 
@@ -265,7 +249,6 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "  " -> 3
-            "\n"
             "\n"
         "#]],
     );
@@ -282,7 +265,6 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "  " -> 3
-            "\n"
             "\n"
         "#]],
     );
@@ -309,7 +291,6 @@ func main() {}
             " "
             "main" -> function
             "() {}"
-            "\n"
             "\n"
         "#]],
     );

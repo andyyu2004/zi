@@ -59,7 +59,7 @@ fn delete_char_backward() {
     snapshot(
         &editor,
         expect![[r#"
-            1 abc|
+             1 abc|
 
         "#]],
     );
@@ -71,9 +71,9 @@ fn delete_char_backward() {
     snapshot(
         &editor,
         expect![[r#"
-            1 abc
-            2 de|
-            3 ghi
+             1 abc
+             2 de|
+             3 ghi
 
         "#]],
     );
@@ -83,9 +83,9 @@ fn delete_char_backward() {
     snapshot(
         &editor,
         expect![[r#"
-            1 abc
-            2 d|
-            3 ghi
+             1 abc
+             2 d|
+             3 ghi
 
         "#]],
     );
@@ -95,8 +95,8 @@ fn delete_char_backward() {
     snapshot(
         &editor,
         expect![[r#"
-            1 abc|
-            2 ghi
+             1 abc|
+             2 ghi
 
         "#]],
     );
@@ -145,7 +145,7 @@ fn insert_into_readonly() -> zi::Result<()> {
 fn enter_normal_mode_on_last_line() -> zi::Result<()> {
     let mut editor = new("");
     editor.input("iabc<ESC>o").unwrap();
-    assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n");
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n\n");
     assert_eq!(editor.cursor(zi::Active), (1, 0));
     editor.input("<ESC>").unwrap();
     assert_eq!(editor.cursor(zi::Active), (1, 0));

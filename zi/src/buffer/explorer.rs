@@ -129,11 +129,8 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
         let snapshot = self.nucleo.snapshot();
         self.text.clear();
         let n = snapshot.matched_item_count().min(area.height as u32);
-        for (i, item) in snapshot.matched_items(..n).enumerate() {
-            self.text.push_str(&format!("{}", item.data));
-            if i < n as usize - 1 {
-                self.text.push('\n');
-            }
+        for item in snapshot.matched_items(..n) {
+            self.text.push_str(&format!("{}\n", item.data));
         }
     }
 

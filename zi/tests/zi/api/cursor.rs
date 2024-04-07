@@ -4,7 +4,7 @@ use crate::api::new;
 
 #[test]
 fn set_cursor() {
-    let mut editor = new("foo\ntest");
+    let mut editor = new("foo\ntest\n");
     assert_eq!(editor.cursor(zi::Active), (0, 0), "cursor should start at (0, 0)");
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.current_char(), Some('f'));
@@ -139,6 +139,6 @@ fn cursor_newline() {
 #[test]
 fn cursor_trailing_newline() {
     let mut editor = new("\n");
-    editor.move_cursor(zi::Active, Down, 2);
-    assert_eq!(editor.cursor(zi::Active), (1, 0));
+    editor.move_cursor(zi::Active, Down, 1);
+    assert_eq!(editor.cursor(zi::Active), (0, 0));
 }
