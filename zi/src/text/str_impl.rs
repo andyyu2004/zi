@@ -2,8 +2,7 @@ use stdx::iter::IteratorExt;
 
 use super::*;
 
-fn str_lines_inclusive(s: &str) -> impl Iterator<Item = &str> {
-    // TODO CRLF?
+fn str_lines_inclusive(s: &str) -> impl DoubleEndedIterator<Item = &str> {
     s.split_inclusive('\n')
 }
 
@@ -29,7 +28,7 @@ impl<'a> TextSlice<'a> for &'a str {
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        str::lines(self).default_if_empty("")
+        str::lines(self).chain(self.ends_with('\n').then_some("")).default_if_empty("")
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
@@ -60,7 +59,7 @@ impl Text for str {
 
     #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
-        self.lines().default_if_empty("")
+        self.lines().chain(self.ends_with('\n').then_some("")).default_if_empty("")
     }
 
     #[inline]
@@ -88,7 +87,7 @@ impl TextBase for str {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.lines().count().max(1)
+        self.lines().count().max(1) + self.ends_with('\n') as usize
     }
 
     #[inline]

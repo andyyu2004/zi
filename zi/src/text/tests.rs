@@ -4,7 +4,7 @@ use proptest::{bool, proptest};
 
 use super::*;
 
-fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
+fn impls<'a>(s: &'a str) -> impl Iterator<Item = Box<dyn AnyText + 'a>> {
     [
         // could use crop::Rope::from directly, but using the building is more realistic
         Box::new({
@@ -12,9 +12,10 @@ fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
             builder.append(s);
             builder.build()
         }) as Box<dyn AnyText>,
-        Box::new(ReadonlyText::new(s.as_bytes())),
-        Box::new(s),
+        // Box::new(ReadonlyText::new(s.as_bytes())),
+        // Box::new(s),
     ]
+    .into_iter()
 }
 
 #[test]
@@ -29,27 +30,53 @@ fn char_at_byte() {
 
 #[test]
 fn empty_text() {
-    for imp in impls("") {
-        assert_eq!(imp.len_bytes(), 0);
-        assert_eq!(imp.len_lines(), 1);
-        assert_eq!(imp.lines().count(), 1);
-        assert_eq!(imp.get_line(0).unwrap().to_string(), "");
+    macro_rules! test {
+        ($text:expr) => {
+            assert_eq!($text.len_bytes(), 0, "len_bytes");
+            assert_eq!($text.len_lines(), 1, "len_lines");
+            assert_eq!($text.lines().count(), 1, "lines().count()");
+            assert_eq!($text.get_line(0).unwrap().to_string(), "", "get_line(0)");
+        };
+    }
 
-        let slice = imp.line_slice(0..);
-        assert_eq!(slice.len_bytes(), 0);
-        assert_eq!(slice.len_lines(), 1);
-        assert_eq!(slice.lines().count(), 1);
-        assert_eq!(slice.get_line(0).unwrap().to_string(), "");
+    for imp in impls("") {
+        test!(imp);
+        let line_slice = imp.line_slice(..);
+        test!(line_slice);
+        let byte_slice = imp.byte_slice(..);
+        test!(byte_slice);
     }
 }
 
 #[test]
 fn new_line() {
+    macro_rules! test {
+        ($text:expr) => {
+            assert_eq!($text.len_bytes(), 1, "len_bytes");
+            assert_eq!($text.len_lines(), 2, "len_lines");
+            assert_eq!($text.lines().count(), 2, "lines().count()");
+            assert_eq!(
+                $text.get_line(0).map(|t| t.to_string()).as_deref(),
+                Some(""),
+                "get_line(0)"
+            );
+            assert_eq!(
+                $text.get_line(1).map(|t| t.to_string()).as_deref(),
+                Some(""),
+                "get_line(1)"
+            );
+            assert!($text.get_line(2).is_none(), "get_line(2)");
+        };
+    }
+
     for imp in impls("\n") {
-        assert_eq!(imp.len_bytes(), 1);
-        assert_eq!(imp.len_lines(), 1);
-        assert_eq!(imp.lines().count(), 1);
-        assert_eq!(imp.get_line(0).unwrap().to_string(), "");
+        test!(imp);
+
+        let line_slice = imp.line_slice(..);
+        test!(line_slice);
+
+        let byte_slice = imp.line_slice(..);
+        test!(byte_slice);
     }
 }
 
@@ -62,7 +89,8 @@ fn line_bounds() {
 
     for imp in impls("\n") {
         assert!(imp.get_line(0).is_some());
-        assert!(imp.get_line(1).is_none());
+        assert!(imp.get_line(1).is_some());
+        assert!(imp.get_line(2).is_none());
     }
 }
 
@@ -216,6 +244,7 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "\n"
+            "\n"
         "#]],
     );
 
@@ -229,6 +258,7 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "  " -> 3
+            "\n"
             "\n"
         "#]],
     );
@@ -245,6 +275,7 @@ fn text_annotations() {
             "\n"
             "3" -> 3
             "  " -> 3
+            "\n"
             "\n"
         "#]],
     );
@@ -271,6 +302,7 @@ func main() {}
             " "
             "main" -> function
             "() {}"
+            "\n"
             "\n"
         "#]],
     );

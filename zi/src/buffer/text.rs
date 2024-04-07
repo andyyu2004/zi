@@ -171,13 +171,7 @@ impl<X: AnyText> TextBuffer<X> {
             |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
         );
 
-        // ensure the buffer ends with a newline
-        if let Some(text) = text.as_text_mut() {
-            let idx = text.len_bytes();
-            if text.chars().next_back() != Some('\n') {
-                text.edit(&Delta::insert_at(idx, "\n"));
-            }
-        } else if !flags.contains(BufferFlags::READONLY) {
+        if text.as_text_mut().is_none() && !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
