@@ -1,14 +1,4 @@
-use std::cmp;
-use std::sync::OnceLock;
-
-use stdx::iter::IteratorExt;
-
 use super::*;
-
-fn empty_slice<'a>() -> crop::RopeSlice<'a> {
-    static EMPTY_ROPE: OnceLock<crop::Rope> = OnceLock::new();
-    EMPTY_ROPE.get_or_init(crop::Rope::new).byte_slice(..)
-}
 
 impl TextMut for crop::Rope {
     #[inline]
@@ -32,18 +22,12 @@ impl Text for crop::Rope {
 
     #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
-        self.lines().default_if_empty(empty_slice())
+        self.lines()
     }
 
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        // NOTE: we're using the ropes `line_len` not the adjusted `len_lines`
-        let n = self.line_len();
-        match line_idx.cmp(&n) {
-            cmp::Ordering::Less => Some(self.line(line_idx)),
-            cmp::Ordering::Equal if line_idx == 0 => Some(empty_slice()),
-            _ => None,
-        }
+        if line_idx < self.line_len() { Some(self.line(line_idx)) } else { None }
     }
 
     #[inline]
@@ -60,7 +44,7 @@ impl TextBase for crop::Rope {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.line_len().max(1)
+        self.line_len()
     }
 
     #[inline]
@@ -104,7 +88,7 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
     }
 
     fn lines(&self) -> impl Iterator<Item = Self> + 'a {
-        (*self).lines().default_if_empty(empty_slice())
+        (*self).lines()
     }
 
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
@@ -112,13 +96,7 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
     }
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
-        // NOTE: we're using the ropes `line_len` not the adjusted `len_lines`
-        let n = self.line_len();
-        match line_idx.cmp(&n) {
-            cmp::Ordering::Less => Some(self.line(line_idx)),
-            cmp::Ordering::Equal if line_idx == 0 => Some(empty_slice()),
-            _ => None,
-        }
+        if line_idx < self.line_len() { Some(self.line(line_idx)) } else { None }
     }
 }
 
@@ -130,7 +108,7 @@ impl TextBase for crop::RopeSlice<'_> {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.line_len().max(1)
+        self.line_len()
     }
 
     #[inline]

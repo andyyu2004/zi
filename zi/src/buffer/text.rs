@@ -68,6 +68,13 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
+                if delta.text().ends_with('\n') && text.chars().next_back() != Some('\n') {
+                    // Ensure the buffer ends with a newline before any newline insert.
+                    // This needs to happen before the main edit because the delta may insert a
+                    // newline and this case would be missed.
+                    text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
+                }
+
                 if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)
                 } else {
@@ -171,13 +178,7 @@ impl<X: AnyText> TextBuffer<X> {
             |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
         );
 
-        // ensure the buffer ends with a newline
-        if let Some(text) = text.as_text_mut() {
-            let idx = text.len_bytes();
-            if text.chars().next_back() != Some('\n') {
-                text.edit(&Delta::insert_at(idx, "\n"));
-            }
-        } else if !flags.contains(BufferFlags::READONLY) {
+        if text.as_text_mut().is_none() && !flags.contains(BufferFlags::READONLY) {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 

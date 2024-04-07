@@ -1,3 +1,4 @@
+mod insert;
 mod split;
 
 use tui::backend::{Backend as _, TestBackend};

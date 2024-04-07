@@ -1,5 +1,3 @@
-use stdx::iter::IteratorExt;
-
 use super::*;
 
 fn str_lines_inclusive(s: &str) -> impl Iterator<Item = &str> {
@@ -56,7 +54,7 @@ impl Text for str {
 
     #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
-        self.lines().default_if_empty("")
+        self.lines()
     }
 
     #[inline]
@@ -80,7 +78,7 @@ impl TextBase for str {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        self.lines().count().max(1)
+        self.lines().count()
     }
 
     #[inline]

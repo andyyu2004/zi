@@ -1,3 +1,4 @@
+use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
@@ -5,7 +6,7 @@ use crate::editor::cursor::SetCursorFlags;
 use crate::editor::{Resource, Selector};
 use crate::position::{Offset, RangeMergeIter, Size};
 use crate::private::Sealed;
-use crate::text::{self, Text as _, TextSlice};
+use crate::text::{self, AnyTextSlice, Text as _, TextSlice};
 use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
@@ -450,7 +451,11 @@ impl View {
             });
 
         let text = buf.text();
-        let lines = text.line_slice(line..).lines();
+        let lines = text
+            .line_slice(line..)
+            .lines()
+            // We always want to render a line even if the buffer is empty.
+            .default_if_empty(|| Box::new("") as Box<dyn AnyTextSlice<'_>>);
         let chunks = text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(

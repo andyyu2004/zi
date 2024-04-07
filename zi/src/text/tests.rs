@@ -33,10 +33,9 @@ fn empty_text() {
         ($text:expr) => {
             let text = $text;
             assert_eq!(text.len_bytes(), 0, "len_bytes");
-            assert_eq!(text.len_lines(), 1, "len_lines");
-            assert_eq!(text.lines().count(), 1, "lines().count()");
-            assert_eq!(text.get_line(0).unwrap().to_string(), "", "get_line(0)");
-            assert!(text.get_line(1).is_none(), "get_line(1)");
+            assert_eq!(text.len_lines(), 0, "len_lines");
+            assert_eq!(text.lines().count(), 0, "lines().count()");
+            assert!(text.get_line(0).is_none(), "get_line(0)");
         };
     }
 
@@ -44,45 +43,6 @@ fn empty_text() {
         test!(&imp);
         test!(imp.byte_slice(..));
         test!(imp.line_slice(..));
-    }
-}
-
-#[test]
-fn new_line() {
-    macro_rules! test {
-        ($text:expr) => {
-            let text = $text;
-            assert_eq!(text.len_bytes(), 1, "len_bytes");
-            assert_eq!(text.len_lines(), 1, "len_lines");
-            assert_eq!(text.lines().count(), 1, "lines().count()");
-            assert_eq!(text.get_line(0).map(|t| t.to_string()).as_deref(), Some(""), "get_line(0)");
-            assert!(text.get_line(1).is_none(), "get_line(2)");
-
-            assert_eq!(text.byte_to_line(0), 0, "byte_to_line(0)");
-            assert_eq!(text.byte_to_line(1), 1, "byte_to_line(1)");
-
-            assert_eq!(text.line_to_byte(0), 0, "line_to_byte(0)");
-            assert_eq!(text.line_to_byte(1), 1, "line_to_byte(1)");
-        };
-    }
-
-    for imp in impls("\n") {
-        test!(&imp);
-        test!(imp.byte_slice(..));
-        test!(imp.line_slice(..));
-    }
-}
-
-#[test]
-fn line_bounds() {
-    for imp in impls("") {
-        assert!(imp.get_line(0).is_some());
-        assert!(imp.get_line(1).is_none());
-    }
-
-    for imp in impls("\n") {
-        assert!(imp.get_line(0).is_some());
-        assert!(imp.get_line(1).is_none());
     }
 }
 
@@ -182,13 +142,7 @@ fn text_annotations() {
         expect.assert_eq(&s);
     }
 
-    check::<i32>(
-        "",
-        [],
-        expect![[r#"
-        "\n"
-    "#]],
-    );
+    check::<i32>("", [], expect![""]);
 
     check(
         "abc",
