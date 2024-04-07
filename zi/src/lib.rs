@@ -21,13 +21,13 @@ mod language;
 mod layout;
 mod lsp;
 pub mod motion;
-mod object;
 mod operator;
 mod plugin;
 mod position;
 mod private;
 mod syntax;
 mod text;
+mod textobject;
 mod view;
 
 pub use tokio::sync::Notify;

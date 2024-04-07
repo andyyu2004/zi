@@ -53,6 +53,10 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     fn byte_to_line(&self, byte_idx: usize) -> usize;
     fn line_to_byte(&self, line_idx: usize) -> usize;
 
+    fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
+        if line_idx < self.len_lines() { Some(self.line_to_byte(line_idx)) } else { None }
+    }
+
     #[inline]
     fn is_empty(&self) -> bool {
         self.len_bytes() == 0

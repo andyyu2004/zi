@@ -12,8 +12,8 @@ fn impls<'a>(s: &'a str) -> impl Iterator<Item = Box<dyn AnyText + 'a>> {
             builder.append(s);
             builder.build()
         }) as Box<dyn AnyText>,
-        // Box::new(ReadonlyText::new(s.as_bytes())),
-        // Box::new(s),
+        Box::new(ReadonlyText::new(s.as_bytes())),
+        Box::new(s),
     ]
     .into_iter()
 }
@@ -36,6 +36,7 @@ fn empty_text() {
             assert_eq!($text.len_lines(), 1, "len_lines");
             assert_eq!($text.lines().count(), 1, "lines().count()");
             assert_eq!($text.get_line(0).unwrap().to_string(), "", "get_line(0)");
+            assert!($text.get_line(1).is_none(), "get_line(1)");
         };
     }
 
@@ -66,6 +67,12 @@ fn new_line() {
                 "get_line(1)"
             );
             assert!($text.get_line(2).is_none(), "get_line(2)");
+
+            assert_eq!($text.byte_to_line(0), 0, "byte_to_line(0)");
+            assert_eq!($text.byte_to_line(1), 1, "byte_to_line(1)");
+
+            assert_eq!($text.line_to_byte(0), 0, "line_to_byte(0)");
+            assert_eq!($text.line_to_byte(1), 1, "line_to_byte(1)");
         };
     }
 

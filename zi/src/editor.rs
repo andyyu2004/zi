@@ -36,16 +36,17 @@ use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
 use crate::motion::{self, Motion};
-use crate::object::TextObject;
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
+use crate::textobject::TextObject;
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
-    event, hashmap, language, layout, object, trie, Buffer, BufferId, Direction, Error, FileType,
-    LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
+    event, hashmap, language, layout, textobject, trie, Buffer, BufferId, Direction, Error,
+    FileType, LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View,
+    ViewId,
 };
 
 bitflags::bitflags! {
@@ -1743,7 +1744,7 @@ fn default_keymap() -> Keymap {
     }
 
     fn text_object_current_line(editor: &mut Editor) {
-        editor.text_object(object::CurrentLine);
+        editor.text_object(textobject::Line);
     }
 
     fn append_eol(editor: &mut Editor) {
