@@ -252,18 +252,17 @@ impl View {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
         if byte >= text.len_bytes() {
+            // Shift the cursor to the last non-newline character.
             assert!(byte == text.len_bytes(), "too far out of bounds");
-            let mut chars = text.chars().rev();
-            if let Some(c) = chars.next() {
+            let chars = text.chars().rev();
+            for c in chars {
                 byte -= c.len_utf8();
-                for c in chars {
-                    if c != '\n' {
-                        break;
-                    }
-                    byte -= c.len_utf8();
+                if c != '\n' {
+                    break;
                 }
             }
         }
+
         let pos = text.byte_to_point(byte);
 
         #[cfg(debug_assertions)]

@@ -68,10 +68,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     fn edit(&mut self, delta: &Delta<'_>) {
         match self.text.as_text_mut() {
             Some(text) => {
-                if delta.text().ends_with('\n') && text.chars().next_back() != Some('\n') {
-                    // Ensure the buffer ends with a newline before any newline insert.
-                    // This needs to happen before the main edit because the delta may insert a
-                    // newline and this case would be missed.
+                if !delta.text().is_empty() && text.chars().next_back() != Some('\n') {
+                    // Ensure the buffer ends with a newline before any insert.
                     text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
                 }
 

@@ -210,7 +210,13 @@ impl Nvim {
             _ => panic!("unknown mode: {vi_mode}"),
         };
 
-        ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
+        if zi_lines.ends_with('\n') && !vi_lines.ends_with('\n') {
+            // We allow `zi` to have a single additional newline.
+            let zi_lines = &zi_lines[..zi_lines.len() - 1];
+            ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
+        } else {
+            ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
+        }
         ensure!(line as usize == zi_cursor.line().idx());
         ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
