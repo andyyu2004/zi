@@ -8,6 +8,27 @@ W
 ----
 W
 
+
+====
+a
+
+b
+
+
+c
+----
+wwwwww
+
+====
+a
+
+b
+
+
+c
+----
+WWWWWW
+
 ====
 The quick brown fox jumps over the lazy dog
 ----

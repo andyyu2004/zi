@@ -3,6 +3,9 @@ use std::{cmp, ops};
 use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
+// TODO most of the logic is a mess
+// the prev motions need to implement the newline handling the forward ones have
+
 pub trait Motion {
     /// Returns the new byte position after performing the motion.
     /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
@@ -10,6 +13,7 @@ pub trait Motion {
 
     /// Returns the range of bytes that the motion would move over.
     /// This is allowed to have different behaviour than the default implemntation.
+    // Perhaps the behaviour should be adjustable with a bunch of flags instead?
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize> {
         let b = self.motion(text, byte);
 
@@ -141,8 +145,13 @@ impl NextWord {
         let Some(c) = chars.next() else { return (byte, false) };
         byte += c.len_utf8();
 
+        if c == '\n' {
+            // not even sure what the bool return is really meant to indicate anymore, but this needs to be
+            // false to work :)
+            return (byte, false);
+        }
+
         let mut found_sep = c.is_word_separator();
-        let mut just_crossed_newline = false;
         for c in chars {
             let is_sep = c.is_word_separator();
             if found_sep && !is_sep || c.is_word_start() {
@@ -153,11 +162,13 @@ impl NextWord {
                 found_sep = true;
             }
 
-            just_crossed_newline = c == '\n';
             byte += c.len_utf8();
+            if c == '\n' {
+                return (byte, true);
+            }
         }
 
-        (byte, just_crossed_newline)
+        (byte, false)
     }
 }
 
@@ -194,7 +205,6 @@ impl NextToken {
         let chars = text.byte_slice(byte..).chars();
 
         let mut found_whitespace = false;
-        let mut just_crossed_newline = false;
         for c in chars {
             if found_whitespace && !c.is_whitespace() {
                 break;
@@ -202,10 +212,12 @@ impl NextToken {
 
             found_whitespace |= c.is_whitespace();
             byte += c.len_utf8();
-            just_crossed_newline = c == '\n';
+            if c == '\n' {
+                return (byte, true);
+            }
         }
 
-        (byte, just_crossed_newline)
+        (byte, false)
     }
 }
 

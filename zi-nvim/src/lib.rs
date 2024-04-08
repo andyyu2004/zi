@@ -92,7 +92,7 @@ impl Fixture {
         for section in sections {
             let mut text = String::new();
             let mut lines = section.split_inclusive('\n').filter(|line| !line.starts_with('#'));
-            lines.next().expect("expected newline after after ====");
+            lines.next().expect("expected newline after ====");
 
             for line in lines.by_ref().take_while(|line| !line.starts_with(SEP)) {
                 text.push_str(line);
@@ -100,6 +100,12 @@ impl Fixture {
 
             let line = lines.next().expect("expected input key sequence line after ----");
             let inputs = KeySequence::from_str(line.trim()).expect("could not parse key sequence");
+
+            assert_eq!(
+                text.pop(),
+                Some('\n'),
+                "there should always be a newline after the text section (we don't want this to be part of the test though but remaining newlines are significant)"
+            );
             cases.push(TestCase { text, inputs });
 
             for line in lines {
@@ -128,7 +134,8 @@ pub struct Nvim {
 
 impl Nvim {
     pub async fn run(&self, editor: &mut zi::Editor, case: &TestCase) -> zi::Result<()> {
-        let initial = case.text.trim_end();
+        // Only remove the final newline. The rest of the newlines are significant.
+        let initial = &case.text;
         let inputs = &case.inputs;
         let n = editor.buffer(zi::Active).text().len_bytes();
         editor.buffer_mut(zi::Active).edit(&zi::Delta::new(0..n, initial));
@@ -152,9 +159,9 @@ impl Nvim {
             self.nvim.input(&key.to_string()).await?;
             editor.handle_input(key.clone());
 
-            self.assert_eq(editor)
-                .await
-                .with_context(|| format!("index {i} in key sequence: `{inputs}`, key: `{key}`"))?;
+            self.assert_eq(editor).await.with_context(|| {
+                format!("index {i} in key sequence: `{inputs}`, key=`{key}` text={initial:?}")
+            })?;
         }
 
         Ok(())
