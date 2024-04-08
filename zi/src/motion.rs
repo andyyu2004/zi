@@ -1,3 +1,5 @@
+use std::{cmp, ops};
+
 use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
@@ -5,6 +7,18 @@ pub trait Motion {
     /// Returns the new byte position after performing the motion.
     /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize;
+
+    /// Returns the range of bytes that the motion would move over.
+    /// This is allowed to have different behaviour than the default implemntation.
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize> {
+        let b = self.motion(text, byte);
+
+        match byte.cmp(&b) {
+            cmp::Ordering::Equal => byte..byte,
+            cmp::Ordering::Less => byte..b,
+            cmp::Ordering::Greater => b..byte,
+        }
+    }
 
     #[inline]
     fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
@@ -120,14 +134,15 @@ impl Motion for PrevToken {
 
 pub struct NextWord;
 
-impl Motion for NextWord {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+impl NextWord {
+    fn mv(&self, text: &dyn AnyText, mut byte: usize) -> (usize, bool) {
         let mut chars = text.byte_slice(byte..).chars();
 
-        let Some(c) = chars.next() else { return byte };
+        let Some(c) = chars.next() else { return (byte, false) };
         byte += c.len_utf8();
 
         let mut found_sep = c.is_word_separator();
+        let mut just_crossed_newline = false;
         for c in chars {
             let is_sep = c.is_word_separator();
             if found_sep && !is_sep || c.is_word_start() {
@@ -138,16 +153,33 @@ impl Motion for NextWord {
                 found_sep = true;
             }
 
+            just_crossed_newline = c == '\n';
             byte += c.len_utf8();
         }
 
-        byte
+        (byte, just_crossed_newline)
+    }
+}
+
+impl Motion for NextWord {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> ops::Range<usize> {
+        let (end, just_crossed_newline) = self.mv(text, start);
+        // Exclude the newline character if using as a range
+        // e.g. dw does not delete the line break
+        if just_crossed_newline { start..end.saturating_sub(1) } else { start..end }
+    }
+
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        self.mv(text, byte).0
     }
 }
 
 pub struct PrevWord;
 
 impl Motion for PrevWord {
+    #[inline]
     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
         Prev { is_sep: char::is_word_separator, is_start: |c, _| c.is_word_start() }
             .motion(text, byte)
@@ -157,11 +189,12 @@ impl Motion for PrevWord {
 /// Whitespace delimited word
 pub struct NextToken;
 
-impl Motion for NextToken {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+impl NextToken {
+    fn mv(&self, text: &dyn AnyText, mut byte: usize) -> (usize, bool) {
         let chars = text.byte_slice(byte..).chars();
 
         let mut found_whitespace = false;
+        let mut just_crossed_newline = false;
         for c in chars {
             if found_whitespace && !c.is_whitespace() {
                 break;
@@ -169,9 +202,27 @@ impl Motion for NextToken {
 
             found_whitespace |= c.is_whitespace();
             byte += c.len_utf8();
+            just_crossed_newline = c == '\n';
         }
 
-        byte
+        (byte, just_crossed_newline)
+    }
+}
+
+impl Motion for NextToken {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        self.mv(text, byte).0
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> ops::Range<usize> {
+        let (end, just_crossed_newline) = self.mv(text, start);
+        if just_crossed_newline && end > start + 1 {
+            start..end.saturating_sub(1)
+        } else {
+            start..end
+        }
     }
 }
 
