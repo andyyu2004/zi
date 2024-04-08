@@ -251,8 +251,9 @@ impl View {
     ) {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
+
         if byte >= text.len_bytes() {
-            // Shift the cursor to the last non-newline character.
+            // If the index is out of bounds, shift it back
             assert!(byte == text.len_bytes(), "too far out of bounds");
             let chars = text.chars().rev();
             for c in chars {
@@ -261,6 +262,9 @@ impl View {
                     break;
                 }
             }
+        } else if byte > 0 && byte + 1 == text.len_bytes() && text.chars().last() == Some('\n') {
+            // Another special case, we can't allow the cursor to be on the final newline.
+            byte -= 1;
         }
 
         let pos = text.byte_to_point(byte);

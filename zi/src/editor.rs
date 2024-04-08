@@ -900,15 +900,22 @@ impl Editor {
         let text = buf.text();
         let range = obj.byte_range(text, text.point_to_byte(view.cursor()));
         let delta = match operator {
+            Operator::Delete | Operator::Change => Delta::delete(range.clone()),
+            Operator::Yank => todo!(),
+        };
+
+        self.edit(view_id, &delta);
+
+        // need to make this change for the undo branch,
+        match operator {
             Operator::Delete | Operator::Change => {
+                let (view, buf) = get!(self);
                 // deletions moves the cursor to the start of the range
                 let area = self.tree.view_area(view.id());
                 view.set_cursor_bytewise(buf, area, range.start);
-                Delta::delete(range.clone())
             }
-            Operator::Yank => todo!(),
-        };
-        self.edit(view_id, &delta);
+            Operator::Yank => (),
+        }
 
         let mode = match operator {
             Operator::Change => Mode::Insert,
