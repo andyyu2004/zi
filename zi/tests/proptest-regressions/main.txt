@@ -12,3 +12,12 @@ cc 4aba2ba753abb70ef2a903204c62e6803bdf58de6e52c26342efc4401a530c31 # shrinks to
 cc bfa50e3696f48c7b47005a8146be9970d635077f0cd1376f6e679e8adcfefbb6 # shrinks to input = _NvimDeleteOperatorArgs { text: " _a", inputs: "WdB" }
 cc e3e2955a6d9d8e3547af6050840125c3e7e53fc3c37ee3480a0b1e7a8ae4a26c # shrinks to input = _NvimTokenMotionsArgs { text: "a", inputs: "W" }
 cc aa98fbb31396628f52eb9c0006f5ee646b3328850c0b74517cf7d292911a17da # shrinks to input = _NvimDeleteOperatorArgs { text: "A", inputs: "W" }
+cc f6aecdf5c3d55376b44bd5043619d0af61eed01e66a2c2184d7be0be2ddcdbcd # shrinks to text = " A", inputs = "B"
+cc a014730fa158cdceb539d4235c1463881cd9c240bf3eeffd457f504c01c5ed3a # shrinks to text = " A", inputs = "B"
+cc 529f2078fd98c76ac05fdbca9f547b2eb8489787a541e631c13a304006239ac4 # shrinks to text = " E", inputs = "jkBBWkjBBkjBkWWWBkBBWBjk"
+cc 499aeefe8eedfb7a8da15eab7d9ada5df980033f28b1097616d2d645e36d1e36 # shrinks to text = "a", inputs = "dddWu"
+cc f3623f2367e618de14fa09bc39f7692fe17bda429fbc264a4c827b2e237cce9f # shrinks to text = "!", inputs = "dWddu"
+cc 128e51e36839744b1122a5dd561cc4f427e077a7d6727826b3c4d05a44b08206 # shrinks to text = "aA", inputs = "Wddu"
+cc 7796f14f58b60d01d2025e8c37e72dfd1b253a41dd595623b74a393c81d3614a # shrinks to text = " AA", inputs = "WdB"
+cc 5c1bb78b22d5785e539928cc692259ba5f2c49fa4e5d6ef7570702ae16babec0 # shrinks to text = " A", inputs = "WdW"
+cc 974daae52f46042e8b649e0715e72fec49d17c84c00f0d00510673724fc8ce4a # shrinks to text = " A", inputs = "WdBu"
