@@ -1279,9 +1279,10 @@ impl Editor {
             point: Point,
         }
 
-        impl From<Jump> for Location {
-            fn from(val: Jump) -> Self {
-                Location { buf: val.buf, point: val.point }
+        #[allow(clippy::from_over_into)]
+        impl Into<Location> for Jump {
+            fn into(self) -> Location {
+                Location { buf: self.buf, point: self.point }
             }
         }
 
