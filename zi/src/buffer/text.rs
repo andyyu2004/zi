@@ -135,7 +135,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     ) -> Box<dyn Iterator<Item = Highlight> + '_> {
         assert_eq!(view.buffer(), self.id);
         let cursor = view.cursor();
-        let text = editor[view.buffer()].text();
+        let text = editor.buffer(view).text();
 
         // We have to be careful that we don't set the end column to the middle of a char
         let end = match text.get_line(cursor.line().idx()) {

@@ -160,7 +160,7 @@ impl<P: Picker> PickerBuffer<P> {
     }
 
     fn select_current(buf_id: BufferId, editor: &mut Editor) {
-        let picker_buf = editor.buffer(buf_id).as_any().downcast_ref::<Self>().unwrap();
+        let picker_buf = editor[buf_id].as_any().downcast_ref::<Self>().unwrap();
         let display_view = picker_buf.display_view;
         let cursor = editor.get_cursor(display_view);
 
@@ -245,7 +245,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
             // update the display view with the new items
             use std::fmt::Write;
             let buf = editor.view(display_view).buffer();
-            let text = editor.buffer(buf).text();
+            let text = editor[buf].text();
 
             let mut s = String::new();
             for item in items.iter() {

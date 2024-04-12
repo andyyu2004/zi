@@ -63,13 +63,13 @@ fn view_group() {
         "should return the same group given the same url"
     );
 
-    editor.view_mut(zi::Active).set_group(group);
+    editor.set_view_group(zi::Active, group);
     assert_eq!(editor.view(zi::Active).group(), Some(group));
 
     let v = editor.split_view(zi::Active, Right, Fill(1));
     assert!(editor.view(v).group().is_none(), "split view should not copy the group");
 
-    editor.view_mut(v).set_group(group);
+    editor.set_view_group(v, group);
 
     editor.close_view(zi::Active);
 

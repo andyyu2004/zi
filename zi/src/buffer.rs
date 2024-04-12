@@ -87,19 +87,27 @@ pub struct UndoEntry {
     pub inverse_delta: Delta<'static>,
 }
 
-// FIXME this type should not be public (transitively for most of the types too)
-// This shouldn't be directly exposed by the editor api.
 pub trait Buffer {
     fn id(&self) -> BufferId;
+
     fn flags(&self) -> BufferFlags;
+
     fn path(&self) -> &Path;
+
     fn url(&self) -> &Url;
+
     fn file_url(&self) -> Option<&Url>;
+
     fn file_type(&self) -> &FileType;
+
     fn tab_width(&self) -> u8;
+
     fn text(&self) -> &dyn AnyText;
+
     fn version(&self) -> u32;
+
     fn as_any(&self) -> &dyn Any;
+
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn redo(&mut self) -> Option<UndoEntry> {
@@ -248,6 +256,7 @@ impl Buffer for Box<dyn Buffer + Send> {
         self.as_mut().redo()
     }
 
+    #[inline]
     fn clear_undo(&mut self) {
         self.as_mut().clear_undo()
     }

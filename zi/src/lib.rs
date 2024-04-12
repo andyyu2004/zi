@@ -36,7 +36,7 @@ pub use tree_sitter;
 pub use tui::Constraint;
 pub use zi_lsp::lsp_types::Url;
 
-pub use self::buffer::{Buffer, BufferFlags, BufferId, PickerBuffer, TextBuffer};
+pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
 pub use self::editor::{Active, Editor, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};

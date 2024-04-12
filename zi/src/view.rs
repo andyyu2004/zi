@@ -2,12 +2,13 @@ use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
+use crate::buffer::Buffer;
 use crate::editor::cursor::SetCursorFlags;
 use crate::editor::{Resource, Selector};
 use crate::position::{Offset, RangeMergeIter, Size};
 use crate::private::Sealed;
 use crate::text::{self, AnyTextSlice, Text as _, TextSlice};
-use crate::{Buffer, BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
+use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -44,6 +45,22 @@ pub struct View {
     group: Option<ViewGroupId>,
     url: Url,
     jumps: JumpList<Location>,
+}
+
+impl Sealed for View {}
+
+impl Selector<ViewId> for View {
+    #[inline]
+    fn select(&self, _editor: &Editor) -> ViewId {
+        self.id()
+    }
+}
+
+impl Selector<BufferId> for View {
+    #[inline]
+    fn select(&self, _editor: &Editor) -> BufferId {
+        self.buffer()
+    }
 }
 
 impl Resource for View {
@@ -138,7 +155,7 @@ impl View {
     }
 
     #[inline]
-    pub fn set_group(&mut self, group: ViewGroupId) {
+    pub(crate) fn set_group(&mut self, group: ViewGroupId) {
         self.group = Some(group);
     }
 

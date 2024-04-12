@@ -27,8 +27,8 @@ use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{
-    BufferFlags, ExplorerBuffer, FilePicker, Injector, InspectorBuffer, Picker, PickerBuffer,
-    TextBuffer,
+    Buffer, BufferFlags, ExplorerBuffer, FilePicker, Injector, InspectorBuffer, Picker,
+    PickerBuffer, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -44,9 +44,8 @@ use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
 use crate::textobject::{TextObject, TextObjectKind};
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
-    event, hashmap, language, layout, textobject, trie, Buffer, BufferId, Direction, Error,
-    FileType, LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View,
-    ViewId,
+    event, hashmap, language, layout, textobject, trie, BufferId, Direction, Error, FileType,
+    LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -89,6 +88,15 @@ impl Index<ViewId> for Editor {
     }
 }
 
+impl Index<ViewGroupId> for Editor {
+    type Output = ViewGroup;
+
+    #[inline]
+    fn index(&self, index: ViewGroupId) -> &Self::Output {
+        &self.view_groups[index]
+    }
+}
+
 impl Index<BufferId> for Editor {
     type Output = dyn Buffer;
 
@@ -102,15 +110,6 @@ impl IndexMut<BufferId> for Editor {
     #[inline]
     fn index_mut(&mut self, index: BufferId) -> &mut Self::Output {
         &mut self.buffers[index]
-    }
-}
-
-impl Index<ViewGroupId> for Editor {
-    type Output = ViewGroup;
-
-    #[inline]
-    fn index(&self, index: ViewGroupId) -> &Self::Output {
-        &self.view_groups[index]
     }
 }
 
@@ -750,8 +749,18 @@ impl Editor {
     }
 
     #[inline]
-    pub fn view_mut(&mut self, selector: impl Selector<ViewId>) -> &mut View {
+    pub(crate) fn view_mut(&mut self, selector: impl Selector<ViewId>) -> &mut View {
         self.views.get_mut(selector.select(self)).expect("bad view id")
+    }
+
+    #[inline]
+    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &dyn Buffer {
+        self.buffers.get(selector.select(self)).expect("bad buffer id")
+    }
+
+    #[inline]
+    pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut dyn Buffer {
+        self.buffers.get_mut(selector.select(self)).expect("bad buffer id")
     }
 
     #[inline]
@@ -759,20 +768,16 @@ impl Editor {
         self.buffers.values().map(|b| b.as_ref())
     }
 
+    pub fn set_view_group(&mut self, selector: impl Selector<ViewId>, group: ViewGroupId) {
+        let view = selector.select(self);
+        self.views[view].set_group(group);
+    }
+
     /// An iterator over all views in the view tree.
     // Note: this is not the same as `self.views.values()`
     #[inline]
     pub fn views(&self) -> impl Iterator<Item = &View> {
         self.tree.views().map(move |id| self.view(id))
-    }
-
-    #[inline]
-    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &dyn Buffer {
-        self.buffers.get(selector.select(self)).expect("got bad buffer id")
-    }
-
-    pub fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut dyn Buffer {
-        self.buffers.get_mut(selector.select(self)).expect("got bad buffer id")
     }
 
     #[inline]
@@ -1658,6 +1663,15 @@ fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
 
 pub trait Selector<T>: Sealed {
     fn select(&self, editor: &Editor) -> T;
+}
+
+impl<T, S: Selector<T> + ?Sized> Selector<T> for &S
+where
+    S: Selector<T>,
+{
+    fn select(&self, editor: &Editor) -> T {
+        (**self).select(editor)
+    }
 }
 
 pub struct Active;
