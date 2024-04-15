@@ -26,6 +26,7 @@ impl fmt::Debug for FileType {
 impl FileType {
     pub const TEXT: Self = Self(Cow::Borrowed("text"));
     pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
+    pub const C: Self = Self(Cow::Borrowed("c"));
     pub const RUST: Self = Self(Cow::Borrowed("rust"));
     pub const GO: Self = Self(Cow::Borrowed("go"));
     pub const TOML: Self = Self(Cow::Borrowed("toml"));
@@ -36,6 +37,7 @@ impl FileType {
     pub fn detect(path: &Path) -> Self {
         match path.extension() {
             Some(ext) => match ext {
+                x if x == "c" => Self::C,
                 x if x == "rs" => Self::RUST,
                 x if x == "go" => Self::GO,
                 x if x == "toml" => Self::TOML,
@@ -72,6 +74,7 @@ impl LanguageServerId {
     pub const RUST_ANALYZER: Self = Self(Cow::Borrowed("rust-analyzer"));
     pub const GOPLS: Self = Self(Cow::Borrowed("gopls"));
     pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
+    pub const CLANGD: Self = Self(Cow::Borrowed("clangd"));
 }
 
 #[derive(Debug)]
@@ -112,6 +115,7 @@ impl Default for Config {
                 FileType::GQLT,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
             ),
+            (FileType::C, LanguageConfig { language_servers: Box::new([LanguageServerId::CLANGD]) }),
             (FileType::TEXT, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::TOML, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),
@@ -130,6 +134,10 @@ impl Default for Config {
             (
                 LanguageServerId::GQLT,
                 LanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
+            ),
+            (
+                LanguageServerId::CLANGD,
+                LanguageServerConfig { command: "clangd".into(), args: Box::new([]) },
             ),
         ]);
 

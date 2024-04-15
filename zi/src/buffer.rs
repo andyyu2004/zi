@@ -80,7 +80,7 @@ impl Resource for dyn Buffer {
 
 // FIXME bad name, used for redo too
 // Should also not be public (however needs to be because it's exposed by the buffer trait for now)
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UndoEntry {
     pub cursor: Point,
     pub delta: Delta<'static>,

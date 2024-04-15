@@ -1,5 +1,6 @@
 // Just an undo stack for now
-pub struct UndoTree<T> {
+#[derive(Debug)]
+pub(crate) struct UndoTree<T> {
     revisions: Vec<T>,
     current: usize,
 }

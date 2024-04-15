@@ -1,6 +1,6 @@
 [submodule "fuzz/corpus"]
 	path = fuzz/corpus
 	url = git@github.com:andyyu2004/zi-fuzz-corpora
-[submodule "zi-nvim/runtime/vim-wordmotion"]
-	path = zi-nvim/runtime/vim-wordmotion
-	url = https://github.com/chaoren/vim-wordmotion/
+[submodule "zi-nvim/runtime/undotree"]
+	path = zi-nvim/runtime/undotree
+	url = https://github.com/mbbill/undotree

@@ -14,3 +14,7 @@ function! ClearUndoHistory()
     let &undolevels = old_undolevels
     unlet old_undolevels
 endfunction
+
+let mapleader = "\<Space>"
+
+nnoremap <silent> <leader>u <cmd>UndotreeToggle<CR> <bar> UndoTreeFocus<CR>

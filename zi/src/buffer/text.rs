@@ -79,6 +79,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         // Nothing to undo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
 
+        tracing::debug!("{:#?}", self.undo_tree);
         let entry = self.undo_tree.undo().cloned()?;
         self.edit(entry.cursor, &entry.inverse_delta, EditFlags::NO_APPEND_NEWLINE);
         Some(entry)
@@ -250,6 +251,8 @@ impl<X: Text> TextBuffer<X> {
                         delta: delta.to_owned(),
                         inverse_delta,
                     });
+
+                    tracing::debug!("{:#?}", self.undo_tree);
                 }
 
                 self.version.checked_add(1).unwrap();
