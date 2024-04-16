@@ -81,7 +81,7 @@ trait CharExt {
 impl CharExt for char {
     #[inline]
     fn is_word_separator(self) -> bool {
-        self.is_whitespace() || matches!(self, '-' | '_')
+        self.is_whitespace() || !self.is_alphanumeric()
     }
 
     #[inline]

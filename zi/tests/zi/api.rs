@@ -8,6 +8,7 @@ mod motion;
 mod open;
 mod picker;
 mod scroll;
+mod undo;
 mod view;
 
 /// Create a new editor with a buffer open with the given content.

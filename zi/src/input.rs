@@ -116,8 +116,16 @@ impl TryFrom<crossterm::event::KeyModifiers> for KeyModifiers {
 }
 
 impl From<KeyEvent> for Event {
+    #[inline]
     fn from(v: KeyEvent) -> Self {
         Self::Key(v)
+    }
+}
+
+impl From<char> for Event {
+    #[inline]
+    fn from(v: char) -> Self {
+        Self::Key(KeyEvent::new(KeyCode::Char(v), KeyModifiers::empty()))
     }
 }
 

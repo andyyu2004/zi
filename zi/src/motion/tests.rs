@@ -19,6 +19,8 @@ fn motion_prev_word() {
     }
 
     check(&motion, "a-A", 2, Ok(0));
+    check(&motion, ":aA", 2, Ok(1));
+    check(&motion, "$aA", 2, Ok(1));
 }
 
 #[test]

@@ -60,6 +60,8 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     fn byte_to_line(&self, byte_idx: usize) -> usize;
     fn line_to_byte(&self, line_idx: usize) -> usize;
 
+    fn get_char(&self, byte_idx: usize) -> Option<char>;
+
     fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
         if line_idx < self.len_lines() { Some(self.line_to_byte(line_idx)) } else { None }
     }
@@ -144,6 +146,56 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         (**self).line_to_byte(line_idx)
+    }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        (**self).get_char(byte_idx)
+    }
+
+    #[inline]
+    fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
+        (**self).try_line_to_byte(line_idx)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        (**self).is_empty()
+    }
+
+    #[inline]
+    fn byte_to_point(&self, byte_idx: usize) -> Point {
+        (**self).byte_to_point(byte_idx)
+    }
+
+    #[inline]
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+        (**self).delta_to_point_range(delta)
+    }
+
+    #[inline]
+    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
+        (**self).delta_to_byte_range(delta)
+    }
+
+    #[inline]
+    fn point_to_byte(&self, point: Point) -> usize {
+        (**self).point_to_byte(point)
+    }
+
+    #[inline]
+    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+        (**self).point_range_to_byte_range(range)
+    }
+
+    #[inline]
+    fn point_or_byte_to_byte(&self, point_or_byte: PointOrByte) -> usize {
+        (**self).point_or_byte_to_byte(point_or_byte)
+    }
+
+    #[inline]
+    fn point_or_byte_to_point(&self, point_or_byte: PointOrByte) -> Point {
+        (**self).point_or_byte_to_point(point_or_byte)
     }
 }
 
@@ -554,13 +606,18 @@ impl<T: Text + ?Sized> Text for &T {
 
 impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
-    fn len_bytes(&self) -> usize {
-        (**self).len_bytes()
+    fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
+        None
     }
 
     #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
+    }
+
+    #[inline]
+    fn len_bytes(&self) -> usize {
+        (**self).len_bytes()
     }
 
     #[inline]
@@ -574,8 +631,53 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     }
 
     #[inline]
-    fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
-        None
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        (**self).get_char(byte_idx)
+    }
+
+    #[inline]
+    fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
+        (**self).try_line_to_byte(line_idx)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        (**self).is_empty()
+    }
+
+    #[inline]
+    fn byte_to_point(&self, byte_idx: usize) -> Point {
+        (**self).byte_to_point(byte_idx)
+    }
+
+    #[inline]
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+        (**self).delta_to_point_range(delta)
+    }
+
+    #[inline]
+    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
+        (**self).delta_to_byte_range(delta)
+    }
+
+    #[inline]
+    fn point_to_byte(&self, point: Point) -> usize {
+        (**self).point_to_byte(point)
+    }
+
+    #[inline]
+    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+        (**self).point_range_to_byte_range(range)
+    }
+
+    #[inline]
+    fn point_or_byte_to_byte(&self, point_or_byte: PointOrByte) -> usize {
+        (**self).point_or_byte_to_byte(point_or_byte)
+    }
+
+    #[inline]
+    fn point_or_byte_to_point(&self, point_or_byte: PointOrByte) -> Point {
+        (**self).point_or_byte_to_point(point_or_byte)
     }
 }
 

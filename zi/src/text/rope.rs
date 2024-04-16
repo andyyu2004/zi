@@ -60,6 +60,11 @@ impl TextBase for crop::Rope {
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.byte_of_line(line_idx)
     }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        (*self).byte_slice(byte_idx..).chars().next()
+    }
 }
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
@@ -123,5 +128,10 @@ impl TextBase for crop::RopeSlice<'_> {
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.byte_of_line(line_idx)
+    }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        (*self).byte_slice(byte_idx..).chars().next()
     }
 }

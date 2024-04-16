@@ -1,3 +1,5 @@
+use std::mem;
+
 use super::*;
 use crate::syntax::{HighlightMap, HighlightName};
 use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
@@ -19,6 +21,9 @@ pub struct TextBuffer<X> {
     version: u32,
     tab_width: u8,
     undo_tree: UndoTree<UndoEntry>,
+    /// Changes to the buffer that have not been saved to the undo tree
+    changes: Vec<Change>,
+    saved_cursor: Option<Point>,
 }
 
 impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
@@ -27,7 +32,11 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
         let _text = self.text.as_text_mut()?;
 
         let entry = self.undo_tree.undo().cloned()?;
-        self.edit(entry.cursor, &entry.inversion, EditFlags::NO_APPEND_NEWLINE);
+        for change in entry.changes.iter().rev() {
+            tracing::error!("undoing change: {:?}", change);
+            self.edit(&change.inversion, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
+        }
+
         Some(entry)
     }
 
@@ -36,12 +45,30 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
         let _text = self.text.as_text_mut()?;
 
         let entry = self.undo_tree.redo().cloned()?;
-        self.edit(entry.cursor, &entry.delta, EditFlags::NO_APPEND_NEWLINE);
+        for change in entry.changes.iter() {
+            self.edit(&change.delta, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
+        }
+
         Some(entry)
     }
 
-    fn clear_undo(&mut self) {
+    fn clear(&mut self) {
+        self.changes.clear();
         self.undo_tree.clear();
+    }
+
+    fn snapshot(&mut self, flags: SnapshotFlags) {
+        if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
+            return;
+        }
+
+        let changes = mem::take(&mut self.changes);
+        self.undo_tree
+            .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
+    }
+
+    fn snapshot_cursor(&mut self, cursor: Point) {
+        self.saved_cursor = Some(cursor);
     }
 }
 
@@ -91,8 +118,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         self.syntax.as_ref()
     }
 
-    fn edit(&mut self, cursor: Point, delta: &Delta<'_>) {
-        self.edit(cursor, delta, EditFlags::PUSH_UNDO);
+    fn edit(&mut self, delta: &Delta<'_>) {
+        self.edit(delta, EditFlags::empty());
     }
 
     fn version(&self) -> u32 {
@@ -169,6 +196,16 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     }
 }
 
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    struct EditFlags: u8 {
+        /// Do not record this change in the undo tree.
+        const NO_RECORD = 1 << 0;
+        /// Ensure the buffer ends with a newline before any insert.
+        const NO_ENSURE_NEWLINE = 1 << 1;
+    }
+}
+
 impl<X: Text> TextBuffer<X> {
     #[inline]
     pub fn new(
@@ -218,42 +255,51 @@ impl<X: Text> TextBuffer<X> {
             url,
             file_url,
             text,
-            language_id,
             syntax,
-            tab_width: 4,
+            language_id,
             highlight_map,
+            tab_width: 4,
+            changes: Default::default(),
             version: Default::default(),
             undo_tree: Default::default(),
+            saved_cursor: Default::default(),
         }
     }
 
-    fn edit(&mut self, cursor: Point, delta: &Delta<'_>, flags: EditFlags) {
+    fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
         if delta.is_identity() {
             return;
         }
 
+        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE)
+            && !delta.text().is_empty()
+            && self.text.chars().next_back() != Some('\n')
+        {
+            // Ensure the buffer ends with a newline before any insert.
+            // It's fine to do this without editing the syntax as a trailing
+            // newline won't affect it.
+            let len = self.text.len_bytes();
+            self.edit(&Delta::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
+        }
+
         match self.text.as_text_mut() {
             Some(text) => {
-                if !flags.contains(EditFlags::NO_APPEND_NEWLINE)
-                    && !delta.text().is_empty()
-                    && text.chars().next_back() != Some('\n')
-                {
-                    // Ensure the buffer ends with a newline before any insert.
-                    // It's fine to do this without editing the syntax as a trailing
-                    // newline will affect it.
-                    text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
-                }
-
                 let (inversion, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)
                 } else {
                     (text.edit(delta), None)
                 };
 
-                if flags.contains(EditFlags::PUSH_UNDO) {
-                    self.undo_tree.push(UndoEntry { cursor, delta: delta.to_owned(), inversion });
-
-                    tracing::debug!("{:#?}", self.undo_tree);
+                if !flags.contains(EditFlags::NO_RECORD) {
+                    let change = Change { delta: delta.to_owned(), inversion };
+                    match self.changes.pop() {
+                        None => self.changes.push(change),
+                        // attempt to merge changes if possible
+                        Some(prev) => match prev.try_merge(change) {
+                            Ok(composed) => self.changes.push(composed),
+                            Err(changes) => self.changes.extend(changes),
+                        },
+                    }
                 }
 
                 self.version.checked_add(1).unwrap();

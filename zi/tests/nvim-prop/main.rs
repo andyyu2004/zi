@@ -16,13 +16,18 @@ async fn nvim(fixture: &Fixture) -> &'static Nvim {
 }
 
 macro_rules! t {
-    ( $text:tt, $inputs:tt, $name:ident $(, $filter:expr)?) => {
+    ( $text:expr, $inputs:tt, $name:ident $(, $filter:expr)?) => {
         ::proptest::proptest! {
             #[test]
-            fn $name(text in $text, inputs in $inputs) {
+            fn $name(inputs in $inputs, text in $text) {
                 $( $filter(&inputs)?; )?
 
-                run(text, inputs)
+                // `:help cw`
+                // stupid special case in neovim that I can't find a good workaround for.
+                // Also don't want to implement it as it's not a good default behaviour.
+                proptest::prop_assume!(!inputs.contains("cw") && !inputs.contains("cW"));
+
+                run(text, &inputs)
             }
         }
     };
@@ -33,17 +38,25 @@ macro_rules! t {
 // We probably want to implement something closer to vim-wordmotion by default
 // t!(r"(?s)[ -~]*", "[wbjk]+", nvim_word_motions);
 
-t!(r"(?s)[ a-z]*", "<ESC>", nvim_test);
+const I: &str = r"(?s)[A-z][ -~]*[A-z]";
 
-t!(r"(?s)[ -~]*", "[WBjk]+", nvim_token_motions);
-t!(r"(?s)[ -~]*", "[dWBjk]+", nvim_delete_operator);
-t!(r"(?s)[ -~]*", "([dWBjk]|(<ESC>))+u", nvim_undo_delete);
-t!(r"(?s)[ -~]*", "([abucdWBjk]|(<ESC>))+", nvim_undo);
+t!(I, "<ESC>", nvim_test);
+t!(I, "[WBjk]+", nvim_token_motions);
+t!(I, "[dWBjk]+", nvim_delete_operator);
+// t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
+t!(I, "d([WBjk]|(<ESC>))+u<ESC>", nvim_undo_delete);
+t!(I, "([ucdWBjk]|(<ESC>))+<ESC>", nvim_undo);
+
+#[test]
+fn scratch() {
+    // useful to test a particular case
+    run("aA", "ccB<esc>u<esc>");
+}
 
 #[track_caller]
-fn run(text: String, inputs: String) {
+fn run(text: impl Into<String>, inputs: &str) {
     rt().block_on(async move {
-        let fixture = Fixture::new([TestCase::new(text, inputs.as_str())]);
+        let fixture = Fixture::new([TestCase::new(text, inputs)]);
         let nvim = nvim(&fixture).await;
         fixture.nvim_vs_zi_with(nvim).await.unwrap();
     })

@@ -42,10 +42,8 @@ bitflags::bitflags! {
         const READONLY = 0b0000_0001;
     }
 
-    #[derive(Debug, Clone, Copy)]
-    struct EditFlags: u8 {
-        const PUSH_UNDO = 1 << 0;
-        const NO_APPEND_NEWLINE = 1 << 1;
+    pub struct SnapshotFlags: u8 {
+        const ALLOW_EMPTY = 0b0000_0001;
     }
 }
 
@@ -78,16 +76,40 @@ impl Resource for dyn Buffer {
     }
 }
 
-// FIXME bad name, used for redo too
-// Should also not be public (however needs to be because it's exposed by the buffer trait for now)
 #[derive(Clone, Debug)]
 pub struct UndoEntry {
-    /// The saved cursor position
-    pub cursor: Point,
+    pub changes: Box<[Change]>,
+    pub cursor: Option<Point>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Change {
     /// The delta that was applied
     pub delta: Delta<'static>,
     /// The delta that can be applied to undo the operation
     pub inversion: Delta<'static>,
+}
+
+impl Change {
+    #[allow(clippy::result_large_err)]
+    fn try_merge(self, other: Self) -> Result<Self, [Self; 2]> {
+        let delta = match self.delta.try_merge(other.delta) {
+            Ok(delta) => delta,
+            Err([a, b]) => {
+                return Err([
+                    Self { delta: a, inversion: self.inversion },
+                    Self { delta: b, inversion: other.inversion },
+                ]);
+            }
+        };
+
+        let inversion = self
+            .inversion
+            .try_merge(other.inversion)
+            .expect("inversion should be invertible if the delta is");
+
+        Ok(Self { delta, inversion })
+    }
 }
 
 pub trait BufferHistory {
@@ -95,7 +117,11 @@ pub trait BufferHistory {
 
     fn redo(&mut self) -> Option<UndoEntry>;
 
-    fn clear_undo(&mut self);
+    fn clear(&mut self);
+
+    fn snapshot(&mut self, flags: SnapshotFlags);
+
+    fn snapshot_cursor(&mut self, cursor: Point);
 }
 
 pub trait Buffer {
@@ -126,8 +152,7 @@ pub trait Buffer {
     }
 
     /// Edit the buffer with a delta.
-    /// The cursor is the current cursor position in the buffer as of the edit.
-    fn edit(&mut self, cursor: Point, delta: &Delta<'_>);
+    fn edit(&mut self, delta: &Delta<'_>);
 
     fn syntax(&self) -> Option<&Syntax> {
         None
@@ -198,7 +223,20 @@ impl dyn Buffer + '_ {
     #[inline]
     pub fn clear_undo(&mut self) {
         if let Some(h) = self.history_mut() {
-            h.clear_undo();
+            h.clear();
+        }
+    }
+
+    #[inline]
+    pub fn save(&mut self, flags: SnapshotFlags) {
+        if let Some(h) = self.history_mut() {
+            h.snapshot(flags)
+        }
+    }
+
+    pub fn save_cursor(&mut self, cursor: Point) {
+        if let Some(h) = self.history_mut() {
+            h.snapshot_cursor(cursor)
         }
     }
 }
@@ -266,8 +304,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn edit(&mut self, cursor: Point, delta: &Delta<'_>) {
-        self.as_mut().edit(cursor, delta)
+    fn edit(&mut self, delta: &Delta<'_>) {
+        self.as_mut().edit(delta)
     }
 
     #[inline]

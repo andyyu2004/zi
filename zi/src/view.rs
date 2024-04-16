@@ -262,6 +262,7 @@ impl View {
     // We want to instead move to the last non-newline character in the text.
     pub(crate) fn set_cursor_bytewise(
         &mut self,
+        mode: Mode,
         buf: &dyn Buffer,
         size: impl Into<Size>,
         mut byte: usize,
@@ -269,9 +270,9 @@ impl View {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
 
-        if byte >= text.len_bytes() {
-            // If the index is out of bounds, shift it back
-            assert!(byte == text.len_bytes(), "too far out of bounds");
+        let len = text.len_bytes();
+        if byte >= len && !matches!(mode, Mode::Insert) {
+            byte = len;
             let chars = text.chars().rev();
             for c in chars {
                 byte -= c.len_utf8();
@@ -279,17 +280,21 @@ impl View {
                     break;
                 }
             }
-        } else if byte > 0 && byte + 1 == text.len_bytes() && text.chars().last() == Some('\n') {
+        } else if byte > 0
+            && byte + 1 == text.len_bytes()
+            && text.chars().last() == Some('\n')
+            && !matches!(mode, Mode::Insert)
+        {
             // Another special case, we can't allow the cursor to be on the final newline.
             byte -= 1;
         }
 
         let pos = text.byte_to_point(byte);
 
-        #[cfg(debug_assertions)]
-        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
         self.cursor = Cursor::new(pos);
         self.ensure_scroll_in_bounds(size);
+        #[cfg(debug_assertions)]
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
     }
 
     #[inline]

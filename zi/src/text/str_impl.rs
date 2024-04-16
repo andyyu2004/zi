@@ -103,6 +103,15 @@ impl TextBase for str {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
         None
     }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        if byte_idx >= self.len() {
+            return None;
+        }
+
+        self[byte_idx..].chars().next()
+    }
 }
 
 impl TextBase for String {
@@ -128,6 +137,11 @@ impl TextBase for String {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
         Some(self)
+    }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        self.as_str().get_char(byte_idx)
     }
 }
 

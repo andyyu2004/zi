@@ -22,12 +22,6 @@ impl Editor {
         view.set_cursor_linewise(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
     }
 
-    pub(crate) fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
-        let view_id = selector.select(self);
-        let (view, buf) = get!(self: view_id);
-        let area = self.tree.view_area(view.id());
-        view.set_cursor_bytewise(buf, area, byte);
-    }
 
     #[inline]
     pub fn move_cursor(

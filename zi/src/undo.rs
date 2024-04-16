@@ -1,6 +1,7 @@
 // Just an undo stack for now
 #[derive(Debug)]
 pub(crate) struct UndoTree<T> {
+    // TODO depth limit
     revisions: Vec<T>,
     current: usize,
 }
@@ -38,3 +39,6 @@ impl<T> Default for UndoTree<T> {
         Self { revisions: Default::default(), current: 0 }
     }
 }
+
+#[cfg(test)]
+mod tests;

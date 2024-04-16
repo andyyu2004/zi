@@ -1,4 +1,20 @@
 ====
 abc def ghi
 ----
-cw
+cc
+
+==== ensure no extra newline is inserted during undo
+aA
+----
+ccB<ESC>u
+
+==== cc should not remove the newline
+a
+b
+
+d
+
+
+e
+----
+cccccccccccccccccccccccccccccccccccccccccccccc

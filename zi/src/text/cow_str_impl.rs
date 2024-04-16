@@ -25,4 +25,9 @@ impl TextBase for Cow<'_, str> {
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_ref().line_to_byte(line_idx)
     }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        self.as_ref().get_char(byte_idx)
+    }
 }

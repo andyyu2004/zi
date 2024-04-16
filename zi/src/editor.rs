@@ -28,7 +28,7 @@ use zi_lsp::{lsp_types, LanguageServer as _};
 
 use crate::buffer::{
     Buffer, BufferFlags, ExplorerBuffer, FilePicker, Injector, InspectorBuffer, Picker,
-    PickerBuffer, TextBuffer,
+    PickerBuffer, SnapshotFlags, TextBuffer, UndoEntry,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -41,7 +41,7 @@ use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
-use crate::textobject::{TextObject, TextObjectKind};
+use crate::textobject::{Inclusivity, TextObject, TextObjectKind};
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, textobject, trie, BufferId, Direction, Error, FileType,
@@ -85,6 +85,13 @@ impl Index<ViewId> for Editor {
     #[inline]
     fn index(&self, index: ViewId) -> &Self::Output {
         &self.views[index]
+    }
+}
+
+impl IndexMut<ViewId> for Editor {
+    #[inline]
+    fn index_mut(&mut self, index: ViewId) -> &mut Self::Output {
+        &mut self.views[index]
     }
 }
 
@@ -736,8 +743,9 @@ impl Editor {
         self.command.clear();
 
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
+            // Move cursor left when exiting insert mode
             let (view, buf) = get!(self);
-            // passing insert mode just to make some tests pass, not sure it generally makes sense
+            buf.save(SnapshotFlags::empty());
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
@@ -824,7 +832,7 @@ impl Editor {
         let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
         let start_byte_idx =
             byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
-        buf.edit(cursor, &Delta::delete(start_byte_idx..byte_idx));
+        buf.edit(&Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
         view.set_cursor_linewise(
@@ -860,11 +868,10 @@ impl Editor {
             return;
         }
 
-        let cursor = view.cursor();
-        tracing::error!(?cursor, ?delta, "edit");
-        buf.edit(cursor, delta);
+        buf.edit(delta);
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
+        let cursor = view.cursor();
         self.set_cursor(view_id, cursor);
 
         self.dispatch(event::DidChangeBuffer { buf });
@@ -901,52 +908,51 @@ impl Editor {
 
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
-        let view_id = view.id();
+        let saved_cursor = view.cursor();
+        let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
         let Mode::OperatorPending(operator) = self.mode else { return };
 
-        let text = buf.text();
-        let Ok(range) = obj.byte_range(text, text.point_to_byte(view.cursor())) else {
+        let text = self[buf].text();
+        let Ok(range) = obj.byte_range(text, text.point_to_byte(self[view].cursor())) else {
             return self.set_mode(Mode::Normal);
         };
 
-        let delta = match operator {
-            Operator::Delete | Operator::Change => Delta::delete(range.clone()),
+        let (delta, new_cursor) = match operator {
+            Operator::Delete | Operator::Change => {
+                // deletions moves the cursor to the start of the range
+                let delta = Delta::delete(range.clone());
+                (delta, Some(range.start))
+            }
             Operator::Yank => todo!(),
         };
 
-        let new_cursor = match operator {
-            // deletions moves the cursor to the start of the range
-            Operator::Delete | Operator::Change => Some(range.start),
-            Operator::Yank => None,
-        };
-
-        // `edit` saves the cursor position when pushing it to the undo tree
-        // - If we're editing linewise, we want to save the current cursor position.
-        // - If we're editing charwise, we want to save the cursor position after the edit.
-        // These rules are to roughly keep neovim compatibility (enough to pass some basic tests anyway)
-        match obj.kind() {
-            TextObjectKind::Linewise => {
-                self.edit(view_id, &delta);
-                if let Some(new_cursor) = new_cursor {
-                    self.set_cursor_bytewise(view_id, new_cursor);
-                }
-            }
-            TextObjectKind::Charwise => {
-                if let Some(new_cursor) = new_cursor {
-                    self.set_cursor_bytewise(view_id, new_cursor);
-                }
-                self.edit(view_id, &delta);
-            }
+        match operator {
+            // `c` snapshot the buffer before the edit, and delete saves it after
+            Operator::Change => self[buf].save(SnapshotFlags::ALLOW_EMPTY),
+            Operator::Yank | Operator::Delete => {}
         }
 
-        let mode = match operator {
-            Operator::Change => Mode::Insert,
-            Operator::Delete | Operator::Yank => Mode::Normal,
-        };
+        self.edit(view, &delta);
 
-        self.set_mode(mode);
+        match operator {
+            Operator::Change => self.set_mode(Mode::Insert),
+            Operator::Delete => {
+                match obj.kind() {
+                    TextObjectKind::Linewise => self[buf].save_cursor(saved_cursor),
+                    TextObjectKind::Charwise => {}
+                }
+                self[buf].save(SnapshotFlags::empty());
+                self.set_mode(Mode::Normal)
+            }
+            Operator::Yank => {}
+        }
+
+        if let Some(new_cursor) = new_cursor {
+            let (view, buf) = get!(self: view);
+            view.set_cursor_bytewise(self.mode, buf, self.tree.view_area(view.id()), new_cursor);
+        }
     }
 
     pub fn motion(&mut self, motion: impl Motion) {
@@ -957,30 +963,38 @@ impl Editor {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
                 if let Ok(byte) = motion.motion(text, text.point_to_byte(view.cursor())) {
-                    view.set_cursor_bytewise(buf, area, byte);
+                    view.set_cursor_bytewise(self.mode, buf, area, byte);
                 }
             }
         }
     }
 
     pub fn redo(&mut self, selector: impl Selector<ViewId>) {
-        let view = selector.select(self);
-        let (view, buf) = get!(self: view);
-        let Some(entry) = buf.redo() else { return };
-
-        let byte = buf.text().point_to_byte(entry.cursor);
-        let area = self.tree.view_area(view.id());
-        view.set_cursor_bytewise(buf, area, byte);
+        self.undoredo(selector, |buf| buf.redo())
     }
 
     pub fn undo(&mut self, selector: impl Selector<ViewId>) {
+        self.undoredo(selector, |buf| buf.undo())
+    }
+
+    fn undoredo(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        f: impl FnOnce(&mut dyn Buffer) -> Option<UndoEntry>,
+    ) {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
-        let Some(entry) = buf.undo() else { return };
+        let Some(entry) = f(buf) else { return };
 
+        let Some(fst) = entry.changes.first() else { return };
         let area = self.tree.view_area(view.id());
-        let byte = buf.text().point_to_byte(entry.cursor);
-        view.set_cursor_bytewise(buf, area, byte);
+        let text = buf.text();
+        let cursor = match entry.cursor {
+            Some(cursor) => text.point_to_byte(cursor),
+            None => text.point_or_byte_to_byte(fst.delta.range().start()),
+        };
+
+        view.set_cursor_bytewise(self.mode, buf, area, cursor);
     }
 
     // Don't think we want this to be a public api, used for tests for now
@@ -1808,8 +1822,12 @@ fn default_keymap() -> Keymap {
         editor.motion(motion::PrevWord);
     }
 
-    fn text_object_current_line(editor: &mut Editor) {
-        editor.text_object(textobject::Line);
+    fn text_object_current_line_inclusive(editor: &mut Editor) {
+        editor.text_object(textobject::Line(Inclusivity::Inclusive));
+    }
+
+    fn text_object_current_line_exclusive(editor: &mut Editor) {
+        editor.text_object(textobject::Line(Inclusivity::Exclusive));
     }
 
     fn append_eol(editor: &mut Editor) {
@@ -1920,13 +1938,13 @@ fn default_keymap() -> Keymap {
                     },
                 }),
                 Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
-                    "d" => text_object_current_line,
+                    "d" => text_object_current_line_inclusive,
                 })),
                 Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
-                    "c" => text_object_current_line,
+                    "c" => text_object_current_line_exclusive,
                 })),
                 Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
-                    "y" => text_object_current_line,
+                    "y" => text_object_current_line_exclusive,
                 })),
                 Mode::Normal => trie!({
                     "<C-o>" => jump_prev,

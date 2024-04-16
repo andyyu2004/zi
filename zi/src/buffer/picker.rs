@@ -219,7 +219,7 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         0
     }
 
-    fn edit(&mut self, _cursor: Point, delta: &Delta<'_>) {
+    fn edit(&mut self, delta: &Delta<'_>) {
         self.text.edit(delta);
 
         let search = self.text.to_string();

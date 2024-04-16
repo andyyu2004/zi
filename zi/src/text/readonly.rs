@@ -107,4 +107,9 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
     fn line_to_byte(&self, line_idx: usize) -> usize {
         self.as_str().line_to_byte(line_idx)
     }
+
+    #[inline]
+    fn get_char(&self, byte_idx: usize) -> Option<char> {
+        self.as_str().get_char(byte_idx)
+    }
 }

@@ -1,7 +1,7 @@
 use std::ops;
 
 use crate::motion::{Motion, MotionResult};
-use crate::text::AnyText;
+use crate::text::{AnyText, Text as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextObjectKind {
@@ -14,6 +14,7 @@ pub trait TextObject {
 
     #[inline]
     fn kind(&self) -> TextObjectKind {
+        // TODO may not always be true
         TextObjectKind::Charwise
     }
 }
@@ -25,7 +26,16 @@ impl<M: Motion> TextObject for M {
     }
 }
 
-pub struct Line;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Inclusivity {
+    Exclusive,
+    Inclusive,
+}
+
+/// A text object that represents a line.
+/// The line can be include or exclude the newline character.
+/// The exception is if the index is on the newline character, then it's included.
+pub struct Line(pub Inclusivity);
 
 impl TextObject for Line {
     #[inline]
@@ -38,10 +48,23 @@ impl TextObject for Line {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);
 
-        match text.try_line_to_byte(line_idx + 1) {
-            Some(end) => Ok(start..end),
-            // If the line is the last line, we want to include the previous newline
-            None => Ok(start.saturating_sub(1)..text.len_bytes()),
+        match self.0 {
+            Inclusivity::Exclusive => {
+                // Special case: if the byte is exactly on a newline, include it
+                if let Some('\n') = text.get_char(byte) {
+                    return Ok(byte..byte + 1);
+                }
+
+                let len = text.get_line(line_idx).map_or(0, |line| line.len_bytes());
+                Ok(start..start + len)
+            }
+            Inclusivity::Inclusive => {
+                match text.try_line_to_byte(line_idx + 1) {
+                    Some(end) => Ok(start..end),
+                    // If the line is the last line, we want to include the previous newline
+                    None => Ok(start.saturating_sub(1)..text.len_bytes()),
+                }
+            }
         }
     }
 }
