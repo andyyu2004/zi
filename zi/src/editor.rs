@@ -59,7 +59,7 @@ bitflags::bitflags! {
 
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
-    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer + Send>>,
+    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     mode: Mode,
@@ -159,7 +159,8 @@ macro_rules! get {
     }};
     ($editor:ident: $view:expr) => {{
         let view = &mut $editor.views[$view];
-        let buf = &mut $editor.buffers[view.buffer()];
+        // cast away the `Send` bound
+        let buf = &mut *$editor.buffers[view.buffer()] as &mut dyn $crate::buffer::Buffer;
         (view, buf)
     }};
 }
@@ -764,7 +765,7 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &(dyn Buffer + Send)> {
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &dyn Buffer> {
         self.buffers.values().map(|b| b.as_ref())
     }
 
@@ -1229,10 +1230,7 @@ impl Editor {
         })
     }
 
-    pub fn create_buffer(
-        &mut self,
-        mk: impl FnOnce(BufferId) -> Box<dyn Buffer + Send>,
-    ) -> BufferId {
+    pub fn create_buffer(&mut self, mk: impl FnOnce(BufferId) -> Box<dyn Buffer>) -> BufferId {
         self.buffers.insert_with_key(mk)
     }
 

@@ -370,6 +370,8 @@ impl PluginHost {
 mod test {
     use std::path::Path;
 
+    use tokio::task::LocalSet;
+
     use super::*;
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
     use crate::Editor;
@@ -399,37 +401,43 @@ mod test {
 
         let mut store = Store::new(engine, editor.client());
 
-        tokio::spawn(editor.test_run(tasks));
+        let local = LocalSet::new();
+        local.spawn_local(editor.test_run(tasks));
 
-        let plugins = load(engine, &mut store, &["../runtime/plugins/plugin_test.wasm"]).await?;
+        local
+            .run_until(async move {
+                let plugins =
+                    load(engine, &mut store, &["../runtime/plugins/plugin_test.wasm"]).await?;
 
-        for plugin in &plugins[..] {
-            let dep = plugin.zi_api_dependency();
-            assert_eq!(dep.call_get_name(&mut store).await?, "test");
-            assert!(dep.call_dependencies(&mut store).await?.is_empty());
+                for plugin in &plugins[..] {
+                    let dep = plugin.zi_api_dependency();
+                    assert_eq!(dep.call_get_name(&mut store).await?, "test");
+                    assert!(dep.call_dependencies(&mut store).await?.is_empty());
 
-            let lifecycle = plugin.zi_api_lifecycle();
-            let init = lifecycle.call_initialize(&mut store).await?;
+                    let lifecycle = plugin.zi_api_lifecycle();
+                    let init = lifecycle.call_initialize(&mut store).await?;
 
-            use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
-            assert_eq!(
-                init,
-                InitializeResult {
-                    commands: vec![Command {
-                        name: "foo".into(),
-                        arity: Arity { min: 0, max: 1 },
-                        opts: CommandFlags::RANGE
-                    }]
+                    use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
+                    assert_eq!(
+                        init,
+                        InitializeResult {
+                            commands: vec![Command {
+                                name: "foo".into(),
+                                arity: Arity { min: 0, max: 1 },
+                                opts: CommandFlags::RANGE
+                            }]
+                        }
+                    );
+                    let handler = plugin.zi_api_command().handler();
+                    let handler_resource = handler.call_constructor(&mut store).await?;
+                    handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;
+                    handler_resource.resource_drop_async(&mut store).await?;
+
+                    lifecycle.call_shutdown(&mut store).await?;
                 }
-            );
-            let handler = plugin.zi_api_command().handler();
-            let handler_resource = handler.call_constructor(&mut store).await?;
-            handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;
-            handler_resource.resource_drop_async(&mut store).await?;
 
-            lifecycle.call_shutdown(&mut store).await?;
-        }
-
-        Ok(())
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
     }
 }
