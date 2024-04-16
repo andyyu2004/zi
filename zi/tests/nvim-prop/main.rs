@@ -38,7 +38,7 @@ t!(r"(?s)[ a-z]*", "<ESC>", nvim_test);
 t!(r"(?s)[ -~]*", "[WBjk]+", nvim_token_motions);
 t!(r"(?s)[ -~]*", "[dWBjk]+", nvim_delete_operator);
 t!(r"(?s)[ -~]*", "([dWBjk]|(<ESC>))+u", nvim_undo_delete);
-// t!(r"(?s)[ -~]*", "([abucdWBjk]|(<ESC>))+", nvim_undo);
+t!(r"(?s)[ -~]*", "([abucdWBjk]|(<ESC>))+", nvim_undo);
 
 #[track_caller]
 fn run(text: String, inputs: String) {

@@ -1,6 +1,6 @@
 use std::ops;
 
-use crate::motion::Motion;
+use crate::motion::{Motion, MotionResult};
 use crate::text::AnyText;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,7 +10,7 @@ pub enum TextObjectKind {
 }
 
 pub trait TextObject {
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize>;
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>>;
 
     #[inline]
     fn kind(&self) -> TextObjectKind {
@@ -20,7 +20,7 @@ pub trait TextObject {
 
 impl<M: Motion> TextObject for M {
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, a: usize) -> ops::Range<usize> {
+    fn byte_range(&self, text: &dyn AnyText, a: usize) -> MotionResult<ops::Range<usize>> {
         self.byte_range(text, a)
     }
 }
@@ -34,14 +34,14 @@ impl TextObject for Line {
     }
 
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> ops::Range<usize> {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);
 
         match text.try_line_to_byte(line_idx + 1) {
-            Some(end) => start..end,
+            Some(end) => Ok(start..end),
             // If the line is the last line, we want to include the previous newline
-            None => start.saturating_sub(1)..text.len_bytes(),
+            None => Ok(start.saturating_sub(1)..text.len_bytes()),
         }
     }
 }

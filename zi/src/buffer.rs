@@ -82,9 +82,12 @@ impl Resource for dyn Buffer {
 // Should also not be public (however needs to be because it's exposed by the buffer trait for now)
 #[derive(Clone, Debug)]
 pub struct UndoEntry {
+    /// The saved cursor position
     pub cursor: Point,
+    /// The delta that was applied
     pub delta: Delta<'static>,
-    pub inverse_delta: Delta<'static>,
+    /// The delta that can be applied to undo the operation
+    pub inversion: Delta<'static>,
 }
 
 pub trait Buffer {

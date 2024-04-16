@@ -906,7 +906,10 @@ impl Editor {
         let Mode::OperatorPending(operator) = self.mode else { return };
 
         let text = buf.text();
-        let range = obj.byte_range(text, text.point_to_byte(view.cursor()));
+        let Ok(range) = obj.byte_range(text, text.point_to_byte(view.cursor())) else {
+            return self.set_mode(Mode::Normal);
+        };
+
         let delta = match operator {
             Operator::Delete | Operator::Change => Delta::delete(range.clone()),
             Operator::Yank => todo!(),
@@ -951,9 +954,10 @@ impl Editor {
             Mode::OperatorPending(_) => self.text_object(motion),
             _ => {
                 let text = buf.text();
-                let byte = motion.motion(text, text.point_to_byte(view.cursor()));
                 let area = self.tree.view_area(view.id());
-                view.set_cursor_bytewise(buf, area, byte);
+                if let Ok(byte) = motion.motion(text, text.point_to_byte(view.cursor())) {
+                    view.set_cursor_bytewise(buf, area, byte);
+                }
             }
         }
     }

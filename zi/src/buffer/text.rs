@@ -79,9 +79,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         // Nothing to undo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
 
-        tracing::debug!("{:#?}", self.undo_tree);
         let entry = self.undo_tree.undo().cloned()?;
-        self.edit(entry.cursor, &entry.inverse_delta, EditFlags::NO_APPEND_NEWLINE);
+        self.edit(entry.cursor, &entry.inversion, EditFlags::NO_APPEND_NEWLINE);
         Some(entry)
     }
 
@@ -239,18 +238,14 @@ impl<X: Text> TextBuffer<X> {
                     text.edit(&Delta::insert_at(text.len_bytes(), "\n"));
                 }
 
-                let (inverse_delta, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
+                let (inversion, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)
                 } else {
                     (text.edit(delta), None)
                 };
 
                 if flags.contains(EditFlags::PUSH_UNDO) {
-                    self.undo_tree.push(UndoEntry {
-                        cursor,
-                        delta: delta.to_owned(),
-                        inverse_delta,
-                    });
+                    self.undo_tree.push(UndoEntry { cursor, delta: delta.to_owned(), inversion });
 
                     tracing::debug!("{:#?}", self.undo_tree);
                 }

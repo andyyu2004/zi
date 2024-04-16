@@ -53,7 +53,7 @@ impl Default for Theme {
                 ("constructor", Some(0xbf8a4a00), None),
                 ("type", Some(0x268bd200), None),
                 ("variable.builtin", Some(0xbf693000), None),
-                ("variable", Some(0x39a6b900), None),
+                ("variable", Some(0x83949600), None),
                 ("function.builtin", Some(0x298cba00), None),
                 ("parameter", Some(0x4698b100), None),
                 ("constant", Some(0xbb8b5000), None),

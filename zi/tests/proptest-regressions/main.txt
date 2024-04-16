@@ -22,3 +22,4 @@ cc 7796f14f58b60d01d2025e8c37e72dfd1b253a41dd595623b74a393c81d3614a # shrinks to
 cc 5c1bb78b22d5785e539928cc692259ba5f2c49fa4e5d6ef7570702ae16babec0 # shrinks to text = " A", inputs = "WdW"
 cc 974daae52f46042e8b649e0715e72fec49d17c84c00f0d00510673724fc8ce4a # shrinks to text = " A", inputs = "WdBu"
 cc 14ad783f5465bf4a78110ed40ee66edbdb90c4b9a5859e793b67206b89a4931f # shrinks to text = "0", inputs = "dWdWdWuu"
+cc b73a5c82ae90fb0f27a40e0e3f043979cffd4d242099e36067e9dd4c423c22ab # shrinks to text = " ", inputs = "ddddu"
