@@ -90,6 +90,14 @@ pub struct UndoEntry {
     pub inversion: Delta<'static>,
 }
 
+pub trait BufferHistory {
+    fn undo(&mut self) -> Option<UndoEntry>;
+
+    fn redo(&mut self) -> Option<UndoEntry>;
+
+    fn clear_undo(&mut self);
+}
+
 pub trait Buffer {
     fn id(&self) -> BufferId;
 
@@ -113,15 +121,9 @@ pub trait Buffer {
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn redo(&mut self) -> Option<UndoEntry> {
+    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
         None
     }
-
-    fn undo(&mut self) -> Option<UndoEntry> {
-        None
-    }
-
-    fn clear_undo(&mut self) {}
 
     /// Edit the buffer with a delta.
     /// The cursor is the current cursor position in the buffer as of the edit.
@@ -182,8 +184,27 @@ pub trait Buffer {
     }
 }
 
+impl dyn Buffer + '_ {
+    #[inline]
+    pub fn redo(&mut self) -> Option<UndoEntry> {
+        self.history_mut().and_then(|h| h.redo())
+    }
+
+    #[inline]
+    pub fn undo(&mut self) -> Option<UndoEntry> {
+        self.history_mut().and_then(|h| h.undo())
+    }
+
+    #[inline]
+    pub fn clear_undo(&mut self) {
+        if let Some(h) = self.history_mut() {
+            h.clear_undo();
+        }
+    }
+}
+
 // NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
-impl Buffer for Box<dyn Buffer + Send> {
+impl Buffer for Box<dyn Buffer> {
     #[inline]
     fn id(&self) -> BufferId {
         self.as_ref().id()
@@ -250,18 +271,8 @@ impl Buffer for Box<dyn Buffer + Send> {
     }
 
     #[inline]
-    fn undo(&mut self) -> Option<UndoEntry> {
-        self.as_mut().undo()
-    }
-
-    #[inline]
-    fn redo(&mut self) -> Option<UndoEntry> {
-        self.as_mut().redo()
-    }
-
-    #[inline]
-    fn clear_undo(&mut self) {
-        self.as_mut().clear_undo()
+    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
+        self.as_mut().history_mut()
     }
 
     #[inline]

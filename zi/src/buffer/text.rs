@@ -21,6 +21,30 @@ pub struct TextBuffer<X> {
     undo_tree: UndoTree<UndoEntry>,
 }
 
+impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
+    fn undo(&mut self) -> Option<UndoEntry> {
+        // Nothing to undo if the buffer is readonly
+        let _text = self.text.as_text_mut()?;
+
+        let entry = self.undo_tree.undo().cloned()?;
+        self.edit(entry.cursor, &entry.inversion, EditFlags::NO_APPEND_NEWLINE);
+        Some(entry)
+    }
+
+    fn redo(&mut self) -> Option<UndoEntry> {
+        // Nothing to redo if the buffer is readonly
+        let _text = self.text.as_text_mut()?;
+
+        let entry = self.undo_tree.redo().cloned()?;
+        self.edit(entry.cursor, &entry.delta, EditFlags::NO_APPEND_NEWLINE);
+        Some(entry)
+    }
+
+    fn clear_undo(&mut self) {
+        self.undo_tree.clear();
+    }
+}
+
 impl<X: Text + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
@@ -75,26 +99,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         self.version
     }
 
-    fn undo(&mut self) -> Option<UndoEntry> {
-        // Nothing to undo if the buffer is readonly
-        let _text = self.text.as_text_mut()?;
-
-        let entry = self.undo_tree.undo().cloned()?;
-        self.edit(entry.cursor, &entry.inversion, EditFlags::NO_APPEND_NEWLINE);
-        Some(entry)
-    }
-
-    fn redo(&mut self) -> Option<UndoEntry> {
-        // Nothing to redo if the buffer is readonly
-        let _text = self.text.as_text_mut()?;
-
-        let entry = self.undo_tree.redo().cloned()?;
-        self.edit(entry.cursor, &entry.delta, EditFlags::NO_APPEND_NEWLINE);
-        Some(entry)
-    }
-
-    fn clear_undo(&mut self) {
-        self.undo_tree.clear();
+    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
+        Some(self)
     }
 
     fn syntax_highlights<'a>(
