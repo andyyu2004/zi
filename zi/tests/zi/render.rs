@@ -12,7 +12,7 @@ pub fn new_with_snapshot(
     let (mut editor, _tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
     for c in content.chars() {
-        editor.insert_char(c);
+        editor.insert_char_at_cursor(c);
     }
 
     let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();

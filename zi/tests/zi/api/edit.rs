@@ -9,14 +9,14 @@ fn delete_char_backward() {
 
     // ensure that multi-byte characters are handled correctly
     let c = '\u{100000}';
-    editor.insert_char(c);
+    editor.insert_char_at_cursor(c);
     assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8() as u32));
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
 
-    editor.insert_char('a');
-    editor.insert_char('b');
-    editor.insert_char('c');
+    editor.insert_char_at_cursor('a');
+    editor.insert_char_at_cursor('b');
+    editor.insert_char_at_cursor('c');
 
     // works on single line
     assert_eq!(editor.current_line(), "abc");
@@ -30,7 +30,7 @@ fn delete_char_backward() {
     assert_eq!(editor.current_line(), "a");
     assert_eq!(editor.cursor(zi::Active), (0, 1));
 
-    editor.insert_char('x');
+    editor.insert_char_at_cursor('x');
     assert_eq!(editor.current_line(), "ax");
     assert_eq!(editor.cursor(zi::Active), (0, 2));
 
@@ -47,7 +47,7 @@ fn delete_char_backward() {
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     // works on multiple lines
-    editor.insert("abc\nd");
+    editor.insert_at_cursor("abc\nd");
     assert_eq!(editor.current_line(), "d");
     editor.delete_char_backward();
     assert_eq!(editor.current_line(), "");
@@ -110,9 +110,9 @@ fn insert_char() {
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     assert_eq!(editor.cursor(zi::Active), (0, 0));
-    editor.insert_char('a');
+    editor.insert_char_at_cursor('a');
     assert_eq!(editor.cursor(zi::Active), (0, 1));
-    editor.insert_char('b');
+    editor.insert_char_at_cursor('b');
     assert_eq!(editor.cursor(zi::Active), (0, 2));
     assert_eq!(editor.current_line(), "ab");
 
@@ -134,7 +134,7 @@ fn insert_into_readonly() -> zi::Result<()> {
 
     assert!(editor.get_error().is_none());
 
-    editor.insert("def");
+    editor.insert_at_cursor("def");
 
     assert_eq!(editor.buffer(buf).text().to_string(), "");
     assert!(editor.get_error().is_some());

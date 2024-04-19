@@ -15,9 +15,9 @@ rustc-hash = "1.1.0"
 slotmap = "1.0.7"
 tokio = { version = "1.36.0", default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = "0.1.40"
-tree-sitter = { version = "0.22.2", features = ["wasm"] }
+tree-sitter = { version = "0.22.5", features = ["wasm"] }
 unicode-width = "0.1.11"
-wasmtime = { version = "18.0.4", features = ["component-model"] }
+wasmtime = { version = "19", features = ["component-model"] }
 zi-lsp = { path = "../zi-lsp" }
 tui = { path = "../zi-tui", package = "zi-tui" }
 nucleo = "0.4.0"

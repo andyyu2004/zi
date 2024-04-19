@@ -688,7 +688,7 @@ impl Editor {
                 for event in buffered {
                     match event.code() {
                         KeyCode::Char(c) => match self.mode {
-                            Mode::Insert => self.insert_char(c),
+                            Mode::Insert => self.insert_char_at_cursor(c),
                             Mode::Command => self.command.push(c),
                             _ => unreachable!(),
                         },
@@ -844,7 +844,7 @@ impl Editor {
         );
     }
 
-    pub fn insert_char(&mut self, c: char) {
+    pub fn insert_char_at_cursor(&mut self, c: char) {
         let mut cbuf = [0; 4];
         let view = self.view(Active);
         let cursor = view.cursor();
@@ -881,9 +881,9 @@ impl Editor {
         event::dispatch(self, event);
     }
 
-    pub fn insert(&mut self, s: &str) {
-        for c in s.chars() {
-            self.insert_char(c);
+    pub fn insert_at_cursor(&mut self, text: &str) {
+        for c in text.chars() {
+            self.insert_char_at_cursor(c);
         }
     }
 
@@ -1750,7 +1750,7 @@ fn default_keymap() -> Keymap {
     }
 
     fn insert_newline(editor: &mut Editor) {
-        editor.insert_char('\n');
+        editor.insert_char_at_cursor('\n');
     }
 
     fn normal_mode(editor: &mut Editor) {
@@ -1803,7 +1803,7 @@ fn default_keymap() -> Keymap {
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
-        editor.insert_char('\n');
+        editor.insert_char_at_cursor('\n');
     }
 
     fn motion_next_token(editor: &mut Editor) {

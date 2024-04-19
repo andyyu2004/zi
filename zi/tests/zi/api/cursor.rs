@@ -132,7 +132,7 @@ fn cursor_with_scroll() {
 fn cursor_newline() {
     let mut editor = new("");
     editor.set_mode(zi::Mode::Insert);
-    editor.insert_char('\n');
+    editor.insert_char_at_cursor('\n');
     assert_eq!(editor.cursor(zi::Active), (1, 0));
 }
 

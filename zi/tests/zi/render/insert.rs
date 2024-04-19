@@ -17,7 +17,7 @@ fn insert_newline_in_blank_buffer() {
     "#]],
     );
 
-    editor.insert_char('\n');
+    editor.insert_char_at_cursor('\n');
     snapshot(
         &mut editor,
         expect![[r#"
