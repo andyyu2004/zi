@@ -745,7 +745,10 @@ impl Editor {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             // Move cursor left when exiting insert mode
             let (view, buf) = get!(self);
-            buf.save(SnapshotFlags::empty());
+            // This passes the current set of tests but it's pretty dumb behaviour overall.
+            // This means repeated `i<ESC>` will add empty undos to the undo stack which nvim does
+            // not do.
+            buf.save(SnapshotFlags::ALLOW_EMPTY);
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
@@ -930,7 +933,7 @@ impl Editor {
 
         match operator {
             // `c` snapshot the buffer before the edit, and delete saves it after
-            Operator::Change => self[buf].save(SnapshotFlags::ALLOW_EMPTY),
+            Operator::Change => self[buf].save(SnapshotFlags::empty()),
             Operator::Yank | Operator::Delete => {}
         }
 

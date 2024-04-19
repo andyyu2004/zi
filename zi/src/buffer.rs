@@ -42,6 +42,7 @@ bitflags::bitflags! {
         const READONLY = 0b0000_0001;
     }
 
+    #[derive(Debug, Clone, Copy)]
     pub struct SnapshotFlags: u8 {
         const ALLOW_EMPTY = 0b0000_0001;
     }

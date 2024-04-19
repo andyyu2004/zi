@@ -1,11 +1,11 @@
 use std::borrow::Cow;
-use std::ops;
 use std::ops::RangeBounds;
+use std::{fmt, ops};
 
 use super::Text;
 use crate::{Point, Range};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Delta<'a> {
     /// The range to replace
     range: DeltaRange,
@@ -13,12 +13,27 @@ pub struct Delta<'a> {
     text: Cow<'a, str>,
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for Delta<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} => {:?}", self.range, self.text)
+    }
+}
+
+#[derive(Clone)]
 pub enum DeltaRange {
     /// The point range to replace
     Point(Range),
     /// The byte range to replace
     Byte(ops::Range<usize>),
+}
+
+impl fmt::Debug for DeltaRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Point(r) => write!(f, "{r:?}"),
+            Self::Byte(r) => write!(f, "{r:?}"),
+        }
+    }
 }
 
 impl DeltaRange {

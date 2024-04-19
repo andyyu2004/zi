@@ -30,9 +30,10 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
         // Nothing to undo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
 
+        tracing::debug!("undo: {:#?}", self.undo_tree);
+
         let entry = self.undo_tree.undo().cloned()?;
         for change in entry.changes.iter().rev() {
-            tracing::error!("undoing change: {:?}", change);
             self.edit(&change.inversion, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
         }
 
@@ -42,6 +43,8 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     fn redo(&mut self) -> Option<UndoEntry> {
         // Nothing to redo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
+
+        tracing::debug!("redo: {:#?}", self.undo_tree);
 
         let entry = self.undo_tree.redo().cloned()?;
         for change in entry.changes.iter() {
@@ -62,6 +65,7 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
         }
 
         let changes = mem::take(&mut self.changes);
+        tracing::debug!(?flags, ?changes, "snapshot buffer");
         self.undo_tree
             .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
     }
@@ -269,6 +273,8 @@ impl<X: Text> TextBuffer<X> {
         if delta.is_identity() {
             return;
         }
+
+        tracing::debug!(?flags, ?delta, "edit buffer");
 
         if !flags.contains(EditFlags::NO_ENSURE_NEWLINE)
             && !delta.text().is_empty()
