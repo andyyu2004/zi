@@ -16,7 +16,6 @@ pub struct TextBuffer<X> {
     text: X,
     language_id: FileType,
     syntax: Option<Syntax>,
-    // FIXME highlight map doesn't belong here
     highlight_map: HighlightMap,
     version: u32,
     tab_width: u8,
