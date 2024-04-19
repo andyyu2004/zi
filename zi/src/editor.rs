@@ -40,7 +40,7 @@ use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
-use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
+use crate::text::{Delta, PointOrByte, ReadonlyText, Text as _, TextSlice};
 use crate::textobject::{Inclusivity, TextObject, TextObjectKind};
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
@@ -197,8 +197,6 @@ macro_rules! get_ref {
 }
 
 pub(crate) use {get, get_ref};
-
-use self::cursor::SetCursorFlags;
 
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
@@ -838,13 +836,7 @@ impl Editor {
         buf.edit(&Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
-        view.set_cursor_linewise(
-            self.mode,
-            self.tree.view_area(view.id()),
-            buf,
-            new_cursor,
-            SetCursorFlags::empty(),
-        );
+        view.set_cursor_linewise(self.mode, self.tree.view_area(view.id()), buf, new_cursor);
     }
 
     pub fn insert_char_at_cursor(&mut self, c: char) {
@@ -924,9 +916,15 @@ impl Editor {
 
         let (delta, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
-                // deletions moves the cursor to the start of the range
                 let delta = Delta::delete(range.clone());
-                (delta, Some(range.start))
+                match obj.kind() {
+                    TextObjectKind::Linewise => {
+                        // If we deleted the last line we want to move the cursor up but maintain the column
+                        (delta, Some(PointOrByte::Point(self[view].cursor())))
+                    }
+                    // charwise deletions moves the cursor to the start of the range
+                    TextObjectKind::Charwise => (delta, Some(PointOrByte::Byte(range.start))),
+                }
             }
             Operator::Yank => todo!(),
         };
@@ -954,7 +952,15 @@ impl Editor {
 
         if let Some(new_cursor) = new_cursor {
             let (view, buf) = get!(self: view);
-            view.set_cursor_bytewise(self.mode, buf, self.tree.view_area(view.id()), new_cursor);
+            let area = self.tree.view_area(view.id());
+            match new_cursor {
+                PointOrByte::Point(point) => {
+                    view.set_cursor_linewise(self.mode, area, buf, point);
+                }
+                PointOrByte::Byte(byte) => {
+                    view.set_cursor_bytewise(self.mode, area, buf, byte);
+                }
+            }
         }
     }
 
@@ -966,7 +972,7 @@ impl Editor {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
                 if let Ok(byte) = motion.motion(text, text.point_to_byte(view.cursor())) {
-                    view.set_cursor_bytewise(self.mode, buf, area, byte);
+                    view.set_cursor_bytewise(self.mode, area, buf, byte);
                 }
             }
         }
@@ -997,7 +1003,7 @@ impl Editor {
             None => text.point_or_byte_to_byte(fst.delta.range().start()),
         };
 
-        view.set_cursor_bytewise(self.mode, buf, area, cursor);
+        view.set_cursor_bytewise(self.mode, area, buf, cursor);
     }
 
     // Don't think we want this to be a public api, used for tests for now

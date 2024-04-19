@@ -34,7 +34,6 @@ pub enum Inclusivity {
 
 /// A text object that represents a line.
 /// The line can be include or exclude the newline character.
-/// The exception is if the index is on the newline character, then it's included.
 pub struct Line(pub Inclusivity);
 
 impl TextObject for Line {
@@ -50,11 +49,6 @@ impl TextObject for Line {
 
         match self.0 {
             Inclusivity::Exclusive => {
-                // Special case: if the byte is exactly on a newline, include it
-                if let Some('\n') = text.get_char(byte) {
-                    return Ok(byte..byte + 1);
-                }
-
                 let len = text.get_line(line_idx).map_or(0, |line| line.len_bytes());
                 Ok(start..start + len)
             }

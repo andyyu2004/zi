@@ -3,7 +3,6 @@ use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
 use crate::buffer::Buffer;
-use crate::editor::cursor::SetCursorFlags;
 use crate::editor::{Resource, Selector};
 use crate::position::{Offset, RangeMergeIter, Size};
 use crate::private::Sealed;
@@ -13,6 +12,13 @@ use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, U
 slotmap::new_key_type! {
     pub struct ViewId;
     pub struct ViewGroupId;
+}
+
+bitflags::bitflags! {
+    // A bunch of hacks, don't make this public
+    struct SetCursorFlags: u8 {
+        const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,7 +260,7 @@ impl View {
             SetCursorFlags::empty()
         };
 
-        self.set_cursor_linewise(mode, size, buf, pos, flags)
+        self.set_cursor_linewise_inner(mode, size, buf, pos, flags)
     }
 
     // HACK clean this up and try not have two different implementations for a cursor move.
@@ -263,8 +269,8 @@ impl View {
     pub(crate) fn set_cursor_bytewise(
         &mut self,
         mode: Mode,
-        buf: &dyn Buffer,
         size: impl Into<Size>,
+        buf: &dyn Buffer,
         mut byte: usize,
     ) {
         assert_eq!(buf.id(), self.buf);
@@ -299,6 +305,17 @@ impl View {
 
     #[inline]
     pub(crate) fn set_cursor_linewise(
+        &mut self,
+        mode: Mode,
+        size: impl Into<Size>,
+        buf: &dyn Buffer,
+        pos: Point,
+    ) -> Point {
+        self.set_cursor_linewise_inner(mode, size, buf, pos, SetCursorFlags::empty())
+    }
+
+    #[inline]
+    fn set_cursor_linewise_inner(
         &mut self,
         mode: Mode,
         size: impl Into<Size>,

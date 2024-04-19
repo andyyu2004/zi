@@ -35,6 +35,7 @@ pub trait Motion {
         Ok(text.byte_to_point(byte))
     }
 
+    #[inline]
     fn repeated(self, n: usize) -> Repeated<Self>
     where
         Self: Sized,
@@ -44,8 +45,14 @@ pub trait Motion {
 }
 
 impl<M: Motion> Motion for &M {
+    #[inline]
     fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
         (**self).motion(text, byte)
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
+        (**self).byte_range(text, byte)
     }
 }
 
@@ -68,9 +75,13 @@ fn copy<T: Copy>(&x: &T) -> T {
 }
 
 trait CharExt {
-    /// Returns true if the character is a word separator. This is whitespace, `-`, and `_`.
+    /// Returns true if the character is a word separator.
     #[allow(clippy::wrong_self_convention)]
     fn is_word_separator(self) -> bool;
+
+    /// Returns true if the character is a token separator.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_token_separator(self) -> bool;
 
     /// Returns true if the character is a word start.
     /// This includes non-alphanumeric characters and capital letters.
@@ -82,6 +93,11 @@ impl CharExt for char {
     #[inline]
     fn is_word_separator(self) -> bool {
         self.is_whitespace() || !self.is_alphanumeric()
+    }
+
+    #[inline]
+    fn is_token_separator(self) -> bool {
+        self.is_whitespace()
     }
 
     #[inline]
@@ -119,9 +135,12 @@ impl Motion for Prev {
         while let Some([c, next]) = windows.next() {
             byte -= c.len_utf8();
 
-            if ((self.is_sep)(next) || (self.is_start)(c, next))
-                && (!(self.is_sep)(c) || !(self.is_sep)(next))
-            {
+            if matches!((c, next), ('\n', '\n')) {
+                break;
+            }
+
+            // Stop if we're about to hit a separator or newline, or at a word start, unless We're currently on a separator.
+            if ((self.is_sep)(next) || (self.is_start)(c, next)) && !(self.is_sep)(c) {
                 break;
             }
 
@@ -212,40 +231,53 @@ impl Motion for PrevWord {
 pub struct NextToken;
 
 impl NextToken {
-    fn mv(&self, text: &dyn AnyText, mut byte: usize) -> (usize, bool) {
+    // from `:h w`
+    // Another special case: When using the "w" motion in combination with an
+    // operator and the last word moved over is at the end of a line, the end of
+    // that word becomes the end of the operated text, not the first word in the
+    // next line.
+    fn mv(&self, text: &dyn AnyText, mut byte: usize, stop_before_newline: bool) -> usize {
         let chars = text.byte_slice(byte..).chars();
 
-        let mut found_whitespace = false;
+        let start_byte = byte;
+
+        let mut found_sep = false;
+        let mut prev_char = None;
         for c in chars {
-            if found_whitespace && !c.is_whitespace() {
+            if found_sep && !c.is_token_separator() {
                 break;
             }
 
-            found_whitespace |= c.is_whitespace();
-            byte += c.len_utf8();
-            if c == '\n' {
-                return (byte, true);
+            // empty lines are considered a word
+            if prev_char == Some('\n') && c == '\n' {
+                break;
             }
+
+            if stop_before_newline && c == '\n' && byte != start_byte {
+                break;
+            }
+
+            found_sep |= c.is_token_separator();
+            byte += c.len_utf8();
+
+            prev_char = Some(c);
         }
 
-        (byte, false)
+        assert!(byte > start_byte, "next_token motion should always move at least one byte");
+        byte
     }
 }
 
 impl Motion for NextToken {
     #[inline]
     fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
-        Ok(self.mv(text, byte).0)
+        Ok(self.mv(text, byte, false))
     }
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> MotionResult<ops::Range<usize>> {
-        let (end, just_crossed_newline) = self.mv(text, start);
-        if just_crossed_newline && end > start + 1 {
-            Ok(start..end.saturating_sub(1))
-        } else {
-            Ok(start..end)
-        }
+        let end = self.mv(text, start, true);
+        Ok(start..end)
     }
 }
 

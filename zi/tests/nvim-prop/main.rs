@@ -38,14 +38,15 @@ macro_rules! t {
 // We probably want to implement something closer to vim-wordmotion by default
 // t!(r"(?s)[ -~]*", "[wbjk]+", nvim_word_motions);
 
-const I: &str = r"(?s)[A-z][ -~]*[A-z]";
+const I: &str = r"(?s)[A-z][ -~\n]*[A-z]";
 
+// TODO add hjkl motions to tests once implemented as motions
 t!(I, "<ESC>", nvim_test);
 t!(I, "[WBjk]+", nvim_token_motions);
-t!(I, "[dWBjk]+", nvim_delete_operator);
+t!(I, "[dWB]+", nvim_delete_word);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
-t!(I, "d([WBjk]|(<ESC>))+u<ESC>", nvim_undo_delete);
-t!(I, "([ucdWBjk]|(<ESC>))+<ESC>", nvim_undo);
+t!(I, "d([WB]|(<ESC>))+u<ESC>", nvim_undo_delete_word);
+t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 
 #[test]
 fn scratch() {
