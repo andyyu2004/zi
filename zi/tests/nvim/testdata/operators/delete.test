@@ -19,3 +19,8 @@ a
 b
 ----
 dWdWdWdW
+
+====
+a
+----
+o<ESC>dW

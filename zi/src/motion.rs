@@ -277,13 +277,12 @@ impl NextToken {
     // that word becomes the end of the operated text, not the first word in the
     // next line.
     fn mv(&self, text: &dyn AnyText, mut byte: usize, stop_before_newline: bool) -> usize {
-        let chars = text.byte_slice(byte..).chars();
-
+        let mut chars = text.byte_slice(byte..).chars().peekable();
         let start_byte = byte;
 
         let mut found_sep = false;
         let mut prev_char = None;
-        for c in chars {
+        while let Some(c) = chars.next() {
             if found_sep && !c.is_token_separator() {
                 break;
             }
@@ -293,7 +292,7 @@ impl NextToken {
                 break;
             }
 
-            if stop_before_newline && c == '\n' && byte != start_byte {
+            if stop_before_newline && c == '\n' && (byte > start_byte || chars.peek().is_none()) {
                 break;
             }
 

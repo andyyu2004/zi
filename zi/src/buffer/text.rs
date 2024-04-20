@@ -269,23 +269,26 @@ impl<X: Text> TextBuffer<X> {
         }
     }
 
+    // Ensure the buffer still with a newline.
+    // It's fine to do this without editing the syntax as a trailing
+    // newline won't affect it.
+    fn ensure_trailing_newline(&mut self) {
+        if self.text.chars().next_back() != Some('\n') {
+            let len = self.text.len_bytes();
+            self.edit(&Delta::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
+        }
+    }
+
     fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
         if delta.is_identity() {
             return;
         }
 
-        tracing::debug!(?flags, ?delta, "edit buffer");
-
-        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE)
-            && !delta.text().is_empty()
-            && self.text.chars().next_back() != Some('\n')
-        {
-            // Ensure the buffer ends with a newline before any insert.
-            // It's fine to do this without editing the syntax as a trailing
-            // newline won't affect it.
-            let len = self.text.len_bytes();
-            self.edit(&Delta::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
+        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE) {
+            self.ensure_trailing_newline();
         }
+
+        tracing::debug!(?flags, ?delta, "edit buffer");
 
         match self.text.as_text_mut() {
             Some(text) => {
@@ -312,5 +315,7 @@ impl<X: Text> TextBuffer<X> {
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
+
+        self.ensure_trailing_newline();
     }
 }

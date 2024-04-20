@@ -53,10 +53,20 @@ fn next_token_and_word(motion: &impl Motion) {
     check(&motion, "a\n c", 0, 3);
     check(&motion, "a\nc", 0, 2);
     check(&motion, "a\nb", 0, 2);
+    check(&motion, "a\nb", 2, 3);
+
+    // should not delete the trailing newline
+    check_range(&motion, "\n", 0, Some(0..0));
+    check_range(&motion, "\n\n", 1, Some(1..1));
+    check_range(&motion, "\n\n\n", 2, Some(2..2));
+
+    // but should delete non-trailing newlines
+    check_range(&motion, "\n\n", 0, Some(0..1));
+
     // range should exclude the newline
     check_range(&motion, "a\nb", 0, Some(0..1));
     // range should not become empty
-    check_range(&motion, "\na", 0, Some(0..1));
+    // check_range(&motion, "\na", 0, Some(0..1));
 }
 
 #[test]

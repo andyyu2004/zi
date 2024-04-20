@@ -276,10 +276,10 @@ impl View {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
 
+        let mut chars = text.chars().rev();
         let len = text.len_bytes();
         if byte >= len && !matches!(mode, Mode::Insert) {
             byte = len;
-            let chars = text.chars().rev();
             for c in chars {
                 byte -= c.len_utf8();
                 if c != '\n' {
@@ -288,10 +288,12 @@ impl View {
             }
         } else if byte > 0
             && byte + 1 == text.len_bytes()
-            && text.chars().last() == Some('\n')
+            && chars.next() == Some('\n')
+            && chars.next() != Some('\n')
             && !matches!(mode, Mode::Insert)
         {
-            // Another special case, we can't allow the cursor to be on the final newline.
+            // Another special case, we can't allow the cursor to be on the final newline,
+            // unless there is another newline before it.
             byte -= 1;
         }
 
