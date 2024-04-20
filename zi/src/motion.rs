@@ -1,38 +1,22 @@
-use std::{cmp, ops};
+use std::ops;
 
 use crate::text::{AnyText, Text, TextSlice};
+use crate::textobject::{TextObject, TextObjectKind};
 use crate::Point;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
-pub struct NoMotion;
-
-pub type MotionResult<T, E = NoMotion> = Result<T, E>;
-
-pub trait Motion {
+// TODO could probably write this in a more combinator-like style
+pub trait Motion: TextObject {
     /// Returns the new byte position after performing the motion starting at `byte`.
     /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
     /// The motion may choose to signal to the caller that no motion was possible by returning `Err(NoMotion)`.
     /// It's also valid to return the same byte position as the input.
     /// The caller may choose to handle them distinctly.
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize>;
-
-    /// Returns the range of bytes that the motion would move over.
-    /// This is allowed to have different behaviour than the default implemntation.
-    // Perhaps the behaviour should be adjustable with a bunch of flags instead?
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
-        let b = self.motion(text, byte)?;
-
-        Ok(match byte.cmp(&b) {
-            cmp::Ordering::Equal => byte..byte,
-            cmp::Ordering::Less => byte..b,
-            cmp::Ordering::Greater => b..byte,
-        })
-    }
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize;
 
     #[inline]
-    fn point_motion(&self, text: &dyn AnyText, point: Point) -> MotionResult<Point> {
-        let byte = self.motion(text, text.point_to_byte(point))?;
-        Ok(text.byte_to_point(byte))
+    fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
+        let byte = self.motion(text, text.point_to_byte(point));
+        text.byte_to_point(byte)
     }
 
     #[inline]
@@ -46,13 +30,8 @@ pub trait Motion {
 
 impl<M: Motion> Motion for &M {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
         (**self).motion(text, byte)
-    }
-
-    #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
-        (**self).byte_range(text, byte)
     }
 }
 
@@ -61,12 +40,24 @@ pub struct Repeated<M> {
     n: usize,
 }
 
+impl<M: TextObject> TextObject for Repeated<M> {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        let _ = (text, byte);
+        todo!();
+    }
+
+    fn kind(&self) -> crate::textobject::TextObjectKind {
+        self.motion.kind()
+    }
+}
+
 impl<M: Motion> Motion for Repeated<M> {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> MotionResult<usize> {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         for _ in 0..self.n {
-            byte = self.motion.motion(text, byte)?;
+            byte = self.motion.motion(text, byte);
         }
-        Ok(byte)
+
+        byte
     }
 }
 
@@ -111,14 +102,24 @@ struct Prev {
     is_start: fn(char, char) -> bool,
 }
 
-impl Motion for Prev {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> MotionResult<usize> {
+impl TextObject for Prev {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         if byte == 0 {
             // To match `nvim` behaviour, when going back from the start of the buffer, we cancel the operation
             // https://github.com/neovim/neovim/blob/7fa24948a936a95519f0c8c496402488b6508c14/src/nvim/normal.c#L5874
-            return Err(NoMotion);
+            return None;
         }
 
+        Some(self.motion(text, byte)..byte)
+    }
+
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+}
+
+impl Motion for Prev {
+    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let mut chars = text.byte_slice(..byte).chars().rev().peekable();
 
         let c = chars.peek().copied();
@@ -129,7 +130,7 @@ impl Motion for Prev {
             // In this case, we just move back one character if possible.
             // Note that `c` must be saved before peeking the windows as that would consume it with
             // no way of getting it back.
-            return Ok(byte - c.map_or(0, |c| c.len_utf8()));
+            return byte - c.map_or(0, |c| c.len_utf8());
         }
 
         while let Some([c, next]) = windows.next() {
@@ -150,19 +151,34 @@ impl Motion for Prev {
             }
         }
 
-        Ok(byte)
+        byte
     }
 }
 
 pub struct PrevToken;
 
-impl Motion for PrevToken {
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
+impl PrevToken {
+    fn imp() -> Prev {
         Prev {
             is_sep: char::is_whitespace,
             is_start: |c, next| !c.is_whitespace() && next.is_whitespace(),
         }
-        .motion(text, byte)
+    }
+}
+
+impl TextObject for PrevToken {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        Self::imp().byte_range(text, byte)
+    }
+
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+}
+
+impl Motion for PrevToken {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        Self::imp().motion(text, byte)
     }
 }
 
@@ -202,28 +218,52 @@ impl NextWord {
     }
 }
 
-impl Motion for NextWord {
+impl TextObject for NextWord {
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, start: usize) -> MotionResult<ops::Range<usize>> {
-        let (end, just_crossed_newline) = self.mv(text, start);
-        // Exclude the newline character if using as a range
-        // e.g. dw does not delete the line break
-        Ok(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
     }
 
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
-        Ok(self.mv(text, byte).0)
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        let (end, just_crossed_newline) = self.mv(text, start);
+        // Exclude the newline character if using as a range
+        // e.g. dw does not delete the line break
+        Some(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
+    }
+}
+
+impl Motion for NextWord {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        self.mv(text, byte).0
     }
 }
 
 pub struct PrevWord;
 
+impl PrevWord {
+    fn imp() -> Prev {
+        Prev { is_sep: char::is_word_separator, is_start: |c, _| c.is_word_start() }
+    }
+}
+
+impl TextObject for PrevWord {
+    #[inline]
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        Self::imp().byte_range(text, start)
+    }
+}
+
 impl Motion for PrevWord {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
-        Prev { is_sep: char::is_word_separator, is_start: |c, _| c.is_word_start() }
-            .motion(text, byte)
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        Self::imp().motion(text, byte)
     }
 }
 
@@ -263,21 +303,26 @@ impl NextToken {
             prev_char = Some(c);
         }
 
-        assert!(byte > start_byte, "next_token motion should always move at least one byte");
         byte
+    }
+}
+
+impl TextObject for NextToken {
+    #[inline]
+    fn kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        Some(start..self.mv(text, start, true))
     }
 }
 
 impl Motion for NextToken {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> MotionResult<usize> {
-        Ok(self.mv(text, byte, false))
-    }
-
-    #[inline]
-    fn byte_range(&self, text: &dyn AnyText, start: usize) -> MotionResult<ops::Range<usize>> {
-        let end = self.mv(text, start, true);
-        Ok(start..end)
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        self.mv(text, byte, false)
     }
 }
 

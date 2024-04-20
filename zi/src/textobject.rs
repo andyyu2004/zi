@@ -1,6 +1,5 @@
 use std::ops;
 
-use crate::motion::{Motion, MotionResult};
 use crate::text::{AnyText, Text as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,19 +9,23 @@ pub enum TextObjectKind {
 }
 
 pub trait TextObject {
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>>;
+    /// Returns the byte range of the text object that contains the given byte.
+    /// To signal to the caller to cancel the operation, return `None`.
+    /// It is also valid to return `Some(empty_range)` to proceed.
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
+
+    fn kind(&self) -> TextObjectKind;
+}
+
+impl<O: TextObject> TextObject for &O {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        (*self).byte_range(text, byte)
+    }
 
     #[inline]
     fn kind(&self) -> TextObjectKind {
-        // TODO may not always be true
-        TextObjectKind::Charwise
-    }
-}
-
-impl<M: Motion> TextObject for M {
-    #[inline]
-    fn byte_range(&self, text: &dyn AnyText, a: usize) -> MotionResult<ops::Range<usize>> {
-        self.byte_range(text, a)
+        (*self).kind()
     }
 }
 
@@ -43,20 +46,20 @@ impl TextObject for Line {
     }
 
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);
 
         match self.0 {
             Inclusivity::Exclusive => {
                 let len = text.get_line(line_idx).map_or(0, |line| line.len_bytes());
-                Ok(start..start + len)
+                Some(start..start + len)
             }
             Inclusivity::Inclusive => {
                 match text.try_line_to_byte(line_idx + 1) {
-                    Some(end) => Ok(start..end),
+                    Some(end) => Some(start..end),
                     // If the line is the last line, we want to include the previous newline
-                    None => Ok(start.saturating_sub(1)..text.len_bytes()),
+                    None => Some(start.saturating_sub(1)..text.len_bytes()),
                 }
             }
         }

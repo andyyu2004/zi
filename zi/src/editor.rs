@@ -910,7 +910,7 @@ impl Editor {
         let Mode::OperatorPending(operator) = self.mode else { return };
 
         let text = self[buf].text();
-        let Ok(range) = obj.byte_range(text, text.point_to_byte(self[view].cursor())) else {
+        let Some(range) = obj.byte_range(text, text.point_to_byte(self[view].cursor())) else {
             return self.set_mode(Mode::Normal);
         };
 
@@ -971,9 +971,8 @@ impl Editor {
             _ => {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
-                if let Ok(byte) = motion.motion(text, text.point_to_byte(view.cursor())) {
-                    view.set_cursor_bytewise(self.mode, area, buf, byte);
-                }
+                let byte = motion.motion(text, text.point_to_byte(view.cursor()));
+                view.set_cursor_bytewise(self.mode, area, buf, byte);
             }
         }
     }
