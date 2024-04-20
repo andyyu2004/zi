@@ -280,10 +280,6 @@ impl<X: Text> TextBuffer<X> {
     }
 
     fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
-        if delta.is_identity() {
-            return;
-        }
-
         if !flags.contains(EditFlags::NO_ENSURE_NEWLINE) {
             self.ensure_trailing_newline();
         }
@@ -317,6 +313,5 @@ impl<X: Text> TextBuffer<X> {
         }
 
         self.ensure_trailing_newline();
-
     }
 }
