@@ -19,6 +19,14 @@ fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
 }
 
 #[test]
+fn chars_at() {
+    for imp in impls("abc") {
+        let mut chars = imp.byte_slice(..3).chars().rev();
+        assert_eq!(chars.next(), Some('c'));
+    }
+}
+
+#[test]
 fn char_at_byte() {
     assert_eq!("abc".char_at_byte(0), Some('a'));
     assert_eq!("abc".char_at_byte(1), Some('b'));

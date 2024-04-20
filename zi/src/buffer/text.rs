@@ -317,5 +317,6 @@ impl<X: Text> TextBuffer<X> {
         }
 
         self.ensure_trailing_newline();
+
     }
 }

@@ -274,27 +274,26 @@ impl View {
         mut byte: usize,
     ) {
         assert_eq!(buf.id(), self.buf);
-        let text = buf.text();
 
-        let mut chars = text.chars().rev();
+        let text = buf.text();
         let len = text.len_bytes();
-        if byte >= len && !matches!(mode, Mode::Insert) {
-            byte = len;
-            for c in chars {
-                byte -= c.len_utf8();
-                if c != '\n' {
-                    break;
-                }
-            }
-        } else if byte > 0
-            && byte + 1 == text.len_bytes()
+        assert!(byte <= len);
+
+        // Ensure the cursor is in a valid position.
+        let mut chars = if byte == len {
+            let mut chars = text.byte_slice(..byte).chars().rev().peekable();
+            // adjust the index due to differences between .. and ..=
+            byte -= chars.peek().map_or(0, |c| c.len_utf8());
+            chars
+        } else {
+            text.byte_slice(..=byte).chars().rev().peekable()
+        };
+
+        if !matches!(mode, Mode::Insert)
             && chars.next() == Some('\n')
-            && chars.next() != Some('\n')
-            && !matches!(mode, Mode::Insert)
+            && chars.peek() != Some(&'\n')
         {
-            // Another special case, we can't allow the cursor to be on the final newline,
-            // unless there is another newline before it.
-            byte -= 1;
+            byte = byte.saturating_sub('\n'.len_utf8());
         }
 
         let pos = text.byte_to_point(byte);
