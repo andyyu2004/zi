@@ -18,3 +18,9 @@ d
 e
 ----
 cccccccccccccccccccccccccccccccccccccccccccccc
+
+==== cb doesn't remove the line break after `b`
+a b
+c
+----
+jdb

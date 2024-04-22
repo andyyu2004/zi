@@ -3,7 +3,7 @@ use std::ops;
 use crate::text::{AnyText, Text as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextObjectKind {
+pub enum MotionKind {
     Linewise,
     Charwise,
 }
@@ -14,7 +14,7 @@ pub trait TextObject {
     /// It is also valid to return `Some(empty_range)` to proceed.
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
 
-    fn kind(&self) -> TextObjectKind;
+    fn kind(&self) -> MotionKind;
 }
 
 impl<O: TextObject> TextObject for &O {
@@ -24,7 +24,7 @@ impl<O: TextObject> TextObject for &O {
     }
 
     #[inline]
-    fn kind(&self) -> TextObjectKind {
+    fn kind(&self) -> MotionKind {
         (*self).kind()
     }
 }
@@ -41,8 +41,8 @@ pub struct Line(pub Inclusivity);
 
 impl TextObject for Line {
     #[inline]
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Linewise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Linewise
     }
 
     #[inline]

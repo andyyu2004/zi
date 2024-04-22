@@ -1,7 +1,7 @@
 use std::ops;
 
 use crate::text::{AnyText, Text, TextSlice};
-use crate::textobject::{TextObject, TextObjectKind};
+use crate::textobject::{MotionKind, TextObject};
 use crate::Point;
 
 // TODO could probably write this in a more combinator-like style
@@ -46,7 +46,7 @@ impl<M: TextObject> TextObject for Repeated<M> {
         todo!();
     }
 
-    fn kind(&self) -> crate::textobject::TextObjectKind {
+    fn kind(&self) -> crate::textobject::MotionKind {
         self.motion.kind()
     }
 }
@@ -113,8 +113,8 @@ impl TextObject for Prev {
         Some(self.motion(text, byte)..byte)
     }
 
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Charwise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Charwise
     }
 }
 
@@ -171,8 +171,8 @@ impl TextObject for PrevToken {
         Self::imp().byte_range(text, byte)
     }
 
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Charwise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Charwise
     }
 }
 
@@ -220,8 +220,8 @@ impl NextWord {
 
 impl TextObject for NextWord {
     #[inline]
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Charwise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Charwise
     }
 
     #[inline]
@@ -250,8 +250,8 @@ impl PrevWord {
 
 impl TextObject for PrevWord {
     #[inline]
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Charwise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Charwise
     }
 
     #[inline]
@@ -278,6 +278,17 @@ impl NextToken {
     // next line.
     fn mv(&self, text: &dyn AnyText, mut byte: usize, stop_before_newline: bool) -> usize {
         let mut chars = text.byte_slice(byte..).chars().peekable();
+
+        match chars.peek() {
+            Some('\n') if stop_before_newline => {
+                assert_eq!(chars.next(), Some('\n'));
+                // if the cursor is at the end of a line, the next word is the first word of the next line.
+                // However, we don't want to chop the trailing newline if there is one.
+                return byte + chars.peek().is_some() as usize;
+            }
+            _ => (),
+        }
+
         let start_byte = byte;
 
         let mut found_sep = false;
@@ -308,8 +319,8 @@ impl NextToken {
 
 impl TextObject for NextToken {
     #[inline]
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Charwise
+    fn kind(&self) -> MotionKind {
+        MotionKind::Charwise
     }
 
     #[inline]

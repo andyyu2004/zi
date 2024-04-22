@@ -41,7 +41,7 @@ use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, PointOrByte, ReadonlyText, Text as _, TextSlice};
-use crate::textobject::{Inclusivity, TextObject, TextObjectKind};
+use crate::textobject::{Inclusivity, MotionKind, TextObject};
 use crate::view::{ViewGroup, ViewGroupId};
 use crate::{
     event, hashmap, language, layout, textobject, trie, BufferId, Direction, Error, FileType,
@@ -910,20 +910,40 @@ impl Editor {
         let Mode::OperatorPending(operator) = self.mode else { return };
 
         let text = self[buf].text();
-        let Some(range) = obj.byte_range(text, text.point_to_byte(self[view].cursor())) else {
+
+        let cursor = self[view].cursor();
+        let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
             return self.set_mode(Mode::Normal);
         };
+
+        // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
+        // tldr; if the end point is the first column of a line, we stop before the line terminator of the prior line.
+        // This implementation is only roughly approximating neovim's behaviour.
+        let end_point = text.byte_to_point(range.end);
+        if end_point.col() == 0
+            && end_point.line() > 0
+            && obj.kind() == MotionKind::Charwise
+            && text.byte_to_point(range.start).col() > 0
+        {
+            let line_idx = end_point.line().up(1).idx();
+            let line_above = text.get_line(line_idx).expect("must be in-bounds");
+            let adjusted_end_byte =
+                text.point_to_byte(Point::new(line_idx, line_above.len_bytes()));
+            if adjusted_end_byte > range.start {
+                // avoid making the range empty
+                range.end = adjusted_end_byte;
+            }
+        }
 
         let (delta, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
                 let delta = Delta::delete(range.clone());
                 match obj.kind() {
-                    TextObjectKind::Linewise => {
-                        // If we deleted the last line we want to move the cursor up but maintain the column
-                        (delta, Some(PointOrByte::Point(self[view].cursor())))
-                    }
+                    // If we deleted the last line we want to move the cursor up but maintain the column.
+                    // We don't need to explicitly adjust the cursor as it will be out of bounds and moved.
+                    MotionKind::Linewise => (delta, Some(PointOrByte::Point(cursor))),
                     // charwise deletions moves the cursor to the start of the range
-                    TextObjectKind::Charwise => (delta, Some(PointOrByte::Byte(range.start))),
+                    MotionKind::Charwise => (delta, Some(PointOrByte::Byte(range.start))),
                 }
             }
             Operator::Yank => todo!(),
@@ -941,8 +961,8 @@ impl Editor {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
                 match obj.kind() {
-                    TextObjectKind::Linewise => self[buf].save_cursor(saved_cursor),
-                    TextObjectKind::Charwise => {}
+                    MotionKind::Linewise => self[buf].save_cursor(saved_cursor),
+                    MotionKind::Charwise => {}
                 }
                 self[buf].save(SnapshotFlags::empty());
                 self.set_mode(Mode::Normal)

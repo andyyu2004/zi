@@ -30,7 +30,7 @@ macro_rules! t {
                 // `cb` and `db` have some interesting (undocumented?) behaviour (repro with text="a\nb" input="wcb") where the first newline is not removed.
                 // Not sure how to go about matching this behaviour so skip these cases for now
                 proptest::prop_assume!(!inputs.contains("cb") && !inputs.contains("cB"));
-                proptest::prop_assume!(!inputs.contains("db") && !inputs.contains("dB"));
+                // proptest::prop_assume!(!inputs.contains("db") && !inputs.contains("dB"));
 
                 run(text, &inputs)
             }

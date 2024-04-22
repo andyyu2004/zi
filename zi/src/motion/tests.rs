@@ -60,13 +60,16 @@ fn next_token_and_word(motion: &impl Motion) {
     check_range(&motion, "\n\n", 1, Some(1..1));
     check_range(&motion, "\n\n\n", 2, Some(2..2));
 
+    // should stop at the newline
+    check_range(&motion, "\n a", 0, Some(0..1));
+
     // but should delete non-trailing newlines
     check_range(&motion, "\n\n", 0, Some(0..1));
 
     // range should exclude the newline
     check_range(&motion, "a\nb", 0, Some(0..1));
     // range should not become empty
-    // check_range(&motion, "\na", 0, Some(0..1));
+    check_range(&motion, "\na", 0, Some(0..1));
 }
 
 #[test]
