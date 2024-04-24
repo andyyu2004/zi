@@ -14,7 +14,7 @@ pub trait TextObject {
     /// It is also valid to return `Some(empty_range)` to proceed.
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
 
-    fn kind(&self) -> MotionKind;
+    fn default_kind(&self) -> MotionKind;
 }
 
 impl<O: TextObject> TextObject for &O {
@@ -24,8 +24,8 @@ impl<O: TextObject> TextObject for &O {
     }
 
     #[inline]
-    fn kind(&self) -> MotionKind {
-        (*self).kind()
+    fn default_kind(&self) -> MotionKind {
+        (*self).default_kind()
     }
 }
 
@@ -41,7 +41,7 @@ pub struct Line(pub Inclusivity);
 
 impl TextObject for Line {
     #[inline]
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Linewise
     }
 

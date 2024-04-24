@@ -46,8 +46,8 @@ impl<M: TextObject> TextObject for Repeated<M> {
         todo!();
     }
 
-    fn kind(&self) -> crate::textobject::MotionKind {
-        self.motion.kind()
+    fn default_kind(&self) -> crate::textobject::MotionKind {
+        self.motion.default_kind()
     }
 }
 
@@ -113,7 +113,7 @@ impl TextObject for Prev {
         Some(self.motion(text, byte)..byte)
     }
 
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
     }
 }
@@ -171,7 +171,7 @@ impl TextObject for PrevToken {
         Self::imp().byte_range(text, byte)
     }
 
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
     }
 }
@@ -220,7 +220,7 @@ impl NextWord {
 
 impl TextObject for NextWord {
     #[inline]
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
     }
 
@@ -250,7 +250,7 @@ impl PrevWord {
 
 impl TextObject for PrevWord {
     #[inline]
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
     }
 
@@ -319,7 +319,7 @@ impl NextToken {
 
 impl TextObject for NextToken {
     #[inline]
-    fn kind(&self) -> MotionKind {
+    fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
     }
 
