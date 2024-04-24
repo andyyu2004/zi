@@ -1,4 +1,5 @@
 use super::{get, Selector};
+use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Point, ViewId};
 
 impl Editor {
@@ -12,7 +13,7 @@ impl Editor {
         let view_id = selector.select(self);
         let (view, buf) = get!(self: view_id);
         let area = self.tree.view_area(view.id());
-        view.set_cursor_linewise(self.mode, area, buf, pos.into());
+        view.set_cursor_linewise(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
     }
 
     #[inline]

@@ -42,7 +42,7 @@ use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, PointOrByte, ReadonlyText, Text, TextSlice};
 use crate::textobject::{MotionKind, TextObject};
-use crate::view::{ViewGroup, ViewGroupId};
+use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
     Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
@@ -836,7 +836,13 @@ impl Editor {
         buf.edit(&Delta::delete(start_byte_idx..byte_idx));
         let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
-        view.set_cursor_linewise(self.mode, self.tree.view_area(view.id()), buf, new_cursor);
+        view.set_cursor_linewise(
+            self.mode,
+            self.tree.view_area(view.id()),
+            buf,
+            new_cursor,
+            SetCursorFlags::empty(),
+        );
     }
 
     pub fn insert_char_at_cursor(&mut self, c: char) {
@@ -951,13 +957,14 @@ impl Editor {
         let (delta, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
                 let delta = Delta::delete(range.clone());
-                match motion_kind {
+                let cursor = match motion_kind {
                     // If we deleted the last line we want to move the cursor up but maintain the column.
                     // We don't need to explicitly adjust the cursor as it will be out of bounds and moved.
-                    MotionKind::Linewise => (delta, Some(PointOrByte::Point(cursor))),
+                    MotionKind::Linewise => PointOrByte::Point(cursor),
                     // charwise deletions moves the cursor to the start of the range
-                    MotionKind::Charwise => (delta, Some(PointOrByte::Byte(range.start))),
-                }
+                    MotionKind::Charwise => PointOrByte::Byte(range.start),
+                };
+                (delta, Some(cursor))
             }
             Operator::Yank => todo!(),
         };
@@ -988,7 +995,14 @@ impl Editor {
             let area = self.tree.view_area(view.id());
             match new_cursor {
                 PointOrByte::Point(point) => {
-                    view.set_cursor_linewise(self.mode, area, buf, point);
+                    // another vim quirk, move the cursor to the first non-whitespace character
+                    view.set_cursor_linewise(
+                        self.mode,
+                        area,
+                        buf,
+                        point,
+                        SetCursorFlags::MOVE_TO_NON_WHITE,
+                    );
                 }
                 PointOrByte::Byte(byte) => {
                     view.set_cursor_bytewise(self.mode, area, buf, byte);

@@ -15,8 +15,13 @@ slotmap::new_key_type! {
 }
 
 bitflags::bitflags! {
+    pub struct SetCursorFlags: u8 {
+        /// Shift the cursor right to the first non-whitespace character.
+        const MOVE_TO_NON_WHITE = 1 << 0;
+    }
+
     // A bunch of hacks, don't make this public
-    struct SetCursorFlags: u8 {
+    struct SetCursorHacks: u8 {
         const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
     }
 }
@@ -254,13 +259,13 @@ impl View {
             Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
         };
 
-        let flags = if direction.is_vertical() {
-            SetCursorFlags::NO_COLUMN_BOUNDS_CHECK
+        let hacks = if direction.is_vertical() {
+            SetCursorHacks::NO_COLUMN_BOUNDS_CHECK
         } else {
-            SetCursorFlags::empty()
+            SetCursorHacks::empty()
         };
 
-        self.set_cursor_linewise_inner(mode, size, buf, pos, flags)
+        self.set_cursor_linewise_inner(mode, size, buf, pos, SetCursorFlags::empty(), hacks)
     }
 
     // HACK clean this up and try not have two different implementations for a cursor move.
@@ -311,8 +316,9 @@ impl View {
         size: impl Into<Size>,
         buf: &dyn Buffer,
         pos: Point,
+        flags: SetCursorFlags,
     ) -> Point {
-        self.set_cursor_linewise_inner(mode, size, buf, pos, SetCursorFlags::empty())
+        self.set_cursor_linewise_inner(mode, size, buf, pos, flags, SetCursorHacks::empty())
     }
 
     #[inline]
@@ -323,6 +329,7 @@ impl View {
         buf: &dyn Buffer,
         pos: Point,
         flags: SetCursorFlags,
+        hacks: SetCursorHacks,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
@@ -354,14 +361,28 @@ impl View {
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();
-        if !flags.contains(SetCursorFlags::NO_COLUMN_BOUNDS_CHECK) {
+        if !hacks.contains(SetCursorHacks::NO_COLUMN_BOUNDS_CHECK) {
             // By default, we want to ensure the target column is in-bounds for the line.
             self.cursor.target_col = self.cursor.target_col.min(max_col);
         }
 
         // check column is in-bounds for the line
         self.cursor.pos = match pos.col().idx() {
-            i if i < line_len => pos,
+            i if i < line_len => {
+                if flags.contains(SetCursorFlags::MOVE_TO_NON_WHITE) {
+                    let mut col = 0;
+                    for c in line.chars() {
+                        if !c.is_whitespace() {
+                            break;
+                        }
+                        col += c.len_utf8();
+                    }
+                    panic!("{}", col);
+                    pos.with_col(col.max(i))
+                } else {
+                    pos
+                }
+            }
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
