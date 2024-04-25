@@ -96,6 +96,8 @@ fn motion_next_token() {
     check(&motion, "\n\n", 0, 1);
     check(&motion, "\n\n", 1, 2);
 
+    check(&motion, "\n a", 0, 2);
+
     check(&motion, "a\nb", 0, 2);
 
     check(&motion, "\na", 0, 1);

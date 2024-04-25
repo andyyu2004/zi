@@ -41,7 +41,7 @@ use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::text::{Delta, PointOrByte, ReadonlyText, Text, TextSlice};
-use crate::textobject::{MotionKind, TextObject};
+use crate::textobject::{MotionKind, TextObject, TextObjectFlags};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
@@ -916,6 +916,7 @@ impl Editor {
         let Mode::OperatorPending(operator) = self.mode else { return };
 
         let mut motion_kind = obj.default_kind();
+        let flags = obj.flags();
 
         let text = self[buf].text();
 
@@ -930,18 +931,20 @@ impl Editor {
         //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
         // This implementation is only roughly approximating neovim's behaviour.
         let end_point = text.byte_to_point(range.end);
-        if end_point.col() == 0
+        if flags.contains(TextObjectFlags::EXCLUSIVE)
+            && end_point.col() == 0
             && end_point.line() > 0
             && motion_kind == MotionKind::Charwise
-            && text.byte_to_point(range.start).col() > 0
         {
-            if false && inindent(text, cursor) {
+            // using `start_point` instead of `cursor` as specified in neovim docs since neovim moves
+            // the cursor before this point.
+            if inindent(text, text.byte_to_point(range.start)) {
                 motion_kind = MotionKind::Linewise;
                 // extend the range to include the full start and end lines
-                let start = text.line_to_byte(text.byte_to_line(range.start));
-                let end = text.line_to_byte(1 + text.byte_to_line(range.end));
-                range = start..end;
-                tracing::debug!(?range, "inindent");
+                // let start = text.line_to_byte(text.byte_to_line(range.start));
+                // let end = text.line_to_byte(1 + text.byte_to_line(range.end));
+                // range = start..end;
+                // tracing::debug!(?range, "inindent");
             } else {
                 let line_idx = end_point.line().up(1).idx();
                 let line_above = text.get_line(line_idx).expect("must be in-bounds");
@@ -958,9 +961,10 @@ impl Editor {
             Operator::Delete | Operator::Change => {
                 let delta = Delta::delete(range.clone());
                 let cursor = match motion_kind {
-                    // If we deleted the last line we want to move the cursor up but maintain the column.
-                    // We don't need to explicitly adjust the cursor as it will be out of bounds and moved.
-                    MotionKind::Linewise => PointOrByte::Point(cursor),
+                    // linewise deletions move the line but maintain the column
+                    MotionKind::Linewise => {
+                        PointOrByte::Point(Point::new(text.byte_to_line(range.start), cursor.col()))
+                    }
                     // charwise deletions moves the cursor to the start of the range
                     MotionKind::Charwise => PointOrByte::Byte(range.start),
                 };
@@ -1001,7 +1005,7 @@ impl Editor {
                         area,
                         buf,
                         point,
-                        SetCursorFlags::MOVE_TO_NON_WHITE,
+                        SetCursorFlags::START_OF_LINE,
                     );
                 }
                 PointOrByte::Byte(byte) => {

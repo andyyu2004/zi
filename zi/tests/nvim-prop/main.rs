@@ -57,7 +57,9 @@ t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 fn scratch() {
     // useful to test a particular case
     // run("A\n\na", "WWWdWdBdW");
-    run("abc\nc", "lldw");
+    // run("a b\nc", "jdb");
+    run("ab\nc", "jdb");
+    run("\n A", "dW");
 }
 
 #[track_caller]

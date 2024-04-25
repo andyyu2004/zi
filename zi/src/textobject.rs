@@ -8,6 +8,16 @@ pub enum MotionKind {
     Charwise,
 }
 
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct TextObjectFlags: u8 {
+        /// This is used to help match neovim behaviour. There are certain special cases
+        /// that only apply to exclusive text objects. This does not affect what `byte_range`
+        /// should return.
+        const EXCLUSIVE = 0b0001;
+    }
+}
+
 pub trait TextObject {
     /// Returns the byte range of the text object that contains the given byte.
     /// To signal to the caller to cancel the operation, return `None`.
@@ -15,6 +25,11 @@ pub trait TextObject {
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
 
     fn default_kind(&self) -> MotionKind;
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::empty()
+    }
 }
 
 impl<O: TextObject> TextObject for &O {
@@ -26,6 +41,11 @@ impl<O: TextObject> TextObject for &O {
     #[inline]
     fn default_kind(&self) -> MotionKind {
         (*self).default_kind()
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        (*self).flags()
     }
 }
 

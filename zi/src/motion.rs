@@ -1,7 +1,7 @@
 use std::ops;
 
 use crate::text::{AnyText, Text, TextSlice};
-use crate::textobject::{MotionKind, TextObject};
+use crate::textobject::{MotionKind, TextObject, TextObjectFlags};
 use crate::Point;
 
 // TODO could probably write this in a more combinator-like style
@@ -167,12 +167,19 @@ impl PrevToken {
 }
 
 impl TextObject for PrevToken {
+    #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         Self::imp().byte_range(text, byte)
     }
 
+    #[inline]
     fn default_kind(&self) -> MotionKind {
         MotionKind::Charwise
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
     }
 }
 
@@ -231,6 +238,11 @@ impl TextObject for NextWord {
         // e.g. dw does not delete the line break
         Some(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
     }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
+    }
 }
 
 impl Motion for NextWord {
@@ -257,6 +269,11 @@ impl TextObject for PrevWord {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
         Self::imp().byte_range(text, start)
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
     }
 }
 
@@ -326,6 +343,11 @@ impl TextObject for NextToken {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
         Some(start..self.mv(text, start, true))
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
     }
 }
 

@@ -237,6 +237,7 @@ impl Nvim {
     async fn spawn(width: u16, height: u16) -> zi::Result<Nvim> {
         let (nvim, join_handle, child) = nvim_rs::create::tokio::new_child_cmd(
             Command::new("nvim")
+            // Command::new("/home/andy/dev/neovim/build/bin/nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
                 // .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early
