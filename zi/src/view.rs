@@ -15,6 +15,7 @@ slotmap::new_key_type! {
 }
 
 bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SetCursorFlags: u8 {
         /// Shift the cursor right to the first non-whitespace character if necessary.
         const START_OF_LINE = 1 << 0;
@@ -277,7 +278,7 @@ impl View {
         size: impl Into<Size>,
         buf: &dyn Buffer,
         mut byte: usize,
-    ) {
+    ) -> Point {
         assert_eq!(buf.id(), self.buf);
 
         let text = buf.text();
@@ -307,6 +308,7 @@ impl View {
         self.ensure_scroll_in_bounds(size);
         #[cfg(debug_assertions)]
         std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
+        self.cursor.pos
     }
 
     #[inline]

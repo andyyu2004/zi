@@ -58,7 +58,8 @@ t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 /// Useful to test a particular case
 #[test]
 fn scratch() {
-    run("a\n 0a", "WdWdB")
+    run(" ab", "Wcc<ESC>u");
+    run("ab", "Wcc<ESC>u")
 }
 
 #[track_caller]

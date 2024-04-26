@@ -976,6 +976,9 @@ impl Editor {
                 let delta = Delta::delete(range.clone());
                 let cursor = match motion_kind {
                     // linewise deletions move the line but maintain the column
+                    // MotionKind::Linewise if end_adjusted => {
+                    //     PointOrByte::Point(start_point.with_col(cursor.col()))
+                    // }
                     MotionKind::Linewise => PointOrByte::Point(start_point.with_col(cursor.col())),
                     // charwise deletions moves the cursor to the start of the range
                     MotionKind::Charwise => PointOrByte::Byte(range.start),
@@ -995,7 +998,7 @@ impl Editor {
 
         match operator {
             Operator::Change => {
-                self[buf].snapshot_cursor(cursor);
+                // self[buf].snapshot_cursor(cursor);
                 self.set_mode(Mode::Insert);
             }
             Operator::Delete => {
@@ -1038,12 +1041,10 @@ impl Editor {
             let area = self.tree.view_area(view.id());
             match new_cursor {
                 PointOrByte::Point(point) => {
-                    view.set_cursor_linewise(self.mode, area, buf, point, flags);
+                    view.set_cursor_linewise(self.mode, area, buf, point, flags)
                 }
-                PointOrByte::Byte(byte) => {
-                    view.set_cursor_bytewise(self.mode, area, buf, byte);
-                }
-            }
+                PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+            };
         }
     }
 
