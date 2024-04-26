@@ -45,3 +45,4 @@ cc a380eb965a15e18b9a8b48d76efb748201a5b612203edda74e60dd0b44a487c0 # shrinks to
 cc 15b82c029339be1fab18e90df6f46a0615a5e0600e9ef5eed4c9519f530a7f6d # shrinks to inputs = "ddddWWBdWBdWWWBWdW", text = "A\n\n\n A"
 cc 78970768c54d9b000076808db312a1d073a954c26a30ca1692e136777b963e3e # shrinks to inputs = "dWWdd", text = "A\n\n a"
 cc 5775f218a6d32ce3ab279c7d2d986cde515f9a45944dd5d9e5c85494df7871b3 # shrinks to inputs = "WdW", text = "a\n\n \nA"
+cc 887c3e5c2de37efa61e1d8cfae4f8d663a5170725aff2175349bcb7427bc2026 # shrinks to inputs = "WWddu<ESC>", text = "Aa"

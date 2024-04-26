@@ -64,6 +64,7 @@ fn scratch() {
     // run("A0\naA", "WWWWdddB");
     // run("\n A", "dW");
     run("\n A", "dd");
+    run("a\na", "WdBu");
 }
 
 #[track_caller]

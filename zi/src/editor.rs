@@ -929,6 +929,7 @@ impl Editor {
         //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
         //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
         // This implementation is only roughly approximating neovim's behaviour.
+        let start_point = text.byte_to_point(range.start);
         let end_point = text.byte_to_point(range.end);
 
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
@@ -939,7 +940,7 @@ impl Editor {
         if end_adjusted {
             // using `start_point` instead of `cursor` as specified in neovim docs, since nvim
             // updates the cursor before this point.
-            if inindent(text, text.byte_to_point(range.start)) {
+            if inindent(text, start_point) {
                 motion_kind = MotionKind::Linewise;
                 // extend the range to include the full start and end lines
                 // let start = text.line_to_byte(text.byte_to_line(range.start));
@@ -963,9 +964,7 @@ impl Editor {
                 let delta = Delta::delete(range.clone());
                 let cursor = match motion_kind {
                     // linewise deletions move the line but maintain the column
-                    MotionKind::Linewise => {
-                        PointOrByte::Point(Point::new(text.byte_to_line(range.start), cursor.col()))
-                    }
+                    MotionKind::Linewise => PointOrByte::Point(start_point.with_col(cursor.col())),
                     // charwise deletions moves the cursor to the start of the range
                     MotionKind::Charwise => PointOrByte::Byte(range.start),
                 };
@@ -986,7 +985,9 @@ impl Editor {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
                 match motion_kind {
-                    MotionKind::Linewise => self[buf].save_cursor(cursor),
+                    MotionKind::Linewise => {
+                        self[buf].snapshot_cursor(start_point.with_col(cursor.col()))
+                    }
                     MotionKind::Charwise => {}
                 }
                 self[buf].snapshot(SnapshotFlags::empty());

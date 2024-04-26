@@ -235,7 +235,7 @@ impl dyn Buffer + '_ {
         }
     }
 
-    pub fn save_cursor(&mut self, cursor: Point) {
+    pub fn snapshot_cursor(&mut self, cursor: Point) {
         if let Some(h) = self.history_mut() {
             h.snapshot_cursor(cursor)
         }
