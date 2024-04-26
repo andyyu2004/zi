@@ -924,6 +924,8 @@ impl Editor {
             return self.set_mode(Mode::Normal);
         };
 
+        let start_char = text.byte_slice(range.start..range.end).chars().next();
+
         // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
         // tldr;
         //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
@@ -986,7 +988,13 @@ impl Editor {
             Operator::Delete => {
                 match motion_kind {
                     MotionKind::Linewise => {
-                        self[buf].snapshot_cursor(start_point.with_col(cursor.col()))
+                        let cursor = match start_char {
+                            // Special case if the motion started at the newline of the prior line.
+                            Some('\n') => cursor,
+                            _ => start_point,
+                        }
+                        .with_col(cursor.col());
+                        self[buf].snapshot_cursor(cursor);
                     }
                     MotionKind::Charwise => {}
                 }
