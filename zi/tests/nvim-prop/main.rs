@@ -55,17 +55,10 @@ t!(I, "[dWB]+", nvim_delete_word);
 t!(I, "d([WB]|(<ESC>))+u<ESC>", nvim_undo_delete_word);
 t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 
+/// Useful to test a particular case
 #[test]
 fn scratch() {
-    // useful to test a particular case
-    // run("A\n\na", "WWWdWdBdW");
-    // run("a b\nc", "jdb");
-    // run("ab\nc", "jdb");
-    // run("A0\naA", "WWWWdddB");
-    // run("\n A", "dW");
-    run("\n A", "dd");
-    run("a\na", "WWddu");
-    run("a\n\na", "WdWu");
+    run("a\n 0a", "WdWdB")
 }
 
 #[track_caller]

@@ -907,6 +907,8 @@ impl Editor {
         &self.theme
     }
 
+    /// Applies the text object to the pending operator if there is one.
+    /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
         let (view, buf) = (view.id(), buf.id());
@@ -924,7 +926,7 @@ impl Editor {
             return self.set_mode(Mode::Normal);
         };
 
-        let start_char = text.byte_slice(range.start..range.end).chars().next();
+        let start_char = text.char_at_byte(range.start);
 
         // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
         // tldr;
@@ -944,11 +946,18 @@ impl Editor {
             // updates the cursor before this point.
             if inindent(text, start_point) {
                 motion_kind = MotionKind::Linewise;
+                // TODO this logic is probably reusable (extending byte-range to line-range)
                 // extend the range to include the full start and end lines
-                // let start = text.line_to_byte(text.byte_to_line(range.start));
-                // let end = text.line_to_byte(1 + text.byte_to_line(range.end));
-                // range = start..end;
-                // tracing::debug!(?range, "inindent");
+                let start_byte = text.line_to_byte(text.byte_to_line(range.start));
+                // Since the upper bound is exclusive, we need to adjust subtract a character.
+                let end_line = text.byte_to_line(
+                    range.end - text.char_at_byte(range.end).map_or(0, |c| c.len_utf8()),
+                );
+                let end_line_start = text.line_to_byte(end_line);
+                // FIXME: the 1 + is assuming the line terminator is 1 byte
+                let end_byte =
+                    end_line_start + text.get_line(end_line).map_or(0, |line| 1 + line.len_bytes());
+                range = start_byte..end_byte;
             } else {
                 let line_idx = end_point.line().up(1).idx();
                 let line_above = text.get_line(line_idx).expect("must be in-bounds");
@@ -990,7 +999,7 @@ impl Editor {
                     MotionKind::Linewise => {
                         let cursor = match start_char {
                             // Special case if the motion started at the newline of the prior line.
-                            Some('\n') => cursor,
+                            Some('\n') if !end_adjusted => cursor,
                             _ => start_point,
                         }
                         .with_col(cursor.col());

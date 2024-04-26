@@ -16,7 +16,7 @@ slotmap::new_key_type! {
 
 bitflags::bitflags! {
     pub struct SetCursorFlags: u8 {
-        /// Shift the cursor right to the first non-whitespace character.
+        /// Shift the cursor right to the first non-whitespace character if necessary.
         const START_OF_LINE = 1 << 0;
     }
 
@@ -371,12 +371,20 @@ impl View {
             i if i < line_len => {
                 if flags.contains(SetCursorFlags::START_OF_LINE) {
                     let mut col = 0;
+                    let mut found_non_whitespace = false;
                     for c in line.chars() {
                         if !c.is_whitespace() {
+                            found_non_whitespace = true;
                             break;
                         }
                         col += c.len_utf8();
                     }
+
+                    // don't advance the cursor if the line is all spaces
+                    if !found_non_whitespace {
+                        col = 0;
+                    }
+
                     pos.with_col(col.max(i))
                 } else {
                     pos
