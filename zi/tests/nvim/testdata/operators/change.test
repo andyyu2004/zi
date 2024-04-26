@@ -24,3 +24,19 @@ a b
 c
 ----
 jcb
+
+==== cc preserves the preceding space
+A
+ 0A
+----
+Wcc
+
+====
+ ab
+----
+Wcc<ESC>u
+
+====
+ab
+----
+Wcc<ESC>u

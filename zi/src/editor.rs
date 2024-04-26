@@ -928,11 +928,6 @@ impl Editor {
 
         let start_char = text.char_at_byte(range.start);
 
-        // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
-        // tldr;
-        //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
-        //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
-        // This implementation is only roughly approximating neovim's behaviour.
         let start_point = text.byte_to_point(range.start);
         let end_point = text.byte_to_point(range.end);
 
@@ -942,7 +937,13 @@ impl Editor {
             && motion_kind == MotionKind::Charwise;
 
         if end_adjusted {
-            // using `start_point` instead of `cursor` as specified in neovim docs, since nvim
+            // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
+            // tldr;
+            //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
+            //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
+            // This implementation is only roughly approximating neovim's behaviour.
+            //
+            // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
             // updates the cursor before this point.
             if inindent(text, start_point) {
                 motion_kind = MotionKind::Linewise;
@@ -993,7 +994,10 @@ impl Editor {
         self.edit(view, &delta);
 
         match operator {
-            Operator::Change => self.set_mode(Mode::Insert),
+            Operator::Change => {
+                self[buf].snapshot_cursor(cursor);
+                self.set_mode(Mode::Insert);
+            }
             Operator::Delete => {
                 match motion_kind {
                     MotionKind::Linewise => {
