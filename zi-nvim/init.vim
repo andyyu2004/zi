@@ -15,10 +15,6 @@ inoremap fd <ESC>
 " make it obvious that something is wrong if this is hit
 set timeoutlen=5000
 
-" this reduces the number of random edge cases
-" https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L6348-L6354
-set sol
-
 function! ClearUndoHistory()
     let old_undolevels = &undolevels
     set undolevels=-1

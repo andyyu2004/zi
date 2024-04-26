@@ -746,7 +746,7 @@ impl Editor {
             // This passes the current set of tests but it's pretty dumb behaviour overall.
             // This means repeated `i<ESC>` will add empty undos to the undo stack which nvim does
             // not do.
-            buf.save(SnapshotFlags::ALLOW_EMPTY);
+            buf.snapshot(SnapshotFlags::ALLOW_EMPTY);
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
@@ -909,7 +909,6 @@ impl Editor {
 
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
-        let saved_cursor = view.cursor();
         let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
@@ -931,13 +930,15 @@ impl Editor {
         //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
         // This implementation is only roughly approximating neovim's behaviour.
         let end_point = text.byte_to_point(range.end);
-        if flags.contains(TextObjectFlags::EXCLUSIVE)
+
+        let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
             && end_point.col() == 0
             && end_point.line() > 0
-            && motion_kind == MotionKind::Charwise
-        {
-            // using `start_point` instead of `cursor` as specified in neovim docs since neovim moves
-            // the cursor before this point.
+            && motion_kind == MotionKind::Charwise;
+
+        if end_adjusted {
+            // using `start_point` instead of `cursor` as specified in neovim docs, since nvim
+            // updates the cursor before this point.
             if inindent(text, text.byte_to_point(range.start)) {
                 motion_kind = MotionKind::Linewise;
                 // extend the range to include the full start and end lines
@@ -975,7 +976,7 @@ impl Editor {
 
         match operator {
             // `c` snapshot the buffer before the edit, and delete saves it after
-            Operator::Change => self[buf].save(SnapshotFlags::empty()),
+            Operator::Change => self[buf].snapshot(SnapshotFlags::empty()),
             Operator::Yank | Operator::Delete => {}
         }
 
@@ -985,28 +986,37 @@ impl Editor {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
                 match motion_kind {
-                    MotionKind::Linewise => self[buf].save_cursor(saved_cursor),
+                    MotionKind::Linewise => self[buf].save_cursor(cursor),
                     MotionKind::Charwise => {}
                 }
-                self[buf].save(SnapshotFlags::empty());
+                self[buf].snapshot(SnapshotFlags::empty());
                 self.set_mode(Mode::Normal)
             }
             Operator::Yank => {}
         }
 
         if let Some(new_cursor) = new_cursor {
+            // some conditions where the cursor column is set to the old value
+            // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L6348-L6354
+            let (new_cursor, flags) = if motion_kind.is_linewise()
+                && !end_adjusted
+                && matches!(operator, Operator::Delete)
+            {
+                let cursor = match new_cursor {
+                    PointOrByte::Point(point) => PointOrByte::Point(point.with_col(cursor.col())),
+                    PointOrByte::Byte(_) => panic!("expected point cursor for linewise motion"),
+                };
+                (cursor, SetCursorFlags::empty())
+            } else {
+                // another vim quirk, move the cursor to the first non-whitespace character
+                (new_cursor, SetCursorFlags::START_OF_LINE)
+            };
+
             let (view, buf) = get!(self: view);
             let area = self.tree.view_area(view.id());
             match new_cursor {
                 PointOrByte::Point(point) => {
-                    // another vim quirk, move the cursor to the first non-whitespace character
-                    view.set_cursor_linewise(
-                        self.mode,
-                        area,
-                        buf,
-                        point,
-                        SetCursorFlags::START_OF_LINE,
-                    );
+                    view.set_cursor_linewise(self.mode, area, buf, point, flags);
                 }
                 PointOrByte::Byte(byte) => {
                     view.set_cursor_bytewise(self.mode, area, buf, byte);

@@ -229,7 +229,7 @@ impl dyn Buffer + '_ {
     }
 
     #[inline]
-    pub fn save(&mut self, flags: SnapshotFlags) {
+    pub fn snapshot(&mut self, flags: SnapshotFlags) {
         if let Some(h) = self.history_mut() {
             h.snapshot(flags)
         }

@@ -30,7 +30,9 @@ macro_rules! t {
                 // `cb` and `db` have some interesting (undocumented?) behaviour (repro with text="a\nb" input="wcb") where the first newline is not removed.
                 // Not sure how to go about matching this behaviour so skip these cases for now
                 proptest::prop_assume!(!inputs.contains("cb") && !inputs.contains("cB"));
-                // proptest::prop_assume!(!inputs.contains("db") && !inputs.contains("dB"));
+
+                // avoid lines with only spaces, as often formatters will clear trailing whitespaces anyway
+                proptest::prop_assume!(!text.contains("\n \n"));
 
                 run(text, &inputs)
             }
@@ -58,8 +60,10 @@ fn scratch() {
     // useful to test a particular case
     // run("A\n\na", "WWWdWdBdW");
     // run("a b\nc", "jdb");
-    run("ab\nc", "jdb");
-    run("\n A", "dW");
+    // run("ab\nc", "jdb");
+    // run("A0\naA", "WWWWdddB");
+    // run("\n A", "dW");
+    run("\n A", "dd");
 }
 
 #[track_caller]

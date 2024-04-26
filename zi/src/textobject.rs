@@ -8,6 +8,18 @@ pub enum MotionKind {
     Charwise,
 }
 
+impl MotionKind {
+    #[must_use]
+    pub fn is_linewise(&self) -> bool {
+        matches!(self, Self::Linewise)
+    }
+
+    #[must_use]
+    pub fn is_charwise(&self) -> bool {
+        matches!(self, Self::Charwise)
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct TextObjectFlags: u8 {
