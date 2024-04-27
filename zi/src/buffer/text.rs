@@ -318,6 +318,8 @@ impl<X: Text> TextBuffer<X> {
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
 
-        self.ensure_trailing_newline();
+        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE) {
+            self.ensure_trailing_newline();
+        }
     }
 }

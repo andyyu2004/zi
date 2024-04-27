@@ -28,16 +28,10 @@ fn undo_textobject_deletion() {
 }
 
 #[test]
-fn undo_textobject_deletion_tmp() {
-    let mut editor = new("A");
-
-    editor.set_cursor(zi::Active, (0, 0));
-    editor.set_mode(zi::Mode::Normal);
-    editor.clear_undo();
-
-    editor.handle_input('d');
-    editor.handle_input('W');
-    assert_eq!(editor.current_line(), "");
-    editor.handle_input('u');
-    assert_eq!(editor.current_line(), "A");
+fn undo_does_not_insert_extra_newlines() {
+    let mut editor = new("a");
+    editor.input("dwdw").unwrap();
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n");
+    editor.undo(zi::Active);
+    assert!(!editor.buffer(zi::Active).text().to_string().ends_with("\n\n"));
 }
