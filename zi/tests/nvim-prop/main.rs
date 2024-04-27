@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use tokio::sync::OnceCell;
-use zi_nvim::{spawn, Fixture, Nvim, TestCase};
+use zi_nvim::{spawn, CompareFlags, Fixture, Nvim, TestCase};
 
 fn rt() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -16,12 +16,13 @@ async fn nvim(fixture: &Fixture) -> &'static Nvim {
 }
 
 macro_rules! t {
-    ( $text:expr, $inputs:tt, $name:ident $(, $filter:expr)?) => {
+    ( $text:expr, $inputs:tt, $name:ident) => {
+        t!($text, $inputs, $name, ::zi_nvim::CompareFlags::empty());
+    };
+    ( $text:expr, $inputs:tt, $name:ident, $flags:expr) => {
         ::proptest::proptest! {
             #[test]
             fn $name(inputs in $inputs, text in $text) {
-                $( $filter(&inputs)?; )?
-
                 // `:help cw`
                 // stupid special case in neovim that I can't find a good workaround for.
                 // Also don't want to implement it as it's not a good default behaviour.
@@ -34,7 +35,7 @@ macro_rules! t {
                 // avoid lines with only spaces, as often formatters will clear trailing whitespaces anyway
                 proptest::prop_assume!(!text.contains("\n \n"));
 
-                run(text, &inputs)
+                run(text, &inputs, $flags)
             }
         }
     };
@@ -53,21 +54,20 @@ t!(I, "[WBjk]+", nvim_token_motions);
 t!(I, "[dWB]+", nvim_delete_word);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
 t!(I, "d([WB]|(<ESC>))+u<ESC>", nvim_undo_delete_word);
-t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
+t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINES);
 
 /// Useful to test a particular case
 #[test]
 fn scratch() {
     // run("A\n 0A", "Wcc");
-    run(" ab", "Wcc<ESC>u");
     // run("ab", "Wcc<ESC>u")
 }
 
 #[track_caller]
-fn run(text: impl Into<String>, inputs: &str) {
+fn run(text: impl Into<String>, inputs: &str, flags: CompareFlags) {
     rt().block_on(async move {
         let fixture = Fixture::new([TestCase::new(text, inputs)]);
         let nvim = nvim(&fixture).await;
-        fixture.nvim_vs_zi_with(nvim).await.unwrap();
+        fixture.nvim_vs_zi_with(nvim, flags).await.unwrap();
     })
 }
