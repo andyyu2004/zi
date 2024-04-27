@@ -909,6 +909,7 @@ impl Editor {
 
     /// Applies the text object to the pending operator if there is one.
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
+    /// If there a question about why is this way, the answer is probably "because neovim does it".
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
         let (view, buf) = (view.id(), buf.id());
@@ -997,10 +998,7 @@ impl Editor {
         self.edit(view, &delta);
 
         match operator {
-            Operator::Change => {
-                // self[buf].snapshot_cursor(cursor);
-                self.set_mode(Mode::Insert);
-            }
+            Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
                 match motion_kind {
                     MotionKind::Linewise => {

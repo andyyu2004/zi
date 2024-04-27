@@ -60,12 +60,18 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     }
 
     fn snapshot(&mut self, flags: SnapshotFlags) {
+        debug_assert!(
+            self.changes.iter().all(|change| !change.delta.is_identity()),
+            "should avoid pushing identities"
+        );
+
         if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
             return;
         }
 
         let changes = mem::take(&mut self.changes);
         tracing::debug!(?flags, ?changes, "snapshot buffer");
+
         self.undo_tree
             .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
     }
@@ -294,7 +300,7 @@ impl<X: Text> TextBuffer<X> {
                     (text.edit(delta), None)
                 };
 
-                if !flags.contains(EditFlags::NO_RECORD) {
+                if !flags.contains(EditFlags::NO_RECORD) && !delta.is_identity() {
                     let change = Change { delta: delta.to_owned(), inversion };
                     match self.changes.pop() {
                         None => self.changes.push(change),

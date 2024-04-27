@@ -265,40 +265,20 @@ fn ensure_eq(
                 continue;
             }
 
-            ensure!(vi_line == zi_line, "line {i}\nvi: {vi_lines:?}\nzi: {zi_lines:?}");
+            ensure!(vi_line == zi_line, "on line {i}\nvi: {vi_line:?}\nzi: {zi_line:?}");
         }
 
         if let Some(zi_line) = zi_lines.next() {
             ensure!(
                 zi_line.chars().all(char::is_whitespace),
-                "unexpected non-empty line in zi: {zi_line:?}"
+                "unexpected trailing line in zi: {zi_line:?}"
             );
         }
 
         ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
-
-        return Ok(());
     }
 
-    // If the cursor line or column is out of bounds in vi, then allow some leniency
-    // for whitespace on the cursor line to avoid neovim quirks failing the comparison
-    // if vi_lines
-    //     .lines()
-    //     .nth(vi_cursor.line().idx())
-    //     .map_or(true, |line| line.len() < vi_cursor.col().idx())
-    // {
-    //     vi_lines.insert(
-    //         vi_lines.split_inclusive('\n').take(vi_cursor.line().idx()).map(str::len).sum(),
-    //         ' ',
-    //     );
-    //
-    //     if let Ok(()) = ensure_lines_eq(&vi_lines, &zi_lines) {
-    //         return Ok(());
-    //     }
-    // }
-
-    // otherwise return the original error without the transformed text
-    res
+    Ok(())
 }
 
 fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {
