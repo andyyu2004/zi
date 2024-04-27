@@ -5,7 +5,6 @@ use stdx::merge::Merge;
 use crate::editor::Action;
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
-use crate::textobject::Inclusivity;
 use crate::{
     hashmap, motion, textobject, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment,
 };
@@ -108,11 +107,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line(Inclusivity::Inclusive));
+        editor.text_object(textobject::Line::inclusive());
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line(Inclusivity::Exclusive));
+        editor.text_object(textobject::Line::exclusive());
     }
 
     fn append_eol(editor: &mut Editor) {

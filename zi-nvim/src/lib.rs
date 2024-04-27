@@ -220,15 +220,54 @@ impl Nvim {
             _ => panic!("unknown mode: {vi_mode}"),
         };
 
-        // We allow `zi` to have a single additional newline.
-        if vi_lines != zi_lines[..zi_lines.len().saturating_sub(1)] {
-            ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
-        }
+        let vi_cursor = zi::Point::new(line as usize, col as usize);
+        ensure_eq(vi_cursor, zi_cursor, vi_lines, zi_lines)?;
 
-        ensure!(line as usize == zi_cursor.line().idx());
-        ensure!(col as usize == zi_cursor.col().idx());
         Ok(())
     }
+}
+
+fn ensure_eq(
+    vi_cursor: zi::Point,
+    zi_cursor: zi::Point,
+    vi_lines: String,
+    zi_lines: String,
+) -> Result<(), anyhow::Error> {
+    ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
+
+    let res = ensure_lines_eq(&vi_lines, &zi_lines);
+    if let Ok(()) = res {
+        return Ok(());
+    }
+
+    // If the cursor line or column is out of bounds in vi, then allow some leniency
+    // for whitespace on the cursor line to avoid neovim quirks failing the comparison
+    // if vi_lines
+    //     .lines()
+    //     .nth(vi_cursor.line().idx())
+    //     .map_or(true, |line| line.len() < vi_cursor.col().idx())
+    // {
+    //     vi_lines.insert(
+    //         vi_lines.split_inclusive('\n').take(vi_cursor.line().idx()).map(str::len).sum(),
+    //         ' ',
+    //     );
+    //
+    //     if let Ok(()) = ensure_lines_eq(&vi_lines, &zi_lines) {
+    //         return Ok(());
+    //     }
+    // }
+
+    // otherwise return the original error without the transformed text
+    res
+}
+
+fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {
+    // We allow `zi` to have a single additional newline.
+    if vi_lines != &zi_lines[..zi_lines.len().saturating_sub(1)] {
+        ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
+    }
+
+    Ok(())
 }
 
 const DIR: &str = env!("CARGO_MANIFEST_DIR");
@@ -237,7 +276,7 @@ impl Nvim {
     async fn spawn(width: u16, height: u16) -> zi::Result<Nvim> {
         let (nvim, join_handle, child) = nvim_rs::create::tokio::new_child_cmd(
             Command::new("nvim")
-            // Command::new("/home/andy/dev/neovim/build/bin/nvim")
+                // Command::new("/home/andy/dev/neovim/build/bin/nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
                 // .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early

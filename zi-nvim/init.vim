@@ -15,8 +15,7 @@ inoremap fd <ESC>
 " make it obvious that something is wrong if this is hit
 set timeoutlen=5000
 " deal with this behaviour later
-set noautoindent
-
+" set noautoindent
 
 function! ClearUndoHistory()
     let old_undolevels = &undolevels

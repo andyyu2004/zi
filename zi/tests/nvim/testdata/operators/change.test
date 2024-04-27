@@ -32,11 +32,7 @@ A
 Wcc
 
 ====
- ab
+A
+ a
 ----
-Wcc<ESC>u
-
-====
-ab
-----
-Wcc<ESC>u
+WccB

@@ -1,6 +1,6 @@
 use std::ops;
 
-use crate::text::{AnyText, Text as _};
+use crate::text::{AnyText, Text as _, TextSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionKind {
@@ -69,7 +69,23 @@ pub enum Inclusivity {
 
 /// A text object that represents a line.
 /// The line can be include or exclude the newline character.
-pub struct Line(pub Inclusivity);
+pub struct Line {
+    inclusivity: Inclusivity,
+}
+
+impl Line {
+    pub fn new(inclusivity: Inclusivity) -> Self {
+        Self { inclusivity }
+    }
+
+    pub fn inclusive() -> Self {
+        Self::new(Inclusivity::Inclusive)
+    }
+
+    pub fn exclusive() -> Self {
+        Self::new(Inclusivity::Exclusive)
+    }
+}
 
 impl TextObject for Line {
     #[inline]
@@ -82,10 +98,18 @@ impl TextObject for Line {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);
 
-        match self.0 {
+        match self.inclusivity {
             Inclusivity::Exclusive => {
-                let len = text.get_line(line_idx).map_or(0, |line| line.len_bytes());
-                Some(start..start + len)
+                let (skip, len) = text.get_line(line_idx).map_or((0, 0), |line| {
+                    // We want to exclude the leading whitespace when in exclusive mode
+                    let skip = line
+                        .chars()
+                        .take_while(|c| c.is_whitespace())
+                        .map(|c| c.len_utf8())
+                        .sum::<usize>();
+                    (skip, line.len_bytes())
+                });
+                Some(start + skip..start + len)
             }
             Inclusivity::Inclusive => {
                 match text.try_line_to_byte(line_idx + 1) {
