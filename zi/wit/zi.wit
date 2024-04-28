@@ -67,7 +67,7 @@ interface editor {
     type line = u32;
     type col = u32;
 
-    record position {
+    record point {
        line: line,
        col: col,
     }
@@ -79,8 +79,8 @@ interface editor {
 
     resource view {
         get-buffer: func() -> buffer;
-        get-cursor: func() -> position;
-        set-cursor: func(pos: position) -> ();
+        get-cursor: func() -> point;
+        set-cursor: func(pos: point) -> ();
     }
 
     resource buffer {

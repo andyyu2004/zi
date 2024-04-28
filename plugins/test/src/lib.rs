@@ -35,12 +35,12 @@ impl command::GuestHandler for CommandHandler {
 impl lifecycle::Guest for Component {
     fn initialize() -> InitializeResult {
         let view = get_active_view();
-        assert_eq!(view.get_cursor(), Position { line: 0, col: 0 });
-        view.set_cursor(Position { line: 0, col: 1 });
-        assert_eq!(view.get_cursor(), Position { line: 0, col: 0 });
+        assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
+        view.set_cursor(Point { line: 0, col: 1 });
+        assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
         insert("abc");
-        view.set_cursor(Position { line: 0, col: 1 });
-        assert_eq!(view.get_cursor(), Position { line: 0, col: 1 });
+        view.set_cursor(Point { line: 0, col: 1 });
+        assert_eq!(view.get_cursor(), Point { line: 0, col: 1 });
 
         let _buf = view.get_buffer();
 

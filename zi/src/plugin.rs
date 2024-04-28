@@ -31,14 +31,14 @@ pub type Store = wasmtime::Store<EditorClient>;
 
 use crate::{dirs, Point, ViewId};
 
-impl From<Point> for editor::Position {
+impl From<Point> for editor::Point {
     fn from(value: Point) -> Self {
         Self { line: value.line().idx() as u32, col: value.col().idx() as u32 }
     }
 }
 
-impl From<editor::Position> for Point {
-    fn from(value: editor::Position) -> Self {
+impl From<editor::Point> for Point {
+    fn from(value: editor::Point) -> Self {
         Self::from((value.line, value.col))
     }
 }
@@ -60,14 +60,14 @@ impl editor::HostView for EditorClient {
     async fn get_cursor(
         &mut self,
         view: Resource<editor::View>,
-    ) -> wasmtime::Result<editor::Position> {
+    ) -> wasmtime::Result<editor::Point> {
         Ok(self.request(move |editor| editor.view(v(view)).cursor().into()).await)
     }
 
     async fn set_cursor(
         &mut self,
         view: Resource<editor::View>,
-        pos: editor::Position,
+        pos: editor::Point,
     ) -> wasmtime::Result<()> {
         self.request(move |editor| editor.set_cursor(v(view), pos)).await;
         Ok(())
