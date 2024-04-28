@@ -59,3 +59,5 @@ cc e73234abcb7a2530c948bebe7ecfb904e7f8550f6409732355bcfd55d0d57387 # shrinks to
 cc 5fa0a203019441a66e5959b2895a035f4e705a2c05c46cfddc705c503859dca6 # shrinks to inputs = "WWWWWWWdd<ESC>", text = "A\n\na"
 cc abc6ac78f351deedaeb48e4feeb4c2a4b6ba9308c8d51a49a4c4428f56389c03 # shrinks to inputs = "Wcc<ESC>Wu<ESC>", text = "a\n\nA"
 cc ba484e7e1f2d0faa262781ed9e2846225e2a26bfc58ce64a4082d8f9e18822fe # shrinks to inputs = "WdWdWBu<ESC>", text = "A\na"
+cc c18109121c9f89aec0ac6e75b7ae43704b99222b8ef7f0554d6e9287c495a1ac # shrinks to inputs = "WWdBu<ESC>", text = "A\n !\nA"
+cc f51b9b0ac49238da5fbfffda322f1f65fdd8bc31aa0afc9b5e37a0170ef5d02d # shrinks to inputs = "Wddu<ESC>", text = "Aa"

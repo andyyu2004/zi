@@ -1007,9 +1007,9 @@ impl Editor {
                         let cursor = match start_char {
                             // Special case if the motion started at the newline of the prior line.
                             Some('\n') if !end_adjusted => cursor,
-                            _ => start_point,
-                        }
-                        .with_col(cursor.col());
+                            _ if end_adjusted => start_point,
+                            _ => start_point.with_col(cursor.col()),
+                        };
                         self[buf].snapshot_cursor(cursor);
                         self[buf].snapshot(SnapshotFlags::empty());
                     }
