@@ -1,12 +1,6 @@
 use super::{get, Selector};
+use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Point, ViewId};
-
-bitflags::bitflags! {
-    // A bunch of hacks, don't make this public
-    pub(crate) struct SetCursorFlags: u8 {
-        const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
-    }
-}
 
 impl Editor {
     #[inline]
@@ -21,7 +15,6 @@ impl Editor {
         let area = self.tree.view_area(view.id());
         view.set_cursor_linewise(self.mode, area, buf, pos.into(), SetCursorFlags::empty());
     }
-
 
     #[inline]
     pub fn move_cursor(

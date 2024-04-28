@@ -1,4 +1,5 @@
 pub(crate) mod cursor;
+mod keymap;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -18,7 +19,6 @@ use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
-use stdx::merge::Merge;
 use stdx::path::{PathExt, Relative};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
@@ -35,17 +35,17 @@ use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageClient, LanguageServer};
-use crate::motion::{self, Motion};
+use crate::motion::Motion;
 use crate::plugin::Plugins;
 use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
-use crate::text::{Delta, ReadonlyText, Text as _, TextSlice};
-use crate::textobject::{Inclusivity, TextObject, TextObjectKind};
-use crate::view::{ViewGroup, ViewGroupId};
+use crate::text::{Delta, PointOrByte, ReadonlyText, Text, TextSlice};
+use crate::textobject::{MotionKind, TextObject, TextObjectFlags};
+use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
-    event, hashmap, language, layout, textobject, trie, BufferId, Direction, Error, FileType,
-    LanguageServerId, Location, Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
+    event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
+    Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -198,8 +198,6 @@ macro_rules! get_ref {
 
 pub(crate) use {get, get_ref};
 
-use self::cursor::SetCursorFlags;
-
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
 type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
@@ -304,7 +302,7 @@ impl Editor {
             callbacks_tx,
             requests_tx,
             plugins,
-            keymap: default_keymap(),
+            keymap: keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
             pool: Default::default(),
@@ -748,7 +746,7 @@ impl Editor {
             // This passes the current set of tests but it's pretty dumb behaviour overall.
             // This means repeated `i<ESC>` will add empty undos to the undo stack which nvim does
             // not do.
-            buf.save(SnapshotFlags::ALLOW_EMPTY);
+            buf.snapshot(SnapshotFlags::ALLOW_EMPTY);
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 
@@ -909,31 +907,93 @@ impl Editor {
         &self.theme
     }
 
+    /// Applies the text object to the pending operator if there is one.
+    /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
+    /// If there a question about why it is this way, the answer is probably "because neovim does it".
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
-        let saved_cursor = view.cursor();
         let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
         let Mode::OperatorPending(operator) = self.mode else { return };
 
+        let mut motion_kind = obj.default_kind();
+        let flags = obj.flags();
+
         let text = self[buf].text();
-        let Ok(range) = obj.byte_range(text, text.point_to_byte(self[view].cursor())) else {
+
+        let cursor = self[view].cursor();
+        let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
             return self.set_mode(Mode::Normal);
         };
 
+        let start_char = text.char_at_byte(range.start);
+
+        let start_point = text.byte_to_point(range.start);
+        let end_point = text.byte_to_point(range.end);
+
+        let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
+            && end_point.col() == 0
+            && end_point.line() > 0
+            && motion_kind == MotionKind::Charwise
+            && end_point.line() - start_point.line() > 0;
+
+        if end_adjusted {
+            // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
+            // tldr;
+            //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
+            //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
+            // This implementation is only roughly approximating neovim's behaviour.
+            //
+            // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
+            // updates the cursor before this point.
+            if inindent(text, start_point) {
+                motion_kind = MotionKind::Linewise;
+                // TODO this logic is probably reusable (extending byte-range to line-range)
+                // extend the range to include the full start and end lines
+                let start_byte = text.line_to_byte(text.byte_to_line(range.start));
+                // Since the upper bound is exclusive, we need to adjust subtract a character.
+                let end_line = text.byte_to_line(
+                    range.end - text.char_at_byte(range.end).map_or(0, |c| c.len_utf8()),
+                );
+                let end_line_start = text.line_to_byte(end_line);
+                // FIXME: the 1 + is assuming the line terminator is 1 byte
+                let end_byte =
+                    end_line_start + text.get_line(end_line).map_or(0, |line| 1 + line.len_bytes());
+                range = start_byte..end_byte;
+            } else {
+                let line_idx = end_point.line().up(1).idx();
+                let line_above = text.get_line(line_idx).expect("must be in-bounds");
+                let adjusted_end_byte =
+                    text.point_to_byte(Point::new(line_idx, line_above.len_bytes()));
+                if adjusted_end_byte > range.start {
+                    // avoid making the range empty
+                    range.end = adjusted_end_byte;
+                }
+            }
+        }
+
         let (delta, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
-                // deletions moves the cursor to the start of the range
                 let delta = Delta::delete(range.clone());
-                (delta, Some(range.start))
+                let cursor = match motion_kind {
+                    // linewise deletions move the line but maintain the column
+                    MotionKind::Linewise => PointOrByte::Point(start_point.with_col(cursor.col())),
+                    // charwise deletions moves the cursor to the start of the range
+                    MotionKind::Charwise => PointOrByte::Byte(range.start),
+                };
+                (delta, Some(cursor))
             }
             Operator::Yank => todo!(),
         };
 
         match operator {
             // `c` snapshot the buffer before the edit, and delete saves it after
-            Operator::Change => self[buf].save(SnapshotFlags::empty()),
+            Operator::Change => {
+                self[buf].snapshot_cursor(start_point);
+                self[buf].snapshot(SnapshotFlags::empty())
+            }
+            Operator::Delete if text.is_empty() => return self.set_mode(Mode::Normal),
             Operator::Yank | Operator::Delete => {}
         }
 
@@ -942,19 +1002,51 @@ impl Editor {
         match operator {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
-                match obj.kind() {
-                    TextObjectKind::Linewise => self[buf].save_cursor(saved_cursor),
-                    TextObjectKind::Charwise => {}
+                match motion_kind {
+                    MotionKind::Linewise => {
+                        let cursor = match start_char {
+                            // Special case if the motion started at the newline of the prior line.
+                            Some('\n') if !end_adjusted => cursor,
+                            _ => start_point,
+                        }
+                        .with_col(cursor.col());
+                        self[buf].snapshot_cursor(cursor);
+                        self[buf].snapshot(SnapshotFlags::empty());
+                    }
+                    MotionKind::Charwise => {
+                        self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY);
+                    }
                 }
-                self[buf].save(SnapshotFlags::empty());
                 self.set_mode(Mode::Normal)
             }
             Operator::Yank => {}
         }
 
         if let Some(new_cursor) = new_cursor {
+            // some conditions where the cursor column is set to the old value
+            // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L6348-L6354
+            let (new_cursor, flags) = if motion_kind.is_linewise()
+                && !end_adjusted
+                && matches!(operator, Operator::Delete)
+            {
+                let cursor = match new_cursor {
+                    PointOrByte::Point(point) => PointOrByte::Point(point.with_col(cursor.col())),
+                    PointOrByte::Byte(_) => panic!("expected point cursor for linewise motion"),
+                };
+                (cursor, SetCursorFlags::empty())
+            } else {
+                // another vim quirk, move the cursor to the first non-whitespace character
+                (new_cursor, SetCursorFlags::START_OF_LINE)
+            };
+
             let (view, buf) = get!(self: view);
-            view.set_cursor_bytewise(self.mode, buf, self.tree.view_area(view.id()), new_cursor);
+            let area = self.tree.view_area(view.id());
+            match new_cursor {
+                PointOrByte::Point(point) => {
+                    view.set_cursor_linewise(self.mode, area, buf, point, flags)
+                }
+                PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+            };
         }
     }
 
@@ -965,9 +1057,8 @@ impl Editor {
             _ => {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
-                if let Ok(byte) = motion.motion(text, text.point_to_byte(view.cursor())) {
-                    view.set_cursor_bytewise(self.mode, buf, area, byte);
-                }
+                let byte = motion.motion(text, text.point_to_byte(view.cursor()));
+                view.set_cursor_bytewise(self.mode, area, buf, byte);
             }
         }
     }
@@ -989,15 +1080,19 @@ impl Editor {
         let (view, buf) = get!(self: view);
         let Some(entry) = f(buf) else { return };
 
-        let Some(fst) = entry.changes.first() else { return };
-        let area = self.tree.view_area(view.id());
-        let text = buf.text();
-        let cursor = match entry.cursor {
-            Some(cursor) => text.point_to_byte(cursor),
-            None => text.point_or_byte_to_byte(fst.delta.range().start()),
+        let cursor = match (entry.cursor, entry.changes.first()) {
+            (Some(cursor), _) => cursor.into(),
+            (_, Some(fst)) => fst.delta.range().start(),
+            _ => return,
         };
 
-        view.set_cursor_bytewise(self.mode, buf, area, cursor);
+        let area = self.tree.view_area(view.id());
+        match cursor {
+            PointOrByte::Point(point) => {
+                view.set_cursor_linewise(self.mode, area, buf, point, SetCursorFlags::empty())
+            }
+            PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+        };
     }
 
     // Don't think we want this to be a public api, used for tests for now
@@ -1648,6 +1743,31 @@ impl Editor {
     }
 }
 
+/// Returns true if the cursor is on or before the first non-whitespace character of the line.
+fn inindent(text: impl Text, cursor: Point) -> bool {
+    text.get_line(cursor.line().idx())
+        .expect("cursor should be inbounds")
+        .chars()
+        .take_while(|c| c.is_whitespace())
+        .map(|c| c.len_utf8())
+        .sum::<usize>()
+        >= cursor.col().idx()
+}
+
+#[cfg(test)]
+#[test]
+fn test_inindent() {
+    #[track_caller]
+    fn check(text: impl Text, cursor: Point, expect: bool) {
+        assert_eq!(inindent(text, cursor), expect);
+    }
+
+    check("a", Point::new(0, 0), true);
+    check(" a", Point::new(0, 0), true);
+    check(" a", Point::new(0, 1), true);
+    check(" a", Point::new(0, 2), false);
+}
+
 fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
     use std::io::BufRead;
 
@@ -1726,288 +1846,4 @@ fn callback<R: 'static>(
             as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
     }))
     .expect("send failed");
-}
-
-fn default_keymap() -> Keymap {
-    static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
-
-    // maybe should rewrite all as functions
-    fn delete_operator(editor: &mut Editor) {
-        editor.set_mode(Mode::OperatorPending(Operator::Delete));
-    }
-
-    fn change_operator_pending(editor: &mut Editor) {
-        editor.set_mode(Mode::OperatorPending(Operator::Change));
-    }
-
-    fn yank_operator_pending(editor: &mut Editor) {
-        editor.set_mode(Mode::OperatorPending(Operator::Yank));
-    }
-
-    fn insert_mode(editor: &mut Editor) {
-        editor.set_mode(Mode::Insert);
-    }
-
-    fn command_mode(editor: &mut Editor) {
-        editor.set_mode(Mode::Command);
-    }
-
-    fn insert_newline(editor: &mut Editor) {
-        editor.insert_char_at_cursor('\n');
-    }
-
-    fn normal_mode(editor: &mut Editor) {
-        editor.set_mode(Mode::Normal);
-    }
-
-    fn move_left(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Left, 1);
-    }
-
-    fn move_right(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Right, 1);
-    }
-
-    fn move_up(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Up, 1);
-    }
-
-    fn move_down(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Down, 1);
-    }
-
-    fn goto_definition(editor: &mut Editor) {
-        editor.goto_definition();
-    }
-
-    fn goto_start(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, u32::MAX);
-    }
-
-    fn goto_end(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, u32::MAX);
-    }
-
-    fn align_view_top(editor: &mut Editor) {
-        let view = editor.view(Active).id();
-        editor.align_view(view, VerticalAlignment::Top);
-    }
-
-    fn align_view_center(editor: &mut Editor) {
-        let view = editor.view(Active).id();
-        editor.align_view(view, VerticalAlignment::Center);
-    }
-
-    fn align_view_bottom(editor: &mut Editor) {
-        let view = editor.view(Active).id();
-        editor.align_view(view, VerticalAlignment::Bottom);
-    }
-
-    fn open_newline(editor: &mut Editor) {
-        editor.set_mode(Mode::Insert);
-        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
-        editor.insert_char_at_cursor('\n');
-    }
-
-    fn motion_next_token(editor: &mut Editor) {
-        editor.motion(motion::NextToken);
-    }
-
-    fn motion_prev_token(editor: &mut Editor) {
-        editor.motion(motion::PrevToken);
-    }
-
-    fn motion_next_word(editor: &mut Editor) {
-        editor.motion(motion::NextWord);
-    }
-
-    fn motion_prev_word(editor: &mut Editor) {
-        editor.motion(motion::PrevWord);
-    }
-
-    fn text_object_current_line_inclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line(Inclusivity::Inclusive));
-    }
-
-    fn text_object_current_line_exclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line(Inclusivity::Exclusive));
-    }
-
-    fn append_eol(editor: &mut Editor) {
-        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
-        editor.set_mode(Mode::Insert);
-        editor.move_cursor(Active, Direction::Right, 1);
-    }
-
-    fn append(editor: &mut Editor) {
-        editor.set_mode(Mode::Insert);
-        editor.move_cursor(Active, Direction::Right, 1);
-    }
-
-    fn scroll_line_down(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, 1);
-    }
-
-    fn scroll_line_up(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, 1);
-    }
-
-    fn scroll_down(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, 20);
-    }
-
-    fn scroll_up(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, 20);
-    }
-
-    fn open_file_picker(editor: &mut Editor) {
-        editor.open_file_picker(".");
-    }
-
-    fn open_file_explorer(editor: &mut Editor) {
-        editor.open_file_explorer(".");
-    }
-
-    fn split_vertical(editor: &mut Editor) {
-        editor.split_view(Active, Direction::Right, tui::Constraint::Fill(1));
-    }
-
-    fn split_horizontal(editor: &mut Editor) {
-        editor.split_view(Active, Direction::Down, tui::Constraint::Fill(1));
-    }
-
-    fn focus_left(editor: &mut Editor) {
-        editor.move_focus(Direction::Left);
-    }
-
-    fn focus_right(editor: &mut Editor) {
-        editor.move_focus(Direction::Right);
-    }
-
-    fn focus_up(editor: &mut Editor) {
-        editor.move_focus(Direction::Up);
-    }
-
-    fn focus_down(editor: &mut Editor) {
-        editor.move_focus(Direction::Down);
-    }
-
-    fn view_only(editor: &mut Editor) {
-        editor.view_only(editor.view(Active).id());
-    }
-
-    fn undo(editor: &mut Editor) {
-        editor.undo(Active);
-    }
-
-    fn redo(editor: &mut Editor) {
-        editor.redo(Active);
-    }
-
-    macro_rules! action {
-        ($($name:ident),*) => {
-            $(
-                fn $name(editor: &mut Editor) {
-                    editor.$name();
-                }
-            )*
-        };
-    }
-
-    action!(jump_prev, jump_next, inspect, delete_char_backward, execute_command, open_jump_list);
-
-    // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
-    KEYMAP
-        .get_or_init(|| {
-            let operator_pending_trie = trie!({
-                "<ESC>" | "<C-c>" => normal_mode,
-                "w" => motion_next_word,
-                "W" => motion_next_token,
-                "b" => motion_prev_word,
-                "B" => motion_prev_token,
-            });
-
-            Keymap::from(hashmap! {
-                Mode::Command => trie!({
-                    "<ESC>" | "<C-c>" => normal_mode,
-                    "<CR>" => execute_command,
-                }),
-                Mode::Insert => trie!({
-                    "<ESC>" | "<C-c>" => normal_mode,
-                    "<CR>" => insert_newline,
-                    "<BS>" => delete_char_backward,
-                    "f" => {
-                        "d" => normal_mode,
-                    },
-                }),
-                Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
-                    "d" => text_object_current_line_inclusive,
-                })),
-                Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
-                    "c" => text_object_current_line_exclusive,
-                })),
-                Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
-                    "y" => text_object_current_line_exclusive,
-                })),
-                Mode::Normal => trie!({
-                    "<C-o>" => jump_prev,
-                    "<C-i>" => jump_next,
-                    "<C-d>" => scroll_down,
-                    "<C-u>" => scroll_up,
-                    "<C-e>" => scroll_line_down,
-                    "<C-y>" => scroll_line_up,
-                    "d" => delete_operator,
-                    "c" => change_operator_pending,
-                    "y" => yank_operator_pending,
-                    ":" => command_mode,
-                    "i" => insert_mode,
-                    "h" => move_left,
-                    "l" => move_right,
-                    "j" => move_down,
-                    "k" => move_up,
-                    "o" => open_newline,
-                    "w" => motion_next_word,
-                    "b" => motion_prev_word,
-                    "W" => motion_next_token,
-                    "B" => motion_prev_token,
-                    "a" => append,
-                    "A" => append_eol,
-                    "u" => undo,
-                    "<C-r>" => redo,
-                    "<C-h>" => focus_left,
-                    "<C-j>" => focus_down,
-                    "<C-k>" => focus_up,
-                    "<C-l>" => focus_right,
-                    "-" => open_file_explorer,
-                    "G" => goto_end,
-                    "<space>" => {
-                        "e" => open_file_explorer,
-                        "o" => open_file_picker,
-                        "j" => open_jump_list,
-                    },
-                    "g" => {
-                        "d" => goto_definition,
-                        "g" => goto_start,
-                    },
-                    "t" => {
-                        "s" => inspect,
-                    },
-                    "z" => {
-                        "t" => align_view_top,
-                        "z" => align_view_center,
-                        "b" => align_view_bottom,
-                    },
-                    "<C-w>" => {
-                        "o" => view_only,
-                        "v" | "<C-v>" => split_vertical,
-                        "s" | "<C-s>" => split_horizontal,
-                        "h" | "<C-h>" => focus_left,
-                        "k" | "<C-k>" => focus_up,
-                        "j" | "<C-j>" => focus_down,
-                        "l" | "<C-l>" => focus_right,
-                    },
-                }),
-            })
-        })
-        .clone()
 }

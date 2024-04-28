@@ -47,6 +47,14 @@ impl TestCase {
     }
 }
 
+bitflags::bitflags! {
+    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct CompareFlags: u8 {
+        /// Allow all whitespace lines to be considered equal i.e. "a\n  \nb" == "a\n\nb"
+        const IGNORE_WHITESPACE_LINES = 0b0001;
+    }
+}
+
 pub async fn spawn(width: u16, height: u16) -> Nvim {
     Nvim::spawn(width, height).await.expect("could not spawn neovim")
 }
@@ -56,11 +64,11 @@ impl Fixture {
         Self { size: zi::Size::new(80, 24), cases: cases.into_iter().collect() }
     }
 
-    pub async fn nvim_vs_zi_with(self, nvim: &Nvim) -> zi::Result<()> {
+    pub async fn nvim_vs_zi_with(self, nvim: &Nvim, flags: CompareFlags) -> zi::Result<()> {
         let (mut editor, _tasks) = zi::Editor::new(self.size);
 
         for case in &self.cases[..] {
-            nvim.run(&mut editor, case).await?;
+            nvim.run(&mut editor, case, flags).await?;
         }
 
         Ok(())
@@ -70,10 +78,10 @@ impl Fixture {
         Nvim::spawn(self.size.width, self.size.height).await
     }
 
-    pub async fn nvim_vs_zi(self) -> zi::Result<()> {
+    pub async fn nvim_vs_zi(self, flags: CompareFlags) -> zi::Result<()> {
         let size = self.size;
         let nvim = Nvim::spawn(size.width, size.height).await?;
-        self.nvim_vs_zi_with(&nvim).await
+        self.nvim_vs_zi_with(&nvim, flags).await
     }
 
     pub fn load(path: &Path) -> zi::Result<Self> {
@@ -133,7 +141,12 @@ pub struct Nvim {
 }
 
 impl Nvim {
-    pub async fn run(&self, editor: &mut zi::Editor, case: &TestCase) -> zi::Result<()> {
+    pub async fn run(
+        &self,
+        editor: &mut zi::Editor,
+        case: &TestCase,
+        flags: CompareFlags,
+    ) -> zi::Result<()> {
         // Only remove the final newline. The rest of the newlines are significant.
         let initial = &case.text;
         let inputs = &case.inputs;
@@ -152,7 +165,9 @@ impl Nvim {
         self.nvim.get_current_win().await?.set_cursor((1, 0)).await?;
         self.nvim.input("<ESC><ESC>").await?;
 
-        self.assert_eq(editor).await.context("did not reset state properly before test case")?;
+        self.assert_eq(editor, flags)
+            .await
+            .context("did not reset state properly before test case")?;
 
         for (i, key) in inputs.clone().into_iter().enumerate() {
             // https://github.com/neovim/neovim/issues/6159
@@ -162,7 +177,7 @@ impl Nvim {
             self.nvim.input(&key.to_string()).await?;
             editor.handle_input(key.clone());
 
-            self.assert_eq(editor).await.with_context(|| {
+            self.assert_eq(editor, flags).await.with_context(|| {
                 format!("index {i} in key sequence: `{inputs}`, key=`{key}` text={initial:?}")
             })?;
         }
@@ -171,7 +186,7 @@ impl Nvim {
     }
 
     // Compare the state of the editor with the state of the nvim instance
-    async fn assert_eq(&self, editor: &zi::Editor) -> zi::Result<()> {
+    async fn assert_eq(&self, editor: &zi::Editor, flags: CompareFlags) -> zi::Result<()> {
         let (mut vi_mode, mut blocking) = (None, None);
         self.nvim.get_mode().await?.into_iter().for_each(|(key, value)| {
             match key.as_str().unwrap() {
@@ -220,17 +235,62 @@ impl Nvim {
             _ => panic!("unknown mode: {vi_mode}"),
         };
 
-        if zi_lines.ends_with('\n') && !vi_lines.ends_with('\n') {
-            // We allow `zi` to have a single additional newline.
-            let zi_lines = &zi_lines[..zi_lines.len() - 1];
-            ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
-        } else {
-            ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
-        }
-        ensure!(line as usize == zi_cursor.line().idx());
-        ensure!(col as usize == zi_cursor.col().idx());
+        let vi_cursor = zi::Point::new(line as usize, col as usize);
+        ensure_eq(vi_cursor, zi_cursor, vi_lines, zi_lines, flags)?;
+
         Ok(())
     }
+}
+
+fn ensure_eq(
+    vi_cursor: zi::Point,
+    zi_cursor: zi::Point,
+    vi_lines: String,
+    zi_lines: String,
+    flags: CompareFlags,
+) -> Result<(), anyhow::Error> {
+    ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
+
+    let res = ensure_lines_eq(&vi_lines, &zi_lines);
+    if let Ok(()) = res {
+        return Ok(());
+    }
+
+    if flags.contains(CompareFlags::IGNORE_WHITESPACE_LINES) {
+        let mut zi_lines = zi_lines.lines();
+
+        for (i, (vi_line, zi_line)) in vi_lines.lines().zip(&mut zi_lines).enumerate() {
+            if vi_line.chars().all(char::is_whitespace) && zi_line.chars().all(char::is_whitespace)
+            {
+                continue;
+            }
+
+            ensure!(vi_line == zi_line, "on line {i}\nvi: {vi_line:?}\nzi: {zi_line:?}");
+        }
+
+        if let Some(zi_line) = zi_lines.next() {
+            ensure!(
+                zi_line.chars().all(char::is_whitespace),
+                "unexpected trailing line in zi: {zi_line:?}"
+            );
+        }
+
+        ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
+
+        return Ok(());
+    }
+
+    // otherwise, return the original error
+    res
+}
+
+fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {
+    // We allow `zi` to have a single additional newline.
+    if vi_lines != &zi_lines[..zi_lines.len().saturating_sub(1)] {
+        ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
+    }
+
+    Ok(())
 }
 
 const DIR: &str = env!("CARGO_MANIFEST_DIR");
@@ -239,6 +299,7 @@ impl Nvim {
     async fn spawn(width: u16, height: u16) -> zi::Result<Nvim> {
         let (nvim, join_handle, child) = nvim_rs::create::tokio::new_child_cmd(
             Command::new("nvim")
+                // Command::new("/home/andy/dev/neovim/build/bin/nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
                 // .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early

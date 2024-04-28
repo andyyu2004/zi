@@ -18,3 +18,21 @@ d
 e
 ----
 cccccccccccccccccccccccccccccccccccccccccccccc
+
+==== cb doesn't remove the line break after `b`
+a b
+c
+----
+jcb
+
+==== cc preserves the preceding space
+A
+ 0A
+----
+Wcc
+
+====
+A
+ a
+----
+WccB

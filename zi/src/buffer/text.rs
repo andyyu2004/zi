@@ -60,12 +60,18 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     }
 
     fn snapshot(&mut self, flags: SnapshotFlags) {
+        debug_assert!(
+            self.changes.iter().all(|change| !change.delta.is_identity()),
+            "should avoid pushing identities"
+        );
+
         if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
             return;
         }
 
         let changes = mem::take(&mut self.changes);
         tracing::debug!(?flags, ?changes, "snapshot buffer");
+
         self.undo_tree
             .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
     }
@@ -269,23 +275,23 @@ impl<X: Text> TextBuffer<X> {
         }
     }
 
-    fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
-        if delta.is_identity() {
-            return;
-        }
-
-        tracing::debug!(?flags, ?delta, "edit buffer");
-
-        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE)
-            && !delta.text().is_empty()
-            && self.text.chars().next_back() != Some('\n')
-        {
-            // Ensure the buffer ends with a newline before any insert.
-            // It's fine to do this without editing the syntax as a trailing
-            // newline won't affect it.
+    // Ensure the buffer still with a newline.
+    // It's fine to do this without editing the syntax as a trailing
+    // newline won't affect it.
+    fn ensure_trailing_newline(&mut self) {
+        if self.text.chars().next_back() != Some('\n') {
             let len = self.text.len_bytes();
             self.edit(&Delta::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
         }
+    }
+
+    fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
+        let should_ensure_newline = !flags.contains(EditFlags::NO_ENSURE_NEWLINE);
+        if should_ensure_newline {
+            self.ensure_trailing_newline();
+        }
+
+        tracing::debug!(?flags, ?delta, "edit buffer");
 
         match self.text.as_text_mut() {
             Some(text) => {
@@ -295,7 +301,7 @@ impl<X: Text> TextBuffer<X> {
                     (text.edit(delta), None)
                 };
 
-                if !flags.contains(EditFlags::NO_RECORD) {
+                if !flags.contains(EditFlags::NO_RECORD) && !delta.is_identity() {
                     let change = Change { delta: delta.to_owned(), inversion };
                     match self.changes.pop() {
                         None => self.changes.push(change),
@@ -311,6 +317,11 @@ impl<X: Text> TextBuffer<X> {
             }
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
+        }
+
+        // If the buffer is empty then we leave it so.
+        if should_ensure_newline && !self.text.is_empty() {
+            self.ensure_trailing_newline();
         }
     }
 }

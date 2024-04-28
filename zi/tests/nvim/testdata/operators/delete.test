@@ -19,3 +19,64 @@ a
 b
 ----
 dWdWdWdW
+
+====
+a
+----
+o<ESC>dW
+
+
+====
+abc
+c
+----
+llldw
+
+==== db doesn't remove the line break after `b`
+a b
+c
+----
+jdb
+
+==== unless it clears to the beginning of the previous line
+ab
+c
+----
+jdb
+
+====
+
+ A
+----
+dW
+
+====
+a0
+aA
+----
+WWdd
+
+====
+
+ a
+----
+dd
+
+====
+ a
+b
+----
+jdb
+
+====
+a
+ 0a
+----
+WdWdB
+
+====
+
+
+x
+----
+jjjdd

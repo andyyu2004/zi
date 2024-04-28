@@ -1,28 +1,63 @@
 use std::ops;
 
-use crate::motion::{Motion, MotionResult};
-use crate::text::{AnyText, Text as _};
+use crate::text::{AnyText, Text as _, TextSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextObjectKind {
+pub enum MotionKind {
     Linewise,
     Charwise,
 }
 
-pub trait TextObject {
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>>;
+impl MotionKind {
+    #[must_use]
+    pub fn is_linewise(&self) -> bool {
+        matches!(self, Self::Linewise)
+    }
 
-    #[inline]
-    fn kind(&self) -> TextObjectKind {
-        // TODO may not always be true
-        TextObjectKind::Charwise
+    #[must_use]
+    pub fn is_charwise(&self) -> bool {
+        matches!(self, Self::Charwise)
     }
 }
 
-impl<M: Motion> TextObject for M {
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct TextObjectFlags: u8 {
+        /// This is used to help match neovim behaviour. There are certain special cases
+        /// that only apply to exclusive text objects. This does not affect what `byte_range`
+        /// should return.
+        const EXCLUSIVE = 0b0001;
+    }
+}
+
+pub trait TextObject {
+    /// Returns the byte range of the text object that contains the given byte.
+    /// To signal to the caller to cancel the operation, return `None`.
+    /// It is also valid to return `Some(empty_range)` to proceed.
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
+
+    fn default_kind(&self) -> MotionKind;
+
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, a: usize) -> MotionResult<ops::Range<usize>> {
-        self.byte_range(text, a)
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::empty()
+    }
+}
+
+impl<O: TextObject> TextObject for &O {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        (*self).byte_range(text, byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> MotionKind {
+        (*self).default_kind()
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        (*self).flags()
     }
 }
 
@@ -34,35 +69,53 @@ pub enum Inclusivity {
 
 /// A text object that represents a line.
 /// The line can be include or exclude the newline character.
-/// The exception is if the index is on the newline character, then it's included.
-pub struct Line(pub Inclusivity);
+pub struct Line {
+    inclusivity: Inclusivity,
+}
+
+impl Line {
+    pub fn new(inclusivity: Inclusivity) -> Self {
+        Self { inclusivity }
+    }
+
+    pub fn inclusive() -> Self {
+        Self::new(Inclusivity::Inclusive)
+    }
+
+    pub fn exclusive() -> Self {
+        Self::new(Inclusivity::Exclusive)
+    }
+}
 
 impl TextObject for Line {
     #[inline]
-    fn kind(&self) -> TextObjectKind {
-        TextObjectKind::Linewise
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Linewise
     }
 
     #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> MotionResult<ops::Range<usize>> {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
         let start = text.line_to_byte(line_idx);
 
-        match self.0 {
+        match self.inclusivity {
             Inclusivity::Exclusive => {
-                // Special case: if the byte is exactly on a newline, include it
-                if let Some('\n') = text.get_char(byte) {
-                    return Ok(byte..byte + 1);
-                }
-
-                let len = text.get_line(line_idx).map_or(0, |line| line.len_bytes());
-                Ok(start..start + len)
+                let (skip, len) = text.get_line(line_idx).map_or((0, 0), |line| {
+                    // We want to exclude the leading whitespace when in exclusive mode
+                    let skip = line
+                        .chars()
+                        .take_while(|c| c.is_whitespace())
+                        .map(|c| c.len_utf8())
+                        .sum::<usize>();
+                    (skip, line.len_bytes())
+                });
+                Some(start + skip..start + len)
             }
             Inclusivity::Inclusive => {
                 match text.try_line_to_byte(line_idx + 1) {
-                    Some(end) => Ok(start..end),
-                    // If the line is the last line, we want to include the previous newline
-                    None => Ok(start.saturating_sub(1)..text.len_bytes()),
+                    Some(end) => Some(start..end),
+                    // If the line is the last line, we want to include the trailing newline
+                    None => Some(start..text.len_bytes()),
                 }
             }
         }

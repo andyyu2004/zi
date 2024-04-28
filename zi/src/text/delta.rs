@@ -133,13 +133,13 @@ impl<'a> Delta<'a> {
 
     #[inline]
     pub fn to_owned(&self) -> Delta<'static> {
-        Delta {
-            range: match &self.range {
+        Delta::new(
+            match &self.range {
                 DeltaRange::Point(r) => DeltaRange::Point(*r),
                 DeltaRange::Byte(r) => DeltaRange::Byte(r.clone()),
             },
-            text: Cow::Owned(self.text.to_string()),
-        }
+            self.text.to_string(),
+        )
     }
 
     #[inline]

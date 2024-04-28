@@ -450,6 +450,7 @@ pub trait Text: TextBase {
     /// This must always return at least one line, even if the text is empty.
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>>;
 
+    /// Returns the line at the given index excluding the newline character(s).
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
     #[inline]

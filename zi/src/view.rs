@@ -3,7 +3,6 @@ use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
 
 use crate::buffer::Buffer;
-use crate::editor::cursor::SetCursorFlags;
 use crate::editor::{Resource, Selector};
 use crate::position::{Offset, RangeMergeIter, Size};
 use crate::private::Sealed;
@@ -13,6 +12,19 @@ use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, U
 slotmap::new_key_type! {
     pub struct ViewId;
     pub struct ViewGroupId;
+}
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct SetCursorFlags: u8 {
+        /// Shift the cursor right to the first non-whitespace character if necessary.
+        const START_OF_LINE = 1 << 0;
+    }
+
+    // A bunch of hacks, don't make this public
+    struct SetCursorHacks: u8 {
+        const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,13 +260,13 @@ impl View {
             Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
         };
 
-        let flags = if direction.is_vertical() {
-            SetCursorFlags::NO_COLUMN_BOUNDS_CHECK
+        let hacks = if direction.is_vertical() {
+            SetCursorHacks::NO_COLUMN_BOUNDS_CHECK
         } else {
-            SetCursorFlags::empty()
+            SetCursorHacks::empty()
         };
 
-        self.set_cursor_linewise(mode, size, buf, pos, flags)
+        self.set_cursor_linewise_inner(mode, size, buf, pos, SetCursorFlags::empty(), hacks)
     }
 
     // HACK clean this up and try not have two different implementations for a cursor move.
@@ -263,30 +275,31 @@ impl View {
     pub(crate) fn set_cursor_bytewise(
         &mut self,
         mode: Mode,
-        buf: &dyn Buffer,
         size: impl Into<Size>,
+        buf: &dyn Buffer,
         mut byte: usize,
-    ) {
+    ) -> Point {
         assert_eq!(buf.id(), self.buf);
-        let text = buf.text();
 
+        let text = buf.text();
         let len = text.len_bytes();
-        if byte >= len && !matches!(mode, Mode::Insert) {
-            byte = len;
-            let chars = text.chars().rev();
-            for c in chars {
-                byte -= c.len_utf8();
-                if c != '\n' {
-                    break;
-                }
-            }
-        } else if byte > 0
-            && byte + 1 == text.len_bytes()
-            && text.chars().last() == Some('\n')
-            && !matches!(mode, Mode::Insert)
+        assert!(byte <= len);
+
+        // Ensure the cursor is in a valid position.
+        let mut chars = if byte == len {
+            let mut chars = text.byte_slice(..byte).chars().rev().peekable();
+            // adjust the index due to differences between .. and ..=
+            byte -= chars.peek().map_or(0, |c| c.len_utf8());
+            chars
+        } else {
+            text.byte_slice(..=byte).chars().rev().peekable()
+        };
+
+        if !matches!(mode, Mode::Insert)
+            && chars.next() == Some('\n')
+            && chars.peek() != Some(&'\n')
         {
-            // Another special case, we can't allow the cursor to be on the final newline.
-            byte -= 1;
+            byte = byte.saturating_sub('\n'.len_utf8());
         }
 
         let pos = text.byte_to_point(byte);
@@ -295,6 +308,7 @@ impl View {
         self.ensure_scroll_in_bounds(size);
         #[cfg(debug_assertions)]
         std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
+        self.cursor.pos
     }
 
     #[inline]
@@ -305,6 +319,19 @@ impl View {
         buf: &dyn Buffer,
         pos: Point,
         flags: SetCursorFlags,
+    ) -> Point {
+        self.set_cursor_linewise_inner(mode, size, buf, pos, flags, SetCursorHacks::empty())
+    }
+
+    #[inline]
+    fn set_cursor_linewise_inner(
+        &mut self,
+        mode: Mode,
+        size: impl Into<Size>,
+        buf: &dyn Buffer,
+        pos: Point,
+        flags: SetCursorFlags,
+        hacks: SetCursorHacks,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
@@ -336,14 +363,35 @@ impl View {
 
         // Store where we really want to be without the following bounds constraints.
         self.cursor.target_col = pos.col();
-        if !flags.contains(SetCursorFlags::NO_COLUMN_BOUNDS_CHECK) {
+        if !hacks.contains(SetCursorHacks::NO_COLUMN_BOUNDS_CHECK) {
             // By default, we want to ensure the target column is in-bounds for the line.
             self.cursor.target_col = self.cursor.target_col.min(max_col);
         }
 
         // check column is in-bounds for the line
         self.cursor.pos = match pos.col().idx() {
-            i if i < line_len => pos,
+            i if i < line_len => {
+                if flags.contains(SetCursorFlags::START_OF_LINE) {
+                    let mut col = 0;
+                    let mut found_non_whitespace = false;
+                    for c in line.chars() {
+                        if !c.is_whitespace() {
+                            found_non_whitespace = true;
+                            break;
+                        }
+                        col += c.len_utf8();
+                    }
+
+                    // don't advance the cursor if the line is all spaces
+                    if !found_non_whitespace {
+                        col = 0;
+                    }
+
+                    pos.with_col(col.max(i))
+                } else {
+                    pos
+                }
+            }
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
