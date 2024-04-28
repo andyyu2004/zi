@@ -60,11 +60,6 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     }
 
     fn snapshot(&mut self, flags: SnapshotFlags) {
-        debug_assert!(
-            self.changes.iter().all(|change| !change.delta.is_identity()),
-            "should avoid pushing identities"
-        );
-
         if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
             return;
         }
@@ -301,7 +296,7 @@ impl<X: Text> TextBuffer<X> {
                     (text.edit(delta), None)
                 };
 
-                if !flags.contains(EditFlags::NO_RECORD) && !delta.is_identity() {
+                if !flags.contains(EditFlags::NO_RECORD) {
                     let change = Change { delta: delta.to_owned(), inversion };
                     match self.changes.pop() {
                         None => self.changes.push(change),

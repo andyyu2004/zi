@@ -1013,9 +1013,7 @@ impl Editor {
                         self[buf].snapshot_cursor(cursor);
                         self[buf].snapshot(SnapshotFlags::empty());
                     }
-                    MotionKind::Charwise => {
-                        self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY);
-                    }
+                    MotionKind::Charwise => self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY),
                 }
                 self.set_mode(Mode::Normal)
             }
