@@ -114,15 +114,8 @@ impl TextObject for Line {
             Inclusivity::Inclusive => {
                 match text.try_line_to_byte(line_idx + 1) {
                     Some(end) => Some(start..end),
-                    // If the line is the last line, we want to include the previous newline
-                    None => {
-                        // We want to preserve the trailing newline if it exists
-                        if text.chars().next_back() == Some('\n') {
-                            Some(start.saturating_sub(1)..text.len_bytes() - 1)
-                        } else {
-                            Some(start.saturating_sub(1)..text.len_bytes())
-                        }
-                    }
+                    // If the line is the last line, we want to include the trailing newline
+                    None => Some(start..text.len_bytes()),
                 }
             }
         }

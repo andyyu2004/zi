@@ -6,12 +6,14 @@ use super::*;
 #[track_caller]
 fn check(motion: &impl Motion, text: &str, byte: usize, expected: usize) {
     assert_eq!(motion.motion(&text, byte), expected);
+    assert_eq!(motion.motion(&crop::Rope::from(text), byte), expected);
 }
 
 // These are textobject tests now, should probably move them
 #[track_caller]
 fn check_range(motion: &impl Motion, text: &str, byte: usize, expected: Option<ops::Range<usize>>) {
     assert_eq!(motion.byte_range(&text, byte), expected);
+    assert_eq!(motion.byte_range(&crop::Rope::from(text), byte), expected);
 }
 
 fn prev_token_and_word(motion: &impl Motion) {

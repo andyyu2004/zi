@@ -144,14 +144,27 @@ proptest! {
                 b += c.len_utf8();
             }
 
-            for l in 0..reference.len_lines() {
+            for l in 0..=reference.len_lines() {
                 assert_eq!(reference.get_line(l).map(|s| s.to_string()), imp.get_line(l).map(|s| s.to_string()), "{s:?}: on line {l}");
                 assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
+                assert_eq!(reference.try_line_to_byte(l), imp.try_line_to_byte(l), "{s:?}`: on line {l}");
             }
+
 
             assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
         }
     }
+}
+
+#[test]
+fn try_line_to_byte() {
+    #[track_caller]
+    fn check(s: &str, line: usize) {
+        assert_eq!(s.try_line_to_byte(line), crop::Rope::from(s).try_line_to_byte(line));
+    }
+
+    check("\n\n\n", 2);
+    check("\n\n\n", 3);
 }
 
 #[test]

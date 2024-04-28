@@ -276,8 +276,11 @@ fn ensure_eq(
         }
 
         ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
+
+        return Ok(());
     }
 
+    // otherwise, return the original error
     res
 }
 

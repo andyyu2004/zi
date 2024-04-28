@@ -151,3 +151,13 @@ fn enter_normal_mode_on_last_line() -> zi::Result<()> {
     assert_eq!(editor.cursor(zi::Active), (1, 0));
     Ok(())
 }
+
+#[test]
+fn delete_last_line() {
+    let mut editor = new("");
+    editor.input("i<CR><CR><ESC>").unwrap();
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n\n");
+    editor.input("jjdd").unwrap();
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n");
+    assert_eq!(editor.cursor(zi::Active), (1, 0));
+}
