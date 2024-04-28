@@ -989,7 +989,10 @@ impl Editor {
 
         match operator {
             // `c` snapshot the buffer before the edit, and delete saves it after
-            Operator::Change => self[buf].snapshot(SnapshotFlags::empty()),
+            Operator::Change => {
+                self[buf].snapshot_cursor(start_point);
+                self[buf].snapshot(SnapshotFlags::empty())
+            }
             Operator::Delete if text.is_empty() => return self.set_mode(Mode::Normal),
             Operator::Yank | Operator::Delete => {}
         }
@@ -1077,15 +1080,19 @@ impl Editor {
         let (view, buf) = get!(self: view);
         let Some(entry) = f(buf) else { return };
 
-        let Some(fst) = entry.changes.first() else { return };
-        let area = self.tree.view_area(view.id());
-        let text = buf.text();
-        let cursor = match entry.cursor {
-            Some(cursor) => text.point_to_byte(cursor),
-            None => text.point_or_byte_to_byte(fst.delta.range().start()),
+        let cursor = match (entry.cursor, entry.changes.first()) {
+            (Some(cursor), _) => cursor.into(),
+            (_, Some(fst)) => fst.delta.range().start(),
+            _ => return,
         };
 
-        view.set_cursor_bytewise(self.mode, area, buf, cursor);
+        let area = self.tree.view_area(view.id());
+        match cursor {
+            PointOrByte::Point(point) => {
+                view.set_cursor_linewise(self.mode, area, buf, point, SetCursorFlags::empty())
+            }
+            PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+        };
     }
 
     // Don't think we want this to be a public api, used for tests for now
