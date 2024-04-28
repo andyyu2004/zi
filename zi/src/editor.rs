@@ -909,7 +909,7 @@ impl Editor {
 
     /// Applies the text object to the pending operator if there is one.
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
-    /// If there a question about why is this way, the answer is probably "because neovim does it".
+    /// If there a question about why it is this way, the answer is probably "because neovim does it".
     pub(crate) fn text_object(&mut self, obj: impl TextObject) {
         let (view, buf) = get!(self);
         let (view, buf) = (view.id(), buf.id());
@@ -935,7 +935,8 @@ impl Editor {
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
             && end_point.col() == 0
             && end_point.line() > 0
-            && motion_kind == MotionKind::Charwise;
+            && motion_kind == MotionKind::Charwise
+            && end_point.line() - start_point.line() > 0;
 
         if end_adjusted {
             // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
@@ -977,9 +978,6 @@ impl Editor {
                 let delta = Delta::delete(range.clone());
                 let cursor = match motion_kind {
                     // linewise deletions move the line but maintain the column
-                    // MotionKind::Linewise if end_adjusted => {
-                    //     PointOrByte::Point(start_point.with_col(cursor.col()))
-                    // }
                     MotionKind::Linewise => PointOrByte::Point(start_point.with_col(cursor.col())),
                     // charwise deletions moves the cursor to the start of the range
                     MotionKind::Charwise => PointOrByte::Byte(range.start),
@@ -992,6 +990,7 @@ impl Editor {
         match operator {
             // `c` snapshot the buffer before the edit, and delete saves it after
             Operator::Change => self[buf].snapshot(SnapshotFlags::empty()),
+            Operator::Delete if text.is_empty() => return self.set_mode(Mode::Normal),
             Operator::Yank | Operator::Delete => {}
         }
 
@@ -1009,10 +1008,12 @@ impl Editor {
                         }
                         .with_col(cursor.col());
                         self[buf].snapshot_cursor(cursor);
+                        self[buf].snapshot(SnapshotFlags::empty());
                     }
-                    MotionKind::Charwise => {}
+                    MotionKind::Charwise => {
+                        self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY);
+                    }
                 }
-                self[buf].snapshot(SnapshotFlags::empty());
                 self.set_mode(Mode::Normal)
             }
             Operator::Yank => {}

@@ -31,7 +31,7 @@ fn undo_textobject_deletion() {
 fn undo_does_not_insert_extra_newlines() {
     let mut editor = new("a");
     editor.input("dwdw").unwrap();
-    assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n");
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
     editor.undo(zi::Active);
     assert!(!editor.buffer(zi::Active).text().to_string().ends_with("\n\n"));
 }
@@ -40,7 +40,7 @@ fn undo_does_not_insert_extra_newlines() {
 fn wip() {
     let mut editor = new("a");
     editor.input("dwdw").unwrap();
-    assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n");
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
     editor.input("dd").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
 }

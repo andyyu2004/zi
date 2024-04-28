@@ -286,7 +286,8 @@ impl<X: Text> TextBuffer<X> {
     }
 
     fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
-        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE) {
+        let should_ensure_newline = !flags.contains(EditFlags::NO_ENSURE_NEWLINE);
+        if should_ensure_newline {
             self.ensure_trailing_newline();
         }
 
@@ -318,7 +319,8 @@ impl<X: Text> TextBuffer<X> {
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
 
-        if !flags.contains(EditFlags::NO_ENSURE_NEWLINE) {
+        // If the buffer is empty then we leave it so.
+        if should_ensure_newline && !self.text.is_empty() {
             self.ensure_trailing_newline();
         }
     }

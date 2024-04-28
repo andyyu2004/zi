@@ -278,7 +278,7 @@ fn ensure_eq(
         ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
     }
 
-    Ok(())
+    res
 }
 
 fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {

@@ -402,6 +402,15 @@ impl Sub<usize> for Line {
     }
 }
 
+impl Sub<Line> for Line {
+    type Output = Self;
+
+    #[inline]
+    fn sub(self, amt: Line) -> Self {
+        self - amt.0
+    }
+}
+
 impl Sub<u32> for Line {
     type Output = Self;
 

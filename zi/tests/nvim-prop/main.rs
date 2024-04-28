@@ -59,8 +59,7 @@ t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINE
 /// Useful to test a particular case
 #[test]
 fn scratch() {
-    // run("A\n 0A", "Wcc");
-    // run("ab", "Wcc<ESC>u")
+    run("AA", "dddWu<ESC>", CompareFlags::IGNORE_WHITESPACE_LINES);
 }
 
 #[track_caller]
