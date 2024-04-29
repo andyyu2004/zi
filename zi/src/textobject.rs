@@ -1,5 +1,7 @@
+pub mod motion;
 use std::ops;
 
+use self::motion::Motion;
 use crate::text::{AnyText, Text as _, TextSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +122,256 @@ impl TextObject for Line {
             }
         }
     }
+}
+
+pub struct Repeated<M> {
+    pub(crate) motion: M,
+    pub(crate) n: usize,
+}
+
+impl<M: TextObject> TextObject for Repeated<M> {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        let _ = (text, byte);
+        todo!();
+    }
+
+    fn default_kind(&self) -> crate::textobject::MotionKind {
+        self.motion.default_kind()
+    }
+}
+
+trait CharExt {
+    /// Returns true if the character is a word separator.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_separator(self) -> bool;
+
+    /// Returns true if the character is a token separator.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_token_separator(self) -> bool;
+
+    /// Returns true if the character is a word start.
+    /// This includes non-alphanumeric characters and capital letters.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_word_start(self) -> bool;
+}
+
+impl CharExt for char {
+    #[inline]
+    fn is_word_separator(self) -> bool {
+        self.is_whitespace() || !self.is_alphanumeric()
+    }
+
+    #[inline]
+    fn is_token_separator(self) -> bool {
+        self.is_whitespace()
+    }
+
+    #[inline]
+    fn is_word_start(self) -> bool {
+        (self.is_uppercase() || !self.is_alphanumeric()) && !self.is_word_separator()
+    }
+}
+
+impl TextObject for Prev {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        if byte == 0 {
+            // To match `nvim` behaviour, when going back from the start of the buffer, we cancel the operation
+            // https://github.com/neovim/neovim/blob/7fa24948a936a95519f0c8c496402488b6508c14/src/nvim/normal.c#L5874
+            return None;
+        }
+
+        Some(self.motion(text, byte)..byte)
+    }
+
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
+}
+
+pub struct PrevToken;
+
+impl PrevToken {
+    fn imp() -> Prev {
+        Prev {
+            is_sep: char::is_whitespace,
+            is_start: |c, next| !c.is_whitespace() && next.is_whitespace(),
+        }
+    }
+}
+
+impl TextObject for PrevToken {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        Self::imp().byte_range(text, byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
+    }
+}
+
+pub struct NextWord;
+
+impl NextWord {
+    pub(crate) fn mv(&self, text: &dyn AnyText, mut byte: usize) -> (usize, bool) {
+        let mut chars = text.byte_slice(byte..).chars();
+
+        let Some(c) = chars.next() else { return (byte, false) };
+        byte += c.len_utf8();
+
+        if c == '\n' {
+            // not even sure what the bool return is really meant to indicate anymore, but this needs to be
+            // false to work :)
+            return (byte, false);
+        }
+
+        let mut found_sep = c.is_word_separator();
+        for c in chars {
+            let is_sep = c.is_word_separator();
+            if found_sep && !is_sep || c.is_word_start() {
+                break;
+            }
+
+            if c.is_word_separator() {
+                found_sep = true;
+            }
+
+            byte += c.len_utf8();
+            if c == '\n' {
+                return (byte, true);
+            }
+        }
+
+        (byte, false)
+    }
+}
+
+impl TextObject for NextWord {
+    #[inline]
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        let (end, just_crossed_newline) = self.mv(text, start);
+        // Exclude the newline character if using as a range
+        // e.g. dw does not delete the line break
+        Some(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
+    }
+}
+
+pub struct PrevWord;
+
+impl PrevWord {
+    fn imp() -> Prev {
+        Prev { is_sep: char::is_word_separator, is_start: |c, _| c.is_word_start() }
+    }
+}
+
+impl TextObject for PrevWord {
+    #[inline]
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        Self::imp().byte_range(text, start)
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
+    }
+}
+
+/// Whitespace delimited word
+pub struct NextToken;
+
+impl NextToken {
+    // from `:h w`
+    // Another special case: When using the "w" motion in combination with an
+    // operator and the last word moved over is at the end of a line, the end of
+    // that word becomes the end of the operated text, not the first word in the
+    // next line.
+    pub(crate) fn mv(
+        &self,
+        text: &dyn AnyText,
+        mut byte: usize,
+        stop_before_newline: bool,
+    ) -> usize {
+        let mut chars = text.byte_slice(byte..).chars().peekable();
+
+        match chars.peek() {
+            Some('\n') if stop_before_newline => {
+                assert_eq!(chars.next(), Some('\n'));
+                // if the cursor is at the end of a line, the next word is the first word of the next line.
+                // However, we don't want to chop the trailing newline if there is one.
+                return byte + chars.peek().is_some() as usize;
+            }
+            _ => (),
+        }
+
+        let start_byte = byte;
+
+        let mut found_sep = false;
+        let mut prev_char = None;
+        while let Some(c) = chars.next() {
+            if found_sep && !c.is_token_separator() {
+                break;
+            }
+
+            // empty lines are considered a word
+            if prev_char == Some('\n') && c == '\n' {
+                break;
+            }
+
+            if stop_before_newline && c == '\n' && (byte > start_byte || chars.peek().is_none()) {
+                break;
+            }
+
+            found_sep |= c.is_token_separator();
+            byte += c.len_utf8();
+
+            prev_char = Some(c);
+        }
+
+        byte
+    }
+}
+
+impl TextObject for NextToken {
+    #[inline]
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
+
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
+        Some(start..self.mv(text, start, true))
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        TextObjectFlags::EXCLUSIVE
+    }
+}
+
+struct Prev {
+    is_sep: fn(char) -> bool,
+    is_start: fn(char, char) -> bool,
 }
 
 #[cfg(test)]

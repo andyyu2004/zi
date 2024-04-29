@@ -20,7 +20,6 @@ mod keymap;
 mod language;
 mod layout;
 mod lsp;
-pub mod motion;
 mod operator;
 mod plugin;
 mod position;
@@ -45,6 +44,7 @@ pub use self::syntax::{Color, Style};
 pub use self::text::Delta;
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
+pub use self::textobject::motion;
 
 // Consider a proper error type
 pub type Error = anyhow::Error;
