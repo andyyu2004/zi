@@ -77,7 +77,7 @@ fn next_token_and_word(motion: &impl Motion) {
 #[test]
 fn motion_next_word() {
     let motion = NextWord;
-    // next_token_and_word(&motion); FIXME
+    // next_token_and_word(&motion); FIXME TODO TODO HELP!
     check(&motion, "_a-", 0, 1);
     check(&motion, "a-A", 0, 2);
     check(&motion, "AAa", 0, 1);
