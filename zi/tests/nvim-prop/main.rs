@@ -53,13 +53,15 @@ t!(I, "<ESC>", nvim_test);
 t!(I, "[WBjk]+", nvim_token_motions);
 t!(I, "[dWB]+", nvim_delete_word);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
+// only allowing one undo step for now as there are discrepancies that need to be investigated
 t!(I, "d([WB]|(<ESC>))+u<ESC>", nvim_undo_delete_word);
 t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINES);
 
 /// Useful to test a particular case
 #[test]
 fn scratch() {
-    run("Aa", "Wddu", CompareFlags::empty());
+    // run("AA", "Wddcc<ESC>uuu<ESC>", CompareFlags::empty());
+    run("AA", "Wddcc<ESC>dduu<ESC>", CompareFlags::empty());
 }
 
 #[track_caller]

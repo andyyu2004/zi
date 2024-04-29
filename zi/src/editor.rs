@@ -743,10 +743,7 @@ impl Editor {
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             // Move cursor left when exiting insert mode
             let (view, buf) = get!(self);
-            // This passes the current set of tests but it's pretty dumb behaviour overall.
-            // This means repeated `i<ESC>` will add empty undos to the undo stack which nvim does
-            // not do.
-            buf.snapshot(SnapshotFlags::ALLOW_EMPTY);
+            buf.snapshot(SnapshotFlags::empty());
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
         }
 

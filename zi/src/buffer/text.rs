@@ -59,6 +59,7 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
         self.undo_tree.clear();
     }
 
+    #[tracing::instrument(skip(self))]
     fn snapshot(&mut self, flags: SnapshotFlags) {
         if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
             return;
@@ -281,7 +282,9 @@ impl<X: Text> TextBuffer<X> {
     }
 
     fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
-        let should_ensure_newline = !flags.contains(EditFlags::NO_ENSURE_NEWLINE);
+        // Ensure the buffer ends with a newline before any insert.
+        let should_ensure_newline =
+            !flags.contains(EditFlags::NO_ENSURE_NEWLINE) && !delta.text().is_empty();
         if should_ensure_newline {
             self.ensure_trailing_newline();
         }
@@ -315,7 +318,7 @@ impl<X: Text> TextBuffer<X> {
         }
 
         // If the buffer is empty then we leave it so.
-        if should_ensure_newline && !self.text.is_empty() {
+        if should_ensure_newline && self.text.is_empty() {
             self.ensure_trailing_newline();
         }
     }
