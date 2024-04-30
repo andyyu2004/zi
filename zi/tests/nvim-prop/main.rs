@@ -65,8 +65,7 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("a b\nc", "jcb");
-    test("A A\n ", "jdB");
+    test("a\n 0A", "ddccu<ESC>");
 }
 
 #[track_caller]

@@ -382,8 +382,8 @@ impl View {
                         col += c.len_utf8();
                     }
 
-                    // don't advance the cursor if the line is all spaces
-                    if !found_non_whitespace {
+                    // don't advance the cursor if the line is all spaces unless in insert mode
+                    if !found_non_whitespace && !matches!(mode, Mode::Insert) {
                         col = 0;
                     }
 
