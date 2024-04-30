@@ -45,10 +45,13 @@ fn check(motion: &impl Motion, text: &str, byte: usize, expected: usize) {
 }
 
 fn prev_token_and_word(motion: &impl Motion) {
+    check(&motion, "ab\nc", 3, 0);
     check(&motion, "a\n\nc", 3, 2);
     check(&motion, "a\nb", 2, 0);
-    // skips the whitespace to after the first newline
+    // skips the whitespace until after the first newline
     check(&motion, "a\n\n c", 4, 2);
+
+    check(&motion, "a\n \nb", 4, 2);
 
     check_range(&motion, "a b", 2, Some(0..2));
 }

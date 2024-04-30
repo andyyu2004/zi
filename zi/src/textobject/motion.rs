@@ -85,15 +85,24 @@ impl Motion for Prev {
             return byte - c.map_or(0, |c| c.len_utf8());
         }
 
+        let mut crossed_newline = false;
+
         while let Some([c, next]) = windows.next() {
             byte -= c.len_utf8();
+
+            if crossed_newline && next == '\n' {
+                // should never cross two newlines
+                break;
+            }
+
+            crossed_newline |= c == '\n';
 
             if matches!((c, next), ('\n', '\n')) {
                 break;
             }
 
-            // Stop if we're about to hit a separator or newline, or at a word start, unless We're currently on a separator.
-            if ((self.is_sep)(next) || (self.is_start)(c, next)) && !(self.is_sep)(c) {
+            // Stop if we're about to hit a separator or newline, or at a word start, unless we're currently on a separator.
+            if ((self.is_sep)(next) || (self.is_start)(c, next)) && (!(self.is_sep)(c)) {
                 break;
             }
 

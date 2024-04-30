@@ -61,11 +61,12 @@ t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINE
 /// Useful to test a particular case
 #[test]
 fn scratch() {
+    #[allow(unused)]
     fn test(text: &str, inputs: &str) {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("A\n\n  Aa", "WWdWdB");
+    // test("A\n \na", "wwwBB");
 }
 
 #[track_caller]
