@@ -249,10 +249,9 @@ fn ensure_eq(
     zi_lines: String,
     flags: CompareFlags,
 ) -> Result<(), anyhow::Error> {
-    ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
-
     let res = ensure_lines_eq(&vi_lines, &zi_lines);
     if let Ok(()) = res {
+        ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
         return Ok(());
     }
 
@@ -277,6 +276,7 @@ fn ensure_eq(
 
         ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
 
+        ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
         return Ok(());
     }
 

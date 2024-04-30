@@ -48,6 +48,7 @@ test-strategy = "0.3.1"
 futures-executor = "0.3.30"
 zi = { path = ".", features = ["arbitrary"] }
 zi-nvim = { path = "../zi-nvim" }
+regex = "1"
 
 [features]
 arbitrary = ["dep:arbitrary", "bitflags/arbitrary"]

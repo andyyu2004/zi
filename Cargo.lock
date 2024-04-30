@@ -3414,6 +3414,7 @@ dependencies = [
  "parking_lot",
  "proptest",
  "rayon",
+ "regex",
  "rustc-hash",
  "slotmap",
  "smallvec 2.0.0-alpha.5",

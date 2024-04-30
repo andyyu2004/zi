@@ -928,14 +928,16 @@ impl Editor {
 
         let start_point = text.byte_to_point(range.start);
         let end_point = text.byte_to_point(range.end);
+        // -1 to the line count if the end point is at the start of a line because it's exclusive
+        let mut line_count = end_point.line() - start_point.line() + 1;
 
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
             && end_point.col() == 0
-            && end_point.line() > 0
             && motion_kind == MotionKind::Charwise
-            && end_point.line() - start_point.line() > 0;
+            && line_count > 1;
 
         if end_adjusted {
+            line_count -= 1;
             // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
             // tldr;
             //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
@@ -946,18 +948,6 @@ impl Editor {
             // updates the cursor before this point.
             if inindent(text, start_point) {
                 motion_kind = MotionKind::Linewise;
-                // TODO this logic is probably reusable (extending byte-range to line-range)
-                // extend the range to include the full start and end lines
-                let start_byte = text.line_to_byte(text.byte_to_line(range.start));
-                // Since the upper bound is exclusive, we need to adjust subtract a character.
-                let end_line = text.byte_to_line(
-                    range.end - text.char_at_byte(range.end).map_or(0, |c| c.len_utf8()),
-                );
-                let end_line_start = text.line_to_byte(end_line);
-                // FIXME: the 1 + is assuming the line terminator is 1 byte
-                let end_byte =
-                    end_line_start + text.get_line(end_line).map_or(0, |line| 1 + line.len_bytes());
-                range = start_byte..end_byte;
             } else {
                 let line_idx = end_point.line().up(1).idx();
                 let line_above = text.get_line(line_idx).expect("must be in-bounds");
@@ -968,6 +958,32 @@ impl Editor {
                     range.end = adjusted_end_byte;
                 }
             }
+        }
+
+        // Another neovim special case inherited from vi.
+        // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L1468-L1484
+        if motion_kind == MotionKind::Charwise
+            && line_count > 1
+            && operator == Operator::Delete
+            && inindent(text, end_point)
+            && text.get_line(end_point.line().idx()).unwrap().chars().all(char::is_whitespace)
+        {
+            motion_kind = MotionKind::Linewise;
+        }
+
+        // If we're in a special case for linewise motions that are charwise by default,
+        // extend the range to include the full start and end lines.
+        if obj.default_kind() == MotionKind::Charwise && motion_kind == MotionKind::Linewise {
+            // TODO this logic is probably reusable (extending byte-range to line-range)
+            let start_byte = text.line_to_byte(text.byte_to_line(range.start));
+            // Since the upper bound is exclusive, we need to adjust subtract a character.
+            let end_line = text
+                .byte_to_line(range.end - text.char_at_byte(range.end).map_or(0, |c| c.len_utf8()));
+            let end_line_start = text.line_to_byte(end_line);
+            // FIXME: the 1 + is assuming the line terminator is 1 byte
+            let end_byte =
+                end_line_start + text.get_line(end_line).map_or(0, |line| 1 + line.len_bytes());
+            range = start_byte..end_byte;
         }
 
         let (delta, new_cursor) = match operator {

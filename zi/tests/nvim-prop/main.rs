@@ -33,7 +33,9 @@ macro_rules! t {
                 proptest::prop_assume!(!inputs.contains("cb") && !inputs.contains("cB"));
 
                 // avoid lines with only spaces, as often formatters will clear trailing whitespaces anyway
-                proptest::prop_assume!(!text.contains("\n \n"));
+                static AVOID: OnceLock<regex::Regex> = OnceLock::new();
+                let regex = AVOID.get_or_init(|| regex::Regex::new(r"\n *\n").unwrap());
+                proptest::prop_assume!(!regex.is_match(&text));
 
                 run(text, &inputs, $flags)
             }
@@ -59,8 +61,12 @@ t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINE
 /// Useful to test a particular case
 #[test]
 fn scratch() {
-    // run("AA", "Wddcc<ESC>uuu<ESC>", CompareFlags::empty());
-    run("AA", "Wddcc<ESC>dduu<ESC>", CompareFlags::empty());
+    fn test(text: &str, inputs: &str) {
+        run(text, inputs, CompareFlags::empty())
+    }
+
+    test("a b\nc", "jcb");
+    test("A A\n ", "jdB");
 }
 
 #[track_caller]

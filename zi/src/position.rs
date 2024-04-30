@@ -403,11 +403,11 @@ impl Sub<usize> for Line {
 }
 
 impl Sub<Line> for Line {
-    type Output = Self;
+    type Output = usize;
 
     #[inline]
-    fn sub(self, amt: Line) -> Self {
-        self - amt.0
+    fn sub(self, amt: Line) -> Self::Output {
+        (self.0 - amt.0) as usize
     }
 }
 

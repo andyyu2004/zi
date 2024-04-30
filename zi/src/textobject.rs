@@ -172,22 +172,6 @@ impl CharExt for char {
     }
 }
 
-impl TextObject for Prev {
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        if byte == 0 {
-            // To match `nvim` behaviour, when going back from the start of the buffer, we cancel the operation
-            // https://github.com/neovim/neovim/blob/7fa24948a936a95519f0c8c496402488b6508c14/src/nvim/normal.c#L5874
-            return None;
-        }
-
-        Some(self.motion(text, byte)..byte)
-    }
-
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
-    }
-}
-
 pub struct PrevToken;
 
 impl PrevToken {
@@ -372,6 +356,34 @@ impl TextObject for NextToken {
 struct Prev {
     is_sep: fn(char) -> bool,
     is_start: fn(char, char) -> bool,
+}
+
+impl TextObject for Prev {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        if byte == 0 {
+            // To match `nvim` behaviour, when going back from the start of the buffer, we cancel the operation
+            // https://github.com/neovim/neovim/blob/7fa24948a936a95519f0c8c496402488b6508c14/src/nvim/normal.c#L5874
+            return None;
+        }
+
+        let mut end = byte;
+        if text.char_at_byte(byte).map_or(true, |c| (self.is_sep)(c)) {
+            // skip any trailing separators
+            let mut chars = text.byte_slice(..byte).chars().rev();
+            for c in &mut chars {
+                if !(self.is_sep)(c) || c == '\n' {
+                    break;
+                }
+                end -= c.len_utf8();
+            }
+        }
+
+        Some(self.motion(text, byte)..end)
+    }
+
+    fn default_kind(&self) -> MotionKind {
+        MotionKind::Charwise
+    }
 }
 
 #[cfg(test)]
