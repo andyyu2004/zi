@@ -34,7 +34,7 @@ macro_rules! t {
 
                 // avoid lines with only spaces, as often formatters will clear trailing whitespaces anyway
                 static AVOID: OnceLock<regex::Regex> = OnceLock::new();
-                let regex = AVOID.get_or_init(|| regex::Regex::new(r"\n *\n").unwrap());
+                let regex = AVOID.get_or_init(|| regex::Regex::new(r"\n +\n").unwrap());
                 proptest::prop_assume!(!regex.is_match(&text));
 
                 run(text, &inputs, $flags)
@@ -65,7 +65,7 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("a\n 0A", "ddccu<ESC>");
+    test("A\n\n  Aa", "WWdWdB");
 }
 
 #[track_caller]

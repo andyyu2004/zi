@@ -50,10 +50,6 @@ fn prev_token_and_word(motion: &impl Motion) {
     // skips the whitespace to after the first newline
     check(&motion, "a\n\n c", 4, 2);
 
-    // skips whitespace until a newline
-    check_range(&motion, "ab\n ", 3, Some(0..3));
-    check_range(&motion, "ab\n    ", 5, Some(0..3));
-
     check_range(&motion, "a b", 2, Some(0..2));
 }
 

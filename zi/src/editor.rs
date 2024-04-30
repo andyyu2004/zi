@@ -974,15 +974,9 @@ impl Editor {
         // If we're in a special case for linewise motions that are charwise by default,
         // extend the range to include the full start and end lines.
         if obj.default_kind() == MotionKind::Charwise && motion_kind == MotionKind::Linewise {
-            // TODO this logic is probably reusable (extending byte-range to line-range)
-            let start_byte = text.line_to_byte(text.byte_to_line(range.start));
-            // Since the upper bound is exclusive, we need to adjust subtract a character.
-            let end_line = text
-                .byte_to_line(range.end - text.char_at_byte(range.end).map_or(0, |c| c.len_utf8()));
-            let end_line_start = text.line_to_byte(end_line);
-            // FIXME: the 1 + is assuming the line terminator is 1 byte
-            let end_byte =
-                end_line_start + text.get_line(end_line).map_or(0, |line| 1 + line.len_bytes());
+            let start_line = start_point.line().idx();
+            let start_byte = text.line_to_byte(start_line);
+            let end_byte = text.line_to_byte(start_line + line_count);
             range = start_byte..end_byte;
         }
 

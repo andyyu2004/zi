@@ -366,19 +366,7 @@ impl TextObject for Prev {
             return None;
         }
 
-        let mut end = byte;
-        if text.char_at_byte(byte).map_or(true, |c| (self.is_sep)(c)) {
-            // skip any trailing separators
-            let mut chars = text.byte_slice(..byte).chars().rev();
-            for c in &mut chars {
-                if !(self.is_sep)(c) || c == '\n' {
-                    break;
-                }
-                end -= c.len_utf8();
-            }
-        }
-
-        Some(self.motion(text, byte)..end)
+        Some(self.motion(text, byte)..byte)
     }
 
     fn default_kind(&self) -> MotionKind {
