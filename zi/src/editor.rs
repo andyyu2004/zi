@@ -3,20 +3,22 @@ mod keymap;
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::cell::OnceCell;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
 use std::ops::{Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{cmp, fmt, io};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
+use grep::regex::RegexMatcherBuilder;
+use grep::searcher::{sinks, BinaryDetection, SearcherBuilder};
+use ignore::WalkState;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::{PathExt, Relative};
@@ -26,9 +28,10 @@ use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
 use zi_lsp::{lsp_types, LanguageServer as _};
 
+use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
-    Buffer, BufferFlags, ExplorerBuffer, FilePicker, Injector, InspectorBuffer, Picker,
-    PickerBuffer, SnapshotFlags, TextBuffer, UndoEntry,
+    Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
+    TextBuffer, UndoEntry,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
@@ -57,6 +60,11 @@ bitflags::bitflags! {
     }
 }
 
+fn pool() -> &'static rayon::ThreadPool {
+    static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
+    POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
+}
+
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
@@ -70,7 +78,6 @@ pub struct Editor {
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
     tree: layout::ViewTree,
-    pool: OnceCell<rayon::ThreadPool>,
     /// error to be displayed in the status line
     status_error: Option<String>,
     /// Stores the command currently in the command line
@@ -305,7 +312,6 @@ impl Editor {
             keymap: keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
-            pool: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -433,10 +439,6 @@ impl Editor {
 
     pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
         self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
-    }
-
-    fn pool(&self) -> &rayon::ThreadPool {
-        self.pool.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
     }
 
     fn set_active_buffer(&mut self, buf: BufferId) {
@@ -792,7 +794,7 @@ impl Editor {
         self.tree.view_only(view);
     }
 
-    pub fn split_view(
+    pub fn split(
         &mut self,
         selector: impl Selector<ViewId>,
         direction: Direction,
@@ -807,13 +809,13 @@ impl Editor {
         split_view
     }
 
-    pub fn focus_view(&mut self, selector: impl Selector<ViewId>) {
+    pub fn focus(&mut self, selector: impl Selector<ViewId>) {
         let id = selector.select(self);
         self.tree.focus(id);
     }
 
-    pub fn move_focus(&mut self, direction: Direction) -> ViewId {
-        self.tree.move_focus(direction)
+    pub fn focus_direction(&mut self, direction: Direction) -> ViewId {
+        self.tree.focus_direction(direction)
     }
 
     pub fn delete_char_backward(&mut self) {
@@ -1236,21 +1238,27 @@ impl Editor {
         }
     }
 
-    pub fn scroll_view(
-        &mut self,
-        selector: impl Selector<ViewId>,
-        direction: Direction,
-        amount: u32,
-    ) {
+    pub fn scroll(&mut self, selector: impl Selector<ViewId>, direction: Direction, amount: u32) {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
         view.scroll(self.mode, area, buf, direction, amount);
     }
 
+    // Not sure if this should be public API
+    pub(crate) fn reveal(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        point: Point,
+        alignment: VerticalAlignment,
+    ) {
+        self.set_cursor(&selector, point);
+        self.align_view(&selector, alignment);
+    }
+
     pub(crate) fn inspect(&mut self) {
         let inspector_view = self.view(Active).id();
-        self.split_view(Active, Direction::Up, tui::Constraint::Percentage(70));
+        self.split(Active, Direction::Up, tui::Constraint::Percentage(70));
         let buf = self.buffers.insert_with_key(|id| InspectorBuffer::new(id).boxed());
         self.set_buffer(inspector_view, buf);
     }
@@ -1297,7 +1305,7 @@ impl Editor {
                 .build();
 
             let path = path.to_path_buf();
-            editor.pool().spawn(move || {
+            pool().spawn(move || {
                 let _ = injector.push(PathBuf::from("..").display_relative_to(&path));
                 for entry in walk {
                     let Ok(entry) = entry else { continue };
@@ -1352,11 +1360,36 @@ impl Editor {
         self.tree.push(layer);
     }
 
-    pub fn open_picker<P>(
+    fn open_static_picker<P>(
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
-        inject: impl FnOnce(&mut Editor, Injector<P::Item>),
+        f: impl FnOnce(&mut Self, Injector<P::Entry>),
+    ) -> ViewGroupId
+    where
+        P: Picker + Send,
+    {
+        self.open_picker::<P>(view_group_url, path, None, f)
+    }
+
+    fn open_dynamic_picker<P>(
+        &mut self,
+        view_group_url: Url,
+        path: impl AsRef<Path>,
+        dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
+    ) -> ViewGroupId
+    where
+        P: Picker + Send,
+    {
+        self.open_picker::<P>(view_group_url, path, Some(Arc::new(dynamic_source)), |_, _| {})
+    }
+
+    fn open_picker<P>(
+        &mut self,
+        view_group_url: Url,
+        path: impl AsRef<Path>,
+        dynamic_source: Option<DynamicHandler<P::Entry>>,
+        f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
         P: Picker + Send,
@@ -1375,11 +1408,12 @@ impl Editor {
                 .with_line_number(tui::LineNumber::None)
                 .with_group(view_group)
         });
+
         self.tree.push(Layer::new_with_area(preview, |area| {
             tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)[1]
         }));
 
-        let display_view = self.split_view(Active, Direction::Left, tui::Constraint::Fill(1));
+        let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
         self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
             TextBuffer::new(
                 id,
@@ -1392,7 +1426,7 @@ impl Editor {
             .boxed()
         }));
 
-        let search_view = self.split_view(Active, Direction::Up, tui::Constraint::Max(1));
+        let search_view = self.split(Active, Direction::Up, tui::Constraint::Max(1));
         assert_eq!(self.tree().active(), search_view);
 
         // ensure all views are in the same group so they close together
@@ -1412,12 +1446,15 @@ impl Editor {
 
         let mut injector = None;
         let picker_buf = self.buffers.insert_with_key(|id| {
-            let (picker, inj) =
-                PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
-            injector = Some(inj);
+            let mut picker = PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
+            injector = Some(picker.injector());
+            if let Some(source) = dynamic_source {
+                picker = picker.with_dynamic_handler(source);
+            }
             picker.boxed()
         });
-        inject(self, injector.unwrap());
+
+        f(self, injector.unwrap());
 
         self.set_buffer(search_view, picker_buf);
 
@@ -1451,14 +1488,10 @@ impl Editor {
         }
 
         impl Picker for JumpListPicker {
-            type Item = Jump;
+            type Entry = Jump;
 
             fn new(preview: crate::ViewId) -> Self {
                 Self { preview }
-            }
-
-            fn config(self) -> nucleo::Config {
-                nucleo::Config::DEFAULT
             }
 
             fn confirm(self, editor: &mut Editor, item: Jump) {
@@ -1485,10 +1518,10 @@ impl Editor {
 
         // Save the current view so the jumps we get are from the right view.
         let view = self.view(Active).id();
-        self.open_picker::<JumpListPicker>(
+        self.open_static_picker::<JumpListPicker>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
-            |editor, injector| {
+            move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
                     let path = editor.buffer(loc.buf).path().to_path_buf();
                     if let Err(()) = injector.push(Jump { path, buf: loc.buf, point: loc.point }) {
@@ -1501,25 +1534,122 @@ impl Editor {
 
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         let path = path.as_ref();
-        self.open_picker::<FilePicker<stdx::path::Display>>(
+        self.open_static_picker::<PathPicker<stdx::path::Display>>(
             Url::parse("view-group://files").unwrap(),
             path,
-            |editor, injector| {
+            |_editor, injector| {
                 let walk = ignore::WalkBuilder::new(path).build_parallel();
-                editor.pool().spawn(move || {
+                pool().spawn(move || {
                     walk.run(|| {
                         Box::new(|entry| {
                             let entry = match entry {
                                 Ok(entry) => match entry.file_type() {
                                     Some(ft) if ft.is_file() => entry,
-                                    _ => return ignore::WalkState::Continue,
+                                    _ => return WalkState::Continue,
                                 },
-                                Err(_) => return ignore::WalkState::Continue,
+                                Err(_) => return WalkState::Continue,
                             };
 
                             match injector.push(entry.into_path().display_owned()) {
-                                Ok(()) => ignore::WalkState::Continue,
-                                Err(()) => ignore::WalkState::Quit,
+                                Ok(()) => WalkState::Continue,
+                                Err(()) => WalkState::Quit,
+                            }
+                        })
+                    })
+                });
+            },
+        )
+    }
+
+    pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
+        #[derive(Clone)]
+        struct Entry {
+            path: PathBuf,
+            line: usize,
+            content: String,
+        }
+
+        impl PathPickerEntry for Entry {
+            #[inline]
+            fn path(&self) -> &Path {
+                &self.path
+            }
+
+            #[inline]
+            fn line(&self) -> Option<usize> {
+                Some(self.line)
+            }
+        }
+
+        impl fmt::Display for Entry {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}:{} {}", self.path.display(), self.line, self.content)
+            }
+        }
+
+        let path = path.as_ref().to_path_buf();
+        self.open_dynamic_picker::<PathPicker<Entry>>(
+            Url::parse("view-group://search").unwrap(),
+            "search",
+            move |injector, query| {
+                tracing::debug!(%query, "global search update");
+
+                let mut builder = RegexMatcherBuilder::new();
+                builder.case_smart(true);
+                let matcher = match builder.build(query) {
+                    Ok(matcher) => matcher,
+                    // if the regex is invalid, just treat the query as literal instead of a regex
+                    Err(_err) => builder
+                        .fixed_strings(true)
+                        .build(query)
+                        .expect("don't think it can fail with fixed strings"),
+                };
+
+                let searcher = SearcherBuilder::new()
+                    // maybe there's stronger heuristic, but a null byte is probably a decent indicator
+                    .binary_detection(BinaryDetection::quit(b'\x00'))
+                    .build();
+
+                let walk = ignore::WalkBuilder::new(&path).build_parallel();
+
+                pool().spawn(move || {
+                    walk.run(|| {
+                        let injector = injector.clone();
+                        let mut searcher = searcher.clone();
+                        let matcher = matcher.clone();
+
+                        Box::new(move |entry| {
+                            let entry = match entry {
+                                Ok(entry) => match entry.file_type() {
+                                    Some(ft) if ft.is_file() => entry,
+                                    _ => return WalkState::Continue,
+                                },
+                                Err(_) => return WalkState::Continue,
+                            };
+
+                            let mut quit = false;
+                            let sink = sinks::UTF8(|line, content| {
+                                quit = injector
+                                    .push(Entry {
+                                        line: line.checked_sub(1).expect("1-indexed") as usize,
+                                        path: entry.path().to_path_buf(),
+                                        content: content.trim_end().to_string(),
+                                    })
+                                    .is_err();
+                                Ok(!quit)
+                            });
+
+                            // TODO search buffers first so unsaved content will show
+
+                            if let Err(err) = searcher.search_path(&matcher, entry.path(), sink) {
+                                tracing::error!(%err, "global search error");
+                            }
+
+                            if quit {
+                                tracing::debug!("global search cancelled");
+                                WalkState::Quit
+                            } else {
+                                WalkState::Continue
                             }
                         })
                     })
@@ -1570,7 +1700,7 @@ impl Editor {
         self.goto(to);
     }
 
-    fn goto(&mut self, Location { buf, point }: Location) {
+    pub(crate) fn goto(&mut self, Location { buf, point }: Location) {
         // FIXME what if buffer is gone
         self.set_active_buffer(buf);
         self.set_cursor(Active, point);

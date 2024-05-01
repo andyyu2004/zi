@@ -87,8 +87,8 @@ impl ViewTree {
         self.top_mut().split(view, new, direction, constraint)
     }
 
-    pub fn move_focus(&mut self, direction: Direction) -> ViewId {
-        self.top_mut().move_focus(direction)
+    pub fn focus_direction(&mut self, direction: Direction) -> ViewId {
+        self.top_mut().focus_direction(direction)
     }
 
     pub fn focus(&mut self, view: ViewId) {
@@ -172,7 +172,7 @@ impl Layer {
         res
     }
 
-    fn move_focus(&mut self, direction: Direction) -> ViewId {
+    fn focus_direction(&mut self, direction: Direction) -> ViewId {
         self.active = match self.root.next_view(self.active, direction) {
             TraverseResult::Continue => panic!("active_view not found"),
             // This case only occurs when the root is a view, so the next view is always itself

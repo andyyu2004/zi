@@ -37,7 +37,7 @@ fn undo_does_not_insert_extra_newlines() {
 }
 
 #[test]
-fn wip() {
+fn undo_dwdwdd() {
     let mut editor = new("a");
     editor.input("dwdw").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");

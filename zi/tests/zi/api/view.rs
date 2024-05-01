@@ -66,7 +66,7 @@ fn view_group() {
     editor.set_view_group(zi::Active, group);
     assert_eq!(editor.view(zi::Active).group(), Some(group));
 
-    let v = editor.split_view(zi::Active, Right, Fill(1));
+    let v = editor.split(zi::Active, Right, Fill(1));
     assert!(editor.view(v).group().is_none(), "split view should not copy the group");
 
     editor.set_view_group(v, group);
@@ -84,7 +84,7 @@ fn test_split() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
 
     let left = editor.view(zi::Active).id();
-    let right = editor.split_view(zi::Active, Right, Fill(1));
+    let right = editor.split(zi::Active, Right, Fill(1));
     assert_ne!(left, right, "splitting should create a new view");
     assert_eq!(editor.view(zi::Active).id(), right, "new view should be active");
 
@@ -92,7 +92,7 @@ fn test_split() {
     assert_eq!(editor.view(left).cursor(), editor.view(right).cursor());
     assert_eq!(editor.view(left).offset(), editor.view(right).offset());
 
-    editor.scroll_view(zi::Active, zi::Direction::Down, 1);
+    editor.scroll(zi::Active, zi::Direction::Down, 1);
     assert_ne!(editor.view(left).offset(), editor.view(right).offset());
 }
 
@@ -100,10 +100,10 @@ fn test_split() {
 fn test_directional_focus() {
     let mut editor = new("");
     let a = editor.view(zi::Active).id();
-    assert_eq!(editor.move_focus(Up), a);
-    assert_eq!(editor.move_focus(Down), a);
-    assert_eq!(editor.move_focus(Right), a);
-    assert_eq!(editor.move_focus(Left), a);
+    assert_eq!(editor.focus_direction(Up), a);
+    assert_eq!(editor.focus_direction(Down), a);
+    assert_eq!(editor.focus_direction(Right), a);
+    assert_eq!(editor.focus_direction(Left), a);
 
     // Setting up the following layout
     // +--------------------+
@@ -116,18 +116,18 @@ fn test_directional_focus() {
     // |   (e)    |         |
     // +--------------------+
 
-    let b = editor.split_view(zi::Active, Right, Fill(1));
-    let c = editor.split_view(zi::Active, Down, Fill(1));
-    editor.focus_view(a);
+    let b = editor.split(zi::Active, Right, Fill(1));
+    let c = editor.split(zi::Active, Down, Fill(1));
+    editor.focus(a);
     assert_eq!(editor.view(zi::Active).id(), a);
-    let d = editor.split_view(zi::Active, Down, Fill(1));
-    let e = editor.split_view(zi::Active, Down, Fill(1));
+    let d = editor.split(zi::Active, Down, Fill(1));
+    let e = editor.split(zi::Active, Down, Fill(1));
 
     assert_eq!(editor.view(zi::Active).id(), e);
 
     let mut check = #[track_caller]
     |direction, expected| {
-        assert_eq!(editor.move_focus(direction), expected);
+        assert_eq!(editor.focus_direction(direction), expected);
         assert_eq!(editor.view(zi::Active).id(), expected);
     };
 

@@ -1,27 +1,24 @@
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Cancel {
     cancel: Arc<AtomicBool>,
 }
 
 impl Cancel {
+    #[inline]
     pub fn new() -> Self {
-        Self { cancel: Arc::new(AtomicBool::new(false)) }
+        Self::default()
     }
 
+    #[inline]
     pub fn cancel(&self) {
         self.cancel.store(true, atomic::Ordering::Relaxed);
     }
 
+    #[inline]
     pub fn is_cancelled(&self) -> bool {
         self.cancel.load(atomic::Ordering::Relaxed)
-    }
-}
-
-impl Default for Cancel {
-    fn default() -> Self {
-        Self::new()
     }
 }

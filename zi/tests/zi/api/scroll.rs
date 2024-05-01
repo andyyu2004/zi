@@ -5,7 +5,7 @@ use crate::api::{new, new_with_size};
 #[test]
 fn cursor_scrolls_when_out_of_bounds() {
     let mut editor = new_with_size("1\n2\n3\n4\n5\n", zi::Size::new(10, 2));
-    editor.scroll_view(zi::Active, Down, 1);
+    editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
 
@@ -31,7 +31,7 @@ fn cursor_scrolls_when_out_of_bounds() {
 #[test]
 fn scroll() {
     let mut editor = new("");
-    editor.scroll_view(zi::Active, Down, 1);
+    editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.current_line(), "");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
@@ -41,33 +41,33 @@ fn scroll() {
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
 
-    editor.scroll_view(zi::Active, Down, 1);
+    editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
     assert_eq!(editor.current_line(), "bar");
 
-    editor.scroll_view(zi::Active, Up, 1);
+    editor.scroll(zi::Active, Up, 1);
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
 
     // Bounds check above
-    editor.scroll_view(zi::Active, Up, 1);
+    editor.scroll(zi::Active, Up, 1);
     assert_eq!(editor.current_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
 
     // Bounds check below
     // Should not be able to scroll where all text is not visible.
     // There should always be at least one line visible.
-    editor.scroll_view(zi::Active, Down, 1);
+    editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.current_line(), "bar");
 
-    editor.scroll_view(zi::Active, Up, 50);
+    editor.scroll(zi::Active, Up, 50);
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
     assert_eq!(editor.current_line(), "foo");
 
-    editor.scroll_view(zi::Active, Down, 50);
+    editor.scroll(zi::Active, Down, 50);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
     assert_eq!(editor.current_line(), "bar");
@@ -83,7 +83,7 @@ fn scroll_bounds_check() {
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
 
     // Scroll as far as possible
-    editor.scroll_view(zi::Active, Down, 20);
+    editor.scroll(zi::Active, Down, 20);
 
     // Ensure the cursor is still following the scroll
     assert_eq!(editor.view(zi::Active).offset(), (4, 0));

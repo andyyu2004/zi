@@ -62,11 +62,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn goto_start(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, u32::MAX);
+        editor.scroll(Active, Direction::Up, u32::MAX);
     }
 
     fn goto_end(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, u32::MAX);
+        editor.scroll(Active, Direction::Down, u32::MAX);
     }
 
     fn align_view_top(editor: &mut Editor) {
@@ -126,23 +126,27 @@ pub(super) fn new() -> Keymap {
     }
 
     fn scroll_line_down(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, 1);
+        editor.scroll(Active, Direction::Down, 1);
     }
 
     fn scroll_line_up(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, 1);
+        editor.scroll(Active, Direction::Up, 1);
     }
 
     fn scroll_down(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Down, 20);
+        editor.scroll(Active, Direction::Down, 20);
     }
 
     fn scroll_up(editor: &mut Editor) {
-        editor.scroll_view(Active, Direction::Up, 20);
+        editor.scroll(Active, Direction::Up, 20);
     }
 
     fn open_file_picker(editor: &mut Editor) {
         editor.open_file_picker(".");
+    }
+
+    fn open_global_search(editor: &mut Editor) {
+        editor.open_global_search(".");
     }
 
     fn open_file_explorer(editor: &mut Editor) {
@@ -150,27 +154,27 @@ pub(super) fn new() -> Keymap {
     }
 
     fn split_vertical(editor: &mut Editor) {
-        editor.split_view(Active, Direction::Right, tui::Constraint::Fill(1));
+        editor.split(Active, Direction::Right, tui::Constraint::Fill(1));
     }
 
     fn split_horizontal(editor: &mut Editor) {
-        editor.split_view(Active, Direction::Down, tui::Constraint::Fill(1));
+        editor.split(Active, Direction::Down, tui::Constraint::Fill(1));
     }
 
     fn focus_left(editor: &mut Editor) {
-        editor.move_focus(Direction::Left);
+        editor.focus_direction(Direction::Left);
     }
 
     fn focus_right(editor: &mut Editor) {
-        editor.move_focus(Direction::Right);
+        editor.focus_direction(Direction::Right);
     }
 
     fn focus_up(editor: &mut Editor) {
-        editor.move_focus(Direction::Up);
+        editor.focus_direction(Direction::Up);
     }
 
     fn focus_down(editor: &mut Editor) {
-        editor.move_focus(Direction::Down);
+        editor.focus_direction(Direction::Down);
     }
 
     fn view_only(editor: &mut Editor) {
@@ -265,6 +269,7 @@ pub(super) fn new() -> Keymap {
                         "e" => open_file_explorer,
                         "o" => open_file_picker,
                         "j" => open_jump_list,
+                        "/" => open_global_search,
                     },
                     "g" => {
                         "d" => goto_definition,

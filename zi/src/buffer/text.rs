@@ -289,7 +289,7 @@ impl<X: Text> TextBuffer<X> {
             self.ensure_trailing_newline();
         }
 
-        tracing::debug!(?flags, ?delta, "edit buffer");
+        tracing::trace!(?flags, ?delta, "edit buffer");
 
         match self.text.as_text_mut() {
             Some(text) => {

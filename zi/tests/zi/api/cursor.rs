@@ -39,7 +39,7 @@ fn cursor_viewport_coords_tabs() {
 fn cursor_viewport_coords_scroll() {
     let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n");
     assert_eq!(editor.cursor_viewport_coords(), (0, 0));
-    editor.scroll_view(zi::Active, Down, 1);
+    editor.scroll(zi::Active, Down, 1);
     // The shouldn't actually have moved relative to the viewport
     assert_eq!(editor.cursor_viewport_coords(), (0, 0));
 }
@@ -119,7 +119,7 @@ short
 fn cursor_with_scroll() {
     let mut editor = new("foo\nbar\nbaz");
 
-    editor.scroll_view(zi::Active, zi::Direction::Down, 2);
+    editor.scroll(zi::Active, zi::Direction::Down, 2);
     assert_eq!(editor.cursor(zi::Active), (2, 0));
     assert_eq!(editor.current_line(), "baz");
     editor.move_cursor(zi::Active, Down, 1);

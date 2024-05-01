@@ -1,6 +1,6 @@
 mod explorer;
 mod inspector;
-mod picker;
+pub mod picker;
 mod text;
 
 use std::any::Any;
@@ -13,7 +13,7 @@ use unicode_width::UnicodeWidthChar;
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
-pub use self::picker::{FilePicker, Picker, PickerBuffer};
+pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
@@ -356,17 +356,18 @@ impl Buffer for Box<dyn Buffer> {
     }
 }
 
-pub trait Item: fmt::Display + Clone + Sync + Send + 'static {}
+pub trait Entry: fmt::Display + Clone + Sync + Send + 'static {}
 
-impl<T> Item for T where T: fmt::Display + Clone + Sync + Send + 'static {}
+impl<T> Entry for T where T: fmt::Display + Clone + Sync + Send + 'static {}
 
 /// Wrapper around a `nucleo::Injector` with cancellation support
+#[derive(Clone)]
 pub struct Injector<T> {
     injector: nucleo::Injector<T>,
     cancel: Cancel,
 }
 
-impl<T: Item> Injector<T> {
+impl<T: Entry> Injector<T> {
     pub fn new(injector: nucleo::Injector<T>, cancel: Cancel) -> Self {
         Self { injector, cancel }
     }
@@ -374,7 +375,7 @@ impl<T: Item> Injector<T> {
     /// Push an item into the injector
     /// Returns `Err` if the injector has been cancelled
     pub fn push(&self, item: T) -> Result<(), ()> {
-        self.injector.push(item.clone(), |dst| dst[0] = format!("{item}").into());
+        self.injector.push(item.clone(), |_, dst| dst[0] = format!("{item}").into());
         if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
     }
 }

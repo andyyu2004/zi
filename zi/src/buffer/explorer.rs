@@ -8,7 +8,7 @@ use crate::editor::{get, Action};
 use crate::syntax::HighlightName;
 use crate::{hashmap, trie, Mode};
 
-pub struct ExplorerBuffer<T: Item, F: 'static> {
+pub struct ExplorerBuffer<T: Entry, F: 'static> {
     id: BufferId,
     url: Url,
     text: String,
@@ -20,7 +20,7 @@ pub struct ExplorerBuffer<T: Item, F: 'static> {
 
 impl<T, F> ExplorerBuffer<T, F>
 where
-    T: Item,
+    T: Entry,
     F: Fn(&mut Editor, T) + Copy,
 {
     pub fn new(
@@ -70,7 +70,7 @@ where
     }
 }
 
-impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
+impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
     fn id(&self) -> BufferId {
         self.id
     }

@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
@@ -7,48 +8,75 @@ use nucleo::Nucleo;
 use super::*;
 use crate::editor::{get, Action};
 use crate::text::TextMut;
-use crate::{hashmap, trie, Active, Direction, Mode, OpenFlags, ViewId};
+use crate::{hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId};
 
 pub struct PickerBuffer<P: Picker> {
     id: BufferId,
     /// The view that displays the results
     display_view: ViewId,
     text: String,
-    nucleo: Nucleo<P::Item>,
+    nucleo: Nucleo<P::Entry>,
     cancel: Cancel,
     keymap: Keymap,
     picker: P,
     url: Url,
+    dynamic_handler: Option<DynamicHandler<P::Entry>>,
 }
+
+pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
 
 pub trait Picker: Copy + 'static {
-    type Item: Item;
+    type Entry: Entry;
 
     fn new(preview: ViewId) -> Self;
-    fn config(self) -> nucleo::Config;
-    fn confirm(self, editor: &mut Editor, item: Self::Item);
-    fn select(self, editor: &mut Editor, item: Self::Item);
+
+    fn select(self, editor: &mut Editor, entry: Self::Entry);
+
+    fn confirm(self, editor: &mut Editor, entry: Self::Entry);
+
+    fn config(self) -> nucleo::Config {
+        nucleo::Config::DEFAULT
+    }
 }
 
-pub struct FilePicker<P> {
+pub trait PathPickerEntry: Entry {
+    fn path(&self) -> &Path;
+
+    #[inline]
+    fn line(&self) -> Option<usize> {
+        None
+    }
+}
+
+impl<P> PathPickerEntry for P
+where
+    P: AsRef<Path> + Entry,
+{
+    #[inline]
+    fn path(&self) -> &Path {
+        self.as_ref()
+    }
+}
+
+pub struct PathPicker<P> {
     preview: ViewId,
     marker: PhantomData<P>,
 }
 
-impl<P> Clone for FilePicker<P> {
+impl<P> Clone for PathPicker<P> {
     #[inline]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<P> Copy for FilePicker<P> {}
+impl<P> Copy for PathPicker<P> {}
 
-impl<P> Picker for FilePicker<P>
+impl<P> Picker for PathPicker<P>
 where
-    P: AsRef<Path> + Item,
+    P: PathPickerEntry,
 {
-    type Item = P;
+    type Entry = P;
 
     fn new(preview: ViewId) -> Self {
         Self { preview, marker: PhantomData }
@@ -58,20 +86,30 @@ where
         nucleo::Config::DEFAULT.match_paths()
     }
 
-    fn confirm(self, editor: &mut Editor, path: P) {
-        let path = path.as_ref();
-        assert!(path.is_file(), "directories should not be in the selection");
-        // We can close any of the views, they are all in the same group
-        editor.close_view(self.preview);
-        if let Err(err) = editor.open_active(path) {
-            editor.set_error(err);
+    fn select(self, editor: &mut Editor, entry: P) {
+        let path = entry.path();
+        match editor.open(path, OpenFlags::READONLY) {
+            Ok(buffer) => {
+                editor.set_buffer(self.preview, buffer);
+                if let Some(line) = entry.line() {
+                    editor.reveal(self.preview, Point::new(line, 0), VerticalAlignment::Center)
+                }
+            }
+            Err(err) => editor.set_error(err),
         }
     }
 
-    fn select(self, editor: &mut Editor, path: P) {
-        let path = path.as_ref();
-        match editor.open(path, OpenFlags::READONLY) {
-            Ok(buffer) => editor.set_buffer(self.preview, buffer),
+    fn confirm(self, editor: &mut Editor, entry: P) {
+        let path = entry.path();
+        assert!(path.is_file(), "directories should not be in the selection");
+        // We can close any of the views, they are all in the same group
+        editor.close_view(self.preview);
+        match editor.open_active(path) {
+            Ok(_) => {
+                if let Some(line) = entry.line() {
+                    editor.reveal(Active, Point::new(line, 0), VerticalAlignment::Center)
+                }
+            }
             Err(err) => editor.set_error(err),
         }
     }
@@ -86,53 +124,51 @@ where
         display_view: ViewId,
         notify: impl Fn() + Send + Sync + 'static,
         picker: P,
-    ) -> (Self, Injector<P::Item>) {
+    ) -> Self {
         let nucleo = Nucleo::new(picker.config(), Arc::new(notify), None, 1);
         let cancel = Cancel::new();
-        let injector = Injector::new(nucleo.injector(), cancel.clone());
-        (
-            Self {
-                id,
-                display_view,
-                cancel,
-                nucleo,
-                picker,
-                url: Url::parse("buffer://zi/picker").unwrap(),
-                text: Default::default(),
-                keymap: {
-                    let next: Action = |editor| Self::select(editor, Direction::Down);
-                    let prev: Action = |editor| Self::select(editor, Direction::Up);
-                    let confirm: Action = |editor| Self::confirm(editor);
-                    let close: Action = |editor| editor.close_view(Active);
+        Self {
+            id,
+            display_view,
+            cancel,
+            nucleo,
+            picker,
+            dynamic_handler: None,
+            url: Url::parse("buffer://zi/picker").unwrap(),
+            text: Default::default(),
+            keymap: {
+                let next: Action = |editor| Self::select(editor, Direction::Down);
+                let prev: Action = |editor| Self::select(editor, Direction::Up);
+                let confirm: Action = |editor| Self::confirm(editor);
+                let close: Action = |editor| editor.close_view(Active);
 
-                    Keymap::from(hashmap! {
-                        Mode::Insert => trie! ({
-                            "<Esc>" | "<C-c>" => close,
-                            "<Tab>" | "<C-j>" => next,
-                            "<S-Tab>" | "<C-k>" => prev,
-                            "<CR>" => confirm,
-                        }),
-                        Mode::Normal => trie!({
-                            "<Esc>" | "<C-c>" | "q" => close,
-                            "<Tab>" | "<C-j>" | "j" => next,
-                            "<S-Tab>" | "<C-k>" | "k" => prev,
-                            "<CR>" => confirm,
-                        }),
-                    })
-                },
+                Keymap::from(hashmap! {
+                    Mode::Insert => trie! ({
+                        "<Esc>" | "<C-c>" => close,
+                        "<Tab>" | "<C-j>" => next,
+                        "<S-Tab>" | "<C-k>" => prev,
+                        "<CR>" => confirm,
+                    }),
+                    Mode::Normal => trie!({
+                        "<Esc>" | "<C-c>" | "q" => close,
+                        "<Tab>" | "<C-j>" | "j" => next,
+                        "<S-Tab>" | "<C-k>" | "k" => prev,
+                        "<CR>" => confirm,
+                    }),
+                })
             },
-            injector,
-        )
+        }
     }
 
     pub fn new_with_items(
         id: BufferId,
         display_view: ViewId,
-        items: impl IntoIterator<Item = P::Item>,
+        items: impl IntoIterator<Item = P::Entry>,
         notify: impl Fn() + Send + Sync + 'static,
         picker: P,
     ) -> Self {
-        let (this, inj) = Self::new(id, display_view, notify, picker);
+        let this = Self::new(id, display_view, notify, picker);
+        let inj = this.injector();
         for item in items {
             if inj.push(item).is_err() {
                 break;
@@ -140,10 +176,20 @@ where
         }
         this
     }
+
+    pub fn injector(&self) -> Injector<P::Entry> {
+        Injector::new(self.nucleo.injector(), self.cancel.clone())
+    }
+
+    #[must_use]
+    pub fn with_dynamic_handler(mut self, handler: DynamicHandler<P::Entry>) -> Self {
+        self.dynamic_handler = Some(handler);
+        self
+    }
 }
 
 impl<P: Picker> PickerBuffer<P> {
-    fn item(&self, line: u32) -> Option<P::Item> {
+    fn item(&self, line: u32) -> Option<P::Entry> {
         self.nucleo.snapshot().get_matched_item(line).map(|item| item.data.clone())
     }
 
@@ -223,13 +269,23 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         self.text.edit(delta);
 
         tracing::debug!(%self.text, "update picker search pattern");
-        self.nucleo.pattern.reparse(
-            0,
-            &self.text,
-            CaseMatching::Smart,
-            Normalization::Smart,
-            false,
-        );
+
+        if let Some(handler) = &self.dynamic_handler {
+            // swap the cancel token with a fresh one and cancel the previous one
+            let cancel = mem::take(&mut self.cancel);
+            cancel.cancel();
+            self.nucleo.restart(false);
+            // if there is a dynamic handler, delegate the updated prompt to it
+            handler(self.injector(), &self.text);
+        } else {
+            self.nucleo.pattern.reparse(
+                0,
+                &self.text,
+                CaseMatching::Smart,
+                Normalization::Smart,
+                false,
+            );
+        }
     }
 
     fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {

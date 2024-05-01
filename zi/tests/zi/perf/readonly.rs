@@ -16,7 +16,7 @@ fn perf_readonly_large_file() {
     // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.
     // If we do then this will take seconds, but it should be instant.
     for _ in 0..100 {
-        editor.scroll_view(zi::Active, zi::Direction::Down, 20);
+        editor.scroll(zi::Active, zi::Direction::Down, 20);
         editor.move_cursor(zi::Active, zi::Direction::Down, 20);
     }
 }

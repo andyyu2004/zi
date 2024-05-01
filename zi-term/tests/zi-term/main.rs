@@ -49,20 +49,20 @@ async fn syntax_highlight() -> anyhow::Result<()> {
 async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |editor| {
         editor.open_active("tests/zi-term/testdata/numbers.txt")?;
-        editor.scroll_view(zi::Active, zi::Direction::Down, 50);
+        editor.scroll(zi::Active, zi::Direction::Down, 50);
         Ok(())
     })?;
 
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |editor| {
         editor.open_active("tests/zi-term/testdata/minimal.rs")?;
-        editor.scroll_view(zi::Active, zi::Direction::Down, 1);
+        editor.scroll(zi::Active, zi::Direction::Down, 1);
         Ok(())
     })?;
 
     snapshot("scroll go", |editor| {
         editor.open_active("tests/zi-term/testdata/main.go")?;
-        editor.scroll_view(zi::Active, zi::Direction::Down, 9);
+        editor.scroll(zi::Active, zi::Direction::Down, 9);
         Ok(())
     })?;
 
