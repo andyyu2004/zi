@@ -88,6 +88,15 @@ impl TextBase for str {
 
     fn byte_to_line(&self, mut byte_idx: usize) -> usize {
         assert!(byte_idx <= self.len(), "byte_idx out of bounds: {byte_idx}");
+        // some special cases to match `crop::Rope`
+        if byte_idx == self.len() {
+            return if self.ends_with('\n') {
+                self.lines().count()
+            } else {
+                self.lines().count().saturating_sub(1)
+            };
+        }
+
         str_lines_inclusive(self)
             .take_while(|l| {
                 if l.len() > byte_idx {

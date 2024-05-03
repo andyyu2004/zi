@@ -158,6 +158,15 @@ fn test(s: &str) {
             b += c.len_utf8();
         }
 
+        // should work when the byte is at the end of the string
+        assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
+        assert_eq!(reference.byte_to_line(b), line_slice.byte_to_line(b), "{s:?}: byte {b}");
+        assert_eq!(reference.byte_to_line(b), byte_slice.byte_to_line(b), "{s:?}: byte {b}");
+
+        assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
+        assert_eq!(reference.byte_to_point(b), line_slice.byte_to_point(b), "{s:?}: byte {b}");
+        assert_eq!(reference.byte_to_point(b), byte_slice.byte_to_point(b), "{s:?}: byte {b}");
+
         for l in 0..=reference.len_lines() {
             assert_eq!(
                 reference.get_line(l).map(|s| s.to_string()),
@@ -188,6 +197,22 @@ proptest! {
     fn text_impls_ascii(s in "[ -~]*") {
         test(&s)
     }
+}
+
+#[test]
+fn byte_to_line() {
+    #[track_caller]
+    fn check(s: &str, byte: usize) {
+        let reference = crop::Rope::from(s).byte_to_line(byte);
+        for imp in impls(s) {
+            assert_eq!(imp.byte_to_line(byte), reference, "{s:?}: byte {byte}");
+        }
+    }
+
+    check("ab\n\n", 4);
+    check("ab\n", 3);
+    check("ab\nc", 4);
+    check("ab", 2);
 }
 
 #[test]
