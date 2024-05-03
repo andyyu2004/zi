@@ -5,9 +5,7 @@ use stdx::merge::Merge;
 use crate::editor::Action;
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
-use crate::{
-    hashmap, motion, textobject, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment,
-};
+use crate::{hashmap, motion, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment};
 
 pub(super) fn new() -> Keymap {
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
@@ -107,11 +105,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line::inclusive());
+        editor.text_object(zi_textobject::Line::inclusive());
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        editor.text_object(textobject::Line::exclusive());
+        editor.text_object(zi_textobject::Line::exclusive());
     }
 
     fn append_eol(editor: &mut Editor) {

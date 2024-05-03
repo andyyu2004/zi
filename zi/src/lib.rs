@@ -4,8 +4,7 @@
     trait_upcasting,
     is_sorted,
     coroutines,
-    iter_from_coroutine,
-    iter_map_windows
+    iter_from_coroutine
 )]
 
 mod boring_impls;
@@ -25,7 +24,6 @@ mod operator;
 mod plugin;
 mod private;
 mod syntax;
-mod textobject;
 mod undo;
 mod view;
 
@@ -36,12 +34,12 @@ pub use tui::Constraint;
 pub use zi_core::{Col, Direction, Line, Offset, Point, Range, Size};
 pub use zi_lsp::lsp_types::Url;
 pub use zi_text::Delta;
+pub use zi_textobject::motion;
 
 pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
 pub use self::editor::{Active, Editor, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
-pub use self::textobject::motion;
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
 

@@ -8,10 +8,10 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-bitflags = "2.4.2"
-futures-core = "0.3.30"
-parking_lot = "0.12.1"
-rustc-hash = "1.1.0"
+bitflags = { workspace = true }
+futures-core = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
 slotmap = "1.0.7"
 tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = { workspace = true }
@@ -26,7 +26,7 @@ chumsky = "0.9.3"
 crossterm = { workspace = true, optional = true }
 memmap2 = "0.9.4"
 memchr = "2.7.1"
-futures-util = "0.3.30"
+futures-util = { workspace = true }
 directories-next = "2.0.0"
 smol_str = "0.2.1"
 tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
@@ -37,6 +37,7 @@ stdx = { workspace = true }
 zi-core = { workspace = true, features = ["tree-sitter"] }
 zi-lsp = { workspace = true }
 zi-text = { workspace = true }
+zi-textobject = { workspace = true }
 
 [dev-dependencies]
 expect-test = { workspace = true }

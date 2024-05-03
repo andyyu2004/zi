@@ -1,9 +1,11 @@
+#![feature(iter_map_windows)]
+
 pub mod motion;
 use std::ops;
 
 use zi_text::{AnyText, Text as _, TextSlice};
 
-use self::motion::Motion;
+pub use self::motion::Motion;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionKind {
@@ -136,7 +138,7 @@ impl<M: TextObject> TextObject for Repeated<M> {
         todo!();
     }
 
-    fn default_kind(&self) -> crate::textobject::MotionKind {
+    fn default_kind(&self) -> MotionKind {
         self.motion.default_kind()
     }
 }
@@ -374,6 +376,3 @@ impl TextObject for Prev {
         MotionKind::Charwise
     }
 }
-
-#[cfg(test)]
-mod tests;

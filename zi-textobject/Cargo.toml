@@ -1,0 +1,12 @@
+[package]
+name = "zi-textobject"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zi-core = { workspace = true }
+zi-text = { workspace = true }
+bitflags = { workspace = true }
+
+[lints]
+workspace = true

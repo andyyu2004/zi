@@ -1,8 +1,9 @@
 //! Prefer writing a test against nvim in `zi/tests/nvim/testdata`
 //! This is useful for writing out cases with the debugger.
-use zi_text::Rope;
+use std::ops;
 
-use super::*;
+use zi_text::Rope;
+use zi_textobject::*;
 
 #[track_caller]
 fn check_range(

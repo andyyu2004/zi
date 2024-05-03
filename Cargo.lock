@@ -1612,9 +1612,9 @@ checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
 
 [[package]]
 name = "parking_lot"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
+checksum = "7e4af0ca4f6caed20e900d564c242b8e5d4903fdacf31d3daf527b66fe6f42fb"
 dependencies = [
  "lock_api",
  "parking_lot_core",
@@ -3508,6 +3508,7 @@ dependencies = [
  "zi-lsp",
  "zi-nvim",
  "zi-text",
+ "zi-textobject",
  "zi-tui",
 ]
 
@@ -3582,6 +3583,15 @@ dependencies = [
  "memmap2",
  "proptest",
  "zi-core",
+]
+
+[[package]]
+name = "zi-textobject"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.5.0",
+ "zi-core",
+ "zi-text",
 ]
 
 [[package]]

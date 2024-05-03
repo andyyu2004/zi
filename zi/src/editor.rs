@@ -29,6 +29,8 @@ use tui::Widget as _;
 use zi_core::Size;
 use zi_lsp::{lsp_types, LanguageServer as _};
 use zi_text::{Delta, PointOrByte, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
+use zi_textobject::motion::Motion;
+use zi_textobject::{MotionKind, TextObject, TextObjectFlags};
 
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
@@ -40,11 +42,9 @@ use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, Conv, LanguageClient, LanguageServer};
-use crate::motion::Motion;
 use crate::plugin::Plugins;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
-use crate::textobject::{MotionKind, TextObject, TextObjectFlags};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,

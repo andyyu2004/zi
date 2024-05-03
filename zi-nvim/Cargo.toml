@@ -6,10 +6,10 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.81"
 nvim-rs = { version = "0.7.0", features = ["use_tokio"] }
-zi = { path = "../zi" }
+zi = { workspace = true }
 tokio = { workspace = true, features = ["process"], default-features = false }
-async-trait = "0.1"
-bitflags = "2.4.2"
+async-trait = { workspace = true }
+bitflags = { workspace = true }
 
 [lints]
 workspace = true

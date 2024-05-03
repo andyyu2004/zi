@@ -1,7 +1,7 @@
+use zi_core::Point;
 use zi_text::{AnyText, Text, TextSlice};
 
 pub use super::*;
-use crate::Point;
 
 /// Motions are a subset of textobjects that move the cursor around.
 // TODO could probably write this in a more combinator-like style

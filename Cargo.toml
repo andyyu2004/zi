@@ -10,16 +10,19 @@ members = [
     "zi-lsp",
     "zi-nvim",
     "zi-text",
+    "zi-textobject",
     "zi-core",
 ]
 
 [workspace.dependencies]
-crop = { version = "0.4.2", features = ["graphemes"] }
 zi = { path = "zi" }
 zi-core = { path = "zi-core" }
 zi-lsp = { path = "zi-lsp" }
 zi-text = { path = "zi-text" }
+zi-textobject = { path = "zi-textobject" }
 zi-tui = { path = "zi-tui" }
+bitflags = "2.5.0"
+crop = { version = "0.4.2", features = ["graphemes"] }
 stdx = { path = "stdx" }
 arbitrary = { version = "1.3.2", features = ["derive"] }
 lsp-types = "0.95.0"
@@ -28,8 +31,11 @@ async-trait = "0.1.80"
 crossterm = "0.27.0"
 expect-test = "1.4.1"
 proptest = "1.4.0"
+futures-core = "0.3.30"
 futures-executor = "0.3.30"
 futures-util = "0.3.30"
+parking_lot = "0.12.2"
+rustc-hash = "1.1.0"
 tokio = { version = "1.37.0", default-features = false }
 tokio-util = { version = "0.7.10", default-features = false }
 tree-sitter = { version = "0.22.5" }
