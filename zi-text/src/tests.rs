@@ -182,6 +182,11 @@ fn test(s: &str) {
         }
 
         assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
+
+        let mut reader = imp.byte_slice(..).reader();
+        let mut s = String::new();
+        reader.read_to_string(&mut s).unwrap();
+        assert_eq!(s, rope.to_string());
     }
 }
 

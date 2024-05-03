@@ -52,11 +52,18 @@ pub(super) struct InsertState {}
 pub(super) struct CommandState {
     /// Stores the command currently in the command line
     pub buffer: String,
+    pub matches: Vec<Match>,
+}
+
+#[derive(Debug)]
+pub(super) struct Match {
+    pub line: usize,
+    pub byte_range: std::ops::Range<usize>,
 }
 
 impl Default for CommandState {
     fn default() -> Self {
-        Self { buffer: String::from(":") }
+        Self { buffer: String::from(":"), matches: Default::default() }
     }
 }
 

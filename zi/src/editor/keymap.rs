@@ -197,7 +197,15 @@ pub(super) fn new() -> Keymap {
         };
     }
 
-    action!(jump_prev, jump_next, inspect, delete_char_backward, execute_command, open_jump_list);
+    action!(
+        jump_prev,
+        jump_next,
+        inspect,
+        delete_char_backward,
+        execute_command,
+        open_jump_list,
+        search
+    );
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP
@@ -248,6 +256,7 @@ pub(super) fn new() -> Keymap {
                     "c" => change_operator_pending,
                     "y" => yank_operator_pending,
                     ":" => command_mode,
+                    "/" => search,
                     "i" => insert_mode,
                     "h" => prev_char,
                     "l" => next_char,

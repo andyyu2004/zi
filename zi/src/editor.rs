@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 mod keymap;
+mod search;
 mod state;
 
 use std::any::Any;
@@ -7,7 +8,7 @@ use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
-use std::ops::{Deref, Index, IndexMut};
+use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
 use std::sync::{Arc, OnceLock};
@@ -17,8 +18,6 @@ use std::{cmp, fmt, io, mem};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
-use grep::regex::RegexMatcherBuilder;
-use grep::searcher::{sinks, BinaryDetection, SearcherBuilder};
 use ignore::WalkState;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
@@ -678,6 +677,38 @@ impl Editor {
         Ok(())
     }
 
+    fn handle_insert(&mut self, c: char) {
+        match &mut self.state {
+            State::Insert(..) => self.insert_char_at_cursor(c),
+            State::Command(state) => {
+                state.buffer.push(c);
+                let (k, query) = state.buffer.split_at(1);
+                match k {
+                    "/" => {
+                        let (view, buf) = get!(self);
+                        let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
+                        let matcher = search::matcher(query);
+                        let mut searcher = search::searcher();
+
+                        state.matches.clear();
+                        let start_time = Instant::now();
+                        let sink = search::Sink(|line, _content, byte_range| {
+                            state.matches.push(state::Match { line: line as usize, byte_range });
+                            Ok(start_time.elapsed() < Duration::from_millis(50))
+                        });
+
+                        if let Err(err) = searcher.search_reader(matcher, reader, sink) {
+                            set_error!(self, err)
+                        }
+                    }
+                    ":" => {}
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
         self.status_error = None;
@@ -698,11 +729,7 @@ impl Editor {
 
                 for event in buffered {
                     match event.code() {
-                        KeyCode::Char(c) => match &mut self.state {
-                            State::Insert(..) => self.insert_char_at_cursor(c),
-                            State::Command(state) => state.buffer.push(c),
-                            _ => unreachable!(),
-                        },
+                        KeyCode::Char(c) => self.handle_insert(c),
                         _ => unreachable!(),
                     }
                 }
@@ -1657,6 +1684,9 @@ impl Editor {
     pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         #[derive(Clone)]
         struct Entry {
+            #[allow(unused)]
+            // TODO can be used to highlight the matching portion of the line
+            byte_range: ops::Range<usize>,
             path: PathBuf,
             line: usize,
             content: String,
@@ -1687,21 +1717,8 @@ impl Editor {
             move |injector, query| {
                 tracing::debug!(%query, "global search update");
 
-                let mut builder = RegexMatcherBuilder::new();
-                builder.case_smart(true);
-                let matcher = match builder.build(query) {
-                    Ok(matcher) => matcher,
-                    // if the regex is invalid, just treat the query as literal instead of a regex
-                    Err(_err) => builder
-                        .fixed_strings(true)
-                        .build(query)
-                        .expect("don't think it can fail with fixed strings"),
-                };
-
-                let searcher = SearcherBuilder::new()
-                    // maybe there's stronger heuristic, but a null byte is probably a decent indicator
-                    .binary_detection(BinaryDetection::quit(b'\x00'))
-                    .build();
+                let matcher = search::matcher(query);
+                let searcher = search::searcher();
 
                 let walk = ignore::WalkBuilder::new(&path).build_parallel();
 
@@ -1721,9 +1738,10 @@ impl Editor {
                             };
 
                             let mut quit = false;
-                            let sink = sinks::UTF8(|line, content| {
+                            let sink = search::Sink(|line, content, byte_range| {
                                 quit = injector
                                     .push(Entry {
+                                        byte_range,
                                         line: line.checked_sub(1).expect("1-indexed") as usize,
                                         path: entry.path().to_path_buf(),
                                         content: content.trim_end().to_string(),
@@ -1798,6 +1816,17 @@ impl Editor {
         self.set_active_buffer(buf);
         self.set_cursor(Active, point);
         self.align_view(Active, VerticalAlignment::Center);
+    }
+
+    pub fn search(&mut self) {
+        self.set_mode(Mode::Command);
+        match &mut self.state {
+            State::Command(state) => {
+                state.buffer.clear();
+                state.buffer.push('/');
+            }
+            _ => unreachable!(),
+        }
     }
 
     pub fn jump_next(&mut self) -> Option<Location> {

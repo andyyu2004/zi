@@ -8,6 +8,7 @@ mod str_impl;
 
 use std::any::Any;
 use std::borrow::Cow;
+use std::io::Read;
 use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
@@ -423,6 +424,33 @@ pub trait TextSlice<'a>: TextBase + Sized {
     fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice>;
+
+    fn reader(&self) -> impl Read + 'a {
+        struct RopeReader<'a, I> {
+            chunk: &'a [u8],
+            chunks: I,
+        }
+
+        impl<'a, I> Read for RopeReader<'a, I>
+        where
+            I: Iterator<Item = &'a str>,
+        {
+            #[inline]
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.chunk.is_empty() {
+                    let Some(chunk) = self.chunks.next() else { return Ok(0) };
+                    self.chunk = chunk.as_bytes();
+                }
+
+                let n = buf.len().min(self.chunk.len());
+                buf[..n].copy_from_slice(&self.chunk[..n]);
+                self.chunk = &self.chunk[n..];
+                Ok(n)
+            }
+        }
+
+        RopeReader { chunk: &[], chunks: self.chunks() }
+    }
 
     fn annotate<T: Copy>(
         &self,
