@@ -1,8 +1,9 @@
 use std::mem;
 
+use zi_text::{AnyTextSlice, Text, TextMut, TextSlice};
+
 use super::*;
 use crate::syntax::{HighlightMap, HighlightName};
-use crate::text::{AnyTextSlice, Text, TextMut, TextSlice};
 use crate::undo::UndoTree;
 
 pub struct TextBuffer<X> {

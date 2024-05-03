@@ -16,17 +16,17 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-anyhow = "1.0.81"
+anyhow = { workspace = true }
 clap = { version = "4.5.1", features = ["derive"] }
-crossterm = { version = "0.27.0", features = ["event-stream"] }
-futures-util = "0.3.30"
-tokio = { version = "1.36.0", default-features = false, features = [
+crossterm = { workspace = true, features = ["event-stream"] }
+futures-util = { workspace = true }
+tokio = { workspace = true, default-features = false, features = [
     "rt-multi-thread",
     "macros",
 ] }
-tracing = "0.1.40"
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-zi = { path = "../zi", features = ["crossterm"] }
+zi = { workspace = true, features = ["crossterm"] }
 tui = { path = "../zi-tui", package = "zi-tui" }
 
 [dev-dependencies]

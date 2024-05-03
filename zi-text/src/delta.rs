@@ -2,8 +2,9 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use std::{fmt, ops};
 
+use zi_core::{Point, Range};
+
 use super::Text;
-use crate::{Point, Range};
 
 #[derive(Clone)]
 pub struct Delta<'a> {
@@ -99,10 +100,10 @@ impl From<ops::Range<usize>> for DeltaRange {
     }
 }
 
-impl<R: Into<Range>> From<R> for DeltaRange {
+impl From<Range> for DeltaRange {
     #[inline]
-    fn from(v: R) -> Self {
-        Self::Point(v.into())
+    fn from(v: Range) -> Self {
+        Self::Point(v)
     }
 }
 

@@ -4,6 +4,7 @@ use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
 
 use futures_core::future::BoxFuture;
+pub(crate) use proto::Conv;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};

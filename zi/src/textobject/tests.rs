@@ -1,5 +1,7 @@
 //! Prefer writing a test against nvim in `zi/tests/nvim/testdata`
 //! This is useful for writing out cases with the debugger.
+use zi_text::Rope;
+
 use super::*;
 
 #[track_caller]
@@ -10,7 +12,7 @@ fn check_range(
     expected: Option<ops::Range<usize>>,
 ) {
     assert_eq!(obj.byte_range(&text, byte), expected);
-    assert_eq!(obj.byte_range(&crop::Rope::from(text), byte), expected);
+    assert_eq!(obj.byte_range(&Rope::from(text), byte), expected);
 }
 
 #[test]
@@ -41,7 +43,7 @@ fn line_object() {
 #[track_caller]
 fn check(motion: &impl Motion, text: &str, byte: usize, expected: usize) {
     assert_eq!(motion.motion(&text, byte), expected);
-    assert_eq!(motion.motion(&crop::Rope::from(text), byte), expected);
+    assert_eq!(motion.motion(&Rope::from(text), byte), expected);
 }
 
 fn prev_token_and_word(motion: &impl Motion) {

@@ -19,32 +19,31 @@ mod jump;
 mod keymap;
 mod language;
 mod layout;
+mod location;
 mod lsp;
 mod operator;
 mod plugin;
-mod position;
 mod private;
 mod syntax;
-mod text;
 mod textobject;
 mod undo;
 mod view;
 
+pub use location::Location;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::Constraint;
+pub use zi_core::{Col, Direction, Line, Offset, Point, Range, Size};
 pub use zi_lsp::lsp_types::Url;
+pub use zi_text::Delta;
 
 pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
 pub use self::editor::{Active, Editor, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
-pub use self::position::{Col, Direction, Line, Location, Offset, Point, Range, Size};
-pub use self::syntax::{Color, Style};
-pub use self::text::Delta;
+pub use self::textobject::motion;
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
-pub use self::textobject::motion;
 
 // Consider a proper error type
 pub type Error = anyhow::Error;

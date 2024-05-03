@@ -1,5 +1,6 @@
+use zi_text::{AnyText, Text, TextSlice};
+
 pub use super::*;
-use crate::text::{AnyText, Text, TextSlice};
 use crate::Point;
 
 /// Motions are a subset of textobjects that move the cursor around.

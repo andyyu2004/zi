@@ -1,12 +1,39 @@
 [workspace]
+resolver = "2"
 members = [
+    "fuzz",
+    "plugins/*",
+    "stdx",
     "zi",
     "zi-term",
-    "fuzz",
-    "plugins/*", "zi-tui", "zi-lsp", "stdx", "zi-nvim",
+    "zi-tui",
+    "zi-lsp",
+    "zi-nvim",
+    "zi-text",
+    "zi-core",
 ]
 
-resolver = "2"
+[workspace.dependencies]
+crop = { version = "0.4.2", features = ["graphemes"] }
+zi = { path = "zi" }
+zi-core = { path = "zi-core" }
+zi-lsp = { path = "zi-lsp" }
+zi-text = { path = "zi-text" }
+zi-tui = { path = "zi-tui" }
+stdx = { path = "stdx" }
+arbitrary = { version = "1.3.2", features = ["derive"] }
+lsp-types = "0.95.0"
+anyhow = "1.0.81"
+async-trait = "0.1.80"
+crossterm = "0.27.0"
+expect-test = "1.4.1"
+proptest = "1.4.0"
+futures-executor = "0.3.30"
+futures-util = "0.3.30"
+tokio = { version = "1.37.0", default-features = false }
+tokio-util = { version = "0.7.10", default-features = false }
+tree-sitter = { version = "0.22.5" }
+tracing = "0.1.40"
 
 [profile.dev.package.cranelift-codegen]
 opt-level = 3

@@ -9,11 +9,11 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-futures-util = "0.3.30"
-futures-executor = "0.3.30"
-zi = { path = "../zi", features = ["arbitrary"] }
+futures-util = { workspace = true }
+futures-executor = { workspace = true }
+zi = { workspace = true, features = ["arbitrary"] }
 tui = { path = "../zi-tui", package = "zi-tui" }
-tokio = { version = "1.36.0", default-features = false, features = ["rt-multi-thread"] }
+tokio = { workspace = true, default-features = false, features = ["rt-multi-thread"] }
 
 [[bin]]
 name = "zi-fuzz"

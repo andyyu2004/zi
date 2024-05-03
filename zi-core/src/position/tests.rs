@@ -1,7 +1,7 @@
 use expect_test::{expect, Expect};
 
 use super::*;
-use crate::Style;
+use crate::style::Style;
 
 fn r(s: &str) -> Range {
     s.parse().unwrap()

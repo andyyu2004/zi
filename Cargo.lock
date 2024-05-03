@@ -529,7 +529,7 @@ dependencies = [
  "hashbrown 0.14.3",
  "log",
  "regalloc2",
- "smallvec 1.13.2",
+ "smallvec",
  "target-lexicon",
 ]
 
@@ -575,7 +575,7 @@ checksum = "5482a5fcdf98f2f31b21093643bdcfe9030866b8be6481117022e7f52baa0f2b"
 dependencies = [
  "cranelift-codegen",
  "log",
- "smallvec 1.13.2",
+ "smallvec",
  "target-lexicon",
 ]
 
@@ -607,7 +607,7 @@ dependencies = [
  "cranelift-frontend",
  "itertools",
  "log",
- "smallvec 1.13.2",
+ "smallvec",
  "wasmparser",
  "wasmtime-types",
 ]
@@ -771,12 +771,6 @@ dependencies = [
  "os_pipe",
  "shared_child",
 ]
-
-[[package]]
-name = "dyn-clone"
-version = "1.0.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 
 [[package]]
 name = "either"
@@ -1635,7 +1629,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
- "smallvec 1.13.2",
+ "smallvec",
  "windows-targets 0.48.5",
 ]
 
@@ -1919,7 +1913,7 @@ dependencies = [
  "log",
  "rustc-hash",
  "slice-group-by",
- "smallvec 1.13.2",
+ "smallvec",
 ]
 
 [[package]]
@@ -2199,12 +2193,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
-name = "smallvec"
-version = "2.0.0-alpha.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24bd433ebbd599a277e9e73bf6220f3193842551fab233949b7254306dccdac1"
-
-[[package]]
 name = "smol_str"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2229,7 +2217,7 @@ version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29ef1a0fa1e39ac22972c8db23ff89aea700ab96aa87114e1fb55937a631a0c9"
 dependencies = [
- "smallvec 1.13.2",
+ "smallvec",
 ]
 
 [[package]]
@@ -2627,7 +2615,7 @@ dependencies = [
  "once_cell",
  "regex",
  "sharded-slab",
- "smallvec 1.13.2",
+ "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
@@ -3211,7 +3199,7 @@ dependencies = [
  "cranelift-codegen",
  "gimli",
  "regalloc2",
- "smallvec 1.13.2",
+ "smallvec",
  "target-lexicon",
  "wasmparser",
  "wasmtime-environ",
@@ -3486,12 +3474,10 @@ dependencies = [
  "async-trait",
  "bitflags 2.5.0",
  "chumsky",
- "crop",
  "crossterm",
  "datatest-stable",
  "directories-next",
  "duct",
- "dyn-clone",
  "expect-test",
  "futures-core",
  "futures-executor",
@@ -3507,7 +3493,6 @@ dependencies = [
  "regex",
  "rustc-hash",
  "slotmap",
- "smallvec 2.0.0-alpha.5",
  "smol_str",
  "stdx",
  "tempfile",
@@ -3519,8 +3504,22 @@ dependencies = [
  "unicode-width",
  "wasmtime",
  "zi",
+ "zi-core",
  "zi-lsp",
  "zi-nvim",
+ "zi-text",
+ "zi-tui",
+]
+
+[[package]]
+name = "zi-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "expect-test",
+ "stdx",
+ "tree-sitter",
  "zi-tui",
 ]
 
@@ -3572,6 +3571,17 @@ dependencies = [
  "tracing-subscriber",
  "zi",
  "zi-tui",
+]
+
+[[package]]
+name = "zi-text"
+version = "0.1.0"
+dependencies = [
+ "crop",
+ "expect-test",
+ "memmap2",
+ "proptest",
+ "zi-core",
 ]
 
 [[package]]

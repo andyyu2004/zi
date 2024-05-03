@@ -1,3 +1,5 @@
+use zi_text::Rope;
+
 use super::*;
 
 #[test]
@@ -82,7 +84,7 @@ fn test_delta_to_ts_edit() {
             "©",
         ),
     ] {
-        let mut rope = crop::Rope::from(text);
+        let mut rope = Rope::from(text);
         let (_, actual) = delta_to_ts_edit(&mut rope, delta);
         assert_eq!(actual, input);
         assert_eq!(rope.to_string(), expected);

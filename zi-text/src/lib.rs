@@ -1,3 +1,5 @@
+#![feature(iter_from_coroutine, trait_upcasting, coroutines)]
+
 mod cow_str_impl;
 mod delta;
 mod readonly;
@@ -9,25 +11,23 @@ use std::borrow::Cow;
 use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
-use dyn_clone::DynClone;
+pub use crop::{Rope, RopeBuilder, RopeSlice};
+use zi_core::{Line, Point, Range};
 
 pub use self::delta::{Delta, DeltaRange, PointOrByte};
 pub use self::readonly::ReadonlyText;
-use crate::{Line, Point, Range};
 
 /// Text that can be modified.
 /// Required to be cloneable to store snapshots in the undo tree.
-pub trait TextMut: Text + DynClone {
+pub trait TextMut: Text {
     fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
 }
 
-pub trait AnyTextMut: AnyText + Send + DynClone + 'static {
+pub trait AnyTextMut: AnyText + Send + 'static {
     fn dyn_edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
 
     fn as_text(&self) -> &dyn AnyText;
 }
-
-dyn_clone::clone_trait_object!(AnyTextMut);
 
 impl TextMut for dyn AnyTextMut + '_ {
     #[inline]

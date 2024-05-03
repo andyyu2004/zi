@@ -1,0 +1,16 @@
+[package]
+name = "zi-text"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zi-core = { path = "../zi-core" }
+crop = { workspace = true }
+memmap2 = "0.9.4"
+
+[dev-dependencies]
+expect-test = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

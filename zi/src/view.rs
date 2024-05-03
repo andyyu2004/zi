@@ -1,12 +1,12 @@
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{LineNumber, Rect, Widget as _};
+use zi_core::{Offset, RangeMergeIter, Size};
+use zi_text::{self, AnyTextSlice, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
 use crate::editor::{Resource, Selector};
-use crate::position::{Offset, RangeMergeIter, Size};
 use crate::private::Sealed;
-use crate::text::{self, AnyTextSlice, Text as _, TextSlice};
 use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 slotmap::new_key_type! {
@@ -531,7 +531,7 @@ impl View {
             .lines()
             // We always want to render a line even if the buffer is empty.
             .default_if_empty(|| Box::new("") as Box<dyn AnyTextSlice<'_>>);
-        let chunks = text::annotate(lines, highlights);
+        let chunks = zi_text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(
             line,

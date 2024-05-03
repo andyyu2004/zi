@@ -26,7 +26,9 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
+use zi_core::Size;
 use zi_lsp::{lsp_types, LanguageServer as _};
+use zi_text::{Delta, PointOrByte, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
 
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
@@ -37,13 +39,11 @@ use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, LanguageClient, LanguageServer};
+use crate::lsp::{self, Conv, LanguageClient, LanguageServer};
 use crate::motion::Motion;
 use crate::plugin::Plugins;
-use crate::position::Size;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
-use crate::text::{Delta, PointOrByte, ReadonlyText, Text, TextSlice};
 use crate::textobject::{MotionKind, TextObject, TextObjectFlags};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
@@ -289,7 +289,7 @@ impl Editor {
                 BufferFlags::empty(),
                 FileType::TEXT,
                 "scratch",
-                crop::Rope::new(),
+                Rope::new(),
                 &theme,
             )
             .boxed()
@@ -366,11 +366,8 @@ impl Editor {
             if buf.flags().contains(BufferFlags::READONLY)
                 && !open_flags.contains(OpenFlags::READONLY)
             {
-                let rope = if path.exists() {
-                    rope_from_reader(File::open(&path)?)?
-                } else {
-                    crop::Rope::new()
-                };
+                let rope =
+                    if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
 
                 let buf = TextBuffer::new(
                     buf.id(),
@@ -404,7 +401,7 @@ impl Editor {
                     let rope = if path.exists() {
                         rope_from_reader(File::open(&path)?)?
                     } else {
-                        crop::Rope::new()
+                        Rope::new()
                     };
                     TextBuffer::new(
                         id,
@@ -1144,7 +1141,7 @@ impl Editor {
                 let fut = server.definition(lsp_types::GotoDefinitionParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                        position: pos.into(),
+                        position: pos.conv(),
                     },
                     work_done_progress_params: lsp_types::WorkDoneProgressParams {
                         work_done_token: None,
@@ -1448,7 +1445,7 @@ impl Editor {
                 BufferFlags::empty(),
                 FileType::TEXT,
                 path,
-                crop::Rope::new(),
+                Rope::new(),
                 &self.theme,
             )
             .boxed()
@@ -1756,7 +1753,7 @@ impl Editor {
 
         let from = self.current_location();
         let buf_id = self.open_active(path)?;
-        self.jump(from, Location::new(buf_id, location.range.start));
+        self.jump(from, Location::new(buf_id, location.range.start.conv()));
 
         Ok(())
     }
@@ -1929,11 +1926,11 @@ fn test_inindent() {
     check(" a", Point::new(0, 2), false);
 }
 
-fn rope_from_reader(reader: impl io::Read) -> io::Result<crop::Rope> {
+fn rope_from_reader(reader: impl io::Read) -> io::Result<Rope> {
     use std::io::BufRead;
 
     let mut reader = BufReader::new(reader);
-    let mut builder = crop::RopeBuilder::new();
+    let mut builder = RopeBuilder::new();
 
     loop {
         let buf = reader.fill_buf()?;

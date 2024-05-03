@@ -1,8 +1,9 @@
 pub mod motion;
 use std::ops;
 
+use zi_text::{AnyText, Text as _, TextSlice};
+
 use self::motion::Motion;
-use crate::text::{AnyText, Text as _, TextSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionKind {

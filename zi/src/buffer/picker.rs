@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
+use zi_text::TextMut;
 
 use super::*;
 use crate::editor::{get, Action};
-use crate::text::TextMut;
 use crate::{hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId};
 
 pub struct PickerBuffer<P: Picker> {

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use unicode_width::UnicodeWidthChar;
+use zi_text::{AnyText, Delta};
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
@@ -19,7 +20,6 @@ use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
-use crate::text::{AnyText, Delta};
 use crate::{Editor, FileType, Point, Range, Size, Url, View};
 
 slotmap::new_key_type! {

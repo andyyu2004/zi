@@ -1,3 +1,8 @@
+#[cfg(feature = "lsp")]
+mod lsp;
+#[cfg(feature = "tree-sitter")]
+mod tree_sitter_impls;
+
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::iter::Peekable;
@@ -7,8 +12,6 @@ use std::{fmt, ops};
 
 use stdx::merge::Merge;
 use tui::Rect;
-
-use crate::BufferId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -66,24 +69,6 @@ impl PartialEq<(u32, u32)> for Offset {
     #[inline]
     fn eq(&self, &(line, col): &(u32, u32)) -> bool {
         self.line == line && self.col == col
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Location {
-    pub buf: BufferId,
-    pub point: Point,
-}
-
-impl fmt::Debug for Location {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}:{}", self.buf, self.point)
-    }
-}
-
-impl Location {
-    pub fn new(buf: BufferId, point: impl Into<Point>) -> Self {
-        Self { buf, point: point.into() }
     }
 }
 
@@ -192,13 +177,6 @@ impl Sub<Offset> for Range {
     }
 }
 
-impl From<tree_sitter::Range> for Range {
-    #[inline]
-    fn from(range: tree_sitter::Range) -> Self {
-        Self::new(range.start_point, range.end_point)
-    }
-}
-
 impl From<Range> for ops::Range<Point> {
     fn from(val: Range) -> Self {
         val.start..val.end
@@ -256,20 +234,6 @@ impl FromStr for Point {
             .split_once(':')
             .ok_or_else(|| anyhow::anyhow!("invalid position: {s} (expected `<line>:<col>`)"))?;
         Ok(Self::new(line.parse::<u32>()?, col.parse::<u32>()?))
-    }
-}
-
-impl From<Point> for tree_sitter::Point {
-    #[inline]
-    fn from(point: Point) -> Self {
-        Self { row: point.line.0 as usize, column: point.col.0 as usize }
-    }
-}
-
-impl From<tree_sitter::Point> for Point {
-    #[inline]
-    fn from(point: tree_sitter::Point) -> Self {
-        Self::new(point.row as u32, point.column as u32)
     }
 }
 
@@ -592,7 +556,7 @@ impl From<Direction> for tui::Direction {
 }
 
 /// An iterator that merges two iterators over ([`Range`], T: [`Merge`]), prioritizing the second iterator on overlap (as per [`Merge`])
-pub(crate) struct RangeMergeIter<I: Iterator, J: Iterator, T> {
+pub struct RangeMergeIter<I: Iterator, J: Iterator, T> {
     xs: Peekable<I>,
     ys: Peekable<J>,
     /// Stack of buffered ranges that should be immediately yielded

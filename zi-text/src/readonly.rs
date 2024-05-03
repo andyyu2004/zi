@@ -7,7 +7,7 @@ use std::{io, str};
 
 use memmap2::{Mmap, MmapOptions};
 
-use crate::text::{AnyTextMut, Text, TextBase};
+use crate::{AnyTextMut, Text, TextBase};
 
 /// A readonly text buffer suitable for reading large files incrementally.
 pub struct ReadonlyText<B> {
@@ -36,6 +36,8 @@ impl<B: Deref<Target = [u8]>> AsRef<str> for ReadonlyText<B> {
 }
 
 impl ReadonlyText<Mmap> {
+    // TODO
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };

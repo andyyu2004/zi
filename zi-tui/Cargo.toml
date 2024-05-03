@@ -8,5 +8,5 @@ workspace = true
 
 [dependencies]
 ratatui = "0.26.1"
-tracing = "0.1.40"
+tracing = { workspace = true }
 

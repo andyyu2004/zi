@@ -7,10 +7,9 @@ use std::sync::OnceLock;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
+use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 
-pub use self::highlight::{Color, Style};
 pub(crate) use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
-use crate::text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 use crate::{dirs, FileType};
 
 pub struct Syntax {
