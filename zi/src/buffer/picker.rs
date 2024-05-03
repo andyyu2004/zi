@@ -13,7 +13,7 @@ pub struct PickerBuffer<P: Picker> {
     id: BufferId,
     /// The view that displays the results
     display_view: ViewId,
-    text: Rope,
+    text: String,
     nucleo: Nucleo<P::Item>,
     cancel: Cancel,
     keymap: Keymap,
@@ -222,13 +222,20 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
     fn edit(&mut self, delta: &Delta<'_>) {
         self.text.edit(delta);
 
-        let search = self.text.to_string();
-        tracing::debug!(%search, "update picker search pattern");
-        self.nucleo.pattern.reparse(0, &search, CaseMatching::Smart, Normalization::Smart, false);
+        tracing::debug!(%self.text, "update picker search pattern");
+        self.nucleo.pattern.reparse(
+            0,
+            &self.text,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            false,
+        );
     }
 
     fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
-        self.nucleo.tick(10);
+        if !self.nucleo.tick(10).changed {
+            return;
+        }
 
         let snapshot = self.nucleo.snapshot();
         let items = snapshot

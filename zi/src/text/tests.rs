@@ -5,6 +5,26 @@ use proptest::{bool, proptest};
 
 use super::*;
 
+fn mut_impls<'a>(s: &'a str) -> [Box<dyn AnyTextMut + 'a>; 2] {
+    [
+        // could use crop::Rope::from directly, but using the building is more realistic
+        Box::new({
+            let mut builder = crop::RopeBuilder::new();
+            builder.append(s);
+            builder.build()
+        }) as Box<dyn AnyTextMut>,
+        Box::new(s.to_owned()),
+    ]
+}
+
+#[test]
+fn text_edit() {
+    for mut imp in mut_impls("abc") {
+        imp.edit(&Delta::new(0..0, "x"));
+        assert_eq!(imp.to_string(), "xabc");
+    }
+}
+
 fn impls<'a>(s: &'a str) -> [Box<dyn AnyText + 'a>; 3] {
     [
         // could use crop::Rope::from directly, but using the building is more realistic
@@ -103,56 +123,70 @@ proptest! {
     }
 }
 
+fn test(s: &str) {
+    // Test against the rope implementation as that one is probably correct
+    // TODO add more test cases and we're not testing the slice impls
+    let rope = crop::Rope::from(s);
+    let reference = &rope as &dyn AnyText;
+
+    for imp in impls(s) {
+        let line_slice = imp.line_slice(..);
+        let byte_slice = imp.line_slice(..);
+
+        assert_eq!(reference.len_bytes(), imp.len_bytes());
+        assert_eq!(reference.len_lines(), line_slice.len_lines());
+        assert_eq!(reference.len_lines(), byte_slice.len_lines());
+
+        assert_eq!(reference.len_lines(), imp.len_lines());
+        assert_eq!(reference.len_lines(), line_slice.len_lines());
+        assert_eq!(reference.len_lines(), byte_slice.len_lines());
+
+        // check that the line length is self consistent
+        assert_eq!(reference.len_lines(), reference.lines().count());
+        assert_eq!(imp.len_lines(), imp.lines().count());
+
+        let mut b = 0;
+        for c in reference.chars() {
+            assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
+            assert_eq!(reference.byte_to_line(b), line_slice.byte_to_line(b), "{s:?}: byte {b}");
+            assert_eq!(reference.byte_to_line(b), byte_slice.byte_to_line(b), "{s:?}: byte {b}");
+
+            assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
+            assert_eq!(reference.byte_to_point(b), line_slice.byte_to_point(b), "{s:?}: byte {b}");
+            assert_eq!(reference.byte_to_point(b), byte_slice.byte_to_point(b), "{s:?}: byte {b}");
+
+            b += c.len_utf8();
+        }
+
+        for l in 0..=reference.len_lines() {
+            assert_eq!(
+                reference.get_line(l).map(|s| s.to_string()),
+                imp.get_line(l).map(|s| s.to_string()),
+                "{s:?}: on line {l}"
+            );
+            assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
+            assert_eq!(
+                reference.try_line_to_byte(l),
+                imp.try_line_to_byte(l),
+                "{s:?}`: on line {l}"
+            );
+        }
+
+        assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
+    }
+}
+
 proptest! {
     // Ignore some annoying control characters like vertical tabs, nextline etc. No idea if anyone actually uses that in practice.
     // Also skipping \r as usually it's followed by \n.
     #[test]
     fn text_impls(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*") {
-        // Test against the rope implementation as that one is probably correct
-        // TODO add more test cases and we're not testing the slice impls
+        test(&s)
+    }
 
-        let rope = crop::Rope::from(s.as_ref());
-        let reference = &rope as &dyn AnyText;
-
-        for imp in impls(&s) {
-            let line_slice = imp.line_slice(..);
-            let byte_slice = imp.line_slice(..);
-
-            assert_eq!(reference.len_bytes(), imp.len_bytes());
-            assert_eq!(reference.len_lines(), line_slice.len_lines());
-            assert_eq!(reference.len_lines(), byte_slice.len_lines());
-
-            assert_eq!(reference.len_lines(), imp.len_lines());
-            assert_eq!(reference.len_lines(), line_slice.len_lines());
-            assert_eq!(reference.len_lines(), byte_slice.len_lines());
-
-            // check that the line length is self consistent
-            assert_eq!(reference.len_lines(), reference.lines().count());
-            assert_eq!(imp.len_lines(), imp.lines().count());
-
-
-            let mut b = 0;
-            for c in reference.chars() {
-                assert_eq!(reference.byte_to_line(b), imp.byte_to_line(b), "{s:?}: byte {b}");
-                assert_eq!(reference.byte_to_line(b), line_slice.byte_to_line(b), "{s:?}: byte {b}");
-                assert_eq!(reference.byte_to_line(b), byte_slice.byte_to_line(b), "{s:?}: byte {b}");
-
-                assert_eq!(reference.byte_to_point(b), imp.byte_to_point(b), "{s:?}: byte {b}");
-                assert_eq!(reference.byte_to_point(b), line_slice.byte_to_point(b), "{s:?}: byte {b}");
-                assert_eq!(reference.byte_to_point(b), byte_slice.byte_to_point(b), "{s:?}: byte {b}");
-
-                b += c.len_utf8();
-            }
-
-            for l in 0..=reference.len_lines() {
-                assert_eq!(reference.get_line(l).map(|s| s.to_string()), imp.get_line(l).map(|s| s.to_string()), "{s:?}: on line {l}");
-                assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
-                assert_eq!(reference.try_line_to_byte(l), imp.try_line_to_byte(l), "{s:?}`: on line {l}");
-            }
-
-
-            assert!(reference.lines().map(|s| s.to_string()).eq(imp.lines().map(|s| s.to_string())));
-        }
+    #[test]
+    fn text_impls_ascii(s in "[ -~]*") {
+        test(&s)
     }
 }
 
@@ -160,7 +194,10 @@ proptest! {
 fn try_line_to_byte() {
     #[track_caller]
     fn check(s: &str, line: usize) {
-        assert_eq!(s.try_line_to_byte(line), crop::Rope::from(s).try_line_to_byte(line));
+        let reference = crop::Rope::from(s).try_line_to_byte(line);
+        for imp in impls(s) {
+            assert_eq!(imp.try_line_to_byte(line), reference);
+        }
     }
 
     check("\n\n\n", 2);

@@ -37,3 +37,16 @@ fn picker() {
         "opening another picker should not create new set of views"
     );
 }
+
+#[test]
+fn picker_input() {
+    let mut editor = new("");
+    editor.open_jump_list();
+    editor.input("abc").unwrap();
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc");
+    assert_eq!(editor.cursor(zi::Active), (0, 3));
+
+    editor.input("<BS>").unwrap();
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab");
+    assert_eq!(editor.cursor(zi::Active), (0, 2));
+}

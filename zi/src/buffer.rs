@@ -7,7 +7,6 @@ use std::any::Any;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crop::Rope;
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use unicode_width::UnicodeWidthChar;

@@ -285,20 +285,22 @@ impl View {
         let len = text.len_bytes();
         assert!(byte <= len);
 
+        let insert = matches!(mode, Mode::Insert);
+
         // Ensure the cursor is in a valid position.
         let mut chars = if byte == len {
-            let mut chars = text.byte_slice(..byte).chars().rev().peekable();
-            // adjust the index due to differences between .. and ..=
-            byte -= chars.peek().map_or(0, |c| c.len_utf8());
+            let mut chars = text.byte_slice(..).chars().rev().peekable();
+            if !insert {
+                // move cursor back if not in insert mode
+                byte -= chars.peek().map_or(0, |c| c.len_utf8());
+            }
             chars
         } else {
             text.byte_slice(..=byte).chars().rev().peekable()
         };
 
-        if !matches!(mode, Mode::Insert)
-            && chars.next() == Some('\n')
-            && chars.peek() != Some(&'\n')
-        {
+        // Prevent cursor on trailing newline
+        if !insert && chars.next() == Some('\n') && chars.peek() != Some(&'\n') {
             byte = byte.saturating_sub('\n'.len_utf8());
         }
 

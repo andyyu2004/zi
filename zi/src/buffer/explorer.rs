@@ -125,7 +125,10 @@ impl<T: Item, F> Buffer for ExplorerBuffer<T, F> {
     }
 
     fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) {
-        self.nucleo.tick(10);
+        if !self.nucleo.tick(10).changed {
+            return;
+        }
+
         let snapshot = self.nucleo.snapshot();
         self.text.clear();
         let n = snapshot.matched_item_count().min(area.height as u32);

@@ -831,15 +831,8 @@ impl Editor {
         let start_byte_idx =
             byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
         buf.edit(&Delta::delete(start_byte_idx..byte_idx));
-        let new_cursor = buf.text().byte_to_point(start_byte_idx);
 
-        view.set_cursor_linewise(
-            self.mode,
-            self.tree.view_area(view.id()),
-            buf,
-            new_cursor,
-            SetCursorFlags::empty(),
-        );
+        view.set_cursor_bytewise(self.mode, self.tree.view_area(view.id()), buf, start_byte_idx);
     }
 
     pub fn insert_char_at_cursor(&mut self, c: char) {
