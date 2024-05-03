@@ -29,6 +29,12 @@ fn parse_command() {
                 set x=y
             "#]],
         ),
+        (
+            ":extra colon",
+            expect![[r#"
+                :extra colon
+            "#]],
+        ),
         (" \n", expect!["found end of input"]),
     ] {
         match src.parse::<Command>() {

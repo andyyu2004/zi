@@ -215,6 +215,7 @@ pub(super) fn new() -> Keymap {
             Keymap::from(hashmap! {
                 Mode::Command => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
+                    "<BS>" => delete_char_backward,
                     "<CR>" => execute_command,
                 }),
                 Mode::Insert => trie!({

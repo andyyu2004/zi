@@ -81,7 +81,7 @@ pub struct Editor {
     /// error to be displayed in the status line
     status_error: Option<String>,
     /// Stores the command currently in the command line
-    command: String,
+    command_buffer: String,
     command_handlers: FxHashMap<Word, Handler>,
     plugins: Plugins,
 }
@@ -318,7 +318,7 @@ impl Editor {
             mode: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
-            command: Default::default(),
+            command_buffer: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -526,9 +526,9 @@ impl Editor {
 
         let cmd = tui::Text::styled(
             match self.mode {
-                Mode::Command => format!(":{}", self.command),
-                Mode::Normal | Mode::OperatorPending(_) => String::new(),
-                mode => format!("-- {mode} --",),
+                Mode::Command => Cow::Borrowed(self.command_buffer.as_str()),
+                Mode::Normal | Mode::OperatorPending(_) => Cow::Borrowed(""),
+                mode => Cow::Owned(format!("-- {mode} --",)),
             },
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
@@ -549,7 +549,11 @@ impl Editor {
 
         let (x, y) = self.cursor_viewport_coords();
         let offset = match self.mode {
-            Mode::Command => self.command.len() as u16,
+            Mode::Command => self
+                .command_buffer
+                .len()
+                .checked_sub(1)
+                .expect("should have a preceding `/` or `:`") as u16,
             _ => view.line_number_width() as u16,
         };
 
@@ -689,7 +693,7 @@ impl Editor {
                     match event.code() {
                         KeyCode::Char(c) => match self.mode {
                             Mode::Insert => self.insert_char_at_cursor(c),
-                            Mode::Command => self.command.push(c),
+                            Mode::Command => self.command_buffer.push(c),
                             _ => unreachable!(),
                         },
                         _ => unreachable!(),
@@ -729,24 +733,33 @@ impl Editor {
     }
 
     pub fn execute_command(&mut self) {
-        match self.command.parse::<Command>() {
+        let Some(cmd) = self.command_buffer.strip_prefix(':') else {
+            return set_error!(self, "command must start with `:`");
+        };
+
+        match cmd.parse::<Command>() {
             Ok(cmd) => self.execute(cmd),
             Err(err) => set_error!(self, err),
         };
 
-        self.command.clear();
+        self.command_buffer.clear();
         self.set_mode(Mode::Normal);
     }
 
     #[inline]
     pub fn set_mode(&mut self, mode: Mode) {
-        self.command.clear();
+        self.command_buffer.clear();
 
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             // Move cursor left when exiting insert mode
             let (view, buf) = get!(self);
             buf.snapshot(SnapshotFlags::empty());
             view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
+        }
+
+        if let Mode::Command = mode {
+            self.command_buffer.clear();
+            self.command_buffer.push(':');
         }
 
         self.mode = mode;
@@ -819,22 +832,37 @@ impl Editor {
     }
 
     pub fn delete_char_backward(&mut self) {
-        let (view, buf) = get!(self);
-        if buf.flags().contains(BufferFlags::READONLY) {
-            // FIXME we should return a proper error
-            set_error!(self, "buffer is readonly");
-            return;
+        match self.mode {
+            Mode::Command => {
+                self.command_buffer.pop();
+                if self.command_buffer.is_empty() {
+                    self.set_mode(Mode::Normal);
+                }
+            }
+            _ => {
+                let (view, buf) = get!(self);
+                if buf.flags().contains(BufferFlags::READONLY) {
+                    // fixme we should return a proper error
+                    set_error!(self, "buffer is readonly");
+                    return;
+                }
+
+                let cursor = view.cursor();
+                let text = buf.text();
+                let byte_idx = text.point_to_byte(cursor);
+                let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
+                let start_byte_idx =
+                    byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
+                buf.edit(&Delta::delete(start_byte_idx..byte_idx));
+
+                view.set_cursor_bytewise(
+                    self.mode,
+                    self.tree.view_area(view.id()),
+                    buf,
+                    start_byte_idx,
+                );
+            }
         }
-
-        let cursor = view.cursor();
-        let text = buf.text();
-        let byte_idx = text.point_to_byte(cursor);
-        let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
-        let start_byte_idx =
-            byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
-        buf.edit(&Delta::delete(start_byte_idx..byte_idx));
-
-        view.set_cursor_bytewise(self.mode, self.tree.view_area(view.id()), buf, start_byte_idx);
     }
 
     pub fn insert_char_at_cursor(&mut self, c: char) {
@@ -1757,6 +1785,11 @@ impl Editor {
         f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
     ) {
         callback(&self.callbacks_tx, desc, fut, f);
+    }
+
+    #[inline]
+    pub fn command_buffer(&self) -> &str {
+        &self.command_buffer
     }
 }
 
