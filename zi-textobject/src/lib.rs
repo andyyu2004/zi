@@ -7,13 +7,15 @@ use zi_text::{AnyText, Text as _, TextSlice};
 
 pub use self::motion::Motion;
 
+/// Charwise textobjects affect a [start, end) byte-range where `start` is inclusive and `end` is exclusive.
+/// Linewise ranges will be expanded to include the full start and end lines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MotionKind {
+pub enum TextObjectKind {
     Linewise,
     Charwise,
 }
 
-impl MotionKind {
+impl TextObjectKind {
     #[must_use]
     pub fn is_linewise(&self) -> bool {
         matches!(self, Self::Linewise)
@@ -41,7 +43,7 @@ pub trait TextObject {
     /// It is also valid to return `Some(empty_range)` to proceed.
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>>;
 
-    fn default_kind(&self) -> MotionKind;
+    fn default_kind(&self) -> TextObjectKind;
 
     #[inline]
     fn flags(&self) -> TextObjectFlags {
@@ -56,7 +58,7 @@ impl<O: TextObject> TextObject for &O {
     }
 
     #[inline]
-    fn default_kind(&self) -> MotionKind {
+    fn default_kind(&self) -> TextObjectKind {
         (*self).default_kind()
     }
 
@@ -94,8 +96,8 @@ impl Line {
 
 impl TextObject for Line {
     #[inline]
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Linewise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Linewise
     }
 
     #[inline]
@@ -138,7 +140,7 @@ impl<M: TextObject> TextObject for Repeated<M> {
         todo!();
     }
 
-    fn default_kind(&self) -> MotionKind {
+    fn default_kind(&self) -> TextObjectKind {
         self.motion.default_kind()
     }
 }
@@ -193,8 +195,8 @@ impl TextObject for PrevToken {
     }
 
     #[inline]
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
     }
 
     #[inline]
@@ -241,8 +243,8 @@ impl NextWord {
 
 impl TextObject for NextWord {
     #[inline]
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
     }
 
     #[inline]
@@ -269,8 +271,8 @@ impl PrevWord {
 
 impl TextObject for PrevWord {
     #[inline]
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
     }
 
     #[inline]
@@ -341,8 +343,8 @@ impl NextToken {
 
 impl TextObject for NextToken {
     #[inline]
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
     }
 
     #[inline]
@@ -372,7 +374,75 @@ impl TextObject for Prev {
         Some(self.motion(text, byte)..byte)
     }
 
-    fn default_kind(&self) -> MotionKind {
-        MotionKind::Charwise
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+}
+
+pub struct NextChar;
+
+impl TextObject for NextChar {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        Some(byte..self.motion(text, byte))
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+}
+
+pub struct PrevChar;
+
+impl TextObject for PrevChar {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        Some(self.motion(text, byte)..byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Charwise
+    }
+}
+
+pub struct NextLine;
+
+impl TextObject for NextLine {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        let line_idx = text.byte_to_line(byte);
+
+        match text.try_line_to_byte(line_idx + 1) {
+            Some(end) => Some(byte..end),
+            None => Some(byte..text.len_bytes()),
+        }
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Linewise
+    }
+}
+
+pub struct PrevLine;
+
+impl TextObject for PrevLine {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        let line_idx = text.byte_to_line(byte);
+
+        if line_idx == 0 {
+            return Some(0..byte);
+        }
+
+        let start = text.line_to_byte(line_idx - 1);
+        Some(start..byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Linewise
     }
 }

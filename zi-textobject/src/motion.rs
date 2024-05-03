@@ -3,6 +3,12 @@ use zi_text::{AnyText, Text, TextSlice};
 
 pub use super::*;
 
+bitflags::bitflags! {
+    pub struct MotionFlags: u8 {
+        const NO_FORCE_UPDATE_TARGET = 1 << 0;
+    }
+}
+
 /// Motions are a subset of textobjects that move the cursor around.
 // TODO could probably write this in a more combinator-like style
 pub trait Motion: TextObject {
@@ -12,6 +18,11 @@ pub trait Motion: TextObject {
     /// It's also valid to return the same byte position as the input.
     /// The caller may choose to handle them distinctly.
     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize;
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        MotionFlags::empty()
+    }
 
     #[inline]
     fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
@@ -116,3 +127,56 @@ impl Motion for Prev {
         byte
     }
 }
+
+impl Motion for NextChar {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        match text.char_at_byte(byte) {
+            Some(c) if c != '\n' => byte + c.len_utf8(),
+            _ => byte,
+        }
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        MotionFlags::NO_FORCE_UPDATE_TARGET
+    }
+}
+
+impl Motion for PrevChar {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        match text.char_before_byte(byte) {
+            Some(c) if c != '\n' => byte - c.len_utf8(),
+            _ => byte,
+        }
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        MotionFlags::NO_FORCE_UPDATE_TARGET
+    }
+}
+
+// TODO need to try preserve column etc
+// impl Motion for NextLine {
+//     #[inline]
+//     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+//         let line_idx = text.byte_to_line(byte);
+//         match text.try_line_to_byte(line_idx + 1) {
+//             Some(byte) => byte,
+//             None => byte,
+//         }
+//     }
+// }
+//
+// impl Motion for PrevLine {
+//     #[inline]
+//     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+//         let line_idx = text.byte_to_line(byte);
+//         match text.try_line_to_byte(line_idx) {
+//             Some(byte) => byte,
+//             None => byte,
+//         }
+//     }
+// }

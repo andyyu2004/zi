@@ -52,7 +52,7 @@ const I: &str = r"(?s)[A-z][ -~\n]*[A-z]";
 
 // TODO add hjkl motions to tests once implemented as motions
 t!(I, "<ESC>", nvim_test);
-t!(I, "[WBjk]+", nvim_token_motions);
+t!(I, "[WBhjkl]+", nvim_token_motions);
 t!(I, "[dWB]+", nvim_delete_word);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
 t!(I, "d([uWB]|(<ESC>))+<ESC>", nvim_undo_delete_word);
@@ -66,7 +66,9 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    // test("A\n \na", "wwwBB");
+    test("a\n a\n\n aa", "Wljhj");
+    test("aA\n\naa", "lljj");
+    test("aA\n aa", "lj");
 }
 
 #[track_caller]

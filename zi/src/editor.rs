@@ -29,8 +29,8 @@ use tui::Widget as _;
 use zi_core::Size;
 use zi_lsp::{lsp_types, LanguageServer as _};
 use zi_text::{Delta, PointOrByte, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
-use zi_textobject::motion::Motion;
-use zi_textobject::{MotionKind, TextObject, TextObjectFlags};
+use zi_textobject::motion::{self, Motion, MotionFlags};
+use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
@@ -749,9 +749,9 @@ impl Editor {
 
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
             // Move cursor left when exiting insert mode
-            let (view, buf) = get!(self);
+            let (_, buf) = get!(self);
             buf.snapshot(SnapshotFlags::empty());
-            view.move_cursor(Mode::Insert, self.tree.view_area(view.id()), buf, Direction::Left, 1);
+            self.motion(motion::PrevChar);
         }
 
         if let Mode::Command = mode {
@@ -857,6 +857,7 @@ impl Editor {
                     self.tree.view_area(view.id()),
                     buf,
                     start_byte_idx,
+                    SetCursorFlags::empty(),
                 );
             }
         }
@@ -871,8 +872,13 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         match c {
-            '\n' => view.move_cursor(self.mode, area, buf, Direction::Down, 1),
-            _ => view.move_cursor(self.mode, area, buf, Direction::Right, 1),
+            '\n' => {
+                view.move_cursor(self.mode, area, buf, Direction::Down, 1);
+            }
+            _ => {
+                self.motion(motion::NextChar);
+                // view.move_cursor(self.mode, area, buf, Direction::Right, 1),
+            }
         };
     }
 
@@ -953,7 +959,7 @@ impl Editor {
 
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
             && end_point.col() == 0
-            && motion_kind == MotionKind::Charwise
+            && motion_kind == TextObjectKind::Charwise
             && line_count > 1;
 
         if end_adjusted {
@@ -967,7 +973,7 @@ impl Editor {
             // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
             // updates the cursor before this point.
             if inindent(text, start_point) {
-                motion_kind = MotionKind::Linewise;
+                motion_kind = TextObjectKind::Linewise;
             } else {
                 let line_idx = end_point.line().up(1).idx();
                 let line_above = text.get_line(line_idx).expect("must be in-bounds");
@@ -982,18 +988,19 @@ impl Editor {
 
         // Another neovim special case inherited from vi.
         // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L1468-L1484
-        if motion_kind == MotionKind::Charwise
+        if motion_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
             && inindent(text, end_point)
             && text.get_line(end_point.line().idx()).unwrap().chars().all(char::is_whitespace)
         {
-            motion_kind = MotionKind::Linewise;
+            motion_kind = TextObjectKind::Linewise;
         }
 
         // If we're in a special case for linewise motions that are charwise by default,
         // extend the range to include the full start and end lines.
-        if obj.default_kind() == MotionKind::Charwise && motion_kind == MotionKind::Linewise {
+        if obj.default_kind() == TextObjectKind::Charwise && motion_kind == TextObjectKind::Linewise
+        {
             let start_line = start_point.line().idx();
             let start_byte = text.line_to_byte(start_line);
             let end_byte = text.line_to_byte(start_line + line_count);
@@ -1005,9 +1012,11 @@ impl Editor {
                 let delta = Delta::delete(range.clone());
                 let cursor = match motion_kind {
                     // linewise deletions move the line but maintain the column
-                    MotionKind::Linewise => PointOrByte::Point(start_point.with_col(cursor.col())),
+                    TextObjectKind::Linewise => {
+                        PointOrByte::Point(start_point.with_col(cursor.col()))
+                    }
                     // charwise deletions moves the cursor to the start of the range
-                    MotionKind::Charwise => PointOrByte::Byte(range.start),
+                    TextObjectKind::Charwise => PointOrByte::Byte(range.start),
                 };
                 (delta, Some(cursor))
             }
@@ -1030,7 +1039,7 @@ impl Editor {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
                 match motion_kind {
-                    MotionKind::Linewise => {
+                    TextObjectKind::Linewise => {
                         let cursor = match start_char {
                             // Special case if the motion started at the newline of the prior line.
                             Some('\n') if !end_adjusted => cursor,
@@ -1040,7 +1049,7 @@ impl Editor {
                         self[buf].snapshot_cursor(cursor);
                         self[buf].snapshot(SnapshotFlags::empty());
                     }
-                    MotionKind::Charwise => self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY),
+                    TextObjectKind::Charwise => self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY),
                 }
                 self.set_mode(Mode::Normal)
             }
@@ -1070,7 +1079,9 @@ impl Editor {
                 PointOrByte::Point(point) => {
                     view.set_cursor_linewise(self.mode, area, buf, point, flags)
                 }
-                PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+                PointOrByte::Byte(byte) => {
+                    view.set_cursor_bytewise(self.mode, area, buf, byte, SetCursorFlags::empty())
+                }
             };
         }
     }
@@ -1083,7 +1094,14 @@ impl Editor {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
                 let byte = motion.motion(text, text.point_to_byte(view.cursor()));
-                view.set_cursor_bytewise(self.mode, area, buf, byte);
+                let motion_flags = motion.motion_flags();
+
+                let mut flags = SetCursorFlags::empty();
+                if motion_flags.contains(MotionFlags::NO_FORCE_UPDATE_TARGET) {
+                    flags |= SetCursorFlags::NO_FORCE_UPDATE_TARGET;
+                }
+
+                view.set_cursor_bytewise(self.mode, area, buf, byte, flags);
             }
         }
     }
@@ -1116,7 +1134,9 @@ impl Editor {
             PointOrByte::Point(point) => {
                 view.set_cursor_linewise(self.mode, area, buf, point, SetCursorFlags::empty())
             }
-            PointOrByte::Byte(byte) => view.set_cursor_bytewise(self.mode, area, buf, byte),
+            PointOrByte::Byte(byte) => {
+                view.set_cursor_bytewise(self.mode, area, buf, byte, SetCursorFlags::empty())
+            }
         };
     }
 

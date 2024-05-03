@@ -19,11 +19,8 @@ bitflags::bitflags! {
     pub struct SetCursorFlags: u8 {
         /// Shift the cursor right to the first non-whitespace character if necessary.
         const START_OF_LINE = 1 << 0;
-    }
-
-    // A bunch of hacks, don't make this public
-    struct SetCursorHacks: u8 {
-        const NO_COLUMN_BOUNDS_CHECK = 1 << 0;
+        /// Do not update the cursor target column even if the cursor did not move.
+        const NO_FORCE_UPDATE_TARGET = 1 << 1;
     }
 }
 
@@ -234,7 +231,7 @@ impl View {
         (x.try_into().unwrap(), y.try_into().unwrap())
     }
 
-    /// `amt` is measured in characters
+    /// `amt` is measured in characters or lines depending on the direction.
     pub(crate) fn move_cursor(
         &mut self,
         mode: Mode,
@@ -260,13 +257,12 @@ impl View {
             Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
         };
 
-        let hacks = if direction.is_vertical() {
-            SetCursorHacks::NO_COLUMN_BOUNDS_CHECK
-        } else {
-            SetCursorHacks::empty()
+        let flags = match direction {
+            Direction::Up | Direction::Down => SetCursorFlags::NO_FORCE_UPDATE_TARGET,
+            _ => SetCursorFlags::empty(),
         };
 
-        self.set_cursor_linewise_inner(mode, size, buf, pos, SetCursorFlags::empty(), hacks)
+        self.set_cursor_linewise(mode, size, buf, pos, flags)
     }
 
     // HACK clean this up and try not have two different implementations for a cursor move.
@@ -278,8 +274,13 @@ impl View {
         size: impl Into<Size>,
         buf: &dyn Buffer,
         mut byte: usize,
+        flags: SetCursorFlags,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
+
+        if flags.contains(SetCursorFlags::START_OF_LINE) {
+            todo!()
+        }
 
         let text = buf.text();
         let len = text.len_bytes();
@@ -306,7 +307,15 @@ impl View {
 
         let pos = text.byte_to_point(byte);
 
-        self.cursor = Cursor::new(pos);
+        if self.cursor.pos != pos && self.cursor.target_col != pos.col() {
+            self.cursor = Cursor::new(pos);
+        } else {
+            self.cursor.pos = pos;
+            if !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET) {
+                self.cursor.target_col = pos.col();
+            }
+        }
+
         self.ensure_scroll_in_bounds(size);
         #[cfg(debug_assertions)]
         std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
@@ -321,19 +330,6 @@ impl View {
         buf: &dyn Buffer,
         pos: Point,
         flags: SetCursorFlags,
-    ) -> Point {
-        self.set_cursor_linewise_inner(mode, size, buf, pos, flags, SetCursorHacks::empty())
-    }
-
-    #[inline]
-    fn set_cursor_linewise_inner(
-        &mut self,
-        mode: Mode,
-        size: impl Into<Size>,
-        buf: &dyn Buffer,
-        pos: Point,
-        flags: SetCursorFlags,
-        hacks: SetCursorHacks,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
@@ -363,15 +359,8 @@ impl View {
 
         let max_col = Col::from(line_len.saturating_sub(k));
 
-        // Store where we really want to be without the following bounds constraints.
-        self.cursor.target_col = pos.col();
-        if !hacks.contains(SetCursorHacks::NO_COLUMN_BOUNDS_CHECK) {
-            // By default, we want to ensure the target column is in-bounds for the line.
-            self.cursor.target_col = self.cursor.target_col.min(max_col);
-        }
-
         // check column is in-bounds for the line
-        self.cursor.pos = match pos.col().idx() {
+        let new_cursor = match pos.col().idx() {
             i if i < line_len => {
                 if flags.contains(SetCursorFlags::START_OF_LINE) {
                     let mut col = 0;
@@ -391,13 +380,21 @@ impl View {
 
                     pos.with_col(col.max(i))
                 } else {
-                    pos
+                    pos.with_col(max_col.idx().min(i))
                 }
             }
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
         };
+
+        if self.cursor.target_col != pos.col() && self.cursor.pos != new_cursor
+            || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
+        {
+            self.cursor.target_col = new_cursor.col();
+        }
+
+        self.cursor.pos = new_cursor;
 
         // Assert that the cursor is in valid byte position. This will panic if the cursor is in
         // the middle of a code point.

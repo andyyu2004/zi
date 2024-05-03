@@ -39,12 +39,12 @@ pub(super) fn new() -> Keymap {
         editor.set_mode(Mode::Normal);
     }
 
-    fn move_left(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Left, 1);
+    fn prev_char(editor: &mut Editor) {
+        editor.motion(motion::PrevChar);
     }
 
-    fn move_right(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Right, 1);
+    fn next_char(editor: &mut Editor) {
+        editor.motion(motion::NextChar);
     }
 
     fn move_up(editor: &mut Editor) {
@@ -88,19 +88,19 @@ pub(super) fn new() -> Keymap {
         editor.insert_char_at_cursor('\n');
     }
 
-    fn motion_next_token(editor: &mut Editor) {
+    fn next_token(editor: &mut Editor) {
         editor.motion(motion::NextToken);
     }
 
-    fn motion_prev_token(editor: &mut Editor) {
+    fn prev_token(editor: &mut Editor) {
         editor.motion(motion::PrevToken);
     }
 
-    fn motion_next_word(editor: &mut Editor) {
+    fn next_word(editor: &mut Editor) {
         editor.motion(motion::NextWord);
     }
 
-    fn motion_prev_word(editor: &mut Editor) {
+    fn prev_word(editor: &mut Editor) {
         editor.motion(motion::PrevWord);
     }
 
@@ -204,10 +204,12 @@ pub(super) fn new() -> Keymap {
         .get_or_init(|| {
             let operator_pending_trie = trie!({
                 "<ESC>" | "<C-c>" => normal_mode,
-                "w" => motion_next_word,
-                "W" => motion_next_token,
-                "b" => motion_prev_word,
-                "B" => motion_prev_token,
+                "w" => next_word,
+                "W" => next_token,
+                "b" => prev_word,
+                "B" => prev_token,
+                "h" => prev_char,
+                "l" => next_char,
             });
 
             Keymap::from(hashmap! {
@@ -245,15 +247,15 @@ pub(super) fn new() -> Keymap {
                     "y" => yank_operator_pending,
                     ":" => command_mode,
                     "i" => insert_mode,
-                    "h" => move_left,
-                    "l" => move_right,
+                    "h" => prev_char,
+                    "l" => next_char,
                     "j" => move_down,
                     "k" => move_up,
                     "o" => open_newline,
-                    "w" => motion_next_word,
-                    "b" => motion_prev_word,
-                    "W" => motion_next_token,
-                    "B" => motion_prev_token,
+                    "w" => next_word,
+                    "b" => prev_word,
+                    "W" => next_token,
+                    "B" => prev_token,
                     "a" => append,
                     "A" => append_eol,
                     "u" => undo,

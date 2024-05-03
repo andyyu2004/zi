@@ -140,3 +140,24 @@ fn motion_next_token() {
 
     check(&motion, "\na", 0, 1);
 }
+
+#[test]
+fn motion_next_char() {
+    let motion = NextChar;
+    check(&motion, "a", 0, 1);
+    check(&motion, "ab", 0, 1);
+    check(&motion, "a", 1, 1);
+    check(&motion, "a\nb", 0, 1);
+    check(&motion, "\n\n\n", 1, 1);
+    check(&motion, "\n\n\n", 0, 0);
+
+    check_range(&motion, "a", 0, Some(0..1));
+}
+
+#[test]
+fn motion_prev_char() {
+    let motion = PrevChar;
+
+    check(&motion, "a", 1, 0);
+    check(&motion, "---------\u{a002d}-\u{fe2c}\0---\u{a05cc}\n", 25, 21)
+}
