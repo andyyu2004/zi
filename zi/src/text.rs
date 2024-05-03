@@ -501,76 +501,79 @@ where
     }
 
     let mut annotations = annotations.into_iter().peekable();
-    iter::from_coroutine(move || {
-        for (i, line) in lines.enumerate() {
-            let line_len_bytes = line.len_bytes();
+    iter::from_coroutine(
+        #[coroutine]
+        move || {
+            for (i, line) in lines.enumerate() {
+                let line_len_bytes = line.len_bytes();
 
-            let line_idx = Line::from(i);
-            let mut j = 0;
-            while let Some(&(range, annotation)) = annotations.peek() {
-                if range.start().line() > i {
-                    break;
+                let line_idx = Line::from(i);
+                let mut j = 0;
+                while let Some(&(range, annotation)) = annotations.peek() {
+                    if range.start().line() > i {
+                        break;
+                    }
+
+                    let start_col =
+                        if range.start().line() == i { range.start().col().idx() } else { 0 };
+
+                    if range.end().line() > i {
+                        // If the highlight is a multi-line highlight,
+                        // we style the entire line with that style and move on to highlight the next
+                        // line (without next()ing the highlight iterator)
+                        yield (line_idx, slice(&line, ..), Some(annotation));
+                        // set `j` here so we don't try to highlight the same range again
+                        j = line_len_bytes;
+                        break;
+                    }
+
+                    let (range, annotation) = annotations.next().expect("just peeked");
+                    let end_col = if range.end().line().idx() == i {
+                        range.end().col().idx()
+                    } else {
+                        line_len_bytes
+                    };
+
+                    if start_col < j {
+                        // Sometimes annotations can overlap, we just arbitrarily use the first one of that range
+                        continue;
+                    }
+
+                    if start_col > j {
+                        yield (line_idx, slice(&line, j..start_col), None)
+                    }
+
+                    if end_col >= line_len_bytes {
+                        // We're allowed to annotate places with no text, so the range end might be out of bounds
+                        // In which case, we add another span with the remaining space.
+
+                        // There's a bit of a bug here:
+                        // If the line ends with a newline, then the padded span will be on the next line.
+                        // The workaround is to return the line number as well, so the renderer can handle it.
+                        yield (line_idx, slice(&line, start_col..), Some(annotation));
+                        yield (
+                            line_idx,
+                            format!("{:width$}", "", width = end_col - line_len_bytes).into(),
+                            Some(annotation),
+                        )
+                    } else {
+                        yield (line_idx, slice(&line, start_col..end_col), Some(annotation));
+                    }
+
+                    j = end_col;
                 }
 
-                let start_col =
-                    if range.start().line() == i { range.start().col().idx() } else { 0 };
-
-                if range.end().line() > i {
-                    // If the highlight is a multi-line highlight,
-                    // we style the entire line with that style and move on to highlight the next
-                    // line (without next()ing the highlight iterator)
-                    yield (line_idx, slice(&line, ..), Some(annotation));
-                    // set `j` here so we don't try to highlight the same range again
-                    j = line_len_bytes;
-                    break;
+                // Add in a span for the rest of the line that wasn't annotated
+                if j < line_len_bytes {
+                    yield (line_idx, slice(&line, j..), None);
                 }
 
-                let (range, annotation) = annotations.next().expect("just peeked");
-                let end_col = if range.end().line().idx() == i {
-                    range.end().col().idx()
-                } else {
-                    line_len_bytes
-                };
-
-                if start_col < j {
-                    // Sometimes annotations can overlap, we just arbitrarily use the first one of that range
-                    continue;
-                }
-
-                if start_col > j {
-                    yield (line_idx, slice(&line, j..start_col), None)
-                }
-
-                if end_col >= line_len_bytes {
-                    // We're allowed to annotate places with no text, so the range end might be out of bounds
-                    // In which case, we add another span with the remaining space.
-
-                    // There's a bit of a bug here:
-                    // If the line ends with a newline, then the padded span will be on the next line.
-                    // The workaround is to return the line number as well, so the renderer can handle it.
-                    yield (line_idx, slice(&line, start_col..), Some(annotation));
-                    yield (
-                        line_idx,
-                        format!("{:width$}", "", width = end_col - line_len_bytes).into(),
-                        Some(annotation),
-                    )
-                } else {
-                    yield (line_idx, slice(&line, start_col..end_col), Some(annotation));
-                }
-
-                j = end_col;
+                // unconditionally yields a newline regardless of whether the line actually had one, I
+                // don't think this causes any problems
+                yield (line_idx, "\n".into(), None);
             }
-
-            // Add in a span for the rest of the line that wasn't annotated
-            if j < line_len_bytes {
-                yield (line_idx, slice(&line, j..), None);
-            }
-
-            // unconditionally yields a newline regardless of whether the line actually had one, I
-            // don't think this causes any problems
-            yield (line_idx, "\n".into(), None);
-        }
-    })
+        },
+    )
     // fuse the iterator avoid panics due to misuse
     .fuse()
     .filter(|(_, text, _)| !text.is_empty())
