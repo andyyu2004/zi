@@ -39,6 +39,14 @@ pub(super) fn new() -> Keymap {
         editor.set_mode(Mode::Normal);
     }
 
+    fn prev_line(editor: &mut Editor) {
+        editor.motion(motion::PrevLine);
+    }
+
+    fn next_line(editor: &mut Editor) {
+        editor.motion(motion::NextLine);
+    }
+
     fn prev_char(editor: &mut Editor) {
         editor.motion(motion::PrevChar);
     }
@@ -249,8 +257,10 @@ pub(super) fn new() -> Keymap {
                     "i" => insert_mode,
                     "h" => prev_char,
                     "l" => next_char,
-                    "j" => move_down,
-                    "k" => move_up,
+                    "j" => next_line,
+                    "k" => prev_line,
+                    // "j" => move_down,
+                    // "k" => move_up,
                     "o" => open_newline,
                     "w" => next_word,
                     "b" => prev_word,

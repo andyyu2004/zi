@@ -21,6 +21,8 @@ bitflags::bitflags! {
         const START_OF_LINE = 1 << 0;
         /// Do not update the cursor target column even if the cursor did not move.
         const NO_FORCE_UPDATE_TARGET = 1 << 1;
+        /// Use the target column as the cursor column. Implies `NO_FORCE_UPDATE_TARGET`.
+        const USE_TARGET_COLUMN = 1 << 2 | Self::NO_FORCE_UPDATE_TARGET.bits();
     }
 }
 
@@ -244,6 +246,7 @@ impl View {
 
         let pos = match direction {
             Direction::Left => match buf.text().char_before_point(self.cursor.pos) {
+                // this is wrong, can't assume all characters are the same width
                 Some(c) => self.cursor.pos.left(c.len_utf8() as u32 * amt),
                 None => return self.cursor.pos,
             },
@@ -253,12 +256,12 @@ impl View {
             },
             // Horizontal movements set the target column.
             // Vertical movements try to keep moving to the target column.
-            Direction::Up => self.cursor.pos.up(amt).with_col(self.cursor.target_col),
-            Direction::Down => self.cursor.pos.down(amt).with_col(self.cursor.target_col),
+            Direction::Up => self.cursor.pos.up(amt),
+            Direction::Down => self.cursor.pos.down(amt),
         };
 
         let flags = match direction {
-            Direction::Up | Direction::Down => SetCursorFlags::NO_FORCE_UPDATE_TARGET,
+            Direction::Up | Direction::Down => SetCursorFlags::USE_TARGET_COLUMN,
             _ => SetCursorFlags::empty(),
         };
 
@@ -277,6 +280,11 @@ impl View {
         flags: SetCursorFlags,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
+
+        assert!(
+            !flags.contains(SetCursorFlags::USE_TARGET_COLUMN),
+            "not applicable for bytewise cursor movement"
+        );
 
         if flags.contains(SetCursorFlags::START_OF_LINE) {
             todo!()
@@ -328,12 +336,16 @@ impl View {
         mode: Mode,
         size: impl Into<Size>,
         buf: &dyn Buffer,
-        pos: Point,
+        mut pos: Point,
         flags: SetCursorFlags,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
         let text = buf.text();
         let size = size.into();
+
+        if flags.contains(SetCursorFlags::USE_TARGET_COLUMN) {
+            pos = pos.with_col(self.cursor.target_col);
+        }
 
         // Check line is in-bounds
         let mut line_idx = pos.line().idx();

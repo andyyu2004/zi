@@ -97,6 +97,7 @@ pub trait TextBase: fmt::Display + fmt::Debug {
 
     #[inline]
     fn point_to_byte(&self, point: Point) -> usize {
+        // This doesn't actually check whether the column is within bounds of the line
         self.line_to_byte(point.line().idx()) + point.col().idx()
     }
 

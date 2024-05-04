@@ -6,6 +6,7 @@ pub use super::*;
 bitflags::bitflags! {
     pub struct MotionFlags: u8 {
         const NO_FORCE_UPDATE_TARGET = 1 << 0;
+        const USE_TARGET_COLUMN = 1 << 1 | Self::NO_FORCE_UPDATE_TARGET.bits();
     }
 }
 
@@ -160,25 +161,26 @@ impl Motion for PrevChar {
     }
 }
 
-// TODO need to try preserve column etc
-// impl Motion for NextLine {
-//     #[inline]
-//     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-//         let line_idx = text.byte_to_line(byte);
-//         match text.try_line_to_byte(line_idx + 1) {
-//             Some(byte) => byte,
-//             None => byte,
-//         }
-//     }
-// }
-//
-// impl Motion for PrevLine {
-//     #[inline]
-//     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-//         let line_idx = text.byte_to_line(byte);
-//         match text.try_line_to_byte(line_idx) {
-//             Some(byte) => byte,
-//             None => byte,
-//         }
-//     }
-// }
+impl Motion for NextLine {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
+        text.byte_to_point(byte).down(1).into()
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        MotionFlags::USE_TARGET_COLUMN
+    }
+}
+
+impl Motion for PrevLine {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
+        text.byte_to_point(byte).up(1).into()
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        MotionFlags::USE_TARGET_COLUMN
+    }
+}

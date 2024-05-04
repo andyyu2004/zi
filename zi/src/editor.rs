@@ -1100,6 +1100,10 @@ impl Editor {
                     flags |= SetCursorFlags::NO_FORCE_UPDATE_TARGET;
                 }
 
+                if motion_flags.contains(MotionFlags::USE_TARGET_COLUMN) {
+                    flags |= SetCursorFlags::USE_TARGET_COLUMN;
+                }
+
                 match motion.motion(text, text.point_to_byte(view.cursor())) {
                     PointOrByte::Point(point) => {
                         view.set_cursor_linewise(self.mode, area, buf, point, flags)
