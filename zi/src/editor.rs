@@ -1093,7 +1093,6 @@ impl Editor {
             _ => {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
-                let byte = motion.motion(text, text.point_to_byte(view.cursor()));
                 let motion_flags = motion.motion_flags();
 
                 let mut flags = SetCursorFlags::empty();
@@ -1101,7 +1100,14 @@ impl Editor {
                     flags |= SetCursorFlags::NO_FORCE_UPDATE_TARGET;
                 }
 
-                view.set_cursor_bytewise(self.mode, area, buf, byte, flags);
+                match motion.motion(text, text.point_to_byte(view.cursor())) {
+                    PointOrByte::Point(point) => {
+                        view.set_cursor_linewise(self.mode, area, buf, point, flags)
+                    }
+                    PointOrByte::Byte(byte) => {
+                        view.set_cursor_bytewise(self.mode, area, buf, byte, flags)
+                    }
+                };
             }
         }
     }

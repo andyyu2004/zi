@@ -196,6 +196,18 @@ pub enum PointOrByte {
     Byte(usize),
 }
 
+impl PointOrByte {
+    #[inline]
+    pub fn try_into_point(self) -> Result<Point, Self> {
+        if let Self::Point(v) = self { Ok(v) } else { Err(self) }
+    }
+
+    #[inline]
+    pub fn try_into_byte(self) -> Result<usize, Self> {
+        if let Self::Byte(v) = self { Ok(v) } else { Err(self) }
+    }
+}
+
 impl From<usize> for PointOrByte {
     #[inline]
     fn from(v: usize) -> Self {

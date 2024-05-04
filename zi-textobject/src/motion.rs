@@ -1,4 +1,4 @@
-use zi_core::Point;
+use zi_core::PointOrByte;
 use zi_text::{AnyText, Text, TextSlice};
 
 pub use super::*;
@@ -11,23 +11,25 @@ bitflags::bitflags! {
 
 /// Motions are a subset of textobjects that move the cursor around.
 // TODO could probably write this in a more combinator-like style
+// `motion` and `byte_motion` are defined in terms of each other, so one must be implemented.
 pub trait Motion: TextObject {
     /// Returns the new byte position after performing the motion starting at `byte`.
     /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
     /// The motion may choose to signal to the caller that no motion was possible by returning `Err(NoMotion)`.
     /// It's also valid to return the same byte position as the input.
     /// The caller may choose to handle them distinctly.
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize;
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
+        self.byte_motion(text, byte).into()
+    }
+
+    #[inline]
+    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        text.point_or_byte_to_byte(self.motion(text, byte))
+    }
 
     #[inline]
     fn motion_flags(&self) -> MotionFlags {
         MotionFlags::empty()
-    }
-
-    #[inline]
-    fn point_motion(&self, text: &dyn AnyText, point: Point) -> Point {
-        let byte = self.motion(text, text.point_to_byte(point));
-        text.byte_to_point(byte)
     }
 
     #[inline]
@@ -40,15 +42,15 @@ pub trait Motion: TextObject {
 }
 impl<M: Motion> Motion for &M {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
         (**self).motion(text, byte)
     }
 }
 
 impl<M: Motion> Motion for Repeated<M> {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn byte_motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         for _ in 0..self.n {
-            byte = self.motion.motion(text, byte);
+            byte = self.motion.byte_motion(text, byte);
         }
 
         byte
@@ -56,34 +58,34 @@ impl<M: Motion> Motion for Repeated<M> {
 }
 
 impl Motion for PrevToken {
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
         Self::imp().motion(text, byte)
     }
 }
 
 impl Motion for NextWord {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
         self.mv(text, byte).0
     }
 }
 
 impl Motion for PrevWord {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
         Self::imp().motion(text, byte)
     }
 }
 
 impl Motion for NextToken {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
-        self.mv(text, byte, false)
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
+        self.mv(text, byte, false).into()
     }
 }
 
 impl Motion for Prev {
-    fn motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn byte_motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         let mut chars = text.byte_slice(..byte).chars().rev().peekable();
 
         let c = chars.peek().copied();
@@ -130,7 +132,7 @@ impl Motion for Prev {
 
 impl Motion for NextChar {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
         match text.char_at_byte(byte) {
             Some(c) if c != '\n' => byte + c.len_utf8(),
             _ => byte,
@@ -145,7 +147,7 @@ impl Motion for NextChar {
 
 impl Motion for PrevChar {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
         match text.char_before_byte(byte) {
             Some(c) if c != '\n' => byte - c.len_utf8(),
             _ => byte,
@@ -161,7 +163,7 @@ impl Motion for PrevChar {
 // TODO need to try preserve column etc
 // impl Motion for NextLine {
 //     #[inline]
-//     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+//     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
 //         let line_idx = text.byte_to_line(byte);
 //         match text.try_line_to_byte(line_idx + 1) {
 //             Some(byte) => byte,
@@ -172,7 +174,7 @@ impl Motion for PrevChar {
 //
 // impl Motion for PrevLine {
 //     #[inline]
-//     fn motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+//     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
 //         let line_idx = text.byte_to_line(byte);
 //         match text.try_line_to_byte(line_idx) {
 //             Some(byte) => byte,

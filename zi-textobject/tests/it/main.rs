@@ -2,6 +2,7 @@
 //! This is useful for writing out cases with the debugger.
 use std::ops;
 
+use zi_core::PointOrByte;
 use zi_text::Rope;
 use zi_textobject::*;
 
@@ -42,7 +43,8 @@ fn line_object() {
 }
 
 #[track_caller]
-fn check(motion: &impl Motion, text: &str, byte: usize, expected: usize) {
+fn check(motion: &impl Motion, text: &str, byte: usize, expected: impl Into<PointOrByte>) {
+    let expected = expected.into();
     assert_eq!(motion.motion(&text, byte), expected);
     assert_eq!(motion.motion(&Rope::from(text), byte), expected);
 }

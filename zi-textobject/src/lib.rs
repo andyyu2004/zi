@@ -371,7 +371,7 @@ impl TextObject for Prev {
             return None;
         }
 
-        Some(self.motion(text, byte)..byte)
+        Some(self.byte_motion(text, byte)..byte)
     }
 
     fn default_kind(&self) -> TextObjectKind {
@@ -384,7 +384,7 @@ pub struct NextChar;
 impl TextObject for NextChar {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        Some(byte..self.motion(text, byte))
+        Some(byte..self.byte_motion(text, byte))
     }
 
     #[inline]
@@ -398,7 +398,7 @@ pub struct PrevChar;
 impl TextObject for PrevChar {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        Some(self.motion(text, byte)..byte)
+        Some(self.byte_motion(text, byte)..byte)
     }
 
     #[inline]
