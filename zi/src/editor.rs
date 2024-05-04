@@ -1114,7 +1114,7 @@ impl Editor {
                     flags |= SetCursorFlags::USE_TARGET_COLUMN;
                 }
 
-                match motion.motion(text, text.point_to_byte(view.cursor())) {
+                match motion.motion(text, view.cursor().into()) {
                     PointOrByte::Point(point) => {
                         view.set_cursor_linewise(self.mode, area, buf, point, flags)
                     }

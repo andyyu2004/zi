@@ -43,10 +43,16 @@ fn line_object() {
 }
 
 #[track_caller]
-fn check(motion: &impl Motion, text: &str, byte: usize, expected: impl Into<PointOrByte>) {
+fn check(
+    motion: &impl Motion,
+    text: &str,
+    p: impl Into<PointOrByte>,
+    expected: impl Into<PointOrByte>,
+) {
+    let p = p.into();
     let expected = expected.into();
-    assert_eq!(motion.motion(&text, byte), expected);
-    assert_eq!(motion.motion(&Rope::from(text), byte), expected);
+    assert_eq!(motion.motion(&text, p), expected);
+    assert_eq!(motion.motion(&Rope::from(text), p), expected);
 }
 
 fn prev_token_and_word(motion: &impl Motion) {

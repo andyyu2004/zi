@@ -33,10 +33,6 @@ impl Editor {
         }
         .repeat(amt as usize);
         self.motion(selector, motion)
-        // let view_id = selector.select(self);
-        // let (view, buf) = get!(self: view_id);
-        // let area = self.tree.view_area(view.id());
-        // view.move_cursor(self.mode, area, buf, direction, amt)
     }
 
     #[inline]

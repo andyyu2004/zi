@@ -3,6 +3,7 @@
 pub mod motion;
 use std::ops;
 
+use zi_core::PointOrByte;
 use zi_text::{AnyText, Text as _, TextSlice};
 
 pub use self::motion::Motion;
@@ -48,6 +49,23 @@ pub trait TextObject {
     #[inline]
     fn flags(&self) -> TextObjectFlags {
         TextObjectFlags::empty()
+    }
+}
+
+impl TextObject for &dyn Motion {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        (**self).byte_range(text, byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        (**self).default_kind()
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        (**self).flags()
     }
 }
 
@@ -130,18 +148,25 @@ impl TextObject for Line {
 }
 
 pub struct Repeat<M> {
-    pub(crate) motion: M,
+    pub(crate) inner: M,
     pub(crate) n: usize,
 }
 
 impl<M: TextObject> TextObject for Repeat<M> {
+    #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let _ = (text, byte);
         todo!();
     }
 
+    #[inline]
     fn default_kind(&self) -> TextObjectKind {
-        self.motion.default_kind()
+        self.inner.default_kind()
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        self.inner.flags()
     }
 }
 
@@ -208,7 +233,8 @@ impl TextObject for PrevToken {
 pub struct NextWord;
 
 impl NextWord {
-    pub(crate) fn mv(&self, text: &dyn AnyText, mut byte: usize) -> (usize, bool) {
+    pub(crate) fn mv(&self, text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
+        let mut byte = text.point_or_byte_to_byte(p.into());
         let mut chars = text.byte_slice(byte..).chars();
 
         let Some(c) = chars.next() else { return (byte, false) };
@@ -298,9 +324,10 @@ impl NextToken {
     pub(crate) fn mv(
         &self,
         text: &dyn AnyText,
-        mut byte: usize,
+        p: impl Into<PointOrByte>,
         stop_before_newline: bool,
     ) -> usize {
+        let mut byte = text.point_or_byte_to_byte(p.into());
         let mut chars = text.byte_slice(byte..).chars().peekable();
 
         match chars.peek() {
@@ -371,7 +398,7 @@ impl TextObject for Prev {
             return None;
         }
 
-        Some(self.byte_motion(text, byte)..byte)
+        Some(self.motion(text, byte.into()).try_into_byte().unwrap()..byte)
     }
 
     fn default_kind(&self) -> TextObjectKind {
@@ -384,7 +411,7 @@ pub struct NextChar;
 impl TextObject for NextChar {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        Some(byte..self.byte_motion(text, byte))
+        Some(byte..self.motion(text, byte.into()).try_into_byte().unwrap())
     }
 
     #[inline]
@@ -398,7 +425,7 @@ pub struct PrevChar;
 impl TextObject for PrevChar {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        Some(self.byte_motion(text, byte)..byte)
+        Some(self.motion(text, byte.into()).try_into_byte().unwrap()..byte)
     }
 
     #[inline]

@@ -12,21 +12,13 @@ bitflags::bitflags! {
 
 /// Motions are a subset of textobjects that move the cursor around.
 // TODO could probably write this in a more combinator-like style
-// `motion` and `byte_motion` are defined in terms of each other, so one must be implemented.
 pub trait Motion: TextObject {
     /// Returns the new byte position after performing the motion starting at `byte`.
     /// Only `&self` is provided as the motion must not be stateful and should be able to be reused.
     /// The motion may choose to signal to the caller that no motion was possible by returning `Err(NoMotion)`.
     /// It's also valid to return the same byte position as the input.
     /// The caller may choose to handle them distinctly.
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        self.byte_motion(text, byte).into()
-    }
-
-    #[inline]
-    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
-        text.point_or_byte_to_byte(self.motion(text, byte))
-    }
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte;
 
     #[inline]
     fn motion_flags(&self) -> MotionFlags {
@@ -38,39 +30,18 @@ pub trait Motion: TextObject {
     where
         Self: Sized,
     {
-        Repeat { motion: self, n }
-    }
-}
-
-impl TextObject for &dyn Motion {
-    #[inline]
-    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        (**self).byte_range(text, byte)
-    }
-
-    #[inline]
-    fn default_kind(&self) -> TextObjectKind {
-        (**self).default_kind()
-    }
-
-    #[inline]
-    fn flags(&self) -> TextObjectFlags {
-        (**self).flags()
+        Repeat { inner: self, n }
     }
 }
 
 impl Motion for &dyn Motion {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        (**self).motion(text, byte)
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        (**self).motion(text, p)
     }
 
     #[inline]
-    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
-        (**self).byte_motion(text, byte)
-    }
 
-    #[inline]
     fn motion_flags(&self) -> MotionFlags {
         (**self).motion_flags()
     }
@@ -78,50 +49,57 @@ impl Motion for &dyn Motion {
 
 impl<M: Motion> Motion for &M {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        (**self).motion(text, byte)
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        (**self).motion(text, p)
     }
 }
 
 impl<M: Motion> Motion for Repeat<M> {
-    fn byte_motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, mut p: PointOrByte) -> PointOrByte {
         for _ in 0..self.n {
-            byte = self.motion.byte_motion(text, byte);
+            p = self.inner.motion(text, p);
         }
 
-        byte
+        p
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        self.inner.motion_flags()
     }
 }
 
 impl Motion for PrevToken {
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        Self::imp().motion(text, byte)
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        Self::imp().motion(text, p)
     }
 }
 
 impl Motion for NextWord {
     #[inline]
-    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
-        self.mv(text, byte).0
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        self.mv(text, p).0.into()
     }
 }
 
 impl Motion for PrevWord {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        Self::imp().motion(text, byte)
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        Self::imp().motion(text, p)
     }
 }
 
 impl Motion for NextToken {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        self.mv(text, byte, false).into()
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        self.mv(text, p, false).into()
     }
 }
 
 impl Motion for Prev {
-    fn byte_motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        let mut byte = text.point_or_byte_to_byte(p);
         let mut chars = text.byte_slice(..byte).chars().rev().peekable();
 
         let c = chars.peek().copied();
@@ -132,7 +110,7 @@ impl Motion for Prev {
             // In this case, we just move back one character if possible.
             // Note that `c` must be saved before peeking the windows as that would consume it with
             // no way of getting it back.
-            return byte - c.map_or(0, |c| c.len_utf8());
+            return (byte - c.map_or(0, |c| c.len_utf8())).into();
         }
 
         let mut crossed_newline = false;
@@ -162,17 +140,19 @@ impl Motion for Prev {
             }
         }
 
-        byte
+        byte.into()
     }
 }
 
 impl Motion for NextChar {
     #[inline]
-    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        let byte = text.point_or_byte_to_byte(p);
         match text.char_at_byte(byte) {
             Some(c) if c != '\n' => byte + c.len_utf8(),
             _ => byte,
         }
+        .into()
     }
 
     #[inline]
@@ -183,11 +163,13 @@ impl Motion for NextChar {
 
 impl Motion for PrevChar {
     #[inline]
-    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        let byte = text.point_or_byte_to_byte(p);
         match text.char_before_byte(byte) {
             Some(c) if c != '\n' => byte - c.len_utf8(),
             _ => byte,
         }
+        .into()
     }
 
     #[inline]
@@ -198,10 +180,10 @@ impl Motion for PrevChar {
 
 impl Motion for NextLine {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        let point = text.byte_to_point(byte);
+    fn motion(&self, text: &dyn AnyText, point: PointOrByte) -> PointOrByte {
+        let point = text.point_or_byte_to_point(point);
         if point.line() == text.len_lines() {
-            return byte.into();
+            return point.into();
         }
 
         point.down(1).into()
@@ -215,8 +197,13 @@ impl Motion for NextLine {
 
 impl Motion for PrevLine {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        text.byte_to_point(byte).up(1).into()
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        let point = text.point_or_byte_to_point(p);
+        if point.line() == 0 {
+            return point.into();
+        }
+
+        point.up(1).into()
     }
 
     #[inline]
