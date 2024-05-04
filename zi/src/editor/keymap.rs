@@ -40,27 +40,19 @@ pub(super) fn new() -> Keymap {
     }
 
     fn prev_line(editor: &mut Editor) {
-        editor.motion(motion::PrevLine);
+        editor.motion(Active, motion::PrevLine);
     }
 
     fn next_line(editor: &mut Editor) {
-        editor.motion(motion::NextLine);
+        editor.motion(Active, motion::NextLine);
     }
 
     fn prev_char(editor: &mut Editor) {
-        editor.motion(motion::PrevChar);
+        editor.motion(Active, motion::PrevChar);
     }
 
     fn next_char(editor: &mut Editor) {
-        editor.motion(motion::NextChar);
-    }
-
-    fn move_up(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Up, 1);
-    }
-
-    fn move_down(editor: &mut Editor) {
-        editor.move_cursor(Active, Direction::Down, 1);
+        editor.motion(Active, motion::NextChar);
     }
 
     fn goto_definition(editor: &mut Editor) {
@@ -97,27 +89,27 @@ pub(super) fn new() -> Keymap {
     }
 
     fn next_token(editor: &mut Editor) {
-        editor.motion(motion::NextToken);
+        editor.motion(Active, motion::NextToken);
     }
 
     fn prev_token(editor: &mut Editor) {
-        editor.motion(motion::PrevToken);
+        editor.motion(Active, motion::PrevToken);
     }
 
     fn next_word(editor: &mut Editor) {
-        editor.motion(motion::NextWord);
+        editor.motion(Active, motion::NextWord);
     }
 
     fn prev_word(editor: &mut Editor) {
-        editor.motion(motion::PrevWord);
+        editor.motion(Active, motion::PrevWord);
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        editor.text_object(zi_textobject::Line::inclusive());
+        editor.text_object(Active, zi_textobject::Line::inclusive());
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        editor.text_object(zi_textobject::Line::exclusive());
+        editor.text_object(Active, zi_textobject::Line::exclusive());
     }
 
     fn append_eol(editor: &mut Editor) {

@@ -751,7 +751,7 @@ impl Editor {
             // Move cursor left when exiting insert mode
             let (_, buf) = get!(self);
             buf.snapshot(SnapshotFlags::empty());
-            self.motion(motion::PrevChar);
+            self.motion(Active, motion::PrevChar);
         }
 
         if let Mode::Command = mode {
@@ -876,7 +876,7 @@ impl Editor {
                 view.move_cursor(self.mode, area, buf, Direction::Down, 1);
             }
             _ => {
-                self.motion(motion::NextChar);
+                self.motion(Active, motion::NextChar);
                 // view.move_cursor(self.mode, area, buf, Direction::Right, 1),
             }
         };
@@ -933,8 +933,9 @@ impl Editor {
     /// Applies the text object to the pending operator if there is one.
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
     /// If there a question about why it is this way, the answer is probably "because neovim does it".
-    pub(crate) fn text_object(&mut self, obj: impl TextObject) {
-        let (view, buf) = get!(self);
+    pub(crate) fn text_object(&mut self, selector: impl Selector<ViewId>, obj: impl TextObject) {
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
         let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
@@ -1086,10 +1087,12 @@ impl Editor {
         }
     }
 
-    pub fn motion(&mut self, motion: impl Motion) {
-        let (view, buf) = get!(self);
+    pub fn motion(&mut self, selector: impl Selector<ViewId>, motion: impl Motion) {
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
+        let view_id = view.id();
         match self.mode {
-            Mode::OperatorPending(_) => self.text_object(motion),
+            Mode::OperatorPending(_) => self.text_object(view_id, motion),
             _ => {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
