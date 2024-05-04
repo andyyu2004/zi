@@ -26,7 +26,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
-use zi_core::{PointOrByte, Size};
+use zi_core::{PointOrByte, Range, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
 use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
@@ -752,9 +752,33 @@ impl Editor {
         self.command_buffer.clear();
 
         if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
+            let (view, buf) = get!(self);
+            let (view, buf) = (view.id(), buf.id());
+
+            {
+                // Clear any whitespace at the end of the cursor line when exiting insert mode
+                let cursor = self[view].cursor();
+                if let Some(range) =
+                    self[buf].text().get_line(cursor.line().idx()).and_then(|line| {
+                        let end = Point::new(cursor.line().idx(), line.len_bytes());
+                        let mut start = end;
+                        for c in line.chars().rev() {
+                            if !c.is_whitespace() {
+                                break;
+                            }
+
+                            start = start.left(c.len_utf8() as u32);
+                        }
+
+                        (start != end).then(|| Range::new(start, end))
+                    })
+                {
+                    self.edit(Active, &Delta::delete(range));
+                }
+            }
+
+            self[buf].snapshot(SnapshotFlags::empty());
             // Move cursor left when exiting insert mode
-            let (_, buf) = get!(self);
-            buf.snapshot(SnapshotFlags::empty());
             self.motion(Active, motion::PrevChar);
         }
 

@@ -50,8 +50,6 @@ impl TestCase {
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CompareFlags: u8 {
-        /// Allow all whitespace lines to be considered equal i.e. "a\n  \nb" == "a\n\nb"
-        const IGNORE_WHITESPACE_LINES = 0b0001;
     }
 }
 
@@ -247,41 +245,11 @@ fn ensure_eq(
     zi_cursor: zi::Point,
     vi_lines: String,
     zi_lines: String,
-    flags: CompareFlags,
+    _flags: CompareFlags,
 ) -> Result<(), anyhow::Error> {
-    let res = ensure_lines_eq(&vi_lines, &zi_lines);
-    if let Ok(()) = res {
-        ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
-        return Ok(());
-    }
-
-    if flags.contains(CompareFlags::IGNORE_WHITESPACE_LINES) {
-        let mut zi_lines = zi_lines.lines();
-
-        for (i, (vi_line, zi_line)) in vi_lines.lines().zip(&mut zi_lines).enumerate() {
-            if vi_line.chars().all(char::is_whitespace) && zi_line.chars().all(char::is_whitespace)
-            {
-                continue;
-            }
-
-            ensure!(vi_line == zi_line, "on line {i}\nvi: {vi_line:?}\nzi: {zi_line:?}");
-        }
-
-        if let Some(zi_line) = zi_lines.next() {
-            ensure!(
-                zi_line.chars().all(char::is_whitespace),
-                "unexpected trailing line in zi: {zi_line:?}"
-            );
-        }
-
-        ensure!(zi_lines.next().is_none(), "zi has more lines than vi");
-
-        ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
-        return Ok(());
-    }
-
-    // otherwise, return the original error
-    res
+    ensure_lines_eq(&vi_lines, &zi_lines)?;
+    ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
+    Ok(())
 }
 
 fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {

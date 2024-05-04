@@ -113,17 +113,8 @@ impl Motion for Prev {
             return (byte - c.map_or(0, |c| c.len_utf8())).into();
         }
 
-        let mut crossed_newline = false;
-
         while let Some([c, next]) = windows.next() {
             byte -= c.len_utf8();
-
-            if crossed_newline && next == '\n' {
-                // should never cross two newlines
-                break;
-            }
-
-            crossed_newline |= c == '\n';
 
             if matches!((c, next), ('\n', '\n')) {
                 break;

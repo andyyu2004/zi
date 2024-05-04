@@ -32,11 +32,6 @@ macro_rules! t {
                 // Not sure how to go about matching this behaviour so skip these cases for now
                 proptest::prop_assume!(!inputs.contains("cb") && !inputs.contains("cB"));
 
-                // avoid lines with only spaces, as often formatters will clear trailing whitespaces anyway
-                static AVOID: OnceLock<regex::Regex> = OnceLock::new();
-                let regex = AVOID.get_or_init(|| regex::Regex::new(r"\n +\n").unwrap());
-                proptest::prop_assume!(!regex.is_match(&text));
-
                 run(text, &inputs, $flags)
             }
         }
@@ -56,7 +51,7 @@ t!(I, "[WBhjkl]+", nvim_token_motions);
 t!(I, "[dWB]+", nvim_delete_word);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
 t!(I, "d([uWB]|(<ESC>))+<ESC>", nvim_undo_delete_word);
-t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo, CompareFlags::IGNORE_WHITESPACE_LINES);
+t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 
 /// Useful to test a particular case
 #[test]
@@ -66,9 +61,7 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("a\n a\n\n aa", "Wljhj");
-    test("aA\n\naa", "lljj");
-    test("aA\n aa", "lj");
+    test("aaA", "d<ESC>u<ESC>");
 }
 
 #[track_caller]
