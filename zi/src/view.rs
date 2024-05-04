@@ -292,15 +292,15 @@ impl View {
             let mut chars = text.byte_slice(..).chars().rev().peekable();
             if !insert {
                 // move cursor back if not in insert mode
-                byte -= chars.peek().map_or(0, |c| c.len_utf8());
+                byte -= chars.next().map_or(0, |c| c.len_utf8());
             }
             chars
         } else {
-            text.byte_slice(..=byte).chars().rev().peekable()
+            text.byte_slice(..byte).chars().rev().peekable()
         };
 
-        // Prevent cursor on trailing newline
-        if !insert && chars.next() == Some('\n') && chars.peek() != Some(&'\n') {
+        // Prevent cursor being past end of line
+        if !insert && text.char_at_byte(byte) == Some('\n') && chars.peek() != Some(&'\n') {
             byte = byte.saturating_sub('\n'.len_utf8());
         }
 
