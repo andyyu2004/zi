@@ -1,5 +1,3 @@
-#[cfg(feature = "lsp")]
-mod lsp;
 #[cfg(feature = "tree-sitter")]
 mod tree_sitter_impls;
 

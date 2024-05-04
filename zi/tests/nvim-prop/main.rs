@@ -60,8 +60,6 @@ fn scratch() {
     fn test(text: &str, inputs: &str) {
         run(text, inputs, CompareFlags::empty())
     }
-
-    test("aaA", "d<ESC>u<ESC>");
 }
 
 #[track_caller]

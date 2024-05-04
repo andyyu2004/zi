@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 mod keymap;
+mod state;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -70,7 +71,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    mode: Mode,
+    state: State,
     keymap: Keymap,
     theme: Theme,
     language_servers: FxHashMap<LanguageServerId, LanguageServer>,
@@ -80,11 +81,17 @@ pub struct Editor {
     tree: layout::ViewTree,
     /// error to be displayed in the status line
     status_error: Option<String>,
-    /// Stores the command currently in the command line
-    command_buffer: String,
     command_handlers: FxHashMap<Word, Handler>,
     plugins: Plugins,
 }
+
+macro_rules! mode {
+    ($editor:ident) => {
+        $editor.state.mode()
+    };
+}
+
+pub(super) use mode;
 
 impl Index<ViewId> for Editor {
     type Output = View;
@@ -205,6 +212,8 @@ macro_rules! get_ref {
 
 pub(crate) use {get, get_ref};
 
+use self::state::State;
+
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
 type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
@@ -315,10 +324,9 @@ impl Editor {
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
-            mode: Default::default(),
+            state: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
-            command_buffer: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -526,10 +534,10 @@ impl Editor {
         let status = tui::Line::default().spans(status_spans);
 
         let cmd = tui::Text::styled(
-            match self.mode {
-                Mode::Command => Cow::Borrowed(self.command_buffer.as_str()),
-                Mode::Normal | Mode::OperatorPending(_) => Cow::Borrowed(""),
-                mode => Cow::Owned(format!("-- {mode} --",)),
+            match &self.state {
+                State::Command(state) => Cow::Borrowed(state.buffer.as_str()),
+                State::Normal(..) | State::OperatorPending(..) => Cow::Borrowed(""),
+                state => Cow::Owned(format!("-- {} --", state.mode())),
             },
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
@@ -549,12 +557,11 @@ impl Editor {
         );
 
         let (x, y) = self.cursor_viewport_coords();
-        let offset = match self.mode {
-            Mode::Command => self
-                .command_buffer
-                .len()
-                .checked_sub(1)
-                .expect("should have a preceding `/` or `:`") as u16,
+        let offset = match &self.state {
+            State::Command(state) => {
+                state.buffer.len().checked_sub(1).expect("should have a preceding `/` or `:`")
+                    as u16
+            }
             _ => view.line_number_width() as u16,
         };
 
@@ -562,7 +569,7 @@ impl Editor {
     }
 
     pub fn cursor_viewport_coords(&self) -> (u16, u16) {
-        if self.mode == Mode::Command {
+        if mode!(self) == Mode::Command {
             return (1, self.tree.area().height + 1);
         }
 
@@ -676,6 +683,7 @@ impl Editor {
     #[inline]
     fn handle_key_event(&mut self, key: KeyEvent) {
         self.status_error = None;
+        let mode = mode!(self);
 
         let mut empty = Keymap::default();
         let (_, buf) = get!(self);
@@ -683,8 +691,8 @@ impl Editor {
 
         tracing::debug!(%key, "handling key");
         match key.code() {
-            KeyCode::Char(_c) if matches!(self.mode, Mode::Insert | Mode::Command) => {
-                let (res, buffered) = keymap.on_key(self.mode, key);
+            KeyCode::Char(_c) if matches!(mode, Mode::Insert | Mode::Command) => {
+                let (res, buffered) = keymap.on_key(mode, key);
                 match res {
                     TrieResult::Found(f) => f(self),
                     TrieResult::Partial | TrieResult::Nothing => (),
@@ -692,20 +700,20 @@ impl Editor {
 
                 for event in buffered {
                     match event.code() {
-                        KeyCode::Char(c) => match self.mode {
-                            Mode::Insert => self.insert_char_at_cursor(c),
-                            Mode::Command => self.command_buffer.push(c),
+                        KeyCode::Char(c) => match &mut self.state {
+                            State::Insert(..) => self.insert_char_at_cursor(c),
+                            State::Command(state) => state.buffer.push(c),
                             _ => unreachable!(),
                         },
                         _ => unreachable!(),
                     }
                 }
             }
-            _ => match keymap.on_key(self.mode, key).0 {
+            _ => match keymap.on_key(mode, key).0 {
                 TrieResult::Found(f) => f(self),
                 TrieResult::Partial => (),
                 TrieResult::Nothing => {
-                    if matches!(self.mode, Mode::OperatorPending(_)) {
+                    if matches!(mode, Mode::OperatorPending(_)) {
                         self.set_mode(Mode::Normal)
                     }
                 }
@@ -715,7 +723,7 @@ impl Editor {
 
     #[inline]
     pub fn mode(&self) -> Mode {
-        self.mode
+        mode!(self)
     }
 
     pub fn execute(&mut self, cmd: Command) {
@@ -734,24 +742,26 @@ impl Editor {
     }
 
     pub fn execute_command(&mut self) {
-        let Some(cmd) = self.command_buffer.strip_prefix(':') else {
+        let State::Command(state) = &mut self.state else { return };
+
+        let Some(cmd) = state.buffer.strip_prefix(':') else {
             return set_error!(self, "command must start with `:`");
         };
 
         match cmd.parse::<Command>() {
-            Ok(cmd) => self.execute(cmd),
+            Ok(cmd) => {
+                state.buffer.clear();
+                self.execute(cmd);
+            }
             Err(err) => set_error!(self, err),
         };
 
-        self.command_buffer.clear();
         self.set_mode(Mode::Normal);
     }
 
     #[inline]
     pub fn set_mode(&mut self, mode: Mode) {
-        self.command_buffer.clear();
-
-        if let (Mode::Insert, Mode::Normal) = (self.mode, mode) {
+        if let (Mode::Insert, Mode::Normal) = (mode!(self), mode) {
             let (view, buf) = get!(self);
             let (view, buf) = (view.id(), buf.id());
 
@@ -782,12 +792,7 @@ impl Editor {
             self.motion(Active, motion::PrevChar);
         }
 
-        if let Mode::Command = mode {
-            self.command_buffer.clear();
-            self.command_buffer.push(':');
-        }
-
-        self.mode = mode;
+        self.state = State::new(mode);
     }
 
     #[inline]
@@ -857,10 +862,10 @@ impl Editor {
     }
 
     pub fn delete_char_backward(&mut self) {
-        match self.mode {
-            Mode::Command => {
-                self.command_buffer.pop();
-                if self.command_buffer.is_empty() {
+        match &mut self.state {
+            State::Command(state) => {
+                state.buffer.pop();
+                if state.buffer.is_empty() {
                     self.set_mode(Mode::Normal);
                 }
             }
@@ -881,7 +886,7 @@ impl Editor {
                 buf.edit(&Delta::delete(start_byte_idx..byte_idx));
 
                 view.set_cursor_bytewise(
-                    self.mode,
+                    mode!(self),
                     self.tree.view_area(view.id()),
                     buf,
                     start_byte_idx,
@@ -900,13 +905,8 @@ impl Editor {
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
         match c {
-            '\n' => {
-                view.move_cursor(self.mode, area, buf, Direction::Down, 1);
-            }
-            _ => {
-                self.motion(Active, motion::NextChar);
-                // view.move_cursor(self.mode, area, buf, Direction::Right, 1),
-            }
+            '\n' => view.move_cursor(mode!(self), area, buf, Direction::Down, 1),
+            _ => self.motion(Active, motion::NextChar),
         };
     }
 
@@ -967,7 +967,7 @@ impl Editor {
         let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
-        let Mode::OperatorPending(operator) = self.mode else { return };
+        let Mode::OperatorPending(operator) = mode!(self) else { return };
 
         let mut motion_kind = obj.default_kind();
         let flags = obj.flags();
@@ -1106,10 +1106,10 @@ impl Editor {
             let area = self.tree.view_area(view.id());
             match new_cursor {
                 PointOrByte::Point(point) => {
-                    view.set_cursor_linewise(self.mode, area, buf, point, flags)
+                    view.set_cursor_linewise(mode!(self), area, buf, point, flags)
                 }
                 PointOrByte::Byte(byte) => {
-                    view.set_cursor_bytewise(self.mode, area, buf, byte, SetCursorFlags::empty())
+                    view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
                 }
             };
         }
@@ -1119,7 +1119,7 @@ impl Editor {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let view_id = view.id();
-        match self.mode {
+        match mode!(self) {
             Mode::OperatorPending(_) => {
                 self.text_object(view_id, motion);
                 self[view_id].cursor()
@@ -1140,10 +1140,10 @@ impl Editor {
 
                 match motion.motion(text, view.cursor().into()) {
                     PointOrByte::Point(point) => {
-                        view.set_cursor_linewise(self.mode, area, buf, point, flags)
+                        view.set_cursor_linewise(mode!(self), area, buf, point, flags)
                     }
                     PointOrByte::Byte(byte) => {
-                        view.set_cursor_bytewise(self.mode, area, buf, byte, flags)
+                        view.set_cursor_bytewise(mode!(self), area, buf, byte, flags)
                     }
                 }
             }
@@ -1176,10 +1176,10 @@ impl Editor {
         let area = self.tree.view_area(view.id());
         match cursor {
             PointOrByte::Point(point) => {
-                view.set_cursor_linewise(self.mode, area, buf, point, SetCursorFlags::empty())
+                view.set_cursor_linewise(mode!(self), area, buf, point, SetCursorFlags::empty())
             }
             PointOrByte::Byte(byte) => {
-                view.set_cursor_bytewise(self.mode, area, buf, byte, SetCursorFlags::empty())
+                view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
             }
         };
     }
@@ -1331,7 +1331,7 @@ impl Editor {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
-        view.scroll(self.mode, area, buf, direction, amount);
+        view.scroll(mode!(self), area, buf, direction, amount);
     }
 
     // Not sure if this should be public API
@@ -1488,8 +1488,8 @@ impl Editor {
             Err(id) => return id,
         };
 
-        let mode = self.mode;
-        self.mode = Mode::Insert;
+        let mode = mode!(self);
+        self.set_mode(Mode::Insert);
 
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
         let preview = self.views.insert_with_key(|id| {
@@ -1849,8 +1849,11 @@ impl Editor {
     }
 
     #[inline]
-    pub fn command_buffer(&self) -> &str {
-        &self.command_buffer
+    pub fn command_buffer(&self) -> Option<&str> {
+        match &self.state {
+            State::Command(state) => Some(&state.buffer),
+            _ => None,
+        }
     }
 }
 
