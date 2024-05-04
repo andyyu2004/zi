@@ -9,7 +9,7 @@ use zi_text::{AnyText, Text as _, TextSlice};
 pub use self::motion::Motion;
 
 /// Charwise textobjects affect a [start, end) byte-range where `start` is inclusive and `end` is exclusive.
-/// Linewise ranges will be expanded to include the full start and end lines.
+/// Linewise ranges will NOT be expanded to include the full start and end lines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextObjectKind {
     Linewise,
@@ -120,30 +120,8 @@ impl TextObject for Line {
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        let line_idx = text.byte_to_line(byte);
-        let start = text.line_to_byte(line_idx);
-
-        match self.inclusivity {
-            Inclusivity::Exclusive => {
-                let (skip, len) = text.get_line(line_idx).map_or((0, 0), |line| {
-                    // We want to exclude the leading whitespace when in exclusive mode
-                    let skip = line
-                        .chars()
-                        .take_while(|c| c.is_whitespace())
-                        .map(|c| c.len_utf8())
-                        .sum::<usize>();
-                    (skip, line.len_bytes())
-                });
-                Some(start + skip..start + len)
-            }
-            Inclusivity::Inclusive => {
-                match text.try_line_to_byte(line_idx + 1) {
-                    Some(end) => Some(start..end),
-                    // If the line is the last line, we want to include the trailing newline
-                    None => Some(start..text.len_bytes()),
-                }
-            }
-        }
+        let line = text.byte_to_line(byte);
+        Some(line_range_to_byte_range(text, line..=line, self.inclusivity))
     }
 }
 
@@ -440,11 +418,10 @@ impl TextObject for NextLine {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
-
-        match text.try_line_to_byte(line_idx + 1) {
-            Some(end) => Some(byte..end),
-            None => Some(byte..text.len_bytes()),
+        if line_idx + 1 == text.len_lines() {
+            return None;
         }
+        Some(line_range_to_byte_range(text, line_idx..=line_idx + 1, Inclusivity::Inclusive))
     }
 
     #[inline]
@@ -459,17 +436,46 @@ impl TextObject for PrevLine {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
-
-        if line_idx == 0 {
-            return Some(0..byte);
-        }
-
-        let start = text.line_to_byte(line_idx - 1);
-        Some(start..byte)
+        Some(line_range_to_byte_range(
+            text,
+            line_idx.checked_sub(1)?..=line_idx,
+            Inclusivity::Inclusive,
+        ))
     }
 
     #[inline]
     fn default_kind(&self) -> TextObjectKind {
         TextObjectKind::Linewise
+    }
+}
+
+fn line_range_to_byte_range(
+    text: &dyn AnyText,
+    line_range: ops::RangeInclusive<usize>,
+    inclusivity: Inclusivity,
+) -> ops::Range<usize> {
+    let start_line = *line_range.start();
+    let end_line = *line_range.end();
+    let start = text.line_to_byte(start_line);
+    match inclusivity {
+        Inclusivity::Exclusive => {
+            let (skip, len) = text.get_line(end_line).map_or((0, 0), |line| {
+                // We want to exclude the leading whitespace when in exclusive mode
+                let skip = line
+                    .chars()
+                    .take_while(|c| c.is_whitespace())
+                    .map(|c| c.len_utf8())
+                    .sum::<usize>();
+                (skip, line.len_bytes())
+            });
+            start + skip..start + len
+        }
+        Inclusivity::Inclusive => {
+            match text.try_line_to_byte(end_line + 1) {
+                Some(end) => start..end,
+                // If the line is the last line, we want to include the trailing newline
+                None => start..text.len_bytes(),
+            }
+        }
     }
 }

@@ -18,6 +18,16 @@ fn check_range(
 }
 
 #[test]
+fn next_line_object() {
+    let obj = NextLine;
+
+    check_range(&obj, "a", 0, None);
+    check_range(&obj, "a", 1, None);
+    check_range(&obj, "a\n", 0, None);
+    check_range(&obj, "a\n", 1, None);
+}
+
+#[test]
 fn line_object() {
     let inc = Line::inclusive();
     let exl = Line::exclusive();

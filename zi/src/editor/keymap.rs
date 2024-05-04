@@ -209,6 +209,8 @@ pub(super) fn new() -> Keymap {
                 "b" => prev_word,
                 "B" => prev_token,
                 "h" => prev_char,
+                "k" => prev_line,
+                "j" => next_line,
                 "l" => next_char,
             });
 
