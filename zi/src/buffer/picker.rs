@@ -288,9 +288,9 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         }
     }
 
-    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) -> bool {
         if !self.nucleo.tick(10).changed {
-            return;
+            return false;
         }
 
         let snapshot = self.nucleo.snapshot();
@@ -318,6 +318,8 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
             editor.edit(display_view, &Delta::new(0..text.len_bytes(), s));
             Ok(())
         });
+
+        true
     }
 
     fn keymap(&mut self) -> Option<&mut Keymap> {

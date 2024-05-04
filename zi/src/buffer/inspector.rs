@@ -70,7 +70,7 @@ impl Buffer for InspectorBuffer {
         panic!("is readonly")
     }
 
-    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) -> bool {
         let buf = self.id;
         client.request(move |editor| {
             let mut query_cursor = QueryCursor::new();
@@ -101,5 +101,7 @@ impl Buffer for InspectorBuffer {
 
             Ok(())
         });
+
+        true
     }
 }

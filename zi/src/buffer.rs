@@ -193,9 +193,10 @@ pub trait Buffer {
         None
     }
 
-    /// Called just before rendering the buffer
-    fn pre_render(&mut self, _client: &SyncClient, view: &View, _area: tui::Rect) {
+    /// Called just before rendering the buffer, returns whether the buffer needs to be re-rendered.
+    fn pre_render(&mut self, _client: &SyncClient, view: &View, _area: tui::Rect) -> bool {
         assert_eq!(self.id(), view.buffer());
+        true
     }
 
     /// Called when a view is closed that was displaying this buffer
@@ -346,8 +347,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn pre_render(&mut self, sender: &SyncClient, view: &View, area: tui::Rect) {
-        self.as_mut().pre_render(sender, view, area);
+    fn pre_render(&mut self, sender: &SyncClient, view: &View, area: tui::Rect) -> bool {
+        self.as_mut().pre_render(sender, view, area)
     }
 
     #[inline]

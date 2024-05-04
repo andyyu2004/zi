@@ -124,9 +124,9 @@ impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) -> bool {
         if !self.nucleo.tick(10).changed {
-            return;
+            return false;
         }
 
         let snapshot = self.nucleo.snapshot();
@@ -135,6 +135,8 @@ impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
         for item in snapshot.matched_items(..n) {
             self.text.push_str(&format!("{}\n", item.data));
         }
+
+        true
     }
 
     fn overlay_highlights<'a>(
