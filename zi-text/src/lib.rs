@@ -12,9 +12,9 @@ use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
 pub use crop::{Rope, RopeBuilder, RopeSlice};
-use zi_core::{Line, Point, Range};
+use zi_core::{Line, Point, PointOrByte, Range};
 
-pub use self::delta::{Delta, DeltaRange, PointOrByte};
+pub use self::delta::{Delta, DeltaRange};
 pub use self::readonly::ReadonlyText;
 
 /// Text that can be modified.

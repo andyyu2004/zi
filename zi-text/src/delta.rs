@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use std::{fmt, ops};
 
-use zi_core::{Point, Range};
+use zi_core::{PointOrByte, Range};
 
 use super::Text;
 
@@ -55,40 +55,18 @@ impl DeltaRange {
     }
 
     #[inline]
+    pub fn empty(at: impl Into<PointOrByte>) -> Self {
+        match at.into() {
+            PointOrByte::Point(p) => DeltaRange::Point(Range::new(p, p)),
+            PointOrByte::Byte(c) => DeltaRange::Byte(c..c),
+        }
+    }
+
+    #[inline]
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Point(r) => r.is_empty(),
             Self::Byte(r) => r.is_empty(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PointOrByte {
-    Point(Point),
-    Byte(usize),
-}
-
-impl From<usize> for PointOrByte {
-    #[inline]
-    fn from(v: usize) -> Self {
-        Self::Byte(v)
-    }
-}
-
-impl From<Point> for PointOrByte {
-    #[inline]
-    fn from(v: Point) -> Self {
-        Self::Point(v)
-    }
-}
-
-impl PointOrByte {
-    #[inline]
-    fn empty_range(self) -> DeltaRange {
-        match self {
-            Self::Point(p) => DeltaRange::Point(Range::new(p, p)),
-            Self::Byte(c) => DeltaRange::Byte(c..c),
         }
     }
 }
@@ -119,7 +97,7 @@ impl<'a> Delta<'a> {
 
     #[inline]
     pub fn insert_at(at: impl Into<PointOrByte>, text: impl Into<Cow<'a, str>>) -> Self {
-        Self::new(at.into().empty_range(), text)
+        Self::new(DeltaRange::empty(at), text)
     }
 
     #[inline]

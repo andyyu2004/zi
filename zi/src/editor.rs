@@ -26,9 +26,9 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use tui::Widget as _;
-use zi_core::Size;
+use zi_core::{PointOrByte, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
-use zi_text::{Delta, PointOrByte, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
+use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 

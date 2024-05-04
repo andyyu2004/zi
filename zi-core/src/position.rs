@@ -190,6 +190,26 @@ impl From<Range> for ops::Range<(usize, usize)> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointOrByte {
+    Point(Point),
+    Byte(usize),
+}
+
+impl From<usize> for PointOrByte {
+    #[inline]
+    fn from(v: usize) -> Self {
+        Self::Byte(v)
+    }
+}
+
+impl From<Point> for PointOrByte {
+    #[inline]
+    fn from(v: Point) -> Self {
+        Self::Point(v)
+    }
+}
+
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point {
     line: Line,
