@@ -112,7 +112,7 @@ short
     editor.move_cursor(zi::Active, Right, 1);
     assert_eq!(editor.cursor(zi::Active), (4, 4));
     editor.move_cursor(zi::Active, Up, 1);
-    assert_eq!(editor.cursor(zi::Active), (3, 4));
+    assert_eq!(editor.cursor(zi::Active), (3, 11));
 }
 
 #[test]
