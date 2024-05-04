@@ -60,6 +60,8 @@ fn scratch() {
     fn test(text: &str, inputs: &str) {
         run(text, inputs, CompareFlags::empty())
     }
+
+    test("aa\n\n!a", "ljdW");
 }
 
 #[track_caller]

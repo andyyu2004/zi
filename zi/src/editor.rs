@@ -13,7 +13,7 @@ use std::pin::{pin, Pin};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use std::{cmp, fmt, io};
+use std::{cmp, fmt, io, mem};
 
 use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
@@ -33,6 +33,7 @@ use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
+use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
@@ -211,8 +212,6 @@ macro_rules! get_ref {
 }
 
 pub(crate) use {get, get_ref};
-
-use self::state::State;
 
 pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
 
@@ -459,7 +458,7 @@ impl Editor {
     }
 
     pub async fn cleanup(&mut self) {
-        for server in std::mem::take(&mut self.language_servers).into_values() {
+        for server in mem::take(&mut self.language_servers).into_values() {
             // TODO shutdown concurrenly
             let _ = server.shutdown().await;
         }
@@ -759,40 +758,43 @@ impl Editor {
         self.set_mode(Mode::Normal);
     }
 
-    #[inline]
-    pub fn set_mode(&mut self, mode: Mode) {
-        if let (Mode::Insert, Mode::Normal) = (mode!(self), mode) {
-            let (view, buf) = get!(self);
-            let (view, buf) = (view.id(), buf.id());
+    fn insert_to_normal(&mut self) {
+        let (view, buf) = get!(self);
+        let (view, buf) = (view.id(), buf.id());
 
-            {
-                // Clear any whitespace at the end of the cursor line when exiting insert mode
-                let cursor = self[view].cursor();
-                if let Some(range) =
-                    self[buf].text().get_line(cursor.line().idx()).and_then(|line| {
-                        let end = Point::new(cursor.line().idx(), line.len_bytes());
-                        let mut start = end;
-                        for c in line.chars().rev() {
-                            if !c.is_whitespace() {
-                                break;
-                            }
+        {
+            // Clear any whitespace at the end of the cursor line when exiting insert mode
+            let cursor = self[view].cursor();
+            if let Some(range) = self[buf].text().get_line(cursor.line().idx()).and_then(|line| {
+                let end = Point::new(cursor.line().idx(), line.len_bytes());
+                let mut start = end;
+                for c in line.chars().rev() {
+                    if !c.is_whitespace() {
+                        break;
+                    }
 
-                            start = start.left(c.len_utf8() as u32);
-                        }
-
-                        (start != end).then(|| Range::new(start, end))
-                    })
-                {
-                    self.edit(Active, &Delta::delete(range));
+                    start = start.left(c.len_utf8() as u32);
                 }
-            }
 
-            self[buf].snapshot(SnapshotFlags::empty());
-            // Move cursor left when exiting insert mode
-            self.motion(Active, motion::PrevChar);
+                (start != end).then(|| Range::new(start, end))
+            }) {
+                self.edit(Active, &Delta::delete(range));
+            }
         }
 
-        self.state = State::new(mode);
+        self[buf].snapshot(SnapshotFlags::empty());
+        // Move cursor left when exiting insert mode
+        self.motion(Active, motion::PrevChar);
+    }
+
+    #[inline]
+    pub fn set_mode(&mut self, mode: Mode) {
+        let from = mode!(self);
+        if let (Mode::Insert, Mode::Normal) = (from, mode) {
+            self.insert_to_normal()
+        }
+
+        self.state = mem::take(&mut self.state).transition(mode);
     }
 
     #[inline]
@@ -924,7 +926,7 @@ impl Editor {
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
         let cursor = view.cursor();
-        self.set_cursor(view_id, cursor);
+        self.set_cursor_flags(view_id, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
 
         self.dispatch(event::DidChangeBuffer { buf });
     }
@@ -967,7 +969,9 @@ impl Editor {
         let (view, buf) = (view.id(), buf.id());
 
         // text objects only have meaning in operator pending mode
-        let Mode::OperatorPending(operator) = mode!(self) else { return };
+        let State::OperatorPending(state) = &self.state else { return };
+
+        let &OperatorPendingState { operator } = state;
 
         let mut motion_kind = obj.default_kind();
         let flags = obj.flags();
@@ -975,6 +979,7 @@ impl Editor {
         let text = self[buf].text();
 
         let cursor = self[view].cursor();
+        let target_col = self[view].cursor_target_col();
         let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
             return self.set_mode(Mode::Normal);
         };
@@ -1093,7 +1098,7 @@ impl Editor {
                 && matches!(operator, Operator::Delete)
             {
                 let cursor = match new_cursor {
-                    PointOrByte::Point(point) => PointOrByte::Point(point.with_col(cursor.col())),
+                    PointOrByte::Point(point) => PointOrByte::Point(point.with_col(target_col)),
                     PointOrByte::Byte(_) => panic!("expected point cursor for linewise motion"),
                 };
                 (cursor, SetCursorFlags::empty())

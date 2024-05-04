@@ -121,7 +121,7 @@ impl ViewGroup {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Cursor {
-    pos: Point,
+    point: Point,
     // When we move the cursor down we may go to a shorter line, virtual column stores the column
     // that the cursor should really be at, but can't be because the line is too short.
     target_col: Col,
@@ -135,7 +135,7 @@ impl From<Point> for Cursor {
 
 impl Cursor {
     fn new(pos: Point) -> Self {
-        Self { pos, target_col: pos.col() }
+        Self { point: pos, target_col: pos.col() }
     }
 }
 
@@ -162,7 +162,11 @@ impl View {
 
     #[inline]
     pub fn cursor(&self) -> Point {
-        self.cursor.pos
+        self.cursor.point
+    }
+
+    pub(crate) fn cursor_target_col(&self) -> Col {
+        self.cursor.target_col
     }
 
     #[inline]
@@ -209,22 +213,22 @@ impl View {
     pub(crate) fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u16, u16) {
         assert_eq!(buf.id(), self.buf);
         assert!(
-            self.offset.line <= self.cursor.pos.line().idx() as u32,
+            self.offset.line <= self.cursor.point.line().idx() as u32,
             "cursor is above the viewport: offset={} cursor={}",
             self.offset,
-            self.cursor.pos,
+            self.cursor.point,
         );
         assert!(
-            self.offset.col <= self.cursor.pos.col().idx() as u32,
+            self.offset.col <= self.cursor.point.col().idx() as u32,
             "cursor is to the left of the viewport"
         );
 
-        let line_idx = self.cursor.pos.line().idx();
+        let line_idx = self.cursor.point.line().idx();
         let text = buf.text();
         let line = text.get_line(line_idx).unwrap_or_else(|| Box::new(""));
         let byte = line
             .chars()
-            .take(self.cursor.pos.col().idx())
+            .take(self.cursor.point.col().idx())
             .map(|c| buf.char_width(c))
             .sum::<usize>();
         // TODO need tests for the column adjustment
@@ -245,19 +249,19 @@ impl View {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
-            Direction::Left => match buf.text().char_before_point(self.cursor.pos) {
+            Direction::Left => match buf.text().char_before_point(self.cursor.point) {
                 // this is wrong, can't assume all characters are the same width
-                Some(c) => self.cursor.pos.left(c.len_utf8() as u32 * amt),
-                None => return self.cursor.pos,
+                Some(c) => self.cursor.point.left(c.len_utf8() as u32 * amt),
+                None => return self.cursor.point,
             },
-            Direction::Right => match buf.text().char_at_point(self.cursor.pos) {
-                Some(c) => self.cursor.pos.right(c.len_utf8() as u32 * amt),
-                None => return self.cursor.pos,
+            Direction::Right => match buf.text().char_at_point(self.cursor.point) {
+                Some(c) => self.cursor.point.right(c.len_utf8() as u32 * amt),
+                None => return self.cursor.point,
             },
             // Horizontal movements set the target column.
             // Vertical movements try to keep moving to the target column.
-            Direction::Up => self.cursor.pos.up(amt),
-            Direction::Down => self.cursor.pos.down(amt),
+            Direction::Up => self.cursor.point.up(amt),
+            Direction::Down => self.cursor.point.down(amt),
         };
 
         let flags = match direction {
@@ -315,10 +319,10 @@ impl View {
 
         let pos = text.byte_to_point(byte);
 
-        if self.cursor.pos != pos && self.cursor.target_col != pos.col() {
+        if self.cursor.point != pos && self.cursor.target_col != pos.col() {
             self.cursor = Cursor::new(pos);
         } else {
-            self.cursor.pos = pos;
+            self.cursor.point = pos;
             if !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET) {
                 self.cursor.target_col = pos.col();
             }
@@ -326,8 +330,8 @@ impl View {
 
         self.ensure_scroll_in_bounds(size);
         #[cfg(debug_assertions)]
-        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
-        self.cursor.pos
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.point)..));
+        self.cursor.point
     }
 
     #[inline]
@@ -400,31 +404,31 @@ impl View {
             _ => pos.with_col(max_col),
         };
 
-        if self.cursor.target_col != pos.col() && self.cursor.pos != new_cursor
+        if self.cursor.target_col != pos.col() && self.cursor.point != new_cursor
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
         {
             self.cursor.target_col = new_cursor.col();
         }
 
-        self.cursor.pos = new_cursor;
+        self.cursor.point = new_cursor;
 
         // Assert that the cursor is in valid byte position. This will panic if the cursor is in
         // the middle of a code point.
         #[cfg(debug_assertions)]
-        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.pos)..));
+        std::hint::black_box(text.byte_slice(text.point_to_byte(self.cursor.point)..));
 
         self.ensure_scroll_in_bounds(size);
 
-        self.cursor.pos
+        self.cursor.point
     }
 
     fn ensure_scroll_in_bounds(&mut self, size: impl Into<Size>) {
         let size = size.into();
         // Scroll the view if the cursor moves out of bounds
-        if self.cursor.pos.line().raw() < self.offset.line {
-            self.offset.line = self.cursor.pos.line().idx() as u32;
-        } else if self.cursor.pos.line().raw() >= self.offset.line + size.height as u32 {
-            self.offset.line = self.cursor.pos.line().idx() as u32 - size.height as u32 + 1;
+        if self.cursor.point.line().raw() < self.offset.line {
+            self.offset.line = self.cursor.point.line().idx() as u32;
+        } else if self.cursor.point.line().raw() >= self.offset.line + size.height as u32 {
+            self.offset.line = self.cursor.point.line().idx() as u32 - size.height as u32 + 1;
         }
     }
 
@@ -456,10 +460,10 @@ impl View {
 
         self.move_cursor(mode, size, buf, direction, amt);
         assert!(
-            self.cursor.pos.line().raw() >= self.offset.line
-                && self.cursor.pos.line().raw() < self.offset.line + size.height as u32,
+            self.cursor.point.line().raw() >= self.offset.line
+                && self.cursor.point.line().raw() < self.offset.line + size.height as u32,
             "cursor is out of bounds: cursor={} offset={} size={}",
-            self.cursor.pos,
+            self.cursor.point,
             self.offset,
             size
         );

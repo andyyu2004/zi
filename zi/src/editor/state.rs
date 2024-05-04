@@ -26,6 +26,11 @@ impl State {
         }
     }
 
+    pub(super) fn transition(self, to: Mode) -> State {
+        // if there was any state that needs to be copied between states, it would be done here
+        State::new(to)
+    }
+
     pub(super) fn mode(&self) -> Mode {
         match self {
             State::Normal(..) => Mode::Normal,
@@ -60,7 +65,7 @@ pub(super) struct VisualState {}
 
 #[derive(Debug)]
 pub(super) struct OperatorPendingState {
-    operator: Operator,
+    pub operator: Operator,
 }
 
 impl OperatorPendingState {

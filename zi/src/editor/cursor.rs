@@ -12,10 +12,20 @@ impl Editor {
 
     #[inline]
     pub fn set_cursor(&mut self, selector: impl Selector<ViewId>, pos: impl Into<Point>) {
+        self.set_cursor_flags(selector, pos, SetCursorFlags::empty());
+    }
+
+    #[inline]
+    pub(crate) fn set_cursor_flags(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        pos: impl Into<Point>,
+        flags: SetCursorFlags,
+    ) {
         let view_id = selector.select(self);
         let (view, buf) = get!(self: view_id);
         let area = self.tree.view_area(view.id());
-        view.set_cursor_linewise(mode!(self), area, buf, pos.into(), SetCursorFlags::empty());
+        view.set_cursor_linewise(mode!(self), area, buf, pos.into(), flags);
     }
 
     #[inline]
