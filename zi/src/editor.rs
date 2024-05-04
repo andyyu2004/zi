@@ -476,6 +476,8 @@ impl Editor {
         assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
         let sender = self.sender();
 
+        tracing::debug!(%tree_area, %buffer_area, "render editor");
+
         // Only iterate over the views that are in the view tree, as otherwise they are definitely
         // not visible and we don't need to render them.
         for view in self.tree.views() {
