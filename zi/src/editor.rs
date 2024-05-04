@@ -1016,7 +1016,7 @@ impl Editor {
         }
 
         // Another neovim special case inherited from vi.
-        // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L1468-L1484
+        // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L1468-L1484
         if motion_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
@@ -1087,7 +1087,7 @@ impl Editor {
 
         if let Some(new_cursor) = new_cursor {
             // some conditions where the cursor column is set to the old value
-            // https://github.com/neovim/neovim/blob/master/src/nvim/ops.c#L6348-L6354
+            // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L6348-L6354
             let (new_cursor, flags) = if motion_kind.is_linewise()
                 && !end_adjusted
                 && matches!(operator, Operator::Delete)
