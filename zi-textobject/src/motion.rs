@@ -34,13 +34,48 @@ pub trait Motion: TextObject {
     }
 
     #[inline]
-    fn repeated(self, n: usize) -> Repeated<Self>
+    fn repeat(self, n: usize) -> Repeat<Self>
     where
         Self: Sized,
     {
-        Repeated { motion: self, n }
+        Repeat { motion: self, n }
     }
 }
+
+impl TextObject for &dyn Motion {
+    #[inline]
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        (**self).byte_range(text, byte)
+    }
+
+    #[inline]
+    fn default_kind(&self) -> TextObjectKind {
+        (**self).default_kind()
+    }
+
+    #[inline]
+    fn flags(&self) -> TextObjectFlags {
+        (**self).flags()
+    }
+}
+
+impl Motion for &dyn Motion {
+    #[inline]
+    fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
+        (**self).motion(text, byte)
+    }
+
+    #[inline]
+    fn byte_motion(&self, text: &dyn AnyText, byte: usize) -> usize {
+        (**self).byte_motion(text, byte)
+    }
+
+    #[inline]
+    fn motion_flags(&self) -> MotionFlags {
+        (**self).motion_flags()
+    }
+}
+
 impl<M: Motion> Motion for &M {
     #[inline]
     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
@@ -48,7 +83,7 @@ impl<M: Motion> Motion for &M {
     }
 }
 
-impl<M: Motion> Motion for Repeated<M> {
+impl<M: Motion> Motion for Repeat<M> {
     fn byte_motion(&self, text: &dyn AnyText, mut byte: usize) -> usize {
         for _ in 0..self.n {
             byte = self.motion.byte_motion(text, byte);
@@ -164,7 +199,12 @@ impl Motion for PrevChar {
 impl Motion for NextLine {
     #[inline]
     fn motion(&self, text: &dyn AnyText, byte: usize) -> PointOrByte {
-        text.byte_to_point(byte).down(1).into()
+        let point = text.byte_to_point(byte);
+        if point.line() == text.len_lines() {
+            return byte.into();
+        }
+
+        point.down(1).into()
     }
 
     #[inline]

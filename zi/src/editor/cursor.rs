@@ -1,3 +1,5 @@
+use zi_textobject::{motion, Motion};
+
 use super::{get, Selector};
 use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Point, ViewId};
@@ -23,10 +25,18 @@ impl Editor {
         direction: Direction,
         amt: u32,
     ) -> Point {
-        let view_id = selector.select(self);
-        let (view, buf) = get!(self: view_id);
-        let area = self.tree.view_area(view.id());
-        view.move_cursor(self.mode, area, buf, direction, amt)
+        let motion = match direction {
+            Direction::Left => &motion::PrevChar as &dyn Motion,
+            Direction::Right => &motion::NextChar,
+            Direction::Up => &motion::PrevLine,
+            Direction::Down => &motion::NextLine,
+        }
+        .repeat(amt as usize);
+        self.motion(selector, motion)
+        // let view_id = selector.select(self);
+        // let (view, buf) = get!(self: view_id);
+        // let area = self.tree.view_area(view.id());
+        // view.move_cursor(self.mode, area, buf, direction, amt)
     }
 
     #[inline]

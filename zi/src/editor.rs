@@ -1091,12 +1091,15 @@ impl Editor {
         }
     }
 
-    pub fn motion(&mut self, selector: impl Selector<ViewId>, motion: impl Motion) {
+    pub fn motion(&mut self, selector: impl Selector<ViewId>, motion: impl Motion) -> Point {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let view_id = view.id();
         match self.mode {
-            Mode::OperatorPending(_) => self.text_object(view_id, motion),
+            Mode::OperatorPending(_) => {
+                self.text_object(view_id, motion);
+                self[view_id].cursor()
+            }
             _ => {
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
@@ -1118,7 +1121,7 @@ impl Editor {
                     PointOrByte::Byte(byte) => {
                         view.set_cursor_bytewise(self.mode, area, buf, byte, flags)
                     }
-                };
+                }
             }
         }
     }

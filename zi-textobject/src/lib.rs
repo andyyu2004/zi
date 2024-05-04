@@ -129,12 +129,12 @@ impl TextObject for Line {
     }
 }
 
-pub struct Repeated<M> {
+pub struct Repeat<M> {
     pub(crate) motion: M,
     pub(crate) n: usize,
 }
 
-impl<M: TextObject> TextObject for Repeated<M> {
+impl<M: TextObject> TextObject for Repeat<M> {
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let _ = (text, byte);
         todo!();
