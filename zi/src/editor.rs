@@ -487,16 +487,15 @@ impl Editor {
 
         // Only iterate over the views that are in the view tree, as otherwise they are definitely
         // not visible and we don't need to render them.
-        if self.tree.views().fold(false, |b, view| {
+        self.tree.views().for_each(|view| {
             let view = &self.views[view];
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             // do not swap the order of the calls, since we need it to not short-circuit
-            buf.pre_render(&sender, view, area) || b
-        }) {
-            // could be smarter and pass down information about which view specifically needs to be rendered
-            self.tree.render(self, frame.buffer_mut());
-        }
+            buf.pre_render(&sender, view, area)
+        });
+
+        self.tree.render(self, frame.buffer_mut());
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
         let (view, buf) = get_ref!(self);
