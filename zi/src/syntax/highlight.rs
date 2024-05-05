@@ -13,6 +13,8 @@ pub enum HighlightName {}
 impl HighlightName {
     pub const CURSORLINE: &'static str = "cursorline";
     pub const DIRECTORY: &'static str = "directory";
+    pub const CURRENT_SEARCH: &'static str = "search.current";
+    pub const SEARCH: &'static str = "search";
 }
 
 impl Theme {
@@ -41,6 +43,8 @@ impl Default for Theme {
             highlights: [
                 (HighlightName::CURSORLINE, None, Some(0x07364200)),
                 (HighlightName::DIRECTORY, Some(0x268bd200), None),
+                (HighlightName::SEARCH, Some(0xb5890000), None),
+                (HighlightName::CURRENT_SEARCH, Some(0x39a6b900), None),
                 ("namespace", Some(0x39a6b900), None),
                 ("module", Some(0x39a6b900), None),
                 ("function.macro", Some(0x298cba00), None),

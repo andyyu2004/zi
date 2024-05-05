@@ -7,6 +7,7 @@ use zi_core::{Offset, RangeMergeIter};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
+use crate::syntax::HighlightName;
 use crate::ViewId;
 
 impl Editor {
@@ -106,6 +107,7 @@ impl Editor {
         assert_eq!(surface.area.intersection(area), area);
 
         let buf = self.buffer(view.buffer());
+        let text = buf.text();
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
         let theme = self.theme();
@@ -125,10 +127,27 @@ impl Editor {
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
 
-        let highlights =
+        let view_highlights =
             RangeMergeIter::new(syntax_highlights, overlay_highlights).inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });
+
+        let search_highlights = match &self.state {
+            State::Command(state) => &state.matches,
+            _ => &[][..],
+        }
+        .iter()
+        .filter_map(|mat| {
+            let range = text.byte_range_to_point_range(mat.byte_range.clone());
+            debug_assert!(
+                range.is_single_line(),
+                "not expecting highlight to cross lines: {range}"
+            );
+            let style = self.highlight_id_by_name(HighlightName::SEARCH).style(theme)?;
+            Some((range, style))
+        });
+
+        let highlights = RangeMergeIter::new(view_highlights, search_highlights);
 
         let text = buf.text();
         let lines = text

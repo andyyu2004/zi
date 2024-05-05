@@ -4,9 +4,11 @@ use grep::matcher::Matcher;
 use grep::regex::RegexMatcherBuilder;
 use grep::searcher::{BinaryDetection, Searcher, SearcherBuilder, SinkError, SinkMatch};
 
+const NUL: u8 = 0;
+
 pub(super) fn matcher(query: &str) -> impl Matcher + Clone {
     let mut builder = RegexMatcherBuilder::new();
-    builder.case_smart(true);
+    builder.case_smart(true).ban_byte(Some(NUL)).whole_line(false);
     match builder.build(query) {
         Ok(matcher) => matcher,
         // if the regex is invalid, just treat the query as literal instead of a regex
@@ -20,7 +22,7 @@ pub(super) fn matcher(query: &str) -> impl Matcher + Clone {
 pub(super) fn searcher() -> Searcher {
     SearcherBuilder::new()
         // maybe there's stronger heuristic, but a null byte is probably a decent indicator
-        .binary_detection(BinaryDetection::quit(b'\x00'))
+        .binary_detection(BinaryDetection::quit(NUL))
         .line_number(true)
         .build()
 }
@@ -50,7 +52,11 @@ where
             }
         };
 
-        let byte_range = mat.bytes_range_in_buffer();
+        let start_byte = mat.absolute_byte_offset() as usize;
+        let mut byte_range = start_byte..start_byte + matched.len();
+        if matched.ends_with('\n') {
+            byte_range.end -= 1;
+        }
 
         (self.0)(line_number, matched, byte_range)
     }

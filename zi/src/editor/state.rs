@@ -57,7 +57,6 @@ pub(super) struct CommandState {
 
 #[derive(Debug)]
 pub(super) struct Match {
-    pub line: usize,
     pub byte_range: std::ops::Range<usize>,
 }
 

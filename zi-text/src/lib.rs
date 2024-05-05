@@ -108,6 +108,11 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     }
 
     #[inline]
+    fn byte_range_to_point_range(&self, range: ops::Range<usize>) -> Range {
+        Range::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
+    }
+
+    #[inline]
     fn point_or_byte_to_byte(&self, point_or_byte: PointOrByte) -> usize {
         match point_or_byte {
             PointOrByte::Point(p) => self.point_to_byte(p),

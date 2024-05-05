@@ -596,16 +596,19 @@ impl Editor {
                 let (k, query) = state.buffer.split_at(1);
                 match k {
                     "/" => {
-                        let (view, buf) = get!(self);
-                        let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
+                        let (_view, buf) = get!(self);
+                        // TODO should slice the appropriate section but need to adjust byte ranges
+                        // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
+                        let reader = buf.text().byte_slice(..).reader();
                         let matcher = search::matcher(query);
                         let mut searcher = search::searcher();
 
                         state.matches.clear();
                         let start_time = Instant::now();
-                        let sink = search::Sink(|line, _content, byte_range| {
-                            state.matches.push(state::Match { line: line as usize, byte_range });
-                            Ok(start_time.elapsed() < Duration::from_millis(50))
+                        let sink = search::Sink(|_line, _content, byte_range| {
+                            state.matches.push(state::Match { byte_range });
+
+                            Ok(start_time.elapsed() < Duration::from_millis(20))
                         });
 
                         if let Err(err) = searcher.search_reader(matcher, reader, sink) {
