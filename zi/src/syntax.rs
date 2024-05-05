@@ -204,7 +204,8 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
 pub struct TextProvider<'a>(Box<dyn AnyTextSlice<'a> + 'a>);
 
 impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
-    type I = std::iter::Map<Box<dyn Iterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
+    type I =
+        std::iter::Map<Box<dyn DoubleEndedIterator<Item = &'a str> + 'a>, fn(&'a str) -> &'a [u8]>;
 
     fn text(&mut self, node: Node<'_>) -> Self::I {
         let slice = self.0.byte_slice(node.start_byte()..node.end_byte());

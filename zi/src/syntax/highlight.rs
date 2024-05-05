@@ -43,7 +43,7 @@ impl Default for Theme {
             highlights: [
                 (HighlightName::CURSORLINE, None, Some(0x07364200)),
                 (HighlightName::DIRECTORY, Some(0x268bd200), None),
-                (HighlightName::SEARCH, Some(0xb5890000), None),
+                (HighlightName::SEARCH, Some(0xb5890000), Some(0x00445400)),
                 (HighlightName::CURRENT_SEARCH, Some(0x39a6b900), None),
                 ("namespace", Some(0x39a6b900), None),
                 ("module", Some(0x39a6b900), None),

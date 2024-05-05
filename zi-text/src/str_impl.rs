@@ -7,6 +7,7 @@ fn str_lines_inclusive(s: &str) -> impl Iterator<Item = &str> {
 
 impl<'a> TextSlice<'a> for &'a str {
     type Slice = Self;
+    type Chunks = std::iter::Once<Self>;
 
     fn to_cow(&self) -> Cow<'a, str> {
         Cow::Borrowed(*self)
@@ -26,7 +27,7 @@ impl<'a> TextSlice<'a> for &'a str {
         str::chars(self)
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self> + 'a {
         Text::lines(*self)
     }
 
@@ -34,7 +35,7 @@ impl<'a> TextSlice<'a> for &'a str {
         Text::get_line(*self, line_idx)
     }
 
-    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+    fn chunks(&self) -> Self::Chunks {
         iter::once(*self)
     }
 }

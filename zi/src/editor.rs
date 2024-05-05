@@ -28,7 +28,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, Range, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
-use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
+use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -596,24 +596,30 @@ impl Editor {
                 let (k, query) = state.buffer.split_at(1);
                 match k {
                     "/" => {
+                        use regex_cursor::engines::meta::Regex;
+                        use regex_cursor::Input;
+
+                        let regex = match Regex::new(query) {
+                            Ok(regex) => regex,
+                            Err(err) => return set_error!(self, err),
+                        };
+
                         let (_view, buf) = get!(self);
                         // TODO should slice the appropriate section but need to adjust byte ranges
                         // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
-                        let reader = buf.text().byte_slice(..).reader();
-                        let matcher = search::matcher(query);
-                        let mut searcher = search::searcher();
 
-                        state.matches.clear();
+                        let slice = buf.text().byte_slice(..);
+                        let input = Input::new(RopeCursor::new(slice));
+
                         let start_time = Instant::now();
-                        let sink = search::Sink(|_line, _content, byte_range| {
-                            state.matches.push(state::Match { byte_range });
-
-                            Ok(start_time.elapsed() < Duration::from_millis(20))
-                        });
-
-                        if let Err(err) = searcher.search_reader(matcher, reader, sink) {
-                            set_error!(self, err)
-                        }
+                        state.matches = regex
+                            .find_iter(input)
+                            .take(1000)
+                            // This is run synchronously, so we add a strict limit to prevent noticable latency.
+                            // However, this may mean not all matches are found which needs a solution.
+                            .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
+                            .map(|m| state::Match { byte_range: m.range() })
+                            .collect();
                     }
                     ":" => {}
                     _ => unreachable!(),

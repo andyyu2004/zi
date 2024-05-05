@@ -69,6 +69,7 @@ impl TextBase for crop::Rope {
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
     type Slice = Self;
+    type Chunks = crop::iter::Chunks<'a>;
 
     fn to_cow(&self) -> Cow<'a, str> {
         let mut chunks = self.chunks();
@@ -91,11 +92,11 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
         (*self).chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self> + 'a {
         (*self).lines()
     }
 
-    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+    fn chunks(&self) -> Self::Chunks {
         (*self).chunks()
     }
 

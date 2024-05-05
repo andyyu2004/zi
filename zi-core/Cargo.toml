@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-stdx = { path = "../stdx" }
 tui = { path = "../zi-tui", package = "zi-tui" }
+stdx = { workspace = true }
 tree-sitter = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }

@@ -1,11 +1,11 @@
-#![feature(iter_from_coroutine, trait_upcasting, coroutines)]
+#![feature(iter_from_coroutine, trait_upcasting, coroutines, type_alias_impl_trait)]
 
 mod cow_str_impl;
+mod cursor;
 mod delta;
 mod readonly;
 mod rope;
 mod str_impl;
-mod cursor;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -14,6 +14,7 @@ use std::ops::{Bound, RangeBounds};
 use std::{fmt, iter, ops};
 
 pub use crop::{Rope, RopeBuilder, RopeSlice};
+pub use cursor::RopeCursor;
 use zi_core::{Line, Point, PointOrByte, Range};
 
 pub use self::delta::{Delta, DeltaRange};
@@ -225,8 +226,9 @@ pub trait AnyTextSlice<'a>: TextBase {
         line_range: (Bound<usize>, Bound<usize>),
     ) -> Box<dyn AnyTextSlice<'a> + 'a>;
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + 'a>;
-    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a>;
-    fn dyn_chunks(&self) -> Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn dyn_lines(&self)
+    -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a>;
+    fn dyn_chunks(&self) -> Box<dyn DoubleEndedIterator<Item = &'a str> + 'a>;
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>>;
 }
 
@@ -255,6 +257,7 @@ pub trait AnyText: TextBase + fmt::Display {
 
 impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
     type Slice = Box<dyn AnyTextSlice<'a> + 'a>;
+    type Chunks = Box<dyn DoubleEndedIterator<Item = &'a str> + 'a>;
 
     fn to_cow(&self) -> Cow<'a, str> {
         self.dyn_to_cow()
@@ -272,11 +275,11 @@ impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
         self.dyn_chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice> + 'a {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice> + 'a {
         self.dyn_lines()
     }
 
-    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+    fn chunks(&self) -> Self::Chunks {
         self.dyn_chunks()
     }
 
@@ -400,11 +403,13 @@ where
         Box::new(<T as TextSlice<'a>>::chars(self))
     }
 
-    fn dyn_lines(&self) -> Box<dyn Iterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a> {
+    fn dyn_lines(
+        &self,
+    ) -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a> {
         Box::new(<T as TextSlice<'a>>::lines(self).map(|s| Box::new(s) as _))
     }
 
-    fn dyn_chunks(&self) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+    fn dyn_chunks(&self) -> Box<dyn DoubleEndedIterator<Item = &'a str> + 'a> {
         Box::new(<T as TextSlice<'a>>::chunks(self))
     }
 
@@ -417,6 +422,12 @@ where
 pub trait TextSlice<'a>: TextBase + Sized {
     type Slice: TextSlice<'a>;
 
+    /// There are some rust limitations/bugs when using `impl Trait` returns. We need to ensure the
+    /// returned iterators are not tied to the lifetime of self. `impl Trait` currently seems to
+    /// capture ths `'self` lifetime which is too limiting.
+    /// All the other methods should be changed to but not hitting the issue yet.
+    type Chunks: DoubleEndedIterator<Item = &'a str> + 'a;
+
     fn to_cow(&self) -> Cow<'a, str>;
 
     fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice;
@@ -425,9 +436,9 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> + 'a;
 
-    fn lines(&self) -> impl Iterator<Item = Self::Slice> + 'a;
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice> + 'a;
 
-    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a;
+    fn chunks(&self) -> Self::Chunks;
 
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice>;
 
@@ -723,6 +734,8 @@ impl<T: TextBase + ?Sized> TextBase for &T {
 impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
     type Slice = Self;
 
+    type Chunks = Box<dyn DoubleEndedIterator<Item = &'a str> + 'a>;
+
     fn to_cow(&self) -> Cow<'a, str> {
         (**self).dyn_to_cow()
     }
@@ -741,11 +754,11 @@ impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
         self.as_ref().dyn_chars()
     }
 
-    fn lines(&self) -> impl Iterator<Item = Self> + 'a {
+    fn lines(&self) -> impl DoubleEndedIterator<Item = Self> + 'a {
         self.as_ref().dyn_lines()
     }
 
-    fn chunks(&self) -> impl Iterator<Item = &'a str> + 'a {
+    fn chunks(&self) -> Self::Chunks {
         self.as_ref().dyn_chunks()
     }
 
