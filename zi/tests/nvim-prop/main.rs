@@ -45,11 +45,11 @@ macro_rules! t {
 
 const I: &str = r"(?s)[A-z][ -~\n]*[A-z]";
 
-// TODO add hjkl motions to tests once implemented as motions
 t!(I, "<ESC>", nvim_test);
 t!(I, "[WBhjkl]+", nvim_token_motions);
 t!(I, "[dWBhjkl]+", nvim_delete_operator);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
+// TODO add hjkl motions to undo tests
 t!(I, "d([uWB]|(<ESC>))+<ESC>", nvim_undo_delete_word);
 t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 
