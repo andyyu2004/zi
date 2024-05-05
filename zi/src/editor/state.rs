@@ -3,8 +3,43 @@ use crate::{Mode, Operator};
 /// Shared state
 #[derive(Default)]
 pub(super) struct SharedState {
-    pub(crate) matches: Vec<Match>,
-    pub(crate) show_search_hl: bool,
+    matches: Vec<Match>,
+    pub(super) show_search_hl: bool,
+    match_idx: usize,
+}
+
+impl SharedState {
+    pub(super) fn matches(&self) -> &[Match] {
+        &self.matches
+    }
+
+    pub(super) fn set_matches(&mut self, matches: impl Into<Vec<Match>>) {
+        self.matches = matches.into();
+        self.match_idx = 0;
+    }
+
+    pub(super) fn current_match_idx(&self) -> usize {
+        self.match_idx
+    }
+
+    pub(super) fn current_match(&self) -> Option<&Match> {
+        self.matches.get(self.match_idx)
+    }
+
+    pub(super) fn next_match(&mut self) -> Option<&Match> {
+        self.match_idx = (self.match_idx + 1) % self.matches.len();
+        self.matches.get(self.match_idx)
+    }
+
+    pub(super) fn prev_match(&mut self) -> Option<&Match> {
+        if self.match_idx == 0 {
+            self.match_idx = self.matches.len() - 1;
+        } else {
+            self.match_idx -= 1;
+        }
+
+        self.matches.get(self.match_idx)
+    }
 }
 
 /// Per mode state
@@ -59,11 +94,11 @@ pub(super) struct InsertState {}
 #[derive(Debug)]
 pub(super) struct CommandState {
     /// Stores the command currently in the command line
-    pub(crate) buffer: String,
+    pub(super) buffer: String,
 }
 
 impl CommandState {
-    pub(crate) fn buffer(&self) -> &str {
+    pub(super) fn buffer(&self) -> &str {
         &self.buffer
     }
 }

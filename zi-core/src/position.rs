@@ -220,6 +220,13 @@ impl From<Point> for PointOrByte {
     }
 }
 
+impl From<(usize, usize)> for PointOrByte {
+    #[inline]
+    fn from(v: (usize, usize)) -> Self {
+        Self::Point(v.into())
+    }
+}
+
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point {
     line: Line,

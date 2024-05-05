@@ -1,3 +1,4 @@
+use zi_core::PointOrByte;
 use zi_textobject::{motion, Motion};
 
 use super::{get, mode, Selector};
@@ -11,8 +12,13 @@ impl Editor {
     }
 
     #[inline]
-    pub fn set_cursor(&mut self, selector: impl Selector<ViewId>, pos: impl Into<Point>) {
-        self.set_cursor_flags(selector, pos, SetCursorFlags::empty());
+    pub fn set_cursor(&mut self, selector: impl Selector<ViewId>, pos: impl Into<PointOrByte>) {
+        match pos.into() {
+            PointOrByte::Point(pos) => {
+                self.set_cursor_flags(selector, pos, SetCursorFlags::empty())
+            }
+            PointOrByte::Byte(byte) => self.set_cursor_bytewise(selector, byte),
+        }
     }
 
     #[inline]
@@ -48,5 +54,13 @@ impl Editor {
     #[inline]
     pub fn cursor(&self, selector: impl Selector<ViewId>) -> Point {
         self.view(selector).cursor()
+    }
+
+    #[inline]
+    fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
+        let view_id = selector.select(self);
+        let (view, buf) = get!(self: view_id);
+        let area = self.tree.view_area(view.id());
+        view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty());
     }
 }

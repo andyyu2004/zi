@@ -135,17 +135,24 @@ impl Editor {
         let search_highlights = self
             .shared
             .show_search_hl
-            .then_some(&self.shared.matches[..])
+            .then(|| self.shared.matches())
             .unwrap_or_default()
             .iter()
-            .filter_map(|mat| {
+            .enumerate()
+            .filter_map(|(i, mat)| {
                 let range = text.byte_range_to_point_range(mat.byte_range.clone());
-                debug_assert!(
-                    range.is_single_line(),
-                    "not expecting highlight to cross lines: {range}"
-                );
-                let style = self.highlight_id_by_name(HighlightName::SEARCH).style(theme)?;
-                Some((range, style))
+                if range.end().line().idx() < line {
+                    return None;
+                }
+
+                let hl_name = if self.shared.current_match_idx() == i {
+                    HighlightName::CURRENT_SEARCH
+                } else {
+                    HighlightName::SEARCH
+                };
+
+                let style = self.highlight_id_by_name(hl_name).style(theme)?;
+                Some((range - Offset::new(line as u32, 0), style))
             });
 
         let highlights = RangeMergeIter::new(view_highlights, search_highlights);

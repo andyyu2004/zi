@@ -32,7 +32,7 @@ use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlic
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
-use self::state::{OperatorPendingState, SharedState, State};
+use self::state::{Match, OperatorPendingState, SharedState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
@@ -591,9 +591,7 @@ impl Editor {
     }
 
     fn update_search(&mut self) {
-        let State::Command(state) = &mut self.state else {
-            panic!("should only call in command mode")
-        };
+        let State::Command(state) = &mut self.state else { return };
 
         let (k, query) = state.buffer().split_at(1);
         match k {
@@ -611,19 +609,27 @@ impl Editor {
                 // TODO should slice the appropriate section but need to adjust byte ranges
                 // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
 
-                let slice = buf.text().byte_slice(..);
-                let input = Input::new(RopeCursor::new(slice));
+                let text = buf.text();
+                let input = Input::new(RopeCursor::new(text.byte_slice(..)));
 
                 let start_time = Instant::now();
-                self.shared.show_search_hl = true;
-                self.shared.matches = regex
-                    .find_iter(input)
-                    // This is run synchronously, so we add a strict limit to prevent noticable latency.
-                    // However, this may mean not all matches are found which needs a solution.
-                    .take(1000)
-                    .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
-                    .map(|m| state::Match { byte_range: m.range() })
-                    .collect();
+                self.shared.set_matches(
+                    regex
+                        .find_iter(input)
+                        // This is run synchronously, so we add a strict limit to prevent noticable latency.
+                        // However, this may mean not all matches are found which needs a solution.
+                        .take(1000)
+                        .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
+                        .map(|m| {
+                            let byte_range = m.range().clone();
+                            #[cfg(debug_assertions)]
+                            text.byte_slice(byte_range.clone());
+                            state::Match { byte_range }
+                        })
+                        .collect::<Box<_>>(),
+                );
+
+                self.jump_match_impl(|s| s.current_match())
             }
             _ => unreachable!(),
         }
@@ -1307,7 +1313,8 @@ impl Editor {
     pub(crate) fn reveal(
         &mut self,
         selector: impl Selector<ViewId>,
-        point: Point,
+        point: impl Into<PointOrByte>,
+
         alignment: VerticalAlignment,
     ) {
         self.set_cursor(&selector, point);
@@ -1780,9 +1787,26 @@ impl Editor {
         Some(loc)
     }
 
-    pub(crate) fn next_match(&mut self) {}
+    fn jump_match_impl(&mut self, f: impl FnOnce(&mut SharedState) -> Option<&Match>) {
+        if let Some(byte) = if self.shared.show_search_hl {
+            f(&mut self.shared)
+        } else {
+            self.shared.current_match()
+        }
+        .map(|m| m.byte_range.start)
+        {
+            self.shared.show_search_hl = true;
+            self.reveal(Active, byte, VerticalAlignment::Center);
+        }
+    }
 
-    pub(crate) fn prev_match(&mut self) {}
+    pub(crate) fn next_match(&mut self) {
+        self.jump_match_impl(|s| s.next_match())
+    }
+
+    pub(crate) fn prev_match(&mut self) {
+        self.jump_match_impl(|s| s.prev_match())
+    }
 
     fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {
         let path = location

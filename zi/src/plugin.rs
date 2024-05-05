@@ -69,7 +69,7 @@ impl editor::HostView for EditorClient {
         view: Resource<editor::View>,
         pos: editor::Point,
     ) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.set_cursor(v(view), pos)).await;
+        self.request(move |editor| editor.set_cursor(v(view), Point::from(pos))).await;
         Ok(())
     }
 
