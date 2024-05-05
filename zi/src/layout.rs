@@ -208,7 +208,7 @@ impl Node {
 
     fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
         match self {
-            Node::View(id) => editor.view(*id).render(editor, area, surface),
+            Node::View(view) => editor.render_view(area, surface, *view),
             Node::Container(container) => container.render(editor, area, surface),
         }
     }

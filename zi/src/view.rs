@@ -1,8 +1,6 @@
-use stdx::iter::IteratorExt;
-use stdx::merge::Merge;
-use tui::{LineNumber, Rect, Widget as _};
-use zi_core::{Offset, RangeMergeIter, Size};
-use zi_text::{self, AnyTextSlice, Text as _, TextSlice};
+use tui::LineNumber;
+use zi_core::{Offset, Size};
+use zi_text::{self, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
 use crate::editor::{Resource, Selector};
@@ -148,6 +146,10 @@ impl View {
     #[inline]
     pub fn buffer(&self) -> BufferId {
         self.buf
+    }
+
+    pub fn line_number(&self) -> LineNumber {
+        self.line_number
     }
 
     #[inline]
@@ -508,59 +510,4 @@ impl View {
     }
 }
 
-impl View {
-    #[tracing::instrument(skip_all)]
-    pub(crate) fn render(&self, editor: &Editor, area: Rect, surface: &mut tui::Buffer) {
-        assert_eq!(surface.area.intersection(area), area);
-
-        let buf = editor.buffer(self.buf);
-        let mut query_cursor = tree_sitter::QueryCursor::new();
-        query_cursor.set_match_limit(256);
-        let theme = editor.theme();
-
-        let line = self.offset().line as usize;
-
-        // FIXME compute highlights only for the necessary range
-        let syntax_highlights = buf
-            .syntax_highlights(editor, &mut query_cursor)
-            .skip_while(|hl| hl.range.end().line().idx() < line)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
-            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
-
-        let overlay_highlights = buf
-            .overlay_highlights(editor, self, area.into())
-            .skip_while(|hl| hl.range.end().line().idx() < line)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
-            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
-
-        let highlights =
-            RangeMergeIter::new(syntax_highlights, overlay_highlights).inspect(|(range, style)| {
-                tracing::trace!(%range, %style, "highlight");
-            });
-
-        let text = buf.text();
-        let lines = text
-            .line_slice(line..)
-            .lines()
-            // We always want to render a line even if the buffer is empty.
-            .default_if_empty(|| Box::new("") as Box<dyn AnyTextSlice<'_>>);
-        let chunks = zi_text::annotate(lines, highlights);
-
-        let lines = tui::Lines::new(
-            line,
-            self.line_number,
-            buf.tab_width(),
-            chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
-                |(line, text, style)| {
-                    let default_style = theme.default_style();
-                    // The merge is still necessary to fill in the missing fields in the style.
-                    let style = default_style.merge(style.unwrap_or(default_style));
-                    (line.idx(), text, style.into())
-                },
-            ),
-        );
-
-        surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
-        lines.render(area, surface);
-    }
-}
+impl View {}

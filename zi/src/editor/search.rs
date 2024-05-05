@@ -52,6 +52,6 @@ where
 
         let byte_range = mat.bytes_range_in_buffer();
 
-        (self.0)(line_number, &matched, byte_range)
+        (self.0)(line_number, matched, byte_range)
     }
 }

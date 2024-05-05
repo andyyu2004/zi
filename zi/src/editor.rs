@@ -1,5 +1,6 @@
 pub(crate) mod cursor;
 mod keymap;
+mod render;
 mod search;
 mod state;
 
@@ -25,7 +26,6 @@ use stdx::path::{PathExt, Relative};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
-use tui::Widget as _;
 use zi_core::{PointOrByte, Range, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
 use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
@@ -474,95 +474,6 @@ impl Editor {
     pub fn set_error(&mut self, error: impl fmt::Display) {
         // TODO push all the corresponding tracing error in here
         set_error!(self, error);
-    }
-
-    pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
-        let buffer_area = frame.buffer_mut().area;
-        let tree_area = self.tree.area();
-        assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
-        let sender = self.sender();
-
-        tracing::debug!(%tree_area, %buffer_area, "render editor");
-
-        // Only iterate over the views that are in the view tree, as otherwise they are definitely
-        // not visible and we don't need to render them.
-        self.tree.views().for_each(|view| {
-            let view = &self.views[view];
-            let buf = &mut self.buffers[view.buffer()];
-            let area = self.tree.view_area(view.id());
-            // do not swap the order of the calls, since we need it to not short-circuit
-            buf.pre_render(&sender, view, area)
-        });
-
-        self.tree.render(self, frame.buffer_mut());
-
-        // HACK probably there is a nicer way to not special case the cmd and statusline
-        let (view, buf) = get_ref!(self);
-        let mut status_spans = vec![tui::Span::styled(
-            format!(
-                "{}:{}:{} ",
-                buf.path().display(),
-                view.cursor().line() + 1_usize,
-                view.cursor().col()
-            ),
-            tui::Style::new()
-                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
-                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
-        )];
-
-        // The error should probably go in the cmd line not the status line.
-        if let Some(error) = &self.status_error {
-            status_spans.push(tui::Span::styled(
-                error,
-                tui::Style::new()
-                    .fg(tui::Color::Rgb(0xff, 0x00, 0x00))
-                    .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
-            ));
-        }
-
-        // FIXME probably a better way than manually padding the right
-        status_spans.push(tui::Span::styled(
-            " ".repeat(tree_area.width as usize),
-            tui::Style::new()
-                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
-                .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
-        ));
-
-        let status = tui::Line::default().spans(status_spans);
-
-        let cmd = tui::Text::styled(
-            match &self.state {
-                State::Command(state) => Cow::Borrowed(state.buffer.as_str()),
-                State::Normal(..) | State::OperatorPending(..) => Cow::Borrowed(""),
-                state => Cow::Owned(format!("-- {} --", state.mode())),
-            },
-            tui::Style::new()
-                .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
-                .bg(tui::Color::Rgb(0x00, 0x2b, 0x36)),
-        );
-
-        let widget = tui::vstack([tui::Constraint::Max(1), tui::Constraint::Max(1)], (status, cmd));
-
-        widget.render(
-            tui::Rect {
-                x: 0,
-                y: tree_area.height,
-                width: tree_area.width,
-                height: Self::BOTTOM_BAR_HEIGHT,
-            },
-            frame.buffer_mut(),
-        );
-
-        let (x, y) = self.cursor_viewport_coords();
-        let offset = match &self.state {
-            State::Command(state) => {
-                state.buffer.len().checked_sub(1).expect("should have a preceding `/` or `:`")
-                    as u16
-            }
-            _ => view.line_number_width() as u16,
-        };
-
-        frame.set_cursor(x + offset, y);
     }
 
     pub fn cursor_viewport_coords(&self) -> (u16, u16) {
