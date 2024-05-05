@@ -51,8 +51,14 @@ pub(super) struct InsertState {}
 #[derive(Debug)]
 pub(super) struct CommandState {
     /// Stores the command currently in the command line
-    pub buffer: String,
-    pub matches: Vec<Match>,
+    pub(crate) buffer: String,
+    pub(crate) matches: Vec<Match>,
+}
+
+impl CommandState {
+    pub(crate) fn buffer(&self) -> &str {
+        &self.buffer
+    }
 }
 
 #[derive(Debug)]

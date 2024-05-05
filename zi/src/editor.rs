@@ -588,42 +588,50 @@ impl Editor {
         Ok(())
     }
 
+    fn update_search(&mut self) {
+        let State::Command(state) = &mut self.state else {
+            panic!("should only call in command mode")
+        };
+
+        let (k, query) = state.buffer().split_at(1);
+        match k {
+            ":" => {}
+            "/" => {
+                use regex_cursor::engines::meta::Regex;
+                use regex_cursor::Input;
+
+                let regex = match Regex::new(query) {
+                    Ok(regex) => regex,
+                    Err(err) => return set_error!(self, err),
+                };
+
+                let (_view, buf) = get!(self);
+                // TODO should slice the appropriate section but need to adjust byte ranges
+                // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
+
+                let slice = buf.text().byte_slice(..);
+                let input = Input::new(RopeCursor::new(slice));
+
+                let start_time = Instant::now();
+                state.matches = regex
+                    .find_iter(input)
+                    // This is run synchronously, so we add a strict limit to prevent noticable latency.
+                    // However, this may mean not all matches are found which needs a solution.
+                    .take(1000)
+                    .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
+                    .map(|m| state::Match { byte_range: m.range() })
+                    .collect();
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn handle_insert(&mut self, c: char) {
         match &mut self.state {
             State::Insert(..) => self.insert_char_at_cursor(c),
             State::Command(state) => {
                 state.buffer.push(c);
-                let (k, query) = state.buffer.split_at(1);
-                match k {
-                    "/" => {
-                        use regex_cursor::engines::meta::Regex;
-                        use regex_cursor::Input;
-
-                        let regex = match Regex::new(query) {
-                            Ok(regex) => regex,
-                            Err(err) => return set_error!(self, err),
-                        };
-
-                        let (_view, buf) = get!(self);
-                        // TODO should slice the appropriate section but need to adjust byte ranges
-                        // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
-
-                        let slice = buf.text().byte_slice(..);
-                        let input = Input::new(RopeCursor::new(slice));
-
-                        let start_time = Instant::now();
-                        state.matches = regex
-                            .find_iter(input)
-                            .take(1000)
-                            // This is run synchronously, so we add a strict limit to prevent noticable latency.
-                            // However, this may mean not all matches are found which needs a solution.
-                            .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
-                            .map(|m| state::Match { byte_range: m.range() })
-                            .collect();
-                    }
-                    ":" => {}
-                    _ => unreachable!(),
-                }
+                self.update_search();
             }
             _ => unreachable!(),
         }
@@ -816,6 +824,7 @@ impl Editor {
                 if state.buffer.is_empty() {
                     self.set_mode(Mode::Normal);
                 }
+                self.update_search();
             }
             _ => {
                 let (view, buf) = get!(self);
