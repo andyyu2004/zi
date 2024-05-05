@@ -1,5 +1,5 @@
 pub(crate) mod cursor;
-mod keymap;
+mod default_keymap;
 mod render;
 mod search;
 mod state;
@@ -32,7 +32,7 @@ use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlic
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
-use self::state::{OperatorPendingState, State};
+use self::state::{OperatorPendingState, SharedState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
@@ -71,6 +71,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    shared: SharedState,
     state: State,
     keymap: Keymap,
     theme: Theme,
@@ -316,13 +317,14 @@ impl Editor {
             callbacks_tx,
             requests_tx,
             plugins,
-            keymap: keymap::new(),
+            keymap: default_keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
             state: Default::default(),
+            shared: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
         };
@@ -613,7 +615,8 @@ impl Editor {
                 let input = Input::new(RopeCursor::new(slice));
 
                 let start_time = Instant::now();
-                state.matches = regex
+                self.shared.show_search_hl = true;
+                self.shared.matches = regex
                     .find_iter(input)
                     // This is run synchronously, so we add a strict limit to prevent noticable latency.
                     // However, this may mean not all matches are found which needs a solution.
@@ -696,6 +699,10 @@ impl Editor {
 
     pub fn execute_command(&mut self) {
         let State::Command(state) = &mut self.state else { return };
+
+        if state.buffer.starts_with('/') {
+            return self.set_mode(Mode::Normal);
+        }
 
         let Some(cmd) = state.buffer.strip_prefix(':') else {
             return set_error!(self, "command must start with `:`");
@@ -1085,6 +1092,8 @@ impl Editor {
                 self[view_id].cursor()
             }
             _ => {
+                self.shared.show_search_hl = false;
+
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
                 let motion_flags = motion.motion_flags();
@@ -1758,18 +1767,22 @@ impl Editor {
         }
     }
 
-    pub fn jump_next(&mut self) -> Option<Location> {
+    pub fn jump_forward(&mut self) -> Option<Location> {
         let loc = self.view_mut(Active).jump_list_mut().next().copied()?;
         self.goto(loc);
         Some(loc)
     }
 
-    pub fn jump_prev(&mut self) -> Option<Location> {
+    pub fn jump_back(&mut self) -> Option<Location> {
         let current = self.current_location();
         let loc = self.view_mut(Active).jump_list_mut().prev(current).copied()?;
         self.goto(loc);
         Some(loc)
     }
+
+    pub(crate) fn next_match(&mut self) {}
+
+    pub(crate) fn prev_match(&mut self) {}
 
     fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {
         let path = location

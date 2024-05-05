@@ -1,5 +1,13 @@
 use crate::{Mode, Operator};
 
+/// Shared state
+#[derive(Default)]
+pub(super) struct SharedState {
+    pub(crate) matches: Vec<Match>,
+    pub(crate) show_search_hl: bool,
+}
+
+/// Per mode state
 #[derive(Debug)]
 pub(super) enum State {
     Normal(NormalState),
@@ -27,7 +35,7 @@ impl State {
     }
 
     pub(super) fn transition(self, to: Mode) -> State {
-        // if there was any state that needs to be copied between states, it would be done here
+        // any state specific code can be done here
         State::new(to)
     }
 
@@ -52,7 +60,6 @@ pub(super) struct InsertState {}
 pub(super) struct CommandState {
     /// Stores the command currently in the command line
     pub(crate) buffer: String,
-    pub(crate) matches: Vec<Match>,
 }
 
 impl CommandState {
@@ -68,7 +75,7 @@ pub(super) struct Match {
 
 impl Default for CommandState {
     fn default() -> Self {
-        Self { buffer: String::from(":"), matches: Default::default() }
+        Self { buffer: String::from(":") }
     }
 }
 

@@ -132,20 +132,21 @@ impl Editor {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let search_highlights = match &self.state {
-            State::Command(state) => &state.matches,
-            _ => &[][..],
-        }
-        .iter()
-        .filter_map(|mat| {
-            let range = text.byte_range_to_point_range(mat.byte_range.clone());
-            debug_assert!(
-                range.is_single_line(),
-                "not expecting highlight to cross lines: {range}"
-            );
-            let style = self.highlight_id_by_name(HighlightName::SEARCH).style(theme)?;
-            Some((range, style))
-        });
+        let search_highlights = self
+            .shared
+            .show_search_hl
+            .then_some(&self.shared.matches[..])
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|mat| {
+                let range = text.byte_range_to_point_range(mat.byte_range.clone());
+                debug_assert!(
+                    range.is_single_line(),
+                    "not expecting highlight to cross lines: {range}"
+                );
+                let style = self.highlight_id_by_name(HighlightName::SEARCH).style(theme)?;
+                Some((range, style))
+            });
 
         let highlights = RangeMergeIter::new(view_highlights, search_highlights);
 
