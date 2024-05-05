@@ -12,6 +12,7 @@ bitflags = { workspace = true }
 futures-core = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
+regex-cursor = { workspace = true }
 slotmap = "1.0.7"
 tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = { workspace = true }
@@ -24,8 +25,6 @@ ignore = "0.4.22"
 rayon = "1.9.0"
 chumsky = "0.9.3"
 crossterm = { workspace = true, optional = true }
-memmap2 = "0.9.4"
-memchr = "2.7.1"
 futures-util = { workspace = true }
 directories-next = "2.0.0"
 smol_str = "0.2.1"

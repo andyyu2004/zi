@@ -1951,6 +1951,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-cursor"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae4327b5fde3ae6fda0152128d3d59b95a5aad7be91c405869300091720f7169"
+dependencies = [
+ "log",
+ "memchr",
+ "regex-automata 0.4.6",
+ "regex-syntax 0.8.3",
+ "ropey",
+]
+
+[[package]]
 name = "regex-syntax"
 version = "0.6.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1981,6 +1994,16 @@ checksum = "58450723cd9ee93273ce44a20b6ec4efe17f8ed2e3631474387bfdecf18bb2a9"
 dependencies = [
  "num-traits",
  "rmp",
+]
+
+[[package]]
+name = "ropey"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
+dependencies = [
+ "smallvec",
+ "str_indices",
 ]
 
 [[package]]
@@ -3526,13 +3549,12 @@ dependencies = [
  "futures-util",
  "grep",
  "ignore",
- "memchr",
- "memmap2",
  "nucleo",
  "parking_lot",
  "proptest",
  "rayon",
  "regex",
+ "regex-cursor",
  "rustc-hash",
  "slotmap",
  "smol_str",
@@ -3624,6 +3646,7 @@ dependencies = [
  "expect-test",
  "memmap2",
  "proptest",
+ "regex-cursor",
  "zi-core",
 ]
 

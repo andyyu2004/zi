@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 zi-core = { path = "../zi-core" }
+regex-cursor = { workspace = true }
 crop = { workspace = true }
 memmap2 = "0.9.4"
 

@@ -5,6 +5,7 @@ mod delta;
 mod readonly;
 mod rope;
 mod str_impl;
+mod cursor;
 
 use std::any::Any;
 use std::borrow::Cow;
