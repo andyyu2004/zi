@@ -1,3 +1,4 @@
+use super::Match;
 use crate::{Mode, Operator};
 
 /// Shared state
@@ -101,11 +102,6 @@ impl CommandState {
     pub(super) fn buffer(&self) -> &str {
         &self.buffer
     }
-}
-
-#[derive(Debug)]
-pub(super) struct Match {
-    pub byte_range: std::ops::Range<usize>,
 }
 
 impl Default for CommandState {

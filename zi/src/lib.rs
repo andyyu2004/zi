@@ -37,7 +37,7 @@ pub use zi_text::Delta;
 pub use zi_textobject::motion;
 
 pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
-pub use self::editor::{Active, Editor, OpenFlags, Tasks};
+pub use self::editor::{Active, Editor, Match, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};
 pub use self::view::{VerticalAlignment, View, ViewId};

@@ -187,6 +187,10 @@ pub(super) fn new() -> Keymap {
         editor.redo(Active);
     }
 
+    fn search(editor: &mut Editor) {
+        editor.search("");
+    }
+
     macro_rules! action {
         ($($name:ident,)*) => {
             $(
@@ -200,13 +204,12 @@ pub(super) fn new() -> Keymap {
     action!(
         jump_forward,
         jump_back,
-        next_match,
-        prev_match,
+        goto_next_match,
+        goto_prev_match,
         inspect,
         delete_char_backward,
         execute_command,
         open_jump_list,
-        search,
     );
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
@@ -280,8 +283,8 @@ pub(super) fn new() -> Keymap {
                     "<C-k>" => focus_up,
                     "<C-l>" => focus_right,
                     "-" => open_file_explorer,
-                    "n" => next_match,
-                    "N" => prev_match,
+                    "n" => goto_next_match,
+                    "N" => goto_prev_match,
                     "G" => goto_end,
                     "<space>" => {
                         "e" => open_file_explorer,

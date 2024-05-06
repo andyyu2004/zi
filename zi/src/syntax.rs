@@ -26,7 +26,7 @@ thread_local! {
     static PARSER: RefCell<Parser> = {
         let mut parser = Parser::new();
         parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default).clone()).unwrap()).unwrap();
-        // parser.set_timeout_micros(10000);
+        parser.set_timeout_micros(100_000);
 
         // TODO we should use this feature as otherwise it times out quite easily
         parser.set_included_ranges(&[]).expect("passed invalid ranges");

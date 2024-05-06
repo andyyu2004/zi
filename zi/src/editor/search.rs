@@ -6,6 +6,18 @@ use grep::searcher::{BinaryDetection, Searcher, SearcherBuilder, SinkError, Sink
 
 const NUL: u8 = 0;
 
+#[derive(Debug, Clone)]
+pub struct Match {
+    pub(crate) byte_range: ops::Range<usize>,
+}
+
+impl Match {
+    #[inline]
+    pub fn range(&self) -> ops::Range<usize> {
+        self.byte_range.clone()
+    }
+}
+
 pub(super) fn matcher(query: &str) -> impl Matcher + Clone {
     let mut builder = RegexMatcherBuilder::new();
     builder.case_smart(true).ban_byte(Some(NUL)).whole_line(false);
