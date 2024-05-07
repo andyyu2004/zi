@@ -188,7 +188,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn search(editor: &mut Editor) {
-        editor.search("");
+        let _ = editor.search("");
     }
 
     macro_rules! action {

@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc e3c7ab025abb39098db9e48e5f544d81ca54d7ab44546d34fe8a5e5370acefa9 # shrinks to s = "", actions = [false]
+cc 1d468cb80809f82cbbcef9e5e3142f4cfa7c98c12e8d40de785c8c310667aade # shrinks to text = "0a \u{b}A a\0 \u{b} A \0 Aࠀ0\0 \u{b}"

@@ -2,11 +2,60 @@ use regex_cursor::Cursor;
 
 use crate::TextSlice;
 
+// We need this since double-ended iterators are not what we need. We need a bidirectional
+// iterator. Should consider implementing upstream but use this hack for now.
+struct BidirectionalIterator<I: Iterator> {
+    iter: I,
+    idx: usize,
+    items: Vec<I::Item>,
+}
+
+impl<I> Iterator for BidirectionalIterator<I>
+where
+    I: Iterator,
+    I::Item: Copy,
+{
+    type Item = I::Item;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(item) = self.items.get(self.idx).copied() {
+            self.idx += 1;
+            return Some(item);
+        }
+
+        let item = self.iter.next()?;
+        self.items.push(item);
+        self.idx += 1;
+        Some(item)
+    }
+}
+
+impl<I> BidirectionalIterator<I>
+where
+    I: Iterator,
+    I::Item: Copy,
+{
+    fn new(iter: I) -> Self {
+        Self { iter, idx: 0, items: vec![] }
+    }
+
+    fn prev(&mut self) -> Option<I::Item> {
+        if self.idx == 0 {
+            return None;
+        }
+
+        self.idx -= 1;
+        self.items.get(self.idx).copied()
+    }
+}
+
 pub struct RopeCursor<'a, S: TextSlice<'a>> {
-    chunks: S::Chunks,
-    chunk: &'a str,
+    chunks: BidirectionalIterator<S::Chunks>,
+    current: &'a str,
     total_bytes: usize,
     offset: usize,
+    at_chunk_end: bool,
 }
 
 impl<'a, S> RopeCursor<'a, S>
@@ -14,9 +63,9 @@ where
     S: TextSlice<'a>,
 {
     pub fn new(slice: S) -> Self {
-        let chunks = slice.chunks();
+        let chunks = BidirectionalIterator::new(slice.chunks());
         let total_bytes = slice.len_bytes();
-        let mut this = Self { total_bytes, chunks, offset: 0, chunk: "" };
+        let mut this = Self { total_bytes, chunks, offset: 0, current: "", at_chunk_end: true };
         this.advance();
         this
     }
@@ -34,7 +83,7 @@ where
 {
     #[inline]
     fn chunk(&self) -> &[u8] {
-        self.chunk.as_bytes()
+        self.current.as_bytes()
     }
 
     #[inline]
@@ -44,20 +93,39 @@ where
 
     #[inline]
     fn advance(&mut self) -> bool {
-        let Some(chunk) = self.chunks.next() else { return false };
-        assert!(!chunk.is_empty());
-        self.offset += self.chunk.len();
-        self.chunk = chunk;
-        true
+        if !self.at_chunk_end {
+            self.at_chunk_end = true;
+            self.chunks.next();
+        }
+
+        for chunk in self.chunks.by_ref() {
+            if chunk.is_empty() {
+                continue;
+            }
+            self.offset += self.current.len();
+            self.current = chunk;
+            return true;
+        }
+        false
     }
 
     #[inline]
     fn backtrack(&mut self) -> bool {
-        let Some(chunk) = self.chunks.next_back() else { return false };
-        assert!(!chunk.is_empty());
-        self.offset.checked_sub(self.chunk.len()).unwrap();
-        self.chunk = chunk;
-        true
+        if self.at_chunk_end {
+            self.at_chunk_end = false;
+            self.chunks.prev();
+        }
+
+        while let Some(prev) = self.chunks.prev() {
+            if prev.is_empty() {
+                continue;
+            }
+            self.offset -= prev.len();
+            self.current = prev;
+            return true;
+        }
+
+        false
     }
 
     #[inline]
@@ -101,38 +169,84 @@ mod tests {
         }
     }
 
+    #[test]
+    fn text_cursor_smoke() {
+        let rope = Rope::from("abc");
+        let mut cursor = RopeCursor::new(rope.byte_slice(..));
+
+        assert_eq!(cursor.total_bytes(), Some(3));
+        assert_eq!(cursor.offset(), 0);
+        assert_eq!(cursor.chunk(), b"a");
+
+        assert!(cursor.advance());
+        assert_eq!(cursor.offset(), 1);
+        assert_eq!(cursor.chunk(), b"bc");
+
+        assert!(!cursor.advance());
+        assert_eq!(cursor.offset(), 1);
+        assert_eq!(cursor.chunk(), b"bc");
+
+        assert!(cursor.backtrack());
+        assert_eq!(cursor.offset(), 0);
+        assert_eq!(cursor.chunk(), b"a");
+
+        assert!(!cursor.backtrack());
+
+        assert!(cursor.advance());
+        assert_eq!(cursor.offset(), 1);
+        assert_eq!(cursor.chunk(), b"bc");
+
+        assert!(cursor.backtrack());
+        assert_eq!(cursor.offset(), 0);
+        assert_eq!(cursor.chunk(), b"a");
+    }
+
     proptest::proptest! {
         #[test]
-        fn proptest_text_cursor_api(text in ".*") {
+        fn proptest_text_cursor_advance_and_backtrack(text in "[a-z]*") {
             let rope = Rope::from(text.as_str());
             let mut cursor = RopeCursor::new(rope.byte_slice(..));
 
-            let mut k = 0;
-            while k < text.len() {
-                assert_eq!(cursor.total_bytes(), Some(text.len()));
-                assert_eq!(k, cursor.offset());
-                assert_eq!(cursor.chunk(), text[k..k + cursor.chunk().len()].as_bytes());
+            assert_eq!(cursor.total_bytes(), Some(text.len()));
+            assert_eq!(cursor.offset(), 0);
 
-                k += cursor.chunk().len();
-
-                if k == text.len() {
-                    assert!(!cursor.advance());
-                    break;
-                }
-
-                assert!(cursor.advance());
+            let mut chunks = vec![(
+                cursor.offset(),
+                cursor.chunk().to_owned(),
+            )];
+            while cursor.advance() {
+                chunks.push((cursor.offset(), cursor.chunk().to_owned()));
             }
 
-            assert!(!cursor.advance());
+            chunks.pop();
+            while cursor.backtrack() {
+                let (offset, chunk) = chunks.pop().unwrap();
+                assert_eq!(cursor.offset(), offset);
+                assert_eq!(cursor.chunk(), chunk);
+            }
+
+            assert_eq!(cursor.offset(), 0);
+            assert!(chunks.is_empty());
         }
 
         #[test]
-        fn proptest_text_cursor(s in ".*", actions in vec(any::<bool>(), 0..1000)) {
+        fn proptest_text_cursor_movement(s in ".*", actions in vec(any::<bool>(), 0..1000)) {
             let rope = Rope::from(s);
             let mut cursor = RopeCursor::new(rope.byte_slice(..));
+
+            let mut i = 0;
+            let mut chunks: Vec<*const u8> = vec![];
+
             for forward in actions {
                 let offset = cursor.offset();
                 let ptr = cursor.chunk().as_ptr();
+
+                if i < chunks.len() {
+                    assert_eq!(cursor.chunk().as_ptr(), chunks[i]);
+                } else {
+                    assert_eq!(i, chunks.len());
+                    chunks.push(cursor.chunk().as_ptr());
+                }
 
                 let moved = if forward {
                     cursor.advance()
@@ -140,12 +254,18 @@ mod tests {
                     cursor.backtrack()
                 };
 
+                if moved && forward {
+                    i += 1;
+                } else if moved && !forward {
+                    i -= 1;
+                }
+
                 if moved {
-                    assert_eq!(cursor.offset(), offset);
-                    assert_eq!(cursor.chunk().as_ptr(), ptr);
-                } else {
                     assert_ne!(cursor.offset(), offset);
                     assert_ne!(cursor.chunk().as_ptr(), ptr);
+                } else {
+                    assert_eq!(cursor.offset(), offset);
+                    assert_eq!(cursor.chunk().as_ptr(), ptr);
                 }
             }
         }
