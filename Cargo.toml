@@ -50,6 +50,12 @@ opt-level = 3
 [profile.dev.package."*"]
 opt-level = 1
 
+[profile.bench]
+debug = true
+
+[profile.release]
+debug = true
+
 [workspace.lints.rust]
 rust_2018_idioms = "deny"
 
