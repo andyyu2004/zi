@@ -28,6 +28,11 @@ impl SharedState {
     }
 
     pub(super) fn next_match(&mut self) -> Option<&Match> {
+        // TODO test for division by zero
+        if self.matches.is_empty() {
+            return None;
+        }
+
         self.match_idx = (self.match_idx + 1) % self.matches.len();
         self.matches.get(self.match_idx)
     }
