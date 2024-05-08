@@ -82,7 +82,7 @@ impl Buffer for InspectorBuffer {
                     .syntax_highlights(
                         editor,
                         &mut query_cursor,
-                        PointRange::new((0, 0), (usize::MAX, usize::MAX)),
+                        PointRange::new((0usize, 0usize), (usize::MAX, usize::MAX)),
                     )
                     .find(|hl| hl.range.contains(&cursor))
                 {

@@ -10,7 +10,7 @@ fn delete_char_backward() {
     // ensure that multi-byte characters are handled correctly
     let c = '\u{100000}';
     editor.insert_char_at_cursor(c);
-    assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8() as u32));
+    assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8()));
     editor.delete_char_backward();
     assert_eq!(editor.cursor_line(), "");
 

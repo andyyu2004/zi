@@ -4,7 +4,7 @@ mod tree_sitter_impls;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::iter::Peekable;
-use std::ops::{Add, AddAssign, Bound, RangeBounds, Sub, SubAssign};
+use std::ops::{Add, Bound, RangeBounds, Sub};
 use std::str::FromStr;
 use std::{fmt, ops};
 
@@ -39,20 +39,20 @@ impl From<Rect> for Size {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset {
-    pub line: u32,
-    pub col: u32,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl Offset {
-    pub fn new(line: u32, col: u32) -> Self {
+    pub fn new(line: usize, col: usize) -> Self {
         Self { line, col }
     }
 
-    pub fn new_line(line: u32) -> Self {
+    pub fn new_line(line: usize) -> Self {
         Self::new(line, 0)
     }
 
-    pub fn new_col(col: u32) -> Self {
+    pub fn new_col(col: usize) -> Self {
         Self::new(0, col)
     }
 }
@@ -63,9 +63,9 @@ impl fmt::Display for Offset {
     }
 }
 
-impl PartialEq<(u32, u32)> for Offset {
+impl PartialEq<(usize, usize)> for Offset {
     #[inline]
-    fn eq(&self, &(line, col): &(u32, u32)) -> bool {
+    fn eq(&self, &(line, col): &(usize, usize)) -> bool {
         self.line == line && self.col == col
     }
 }
@@ -276,46 +276,35 @@ impl FromStr for Point {
         let (line, col) = s
             .split_once(':')
             .ok_or_else(|| anyhow::anyhow!("invalid position: {s} (expected `<line>:<col>`)"))?;
-        Ok(Self::new(line.parse::<u32>()?, col.parse::<u32>()?))
-    }
-}
-
-impl From<Point> for (u32, u32) {
-    #[inline]
-    fn from(val: Point) -> Self {
-        (val.line.0, val.col.0)
+        Ok(Self::new(line.parse::<usize>()?, col.parse::<usize>()?))
     }
 }
 
 impl From<Point> for (usize, usize) {
     #[inline]
     fn from(val: Point) -> Self {
-        (val.line.idx(), val.col.idx())
+        (val.line, val.col)
     }
 }
 
-impl<L, C> From<(L, C)> for Point
-where
-    Col: From<C>,
-    Line: From<L>,
-{
+impl From<(usize, usize)> for Point {
     #[inline]
-    fn from((line, col): (L, C)) -> Self {
-        Self { line: Line::from(line), col: Col::from(col) }
+    fn from((line, col): (usize, usize)) -> Self {
+        Self { line, col }
     }
 }
 
-impl PartialEq<(u32, u32)> for Point {
+impl PartialEq<(usize, usize)> for Point {
     #[inline]
-    fn eq(&self, &(line, col): &(u32, u32)) -> bool {
-        self.line.0 == line && self.col.0 == col
+    fn eq(&self, &(line, col): &(usize, usize)) -> bool {
+        self.line == line && self.col == col
     }
 }
 
 impl Point {
     #[inline]
-    pub fn new(line: impl Into<Line>, col: impl Into<Col>) -> Self {
-        Self { line: line.into(), col: col.into() }
+    pub fn new(line: Line, col: Col) -> Self {
+        Self { line, col }
     }
 
     #[inline]
@@ -329,244 +318,38 @@ impl Point {
     }
 
     #[inline]
-    pub fn left(self, amt: u32) -> Self {
-        Self::new(self.line, self.col.left(amt))
+    pub fn left(self, amt: usize) -> Self {
+        Self::new(self.line, self.col.saturating_sub(amt))
     }
 
     #[inline]
-    pub fn up(self, amt: u32) -> Self {
-        Self::new(self.line.up(amt), self.col)
+    pub fn up(self, amt: usize) -> Self {
+        Self::new(self.line.saturating_sub(amt), self.col)
     }
 
     #[inline]
-    pub fn down(self, amt: u32) -> Self {
-        Self::new(self.line.down(amt), self.col)
+    pub fn down(self, amt: usize) -> Self {
+        Self::new(self.line + amt, self.col)
     }
 
     #[inline]
-    pub fn right(self, amt: u32) -> Self {
-        Self::new(self.line, self.col.right(amt))
+    pub fn right(self, amt: usize) -> Self {
+        Self::new(self.line, self.col + amt)
     }
 
-    pub fn with_line(self, line: impl Into<Line>) -> Self {
+    pub fn with_line(self, line: Line) -> Self {
         Self::new(line, self.col)
     }
 
     #[inline]
-    pub fn with_col(self, col: impl Into<Col>) -> Self {
+    pub fn with_col(self, col: Col) -> Self {
         Self::new(self.line, col)
     }
 }
 
-/// 0-based line number
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Line(u32);
+pub type Line = usize;
 
-impl fmt::Display for Line {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Add<u32> for Line {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, amt: u32) -> Self {
-        Self(self.0.saturating_add(amt))
-    }
-}
-
-impl Add<usize> for Line {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, amt: usize) -> Self {
-        self + amt as u32
-    }
-}
-
-impl AddAssign<usize> for Line {
-    #[inline]
-    fn add_assign(&mut self, amt: usize) {
-        *self = *self + amt;
-    }
-}
-
-impl SubAssign<usize> for Line {
-    #[inline]
-    fn sub_assign(&mut self, amt: usize) {
-        *self = *self - amt;
-    }
-}
-
-impl Sub<usize> for Line {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, amt: usize) -> Self {
-        self - amt as u32
-    }
-}
-
-impl Sub<Line> for Line {
-    type Output = usize;
-
-    #[inline]
-    fn sub(self, amt: Line) -> Self::Output {
-        (self.0 - amt.0) as usize
-    }
-}
-
-impl Sub<u32> for Line {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, amt: u32) -> Self {
-        Self(self.0.saturating_sub(amt))
-    }
-}
-
-impl From<u32> for Line {
-    #[inline]
-    fn from(n: u32) -> Self {
-        Self(n)
-    }
-}
-
-impl From<i32> for Line {
-    #[inline]
-    fn from(n: i32) -> Self {
-        assert!(n >= 0, "Line number must be non-negative");
-        Self(n as u32)
-    }
-}
-
-impl From<usize> for Line {
-    #[inline]
-    fn from(n: usize) -> Self {
-        assert!(n < u32::MAX as usize, "Line number must be less than u32::MAX");
-        Self(n as u32)
-    }
-}
-
-impl PartialEq<usize> for Line {
-    #[inline]
-    fn eq(&self, &other: &usize) -> bool {
-        self.0 as usize == other
-    }
-}
-
-impl PartialOrd<usize> for Line {
-    #[inline]
-    fn partial_cmp(&self, &other: &usize) -> Option<Ordering> {
-        self.partial_cmp(&Line::from(other))
-    }
-}
-
-impl Line {
-    #[inline]
-    pub fn up(self, amt: u32) -> Self {
-        Self(self.0.saturating_sub(amt))
-    }
-
-    #[inline]
-    pub fn down(self, amt: u32) -> Self {
-        Self(self.0.saturating_add(amt))
-    }
-
-    #[inline]
-    pub fn idx(self) -> usize {
-        self.0 as usize
-    }
-
-    #[inline]
-    pub fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-/// 0-based column index in bytes
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Col(u32);
-
-impl fmt::Display for Col {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Add<u32> for Col {
-    type Output = Self;
-
-    fn add(self, amt: u32) -> Self {
-        Self(self.0 + amt)
-    }
-}
-
-impl Sub<u32> for Col {
-    type Output = Self;
-
-    fn sub(self, amt: u32) -> Self {
-        Self(self.0 - amt)
-    }
-}
-
-impl From<i32> for Col {
-    fn from(n: i32) -> Self {
-        assert!(n >= 0, "Column number must be non-negative");
-        Self(n as u32)
-    }
-}
-
-impl From<u32> for Col {
-    fn from(n: u32) -> Self {
-        Self(n)
-    }
-}
-
-impl From<usize> for Col {
-    fn from(n: usize) -> Self {
-        assert!(n < u32::MAX as usize, "Column number must be less than u32::MAX");
-        Self(n as u32)
-    }
-}
-
-impl PartialEq<usize> for Col {
-    #[inline]
-    fn eq(&self, &other: &usize) -> bool {
-        self.0 as usize == other
-    }
-}
-
-impl PartialOrd<usize> for Col {
-    #[inline]
-    fn partial_cmp(&self, &other: &usize) -> Option<Ordering> {
-        self.partial_cmp(&Col::from(other))
-    }
-}
-
-impl Col {
-    #[inline]
-    pub fn left(self, amt: u32) -> Self {
-        Self(self.0.saturating_sub(amt))
-    }
-
-    #[inline]
-    pub fn right(self, amt: u32) -> Self {
-        Self(self.0.saturating_add(amt))
-    }
-
-    #[inline]
-    pub fn idx(self) -> usize {
-        self.0 as usize
-    }
-
-    #[inline]
-    pub fn raw(self) -> u32 {
-        self.0
-    }
-}
+pub type Col = usize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {

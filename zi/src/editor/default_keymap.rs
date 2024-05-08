@@ -60,11 +60,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn goto_start(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Up, u32::MAX);
+        editor.scroll(Active, Direction::Up, usize::MAX);
     }
 
     fn goto_end(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Down, u32::MAX);
+        editor.scroll(Active, Direction::Down, usize::MAX);
     }
 
     fn align_view_top(editor: &mut Editor) {
@@ -84,7 +84,7 @@ pub(super) fn new() -> Keymap {
 
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
         editor.insert_char_at_cursor('\n');
     }
 
@@ -113,7 +113,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn append_eol(editor: &mut Editor) {
-        editor.set_cursor(Active, editor.cursor(Active).with_col(u32::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
         editor.set_mode(Mode::Insert);
         editor.move_cursor(Active, Direction::Right, 1);
     }

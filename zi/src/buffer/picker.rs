@@ -200,7 +200,7 @@ impl<P: Picker> PickerBuffer<P> {
 
         let (_, picker_buf) = get!(editor as Self);
         let picker = picker_buf.picker;
-        if let Some(item) = picker_buf.item(cursor.line().raw()) {
+        if let Some(item) = picker_buf.item(cursor.line() as u32) {
             picker.confirm(editor, item);
         }
     }
@@ -211,7 +211,7 @@ impl<P: Picker> PickerBuffer<P> {
         let cursor = editor.get_cursor(display_view);
 
         let picker = picker_buf.picker;
-        if let Some(item) = picker_buf.item(cursor.line().raw()) {
+        if let Some(item) = picker_buf.item(cursor.line() as u32) {
             picker.select(editor, item);
         }
     }

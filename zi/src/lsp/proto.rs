@@ -13,16 +13,17 @@ pub(crate) trait Conv {
 impl Conv for Point {
     type Converted = lsp_types::Position;
 
+    #[inline]
     fn conv(self) -> Self::Converted {
-        lsp_types::Position { line: self.line().raw(), character: self.col().raw() }
+        lsp_types::Position { line: self.line() as u32, character: self.col() as u32 }
     }
 }
 
 impl Conv for lsp_types::Position {
     type Converted = Point;
 
+    #[inline]
     fn conv(self) -> Self::Converted {
-        Point::new(self.line, self.character)
+        Point::new(self.line as usize, self.character as usize)
     }
 }
-

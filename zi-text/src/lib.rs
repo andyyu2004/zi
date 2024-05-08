@@ -101,7 +101,7 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     #[inline]
     fn point_to_byte(&self, point: Point) -> usize {
         // This doesn't actually check whether the column is within bounds of the line
-        self.line_to_byte(point.line().idx()) + point.col().idx()
+        self.line_to_byte(point.line()) + point.col()
     }
 
     #[inline]
@@ -560,8 +560,7 @@ where
                         break;
                     }
 
-                    let start_col =
-                        if range.start().line() == i { range.start().col().idx() } else { 0 };
+                    let start_col = if range.start().line() == i { range.start().col() } else { 0 };
 
                     if range.end().line() > i {
                         // If the highlight is a multi-line highlight,
@@ -574,11 +573,8 @@ where
                     }
 
                     let (range, annotation) = annotations.next().expect("just peeked");
-                    let end_col = if range.end().line().idx() == i {
-                        range.end().col().idx()
-                    } else {
-                        line_len_bytes
-                    };
+                    let end_col =
+                        if range.end().line() == i { range.end().col() } else { line_len_bytes };
 
                     if start_col < j {
                         // Sometimes annotations can overlap, we just arbitrarily use the first one of that range

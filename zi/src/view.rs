@@ -199,10 +199,10 @@ impl View {
         let size = size.into();
 
         let line = match alignment {
-            VerticalAlignment::Top => cursor.line().raw(),
-            VerticalAlignment::Center => cursor.line().raw().saturating_sub(size.height as u32 / 2),
+            VerticalAlignment::Top => cursor.line(),
+            VerticalAlignment::Center => cursor.line().saturating_sub(size.height as usize / 2),
             VerticalAlignment::Bottom => {
-                cursor.line().raw().saturating_sub(size.height.saturating_sub(1) as u32)
+                cursor.line().saturating_sub(size.height.saturating_sub(1) as usize)
             }
         };
 
@@ -215,27 +215,24 @@ impl View {
     pub(crate) fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u16, u16) {
         assert_eq!(buf.id(), self.buf);
         assert!(
-            self.offset.line <= self.cursor.point.line().idx() as u32,
+            self.offset.line <= self.cursor.point.line(),
             "cursor is above the viewport: offset={} cursor={}",
             self.offset,
             self.cursor.point,
         );
         assert!(
-            self.offset.col <= self.cursor.point.col().idx() as u32,
+            self.offset.col <= self.cursor.point.col(),
             "cursor is to the left of the viewport"
         );
 
-        let line_idx = self.cursor.point.line().idx();
+        let line_idx = self.cursor.point.line();
         let text = buf.text();
         let line = text.get_line(line_idx).unwrap_or_else(|| Box::new(""));
-        let byte = line
-            .chars()
-            .take(self.cursor.point.col().idx())
-            .map(|c| buf.char_width(c))
-            .sum::<usize>();
+        let byte =
+            line.chars().take(self.cursor.point.col()).map(|c| buf.char_width(c)).sum::<usize>();
         // TODO need tests for the column adjustment
-        let x = byte as u32 - self.offset.col;
-        let y = line_idx as u32 - self.offset.line;
+        let x = byte - self.offset.col;
+        let y = line_idx - self.offset.line;
         (x.try_into().unwrap(), y.try_into().unwrap())
     }
 
@@ -246,18 +243,18 @@ impl View {
         size: impl Into<Size>,
         buf: &dyn Buffer,
         direction: Direction,
-        amt: u32,
+        amt: usize,
     ) -> Point {
         assert_eq!(buf.id(), self.buf);
 
         let pos = match direction {
             Direction::Left => match buf.text().char_before_point(self.cursor.point) {
                 // this is wrong, can't assume all characters are the same width
-                Some(c) => self.cursor.point.left(c.len_utf8() as u32 * amt),
+                Some(c) => self.cursor.point.left(c.len_utf8() * amt),
                 None => return self.cursor.point,
             },
             Direction::Right => match buf.text().char_at_point(self.cursor.point) {
-                Some(c) => self.cursor.point.right(c.len_utf8() as u32 * amt),
+                Some(c) => self.cursor.point.right(c.len_utf8() * amt),
                 None => return self.cursor.point,
             },
             // Horizontal movements set the target column.
@@ -354,7 +351,7 @@ impl View {
         }
 
         // Check line is in-bounds
-        let mut line_idx = pos.line().idx();
+        let mut line_idx = pos.line();
         let line = match text.get_line(line_idx) {
             Some(line) => line,
             _ => {
@@ -378,7 +375,7 @@ impl View {
         let max_col = Col::from(line_len.saturating_sub(k));
 
         // check column is in-bounds for the line
-        let new_cursor = match pos.col().idx() {
+        let new_cursor = match pos.col() {
             i if i < line_len => {
                 if flags.contains(SetCursorFlags::START_OF_LINE) {
                     let mut col = 0;
@@ -398,7 +395,7 @@ impl View {
 
                     pos.with_col(col.max(i))
                 } else {
-                    pos.with_col(max_col.idx().min(i))
+                    pos.with_col(max_col.min(i))
                 }
             }
             // Cursor is out of bounds for the line, but the line exists.
@@ -427,10 +424,10 @@ impl View {
     fn ensure_scroll_in_bounds(&mut self, size: impl Into<Size>) {
         let size = size.into();
         // Scroll the view if the cursor moves out of bounds
-        if self.cursor.point.line().raw() < self.offset.line {
-            self.offset.line = self.cursor.point.line().idx() as u32;
-        } else if self.cursor.point.line().raw() >= self.offset.line + size.height as u32 {
-            self.offset.line = self.cursor.point.line().idx() as u32 - size.height as u32 + 1;
+        if self.cursor.point.line() < self.offset.line {
+            self.offset.line = self.cursor.point.line();
+        } else if self.cursor.point.line() >= self.offset.line + size.height as usize {
+            self.offset.line = self.cursor.point.line() - size.height as usize + 1;
         }
     }
 
@@ -440,7 +437,7 @@ impl View {
         size: impl Into<Size>,
         buf: &dyn Buffer,
         direction: Direction,
-        amt: u32,
+        amt: usize,
     ) {
         let size = size.into();
         let prev = self.offset;
@@ -462,8 +459,8 @@ impl View {
 
         self.move_cursor(mode, size, buf, direction, amt);
         assert!(
-            self.cursor.point.line().raw() >= self.offset.line
-                && self.cursor.point.line().raw() < self.offset.line + size.height as u32,
+            self.cursor.point.line() >= self.offset.line
+                && self.cursor.point.line() < self.offset.line + size.height as usize,
             "cursor is out of bounds: cursor={} offset={} size={size}",
             self.cursor.point,
             self.offset,

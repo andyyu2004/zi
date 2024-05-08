@@ -33,13 +33,13 @@ use crate::{dirs, Point, ViewId};
 
 impl From<Point> for editor::Point {
     fn from(value: Point) -> Self {
-        Self { line: value.line().idx() as u32, col: value.col().idx() as u32 }
+        Self { line: value.line() as u32, col: value.col() as u32 }
     }
 }
 
 impl From<editor::Point> for Point {
     fn from(value: editor::Point) -> Self {
-        Self::from((value.line, value.col))
+        Self::from((value.line as usize, value.col as usize))
     }
 }
 

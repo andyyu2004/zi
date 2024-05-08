@@ -40,7 +40,7 @@ where
                 if let Some(data) = buf
                     .nucleo
                     .snapshot()
-                    .get_matched_item(cursor.line().raw())
+                    .get_matched_item(cursor.line() as u32)
                     .map(|item| item.data.clone())
                 {
                     let confirm = buf.confirm;
@@ -146,7 +146,7 @@ impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
         Box::new(
             self.text.lines().enumerate().filter(|(_i, line)| line.ends_with(MAIN_SEPARATOR)).map(
                 |(i, line)| Highlight {
-                    range: PointRange::new((i, 0), (i, line.len())),
+                    range: PointRange::new((i, 0usize), (i, line.len())),
                     id: editor.highlight_id_by_name(HighlightName::DIRECTORY),
                 },
             ),

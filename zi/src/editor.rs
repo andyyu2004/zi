@@ -742,15 +742,15 @@ impl Editor {
         {
             // Clear any whitespace at the end of the cursor line when exiting insert mode
             let cursor = self[view].cursor();
-            if let Some(range) = self[buf].text().get_line(cursor.line().idx()).and_then(|line| {
-                let end = Point::new(cursor.line().idx(), line.len_bytes());
+            if let Some(range) = self[buf].text().get_line(cursor.line()).and_then(|line| {
+                let end = Point::new(cursor.line(), line.len_bytes());
                 let mut start = end;
                 for c in line.chars().rev() {
                     if !c.is_whitespace() {
                         break;
                     }
 
-                    start = start.left(c.len_utf8() as u32);
+                    start = start.left(c.len_utf8());
                 }
 
                 (start != end).then(|| PointRange::new(start, end))
@@ -924,14 +924,14 @@ impl Editor {
         let (view, buffer) = get_ref!(self);
         let cursor = view.cursor();
         let text = buffer.text();
-        let line = text.get_line(cursor.line().idx()).unwrap_or_else(|| Box::new(""));
+        let line = text.get_line(cursor.line()).unwrap_or_else(|| Box::new(""));
         line.to_string()
     }
 
     pub fn cursor_char(&self) -> Option<char> {
         let (view, _) = get_ref!(self);
         let cursor = view.cursor();
-        let col = cursor.col().idx();
+        let col = cursor.col();
         self.cursor_line().chars().nth(col)
     }
 
@@ -988,7 +988,7 @@ impl Editor {
             if inindent(text, start_point) {
                 motion_kind = TextObjectKind::Linewise;
             } else {
-                let line_idx = end_point.line().up(1).idx();
+                let line_idx = end_point.line() - 1;
                 let line_above = text.get_line(line_idx).expect("must be in-bounds");
                 let adjusted_end_byte =
                     text.point_to_byte(Point::new(line_idx, line_above.len_bytes()));
@@ -1005,7 +1005,7 @@ impl Editor {
             && line_count > 1
             && operator == Operator::Delete
             && inindent(text, end_point)
-            && text.get_line(end_point.line().idx()).unwrap().chars().all(char::is_whitespace)
+            && text.get_line(end_point.line()).unwrap().chars().all(char::is_whitespace)
         {
             motion_kind = TextObjectKind::Linewise;
         }
@@ -1014,7 +1014,7 @@ impl Editor {
         // extend the range to include the full start and end lines.
         if obj.default_kind() == TextObjectKind::Charwise && motion_kind == TextObjectKind::Linewise
         {
-            let start_line = start_point.line().idx();
+            let start_line = start_point.line();
             let start_byte = text.line_to_byte(start_line);
             let end_byte = text.line_to_byte(start_line + line_count);
             range = start_byte..end_byte;
@@ -1313,11 +1313,11 @@ impl Editor {
         }
     }
 
-    pub fn scroll(&mut self, selector: impl Selector<ViewId>, direction: Direction, amount: u32) {
+    pub fn scroll(&mut self, selector: impl Selector<ViewId>, direction: Direction, amt: usize) {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
-        view.scroll(mode!(self), area, buf, direction, amount);
+        view.scroll(mode!(self), area, buf, direction, amt);
     }
 
     // Not sure if this should be public API
@@ -1976,7 +1976,7 @@ impl Editor {
                     }
 
                     for (j, c) in line.chars().chain(Some('\n')).enumerate() {
-                        if cursor.line().idx() == i && cursor.col().idx() == j {
+                        if cursor.line() == i && cursor.col() == j {
                             write!(f, "|")?;
                             if c == '\n' {
                                 // The cursor can be on the newline character in insert mode.
@@ -1999,13 +1999,13 @@ impl Editor {
 
 /// Returns true if the cursor is on or before the first non-whitespace character of the line.
 fn inindent(text: impl Text, cursor: Point) -> bool {
-    text.get_line(cursor.line().idx())
+    text.get_line(cursor.line())
         .expect("cursor should be inbounds")
         .chars()
         .take_while(|c| c.is_whitespace())
         .map(|c| c.len_utf8())
         .sum::<usize>()
-        >= cursor.col().idx()
+        >= cursor.col()
 }
 
 #[cfg(test)]

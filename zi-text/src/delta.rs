@@ -127,6 +127,7 @@ impl<'a> Delta<'a> {
     }
 
     /// Try to compose two deltas into one. If the deltas cannot be composed, `Err([self, other])` is returned
+    #[allow(clippy::result_large_err)]
     #[inline]
     pub fn try_merge(self, other: Self) -> Result<Self, [Self; 2]> {
         // TODO

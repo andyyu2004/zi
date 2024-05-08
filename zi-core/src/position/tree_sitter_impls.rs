@@ -10,13 +10,13 @@ impl From<tree_sitter::Range> for PointRange {
 impl From<Point> for tree_sitter::Point {
     #[inline]
     fn from(point: Point) -> Self {
-        Self { row: point.line.0 as usize, column: point.col.0 as usize }
+        Self { row: point.line, column: point.col }
     }
 }
 
 impl From<tree_sitter::Point> for Point {
     #[inline]
     fn from(point: tree_sitter::Point) -> Self {
-        Self::new(point.row as u32, point.column as u32)
+        Self::new(point.row, point.column)
     }
 }

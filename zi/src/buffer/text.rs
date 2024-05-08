@@ -178,14 +178,14 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         let text = editor.buffer(view).text();
 
         // We have to be careful that we don't set the end column to the middle of a char
-        let end = match text.get_line(cursor.line().idx()) {
+        let end = match text.get_line(cursor.line()) {
             Some(line) => {
                 let line_byte_width =
                     line.chars().take(size.width as usize).map(|c| c.len_utf8()).sum::<usize>();
-                size.width.max(line_byte_width as u16) as u32
+                size.width.max(line_byte_width as u16)
             }
-            _ => size.width as u32,
-        };
+            _ => size.width,
+        } as usize;
 
         // The current_line highlight
         Box::new(std::iter::once(Highlight {
