@@ -9,22 +9,22 @@ fn undo_insertion() {
     }
 
     editor.set_mode(zi::Mode::Normal);
-    assert_eq!(editor.current_line(), "abcx");
+    assert_eq!(editor.cursor_line(), "abcx");
 
     editor.undo(zi::Active);
-    assert_eq!(editor.current_line(), "x");
+    assert_eq!(editor.cursor_line(), "x");
 
     editor.redo(zi::Active);
-    assert_eq!(editor.current_line(), "abcx");
+    assert_eq!(editor.cursor_line(), "abcx");
 }
 
 #[test]
 fn undo_textobject_deletion() {
     let mut editor = new("abc");
     editor.input("dd").unwrap();
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
     editor.undo(zi::Active);
-    assert_eq!(editor.current_line(), "abc");
+    assert_eq!(editor.cursor_line(), "abc");
 }
 
 #[test]

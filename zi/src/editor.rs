@@ -33,7 +33,8 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 pub use self::search::Match;
-use self::state::{OperatorPendingState, SharedState, State};
+use self::search::SearchState;
+use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
@@ -72,7 +73,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    shared: SharedState,
+    search_state: SearchState,
     state: State,
     keymap: Keymap,
     theme: Theme,
@@ -325,7 +326,7 @@ impl Editor {
             language_config: Default::default(),
             language_servers: Default::default(),
             state: Default::default(),
-            shared: Default::default(),
+            search_state: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
         };
@@ -429,7 +430,7 @@ impl Editor {
         };
 
         if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
-            self.set_active_buffer(buf);
+            self.set_buffer(Active, buf);
         }
 
         if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
@@ -447,11 +448,9 @@ impl Editor {
         self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
     }
 
-    fn set_active_buffer(&mut self, buf: BufferId) {
-        self.set_buffer(self.tree.active(), buf);
-    }
-
-    pub(crate) fn set_buffer(&mut self, view: ViewId, buf: BufferId) {
+    pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
+        let view = view.select(self);
+        let buf = buf.select(self);
         self.views[view].set_buffer(buf);
     }
 
@@ -614,7 +613,7 @@ impl Editor {
                 let input = Input::new(RopeCursor::new(text.byte_slice(..)));
 
                 let start_time = Instant::now();
-                self.shared.set_matches(
+                self.search_state.set_matches(
                     regex
                         .find_iter(input)
                         // This is run synchronously, so we add a strict limit to prevent noticable latency.
@@ -910,7 +909,8 @@ impl Editor {
         }
     }
 
-    pub fn current_line(&self) -> String {
+    // This and `cursor_char` won't make sense with visual mode
+    pub fn cursor_line(&self) -> String {
         let (view, buffer) = get_ref!(self);
         let cursor = view.cursor();
         let text = buffer.text();
@@ -918,11 +918,11 @@ impl Editor {
         line.to_string()
     }
 
-    pub fn current_char(&self) -> Option<char> {
+    pub fn cursor_char(&self) -> Option<char> {
         let (view, _) = get_ref!(self);
         let cursor = view.cursor();
         let col = cursor.col().idx();
-        self.current_line().chars().nth(col)
+        self.cursor_line().chars().nth(col)
     }
 
     pub fn theme(&self) -> &Theme {
@@ -1099,7 +1099,7 @@ impl Editor {
                 self[view_id].cursor()
             }
             _ => {
-                self.shared.show_search_hl = false;
+                self.search_state.hlsearch = false;
 
                 let text = buf.text();
                 let area = self.tree.view_area(view.id());
@@ -1353,7 +1353,7 @@ impl Editor {
             });
 
             let injector = injector.unwrap();
-            editor.set_active_buffer(buf);
+            editor.set_buffer(Active, buf);
             editor.set_mode(Mode::Normal);
 
             // Cannot use parallel iterator as it doesn't sort.
@@ -1396,9 +1396,10 @@ impl Editor {
     }
 
     // FIXME bad api, not general enough, just used for convenience for now.
+    #[doc(hidden)]
     pub fn create_readonly_buffer(
         &mut self,
-        name: impl AsRef<Path>,
+        path: impl AsRef<Path>,
         s: impl Deref<Target = [u8]> + Send + 'static,
     ) -> BufferId {
         self.buffers.insert_with_key(|id| {
@@ -1406,7 +1407,7 @@ impl Editor {
                 id,
                 BufferFlags::READONLY,
                 FileType::TEXT,
-                name,
+                path,
                 ReadonlyText::new(s),
                 &self.theme,
             )
@@ -1759,7 +1760,7 @@ impl Editor {
 
     pub(crate) fn goto(&mut self, Location { buf, point }: Location) {
         // FIXME what if buffer is gone
-        self.set_active_buffer(buf);
+        self.set_buffer(Active, buf);
         self.set_cursor(Active, point);
         self.align_view(Active, VerticalAlignment::Center);
     }
@@ -1796,19 +1797,16 @@ impl Editor {
         Some(loc)
     }
 
-    fn goto_match(
-        &mut self,
-        f: impl FnOnce(&mut SharedState) -> Option<&Match>,
-    ) -> Option<Match> {
+    fn goto_match(&mut self, f: impl FnOnce(&mut SearchState) -> Option<&Match>) -> Option<Match> {
         // reselect the current match if the search is not active
-        let mat = if self.shared.show_search_hl {
-            f(&mut self.shared)
+        let mat = if self.search_state.hlsearch {
+            f(&mut self.search_state)
         } else {
-            self.shared.current_match()
+            self.search_state.current_match()
         }?
         .clone();
 
-        self.shared.show_search_hl = true;
+        self.search_state.hlsearch = true;
         self.reveal(Active, mat.range().start, VerticalAlignment::Center);
         Some(mat)
     }
@@ -1822,7 +1820,7 @@ impl Editor {
     }
 
     pub fn matches(&self) -> impl ExactSizeIterator<Item = &Match> {
-        self.shared.matches().iter()
+        self.search_state.matches().iter()
     }
 
     fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {

@@ -6,8 +6,8 @@ use crate::api::new;
 fn set_cursor() {
     let mut editor = new("foo\ntest\n");
     assert_eq!(editor.cursor(zi::Active), (0, 0), "cursor should start at (0, 0)");
-    assert_eq!(editor.current_line(), "foo");
-    assert_eq!(editor.current_char(), Some('f'));
+    assert_eq!(editor.cursor_line(), "foo");
+    assert_eq!(editor.cursor_char(), Some('f'));
 
     editor.set_cursor(zi::Active, (0, 1));
     assert_eq!(editor.cursor(zi::Active), (0, 1));
@@ -17,8 +17,8 @@ fn set_cursor() {
 
     editor.set_cursor(zi::Active, (1, 2));
     assert_eq!(editor.cursor(zi::Active), (1, 2));
-    assert_eq!(editor.current_line(), "test");
-    assert_eq!(editor.current_char(), Some('s'));
+    assert_eq!(editor.cursor_line(), "test");
+    assert_eq!(editor.cursor_char(), Some('s'));
 
     editor.set_cursor(zi::Active, (1, 4));
     assert_eq!(editor.cursor(zi::Active), (1, 3), "cursor should not move past end of line");
@@ -59,7 +59,7 @@ fn move_cursor_empty() {
 #[test]
 fn move_cursor_horizontal_no_newline() {
     let mut editor = new("abc");
-    assert_eq!(editor.current_line(), "abc");
+    assert_eq!(editor.cursor_line(), "abc");
     assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.move_cursor(zi::Active, Right, 1);
     assert_eq!(editor.cursor(zi::Active), (0, 1));
@@ -96,7 +96,7 @@ short
     assert_eq!(editor.cursor(zi::Active), (1, 2), "should remember the last column");
 
     editor.set_cursor(zi::Active, (3, 11));
-    assert_eq!(editor.current_char(), Some('!'));
+    assert_eq!(editor.cursor_char(), Some('!'));
     editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.cursor(zi::Active), (4, 4));
     editor.move_cursor(zi::Active, Down, 1);
@@ -121,7 +121,7 @@ fn cursor_with_scroll() {
 
     editor.scroll(zi::Active, zi::Direction::Down, 2);
     assert_eq!(editor.cursor(zi::Active), (2, 0));
-    assert_eq!(editor.current_line(), "baz");
+    assert_eq!(editor.cursor_line(), "baz");
     editor.move_cursor(zi::Active, Down, 1);
 
     // Cursor is already at the bottom, should not be able to move anymore.

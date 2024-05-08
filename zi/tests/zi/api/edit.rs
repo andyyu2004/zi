@@ -12,48 +12,48 @@ fn delete_char_backward() {
     editor.insert_char_at_cursor(c);
     assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8() as u32));
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
 
     editor.insert_char_at_cursor('a');
     editor.insert_char_at_cursor('b');
     editor.insert_char_at_cursor('c');
 
     // works on single line
-    assert_eq!(editor.current_line(), "abc");
+    assert_eq!(editor.cursor_line(), "abc");
     assert_eq!(editor.cursor(zi::Active), (0, 3));
 
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "ab");
+    assert_eq!(editor.cursor_line(), "ab");
     assert_eq!(editor.cursor(zi::Active), (0, 2));
 
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "a");
+    assert_eq!(editor.cursor_line(), "a");
     assert_eq!(editor.cursor(zi::Active), (0, 1));
 
     editor.insert_char_at_cursor('x');
-    assert_eq!(editor.current_line(), "ax");
+    assert_eq!(editor.cursor_line(), "ax");
     assert_eq!(editor.cursor(zi::Active), (0, 2));
 
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "a");
+    assert_eq!(editor.cursor_line(), "a");
     assert_eq!(editor.cursor(zi::Active), (0, 1));
 
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     // works on multiple lines
     editor.insert_at_cursor("abc\nd");
-    assert_eq!(editor.current_line(), "d");
+    assert_eq!(editor.cursor_line(), "d");
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
     assert_eq!(editor.cursor(zi::Active), (1, 0));
     editor.delete_char_backward();
-    assert_eq!(editor.current_line(), "abc");
+    assert_eq!(editor.cursor_line(), "abc");
     assert_eq!(editor.cursor(zi::Active), (0, 3));
 
     snapshot(
@@ -114,7 +114,7 @@ fn insert_char() {
     assert_eq!(editor.cursor(zi::Active), (0, 1));
     editor.insert_char_at_cursor('b');
     assert_eq!(editor.cursor(zi::Active), (0, 2));
-    assert_eq!(editor.current_line(), "ab");
+    assert_eq!(editor.cursor_line(), "ab");
 
     editor.set_mode(zi::Mode::Normal);
     assert_eq!(editor.cursor(zi::Active), (0, 1), "insert mode should move cursor left on exit");

@@ -133,9 +133,9 @@ impl Editor {
             });
 
         let search_highlights = self
-            .shared
-            .show_search_hl
-            .then(|| self.shared.matches())
+            .search_state
+            .hlsearch
+            .then(|| self.search_state.matches())
             .unwrap_or_default()
             .iter()
             .enumerate()
@@ -145,7 +145,7 @@ impl Editor {
                     return None;
                 }
 
-                let hl_name = if self.shared.current_match_idx() == i {
+                let hl_name = if self.search_state.current_match_idx() == i {
                     HighlightName::CURRENT_SEARCH
                 } else {
                     HighlightName::SEARCH

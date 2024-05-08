@@ -6,7 +6,53 @@ use grep::searcher::{BinaryDetection, Searcher, SearcherBuilder, SinkError, Sink
 
 const NUL: u8 = 0;
 
-#[derive(Debug, Clone)]
+#[derive(Default)]
+pub(super) struct SearchState {
+    matches: Vec<Match>,
+    /// Whether to highlight search matches
+    pub(super) hlsearch: bool,
+    match_idx: usize,
+}
+
+impl SearchState {
+    pub(super) fn matches(&self) -> &[Match] {
+        &self.matches
+    }
+
+    pub(super) fn set_matches(&mut self, matches: impl Into<Vec<Match>>) {
+        self.matches = matches.into();
+        self.match_idx = 0;
+    }
+
+    pub(super) fn current_match_idx(&self) -> usize {
+        self.match_idx
+    }
+
+    pub(super) fn current_match(&self) -> Option<&Match> {
+        self.matches.get(self.match_idx)
+    }
+
+    pub(super) fn next_match(&mut self) -> Option<&Match> {
+        if self.matches.is_empty() {
+            return None;
+        }
+
+        self.match_idx = (self.match_idx + 1) % self.matches.len();
+        self.matches.get(self.match_idx)
+    }
+
+    pub(super) fn prev_match(&mut self) -> Option<&Match> {
+        if self.match_idx == 0 {
+            self.match_idx = self.matches.len() - 1;
+        } else {
+            self.match_idx -= 1;
+        }
+
+        self.matches.get(self.match_idx)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Match {
     pub(crate) byte_range: ops::Range<usize>,
 }

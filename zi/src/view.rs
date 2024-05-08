@@ -464,10 +464,9 @@ impl View {
         assert!(
             self.cursor.point.line().raw() >= self.offset.line
                 && self.cursor.point.line().raw() < self.offset.line + size.height as u32,
-            "cursor is out of bounds: cursor={} offset={} size={}",
+            "cursor is out of bounds: cursor={} offset={} size={size}",
             self.cursor.point,
             self.offset,
-            size
         );
     }
 

@@ -32,27 +32,27 @@ fn cursor_scrolls_when_out_of_bounds() {
 fn scroll() {
     let mut editor = new("");
     editor.scroll(zi::Active, Down, 1);
-    assert_eq!(editor.current_line(), "");
+    assert_eq!(editor.cursor_line(), "");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
 
     let mut editor = new("foo\nbar");
-    assert_eq!(editor.current_line(), "foo");
+    assert_eq!(editor.cursor_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
 
     editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
-    assert_eq!(editor.current_line(), "bar");
+    assert_eq!(editor.cursor_line(), "bar");
 
     editor.scroll(zi::Active, Up, 1);
-    assert_eq!(editor.current_line(), "foo");
+    assert_eq!(editor.cursor_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
 
     // Bounds check above
     editor.scroll(zi::Active, Up, 1);
-    assert_eq!(editor.current_line(), "foo");
+    assert_eq!(editor.cursor_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
 
     // Bounds check below
@@ -60,17 +60,17 @@ fn scroll() {
     // There should always be at least one line visible.
     editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
-    assert_eq!(editor.current_line(), "bar");
+    assert_eq!(editor.cursor_line(), "bar");
 
     editor.scroll(zi::Active, Up, 50);
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
-    assert_eq!(editor.current_line(), "foo");
+    assert_eq!(editor.cursor_line(), "foo");
 
     editor.scroll(zi::Active, Down, 50);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
-    assert_eq!(editor.current_line(), "bar");
+    assert_eq!(editor.cursor_line(), "bar");
 }
 
 #[test]

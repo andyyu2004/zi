@@ -12,7 +12,7 @@ fn composite_escape() {
             editor.handle_input(key);
         }
 
-        assert_eq!(editor.current_line(), expectation);
+        assert_eq!(editor.cursor_line(), expectation);
     }
 
     check("ifd", "");
