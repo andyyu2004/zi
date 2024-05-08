@@ -1,13 +1,15 @@
-use std::ops;
+use std::{iter, ops};
 
 use zi::Active;
 
 use super::new;
 
+#[track_caller]
 fn next(editor: &mut zi::Editor) -> ops::Range<usize> {
     editor.goto_next_match().unwrap().range()
 }
 
+#[track_caller]
 fn prev(editor: &mut zi::Editor) -> ops::Range<usize> {
     editor.goto_prev_match().unwrap().range()
 }
@@ -17,11 +19,12 @@ fn search_switch_buffers() {
     let editor = &mut new("abc\nabc");
     assert!(editor.search("abc").map(|m| m.range()).eq([0..3, 4..7]));
 
-    let buf = editor.create_readonly_buffer("path", "d".as_bytes());
+    let buf = editor.create_readonly_buffer("path", "abc".as_bytes());
     editor.set_buffer(Active, buf);
 
-    assert_eq!(editor.cursor_line(), "d");
-    assert_eq!(next(editor), 0..3);
+    // switching buffers should recompute the search
+    assert_eq!(editor.cursor_line(), "abc");
+    assert!(editor.matches().map(|m| m.range()).eq(iter::once(0..3)));
 }
 
 #[test]

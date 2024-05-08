@@ -4,17 +4,31 @@ use grep::matcher::Matcher;
 use grep::regex::RegexMatcherBuilder;
 use grep::searcher::{BinaryDetection, Searcher, SearcherBuilder, SinkError, SinkMatch};
 
+use crate::BufferId;
+
 const NUL: u8 = 0;
 
 #[derive(Default)]
 pub(super) struct SearchState {
-    matches: Vec<Match>,
+    pub(super) last_update: (BufferId, String),
     /// Whether to highlight search matches
     pub(super) hlsearch: bool,
+    matches: Vec<Match>,
     match_idx: usize,
 }
 
 impl SearchState {
+    /// Prepare to update the search state for a new query, if no change is needed, return false.
+    /// Otherwise, return true and update the state. The caller must then call `set_matches`.
+    pub(super) fn prepare_update(&mut self, buffer_id: BufferId, query: &str) -> bool {
+        let (last_buffer_id, last_query) = &self.last_update;
+        if buffer_id != *last_buffer_id || query != *last_query {
+            self.last_update = (buffer_id, query.to_string());
+            return true;
+        }
+        false
+    }
+
     pub(super) fn matches(&self) -> &[Match] {
         &self.matches
     }

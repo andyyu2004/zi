@@ -591,6 +591,9 @@ impl Editor {
     }
 
     fn update_search(&mut self) {
+        let view = self.tree().active();
+        let active_buffer = self[view].buffer();
+
         let State::Command(state) = &mut self.state else { return };
 
         let (k, query) = state.buffer().split_at(1);
@@ -599,6 +602,10 @@ impl Editor {
             "/" => {
                 use regex_cursor::engines::meta::Regex;
                 use regex_cursor::Input;
+
+                if !self.search_state.prepare_update(active_buffer, query) {
+                    return;
+                }
 
                 let regex = match Regex::new(query) {
                     Ok(regex) => regex,
@@ -1798,6 +1805,8 @@ impl Editor {
     }
 
     fn goto_match(&mut self, f: impl FnOnce(&mut SearchState) -> Option<&Match>) -> Option<Match> {
+        self.update_search();
+
         // reselect the current match if the search is not active
         let mat = if self.search_state.hlsearch {
             f(&mut self.search_state)
@@ -1819,7 +1828,10 @@ impl Editor {
         self.goto_match(|s| s.prev_match())
     }
 
-    pub fn matches(&self) -> impl ExactSizeIterator<Item = &Match> {
+    // Bit odd for a method with this name to require a mutable reference.
+    // Can consider using some interior mutability.
+    pub fn matches(&mut self) -> impl ExactSizeIterator<Item = &Match> {
+        self.update_search();
         self.search_state.matches().iter()
     }
 
