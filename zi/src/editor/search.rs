@@ -33,9 +33,10 @@ impl SearchState {
         &self.matches
     }
 
-    pub(super) fn set_matches(&mut self, matches: impl Into<Vec<Match>>) {
+    pub(super) fn set_matches(&mut self, start_byte: usize, matches: impl Into<Vec<Match>>) {
         self.matches = matches.into();
-        self.match_idx = 0;
+        self.match_idx =
+            self.matches.iter().position(|m| m.byte_range.start >= start_byte).unwrap_or(0);
     }
 
     pub(super) fn current_match_idx(&self) -> usize {

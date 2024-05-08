@@ -603,6 +603,10 @@ impl Editor {
                 use regex_cursor::engines::meta::Regex;
                 use regex_cursor::Input;
 
+                if query.is_empty() {
+                    return;
+                }
+
                 if !self.search_state.prepare_update(active_buffer, query) {
                     return;
                 }
@@ -612,15 +616,14 @@ impl Editor {
                     Err(err) => return set_error!(self, err),
                 };
 
-                let (_view, buf) = get!(self);
-                // TODO should slice the appropriate section but need to adjust byte ranges
-                // let reader = buf.text().line_slice(view.cursor().line().idx()..).reader();
+                let (view, buf) = get!(self);
 
                 let text = buf.text();
                 let input = Input::new(RopeCursor::new(text.byte_slice(..)));
 
                 let start_time = Instant::now();
                 self.search_state.set_matches(
+                    text.point_to_byte(view.cursor()),
                     regex
                         .find_iter(input)
                         // This is run synchronously, so we add a strict limit to prevent noticable latency.

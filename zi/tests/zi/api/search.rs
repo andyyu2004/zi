@@ -28,6 +28,18 @@ fn search_switch_buffers() {
 }
 
 #[test]
+fn search_cursor() {
+    let editor = &mut new(r#"a
+a
+a
+a"#);
+
+    editor.input("jj").unwrap();
+    assert!(editor.search("a").map(|m| m.range()).eq([0..1, 2..3, 4..5, 6..7]));
+    assert_eq!(next(editor), 6..7);
+}
+
+#[test]
 fn search_smoke() {
     // TODO what if we switch active buffers and a match is out of range etc
     let editor = &mut new(r#"abc
