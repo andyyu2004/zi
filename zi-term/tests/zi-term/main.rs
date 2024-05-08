@@ -22,7 +22,7 @@ fn it_works() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn buffer_search() -> anyhow::Result<()> {
-    snapshot("rust", |editor| {
+    snapshot("buffer search", |editor| {
         editor.open_active("tests/zi-term/testdata/main.rs")?;
         editor.input("/use").unwrap();
         Ok(())
