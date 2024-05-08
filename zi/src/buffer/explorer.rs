@@ -146,7 +146,7 @@ impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
         Box::new(
             self.text.lines().enumerate().filter(|(_i, line)| line.ends_with(MAIN_SEPARATOR)).map(
                 |(i, line)| Highlight {
-                    range: Range::new((i, 0), (i, line.len())),
+                    range: PointRange::new((i, 0), (i, line.len())),
                     id: editor.highlight_id_by_name(HighlightName::DIRECTORY),
                 },
             ),

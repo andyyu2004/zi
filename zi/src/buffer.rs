@@ -20,7 +20,7 @@ use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
-use crate::{Editor, FileType, Point, Range, Size, Url, View};
+use crate::{Editor, FileType, Point, PointRange, Size, Url, View};
 
 slotmap::new_key_type! {
     pub struct BufferId;
@@ -49,13 +49,13 @@ bitflags::bitflags! {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Highlight {
-    pub range: Range,
+    pub range: PointRange,
     pub id: HighlightId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SyntaxHighlight {
-    pub range: Range,
+    pub range: PointRange,
     pub id: HighlightId,
     pub capture_idx: u32,
 }
@@ -160,12 +160,16 @@ pub trait Buffer {
 
     /// Syntax highlights iterator.
     /// All ranges must be single-line ranges.
+    /// The highlights must cover at least the given point range, it is valid to return
+    /// highlights that extend beyond.
+    // TODO we should pass in a byte or point range (currently known as DeltaRange)
     fn syntax_highlights<'a>(
         &'a self,
         editor: &Editor,
         cursor: &'a mut QueryCursor,
+        range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
-        let _ = (editor, cursor);
+        let _ = (editor, cursor, range);
         Box::new(std::iter::empty())
     }
 
@@ -318,8 +322,9 @@ impl Buffer for Box<dyn Buffer> {
         &'a self,
         editor: &Editor,
         cursor: &'a mut QueryCursor,
+        range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
-        self.as_ref().syntax_highlights(editor, cursor)
+        self.as_ref().syntax_highlights(editor, cursor, range)
     }
 
     #[inline]

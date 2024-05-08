@@ -1,6 +1,6 @@
-use crate::{Point, Range};
+use crate::{Point, PointRange};
 
-impl From<tree_sitter::Range> for Range {
+impl From<tree_sitter::Range> for PointRange {
     #[inline]
     fn from(range: tree_sitter::Range) -> Self {
         Self::new(range.start_point, range.end_point)

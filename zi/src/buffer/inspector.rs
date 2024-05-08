@@ -79,7 +79,11 @@ impl Buffer for InspectorBuffer {
                 let target_buffer = editor.buffer(target_view);
                 let cursor = target_view.cursor();
                 match target_buffer
-                    .syntax_highlights(editor, &mut query_cursor)
+                    .syntax_highlights(
+                        editor,
+                        &mut query_cursor,
+                        PointRange::new((0, 0), (usize::MAX, usize::MAX)),
+                    )
                     .find(|hl| hl.range.contains(&cursor))
                 {
                     Some(hl) => {

@@ -15,7 +15,7 @@ use std::{fmt, iter, ops};
 
 pub use crop::{Rope, RopeBuilder, RopeSlice};
 pub use cursor::RopeCursor;
-use zi_core::{Line, Point, PointOrByte, Range};
+use zi_core::{Line, Point, PointOrByte, PointRange};
 
 pub use self::delta::{Delta, DeltaRange};
 pub use self::readonly::ReadonlyText;
@@ -81,11 +81,11 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     }
 
     #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
         match delta.range() {
             DeltaRange::Point(p) => p,
             DeltaRange::Byte(range) => {
-                Range::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
+                PointRange::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
             }
         }
     }
@@ -105,13 +105,13 @@ pub trait TextBase: fmt::Display + fmt::Debug {
     }
 
     #[inline]
-    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+    fn point_range_to_byte_range(&self, range: PointRange) -> ops::Range<usize> {
         self.point_to_byte(range.start())..self.point_to_byte(range.end())
     }
 
     #[inline]
-    fn byte_range_to_point_range(&self, range: ops::Range<usize>) -> Range {
-        Range::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
+    fn byte_range_to_point_range(&self, range: ops::Range<usize>) -> PointRange {
+        PointRange::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
     }
 
     #[inline]
@@ -178,7 +178,7 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     }
 
     #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
         (**self).delta_to_point_range(delta)
     }
 
@@ -193,7 +193,7 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     }
 
     #[inline]
-    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+    fn point_range_to_byte_range(&self, range: PointRange) -> ops::Range<usize> {
         (**self).point_range_to_byte_range(range)
     }
 
@@ -471,7 +471,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn annotate<T: Copy>(
         &self,
-        highlights: impl IntoIterator<Item = (Range, T)> + 'a,
+        highlights: impl IntoIterator<Item = (PointRange, T)> + 'a,
     ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a
     where
         Self: Sized,
@@ -521,7 +521,7 @@ pub trait Text: TextBase {
 
     fn annotate<'a, T: Copy>(
         &'a self,
-        highlights: impl IntoIterator<Item = (Range, T)> + 'a,
+        highlights: impl IntoIterator<Item = (PointRange, T)> + 'a,
     ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<T>)> + 'a
     where
         Self: Sized,
@@ -533,7 +533,7 @@ pub trait Text: TextBase {
 /// The returned chunks are guaranteed to be single-line
 pub fn annotate<'a, S, A>(
     lines: impl Iterator<Item = S> + 'a,
-    annotations: impl IntoIterator<Item = (Range, A)> + 'a,
+    annotations: impl IntoIterator<Item = (PointRange, A)> + 'a,
 ) -> impl Iterator<Item = (Line, Cow<'a, str>, Option<A>)> + 'a
 where
     S: TextSlice<'a>,
@@ -701,7 +701,7 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     }
 
     #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> Range {
+    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
         (**self).delta_to_point_range(delta)
     }
 
@@ -716,7 +716,7 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     }
 
     #[inline]
-    fn point_range_to_byte_range(&self, range: Range) -> ops::Range<usize> {
+    fn point_range_to_byte_range(&self, range: PointRange) -> ops::Range<usize> {
         (**self).point_range_to_byte_range(range)
     }
 

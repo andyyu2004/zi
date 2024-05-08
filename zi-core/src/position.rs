@@ -71,7 +71,7 @@ impl PartialEq<(u32, u32)> for Offset {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Range {
+pub struct PointRange {
     // TODO these should maybe each be Bound<Point> to be more flexible
     /// The start of the range (inclusive)
     start: Point,
@@ -79,7 +79,7 @@ pub struct Range {
     end: Point,
 }
 
-impl RangeBounds<Point> for Range {
+impl RangeBounds<Point> for PointRange {
     #[inline]
     fn start_bound(&self) -> Bound<&Point> {
         Bound::Included(&self.start)
@@ -91,7 +91,7 @@ impl RangeBounds<Point> for Range {
     }
 }
 
-impl Range {
+impl PointRange {
     #[inline]
     pub fn new(start: impl Into<Point>, end: impl Into<Point>) -> Self {
         let start = start.into();
@@ -106,7 +106,7 @@ impl Range {
     }
 
     #[inline]
-    pub fn intersects(&self, other: &Range) -> bool {
+    pub fn intersects(&self, other: &PointRange) -> bool {
         self.start < other.end && self.end > other.start
     }
 
@@ -125,10 +125,16 @@ impl Range {
         self.end
     }
 
+    #[inline]
+    pub fn is_subrange_of(&self, other: impl Into<PointRange>) -> bool {
+        let other = other.into();
+        other.start <= self.start && self.end <= other.end
+    }
+
     /// Split the range into three segments: before, inside, and after the other range.
     /// Panics if the ranges do not intersect.
     #[inline]
-    pub fn segments(&self, other: &Range) -> (Range, Range, Range) {
+    pub fn segments(&self, other: &PointRange) -> (PointRange, PointRange, PointRange) {
         assert!(self.intersects(other), "ranges must intersect");
 
         let start = self.start.min(other.start);
@@ -136,14 +142,14 @@ impl Range {
         let inside_start = self.start.max(other.start);
         let inside_end = self.end.min(other.end);
 
-        let before = Range::new(start, inside_start);
-        let inside = Range::new(inside_start, inside_end);
-        let after = Range::new(inside_end, end);
+        let before = PointRange::new(start, inside_start);
+        let inside = PointRange::new(inside_start, inside_end);
+        let after = PointRange::new(inside_end, end);
         (before, inside, after)
     }
 }
 
-impl FromStr for Range {
+impl FromStr for PointRange {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -154,19 +160,19 @@ impl FromStr for Range {
     }
 }
 
-impl fmt::Display for Range {
+impl fmt::Display for PointRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}..{}", self.start, self.end)
     }
 }
 
-impl fmt::Debug for Range {
+impl fmt::Debug for PointRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self}")
     }
 }
 
-impl Sub<Offset> for Range {
+impl Sub<Offset> for PointRange {
     type Output = Self;
 
     #[inline]
@@ -175,15 +181,15 @@ impl Sub<Offset> for Range {
     }
 }
 
-impl From<Range> for ops::Range<Point> {
-    fn from(val: Range) -> Self {
+impl From<PointRange> for ops::Range<Point> {
+    fn from(val: PointRange) -> Self {
         val.start..val.end
     }
 }
 
-impl From<Range> for ops::Range<(usize, usize)> {
+impl From<PointRange> for ops::Range<(usize, usize)> {
     #[inline]
-    fn from(r: Range) -> Self {
+    fn from(r: PointRange) -> Self {
         r.start.into()..r.end.into()
     }
 }
@@ -597,15 +603,15 @@ pub struct RangeMergeIter<I: Iterator, J: Iterator, T> {
     xs: Peekable<I>,
     ys: Peekable<J>,
     /// Stack of buffered ranges that should be immediately yielded
-    buffer: Vec<(Range, T)>,
-    xs_buffer: VecDeque<(Range, T)>,
-    ys_buffer: VecDeque<(Range, T)>,
+    buffer: Vec<(PointRange, T)>,
+    xs_buffer: VecDeque<(PointRange, T)>,
+    ys_buffer: VecDeque<(PointRange, T)>,
 }
 
 impl<I, J, T> RangeMergeIter<I, J, T>
 where
-    I: Iterator<Item = (Range, T)>,
-    J: Iterator<Item = (Range, T)>,
+    I: Iterator<Item = (PointRange, T)>,
+    J: Iterator<Item = (PointRange, T)>,
 {
     pub fn new(xs: I, ys: J) -> Self {
         Self {
@@ -621,8 +627,8 @@ where
 impl<I, J, T> Iterator for RangeMergeIter<I, J, T>
 where
     T: Merge + Copy,
-    I: Iterator<Item = (Range, T)>,
-    J: Iterator<Item = (Range, T)>,
+    I: Iterator<Item = (PointRange, T)>,
+    J: Iterator<Item = (PointRange, T)>,
 {
     type Item = I::Item;
 

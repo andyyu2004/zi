@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use std::{fmt, ops};
 
-use zi_core::{PointOrByte, Range};
+use zi_core::{PointOrByte, PointRange};
 
 use super::Text;
 
@@ -23,7 +23,7 @@ impl fmt::Debug for Delta<'_> {
 #[derive(Clone)]
 pub enum DeltaRange {
     /// The point range to replace
-    Point(Range),
+    Point(PointRange),
     /// The byte range to replace
     Byte(ops::Range<usize>),
 }
@@ -57,7 +57,7 @@ impl DeltaRange {
     #[inline]
     pub fn empty(at: impl Into<PointOrByte>) -> Self {
         match at.into() {
-            PointOrByte::Point(p) => DeltaRange::Point(Range::new(p, p)),
+            PointOrByte::Point(p) => DeltaRange::Point(PointRange::new(p, p)),
             PointOrByte::Byte(c) => DeltaRange::Byte(c..c),
         }
     }
@@ -78,9 +78,9 @@ impl From<ops::Range<usize>> for DeltaRange {
     }
 }
 
-impl From<Range> for DeltaRange {
+impl From<PointRange> for DeltaRange {
     #[inline]
-    fn from(v: Range) -> Self {
+    fn from(v: PointRange) -> Self {
         Self::Point(v)
     }
 }

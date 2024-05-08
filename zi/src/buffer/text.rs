@@ -140,12 +140,13 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
         &'a self,
         _editor: &Editor,
         cursor: &'a mut QueryCursor,
+        range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
         let Some(syntax) = &self.syntax else {
             return Box::new(std::iter::empty());
         };
 
-        Box::new(syntax.highlights(cursor, &self.text).flat_map(move |capture| {
+        Box::new(syntax.highlights(cursor, &self.text, range).flat_map(move |capture| {
             let range = capture.node.range();
             let id = self.highlight_map.get(capture.index);
             // Split multi-line highlights into single-line highlights
@@ -158,7 +159,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
                 };
 
                 SyntaxHighlight {
-                    range: Range::new(Point::new(idx, start), Point::new(idx, end)),
+                    range: PointRange::new(Point::new(idx, start), Point::new(idx, end)),
                     capture_idx: capture.index,
                     id,
                 }
@@ -188,7 +189,7 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
 
         // The current_line highlight
         Box::new(std::iter::once(Highlight {
-            range: Range::new(cursor.with_col(0), cursor.with_col(end)),
+            range: PointRange::new(cursor.with_col(0), cursor.with_col(end)),
             id: editor.highlight_id_by_name(HighlightName::CURSORLINE),
         }))
     }

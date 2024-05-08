@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{Rect, Widget as _};
-use zi_core::{Offset, RangeMergeIter};
+use zi_core::{Offset, PointRange, RangeMergeIter};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
@@ -113,10 +113,11 @@ impl Editor {
         let theme = self.theme();
 
         let line = view.offset().line as usize;
+        let range = PointRange::new((line, 0), (line + area.height as usize, 0));
 
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
-            .syntax_highlights(self, &mut query_cursor)
+            .syntax_highlights(self, &mut query_cursor, range)
             .skip_while(|hl| hl.range.end().line().idx() < line)
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
             .map(|(range, style)| (range - Offset::new(line as u32, 0), style));

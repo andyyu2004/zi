@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
+use zi_core::PointRange;
 use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
 
 pub(crate) use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
@@ -128,14 +129,17 @@ impl Syntax {
 
     pub fn highlights<'a, 'tree: 'a>(
         &'tree self,
-        cursor: &'a mut QueryCursor,
+        query_cursor: &'a mut QueryCursor,
         source: &'a dyn AnyText,
+        range: PointRange,
     ) -> impl Iterator<Item = QueryCapture<'tree>> + 'a {
         match &self.tree {
             Some(tree) => {
-                let captures = cursor.captures(
+                let node = smallest_node_that_covers_range(tree, range);
+
+                let captures = query_cursor.captures(
                     self.highlights_query,
-                    tree.root_node(),
+                    node,
                     TextProvider(source.dyn_byte_slice((Bound::Unbounded, Bound::Unbounded))),
                 );
                 Highlights::Captures(captures)
@@ -151,6 +155,21 @@ impl Syntax {
     pub fn capture_index_to_name(&self, idx: u32) -> &'static str {
         self.highlights_query.capture_names()[idx as usize]
     }
+}
+
+fn smallest_node_that_covers_range(tree: &Tree, range: PointRange) -> Node<'_> {
+    let mut cursor = tree.walk();
+    cursor.goto_first_child_for_point(range.start().into()).expect("range is not within tree");
+    while !range.is_subrange_of(cursor.node().range()) {
+        if !cursor.goto_parent() {
+            assert_eq!(cursor.node(), tree.root_node());
+            break;
+        }
+    }
+
+    assert!(range.is_subrange_of(cursor.node().range()) || tree.root_node() == cursor.node());
+
+    cursor.node()
 }
 
 // tree-sitter point column is byte-indexed, but very poorly documented

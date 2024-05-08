@@ -3,7 +3,7 @@ use expect_test::{expect, Expect};
 use super::*;
 use crate::style::Style;
 
-fn r(s: &str) -> Range {
+fn r(s: &str) -> PointRange {
     s.parse().unwrap()
 }
 
@@ -55,15 +55,15 @@ fn range_merge_iter() {
     ) {
         use fmt::Write;
         let ts = RangeMergeIter::<_, _, Style>::new(
-            xs.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t.parse().unwrap())),
-            ys.into_iter().map(|(s, t)| (s.parse::<Range>().unwrap(), t.parse().unwrap())),
+            xs.into_iter().map(|(s, t)| (s.parse::<PointRange>().unwrap(), t.parse().unwrap())),
+            ys.into_iter().map(|(s, t)| (s.parse::<PointRange>().unwrap(), t.parse().unwrap())),
         );
 
         let mut display = String::new();
-        let mut prev: Option<Range> = None;
+        let mut prev: Option<PointRange> = None;
         for (range, style) in ts {
             // help RA out a bit with inference
-            let range: Range = range;
+            let range: PointRange = range;
             let style: Style = style;
             assert!(!range.is_empty(), "should not yield empty ranges");
 

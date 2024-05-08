@@ -26,7 +26,7 @@ use stdx::path::{PathExt, Relative};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
-use zi_core::{PointOrByte, Range, Size};
+use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
 use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
@@ -753,7 +753,7 @@ impl Editor {
                     start = start.left(c.len_utf8() as u32);
                 }
 
-                (start != end).then(|| Range::new(start, end))
+                (start != end).then(|| PointRange::new(start, end))
             }) {
                 self.edit(Active, &Delta::delete(range));
             }
