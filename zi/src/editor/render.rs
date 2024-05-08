@@ -112,21 +112,19 @@ impl Editor {
         query_cursor.set_match_limit(256);
         let theme = self.theme();
 
-        let line = view.offset().line as usize;
-        let range = PointRange::new((line, 0), (line + area.height as usize, 0));
+        let line_offset = view.offset().line as usize;
+        let range = PointRange::new((line_offset, 0), (line_offset + area.height as usize, 0));
 
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
             .syntax_highlights(self, &mut query_cursor, range)
-            .skip_while(|hl| hl.range.end().line().idx() < line)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
-            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
+            .skip_while(|hl| hl.range.end().line().idx() < line_offset)
+            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
         let overlay_highlights = buf
             .overlay_highlights(self, view, area.into())
-            .skip_while(|hl| hl.range.end().line().idx() < line)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)))
-            .map(|(range, style)| (range - Offset::new(line as u32, 0), style));
+            .skip_while(|hl| hl.range.end().line().idx() < line_offset)
+            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
         let view_highlights =
             RangeMergeIter::new(syntax_highlights, overlay_highlights).inspect(|(range, style)| {
@@ -142,7 +140,7 @@ impl Editor {
             .enumerate()
             .filter_map(|(i, mat)| {
                 let range = text.byte_range_to_point_range(mat.byte_range.clone());
-                if range.end().line().idx() < line {
+                if range.end().line().idx() < line_offset {
                     return None;
                 }
 
@@ -153,25 +151,29 @@ impl Editor {
                 };
 
                 let style = self.highlight_id_by_name(hl_name).style(theme)?;
-                Some((range - Offset::new(line as u32, 0), style))
+                Some((range, style))
             });
 
-        let highlights = RangeMergeIter::new(view_highlights, search_highlights);
+        let highlights = RangeMergeIter::new(view_highlights, search_highlights)
+            .map(|(range, style)| (range - Offset::new(line_offset as u32, 0), style));
 
         let text = buf.text();
         let lines = text
-            .line_slice(line..)
+            .line_slice(line_offset..)
             .lines()
             // We always want to render a line even if the buffer is empty.
             .default_if_empty(|| Box::new("") as Box<dyn AnyTextSlice<'_>>);
+
+        // annotation needs to be offset too
         let chunks = zi_text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(
-            line,
+            line_offset,
             view.line_number(),
             buf.tab_width(),
             chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
                 |(line, text, style)| {
+                    // let line = line - line_offset;
                     let default_style = theme.default_style();
                     // The merge is still necessary to fill in the missing fields in the style.
                     let style = default_style.merge(style.unwrap_or(default_style));

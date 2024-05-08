@@ -93,7 +93,7 @@ impl Default for LineNumber {
 
 pub struct Lines<'a, I: Iterator> {
     /// The 0-indexed line number to start with
-    line_start: usize,
+    line_offset: usize,
     line_number: LineNumber,
     tab_width: u8,
     chunks: Peekable<I>,
@@ -101,8 +101,14 @@ pub struct Lines<'a, I: Iterator> {
 }
 
 impl<I: Iterator> Lines<'_, I> {
-    pub fn new(line_start: usize, line_number: LineNumber, tab_width: u8, chunks: I) -> Self {
-        Self { line_start, line_number, tab_width, chunks: chunks.peekable(), _marker: PhantomData }
+    pub fn new(line_offset: usize, line_number: LineNumber, tab_width: u8, chunks: I) -> Self {
+        Self {
+            line_offset,
+            line_number,
+            tab_width,
+            chunks: chunks.peekable(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -121,7 +127,7 @@ where
             let line_number_span = match self.line_number {
                 // FIXME not handling where the line number is longer than the width
                 LineNumber::Absolute(width) => Span::styled(
-                    format!("{:width$} ", self.line_start + i + 1, width = width as usize),
+                    format!("{:width$} ", self.line_offset + i + 1, width = width as usize),
                     Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
                 ),
                 LineNumber::None => {
