@@ -16,10 +16,10 @@ fn view_only() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                                             "
-            "   2 2                                             "
-            "   3 3                                             "
-            "   4 |                                             "
+            "  1 1                                              "
+            "  2 2                                              "
+            "  3 3                                              "
+            "  4 |                                              "
             "                                                   "
             "                                                   "
             "scratch:4:0                                        "
@@ -38,10 +38,10 @@ fn close_view() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                                             "
-            "   2 2                                             "
-            "   3 3                                             "
-            "   4 |                                             "
+            "  1 1                                              "
+            "  2 2                                              "
+            "  3 3                                              "
+            "  4 |                                              "
             "                                                   "
             "                                                   "
             "scratch:4:0                                        "
@@ -55,13 +55,13 @@ fn close_view() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                       1 1                   "
-            "   2 2                       2 2                   "
-            "   3 3                       3 3                   "
-            "   4                         1 1                   "
-            "                             2 2                   "
-            "                             3 3                   "
-            "scratch:4:0                    |                   "
+            "  1 1                       1 1                    "
+            "  2 2                       2 2                    "
+            "  3 3                       3 3                    "
+            "  4                         1 1                    "
+            "                            2 2                    "
+            "                            3 3                    "
+            "scratch:4:0                   |                    "
             "-- INSERT --                                       "
         "#]],
     );
@@ -71,10 +71,10 @@ fn close_view() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                       1 1                   "
-            "   2 2                       2 2                   "
-            "   3 3                       3 3                   "
-            "   4                         4 |                   "
+            "  1 1                       1 1                    "
+            "  2 2                       2 2                    "
+            "  3 3                       3 3                    "
+            "  4                         4 |                    "
             "                                                   "
             "                                                   "
             "scratch:4:0                                        "
@@ -98,10 +98,10 @@ fn splits_have_independent_scroll() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                       1 1                   "
-            "   2 2                       2 2                   "
-            "   3 3                       3 3                   "
-            "   4                         4 |                   "
+            "  1 1                       1 1                    "
+            "  2 2                       2 2                    "
+            "  3 3                       3 3                    "
+            "  4                         4 |                    "
             "                                                   "
             "                                                   "
             "scratch:4:0                                        "
@@ -114,10 +114,10 @@ fn splits_have_independent_scroll() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 1                       2 2                   "
-            "   2 2                       3 3                   "
-            "   3 3                       4 |                   "
-            "   4                                               "
+            "  1 1                       2 2                    "
+            "  2 2                       3 3                    "
+            "  3 3                       4 |                    "
+            "  4                                                "
             "                                                   "
             "                                                   "
             "scratch:4:0                                        "
@@ -137,10 +137,10 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc                                          "
+            "  1 abc                                           "
             "                                                  "
             "                                                  "
-            "   1 abc|                                         "
+            "  1 abc|                                          "
             "                                                  "
             "                                                  "
             "scratch:1:3                                       "
@@ -155,7 +155,7 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc                    1 abc|                "
+            "  1 abc                    1 abc|                 "
             "                                                  "
             "                                                  "
             "                                                  "
@@ -170,7 +170,7 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc            1 abc           1 abc|        "
+            "  1 abc            1 abc           1 abc|         "
             "                                                  "
             "                                                  "
             "                                                  "
@@ -185,10 +185,10 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc            1 abc           1 abc         "
+            "  1 abc            1 abc           1 abc          "
             "                                                  "
             "                                                  "
-            "                                    1 abc|        "
+            "                                   1 abc|         "
             "                                                  "
             "                                                  "
             "scratch:1:3                                       "
@@ -200,10 +200,10 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc            1 abc           1 abc         "
+            "  1 abc            1 abc           1 abc          "
             "                                                  "
             "                                                  "
-            "                                    1 abc|   1 abc"
+            "                                   1 abc|   1 abc "
             "                                                  "
             "                                                  "
             "scratch:1:3                                       "
@@ -215,12 +215,12 @@ fn split() -> io::Result<()> {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc            1 abc           1 abc         "
+            "  1 abc            1 abc           1 abc          "
             "                                                  "
             "                                                  "
-            "                                    1 abc|   1 abc"
+            "                                   1 abc|   1 abc "
             "                                                  "
-            "                                    1 abc         "
+            "                                   1 abc          "
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
@@ -243,11 +243,11 @@ fn more_splits() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc     1 abc  "
+            "  1 abc     1 abc   "
             "                    "
-            "   1 abc            "
-            "             1 abc  "
-            "   1 abc|           "
+            "  1 abc             "
+            "            1 abc   "
+            "  1 abc|            "
             "                    "
             "scratch:1:3         "
             "-- INSERT --        "
@@ -266,7 +266,7 @@ fn test_directional_focus() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc       1 abc|   "
+            "  1 abc       1 abc|    "
             "                        "
             "                        "
             "                        "
@@ -280,7 +280,7 @@ fn test_directional_focus() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc|      1 abc    "
+            "  1 abc|      1 abc     "
             "                        "
             "                        "
             "                        "
@@ -293,9 +293,9 @@ fn test_directional_focus() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc       1 abc    "
+            "  1 abc       1 abc     "
             "                        "
-            "   1 abc|               "
+            "  1 abc|                "
             "                        "
             "scratch:1:3             "
             "-- INSERT --            "
@@ -306,9 +306,9 @@ fn test_directional_focus() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 abc       1 abc|   "
+            "  1 abc       1 abc|    "
             "                        "
-            "   1 abc                "
+            "  1 abc                 "
             "                        "
             "scratch:1:3             "
             "-- INSERT --            "
@@ -328,9 +328,9 @@ fn test_directional_focus_propagation() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 ab            1 ab         "
+            "  1 ab            1 ab          "
             "                                "
-            "                   1 ab    1 ab|"
+            "                  1 ab    1 ab| "
             "                                "
             "scratch:1:2                     "
             "-- INSERT --                    "
@@ -342,9 +342,9 @@ fn test_directional_focus_propagation() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 ab            1 ab         "
+            "  1 ab            1 ab          "
             "                                "
-            "                   1 ab|   1 ab "
+            "                  1 ab|   1 ab  "
             "                                "
             "scratch:1:2                     "
             "-- INSERT --                    "
@@ -357,9 +357,9 @@ fn test_directional_focus_propagation() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1 ab|           1 ab         "
+            "  1 ab|           1 ab          "
             "                                "
-            "                   1 ab    1 ab "
+            "                  1 ab    1 ab  "
             "                                "
             "scratch:1:2                     "
             "-- INSERT --                    "

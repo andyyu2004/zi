@@ -1487,7 +1487,7 @@ impl Editor {
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
         let preview = self.views.insert_with_key(|id| {
             let view = View::new(id, preview_buf).with_group(view_group);
-            view.config().line_number.write(tui::LineNumber::None);
+            view.config().line_number_style.write(tui::LineNumberStyle::None);
             view
         });
 

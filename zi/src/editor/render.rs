@@ -170,8 +170,9 @@ impl Editor {
 
         let lines = tui::Lines::new(
             line_offset,
-            view.config().line_number.read(),
+            view.config().line_number_style.read(),
             buf.config().tab_width.read(),
+            view.config().number_width.read(),
             chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
                 |(line, text, style)| {
                     // let line = line - line_offset;

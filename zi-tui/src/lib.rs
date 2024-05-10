@@ -69,43 +69,37 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineNumber {
-    Absolute(u8),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineNumberStyle {
+    #[default]
+    Absolute,
     // Relative,
     None,
-}
-
-impl LineNumber {
-    pub fn width(&self) -> u8 {
-        1 + match self {
-            LineNumber::Absolute(width) => *width,
-            LineNumber::None => 0,
-        }
-    }
-}
-
-impl Default for LineNumber {
-    fn default() -> Self {
-        LineNumber::Absolute(4)
-    }
 }
 
 pub struct Lines<'a, I: Iterator> {
     /// The 0-indexed line number to start with
     line_offset: usize,
-    line_number: LineNumber,
+    line_number_style: LineNumberStyle,
     tab_width: u8,
+    min_number_width: u8,
     chunks: Peekable<I>,
     _marker: PhantomData<&'a ()>,
 }
 
 impl<I: Iterator> Lines<'_, I> {
-    pub fn new(line_offset: usize, line_number: LineNumber, tab_width: u8, chunks: I) -> Self {
+    pub fn new(
+        line_offset: usize,
+        line_number_style: LineNumberStyle,
+        tab_width: u8,
+        min_number_width: u8,
+        chunks: I,
+    ) -> Self {
         Self {
             line_offset,
-            line_number,
+            line_number_style,
             tab_width,
+            min_number_width,
             chunks: chunks.peekable(),
             _marker: PhantomData,
         }
@@ -124,17 +118,18 @@ where
             }
 
             assert!(spans.is_empty());
-            let line_number_span = match self.line_number {
-                // FIXME not handling where the line number is longer than the width
-                LineNumber::Absolute(width) => Span::styled(
+            // FIXME not handling where the line number is longer than the width
+            let width = self.min_number_width.saturating_sub(1);
+            let line_number_span = match self.line_number_style {
+                LineNumberStyle::Absolute => Span::styled(
                     format!("{:width$} ", self.line_offset + i + 1, width = width as usize),
                     Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
                 ),
-                LineNumber::None => {
+                LineNumberStyle::None => {
                     Span::styled(" ", Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)))
                 }
             };
-            assert_eq!(line_number_span.content.len(), self.line_number.width() as usize);
+
             spans.push(line_number_span);
 
             while let Some(&(j, ref text, style)) = self.chunks.peek() {

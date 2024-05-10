@@ -9,20 +9,20 @@ fn insert_newline_in_blank_buffer() {
     snapshot(
         &mut editor,
         expect![[r#"
-        "   1 |    "
-        "          "
-        "          "
-        "scratch:1:"
-        "-- INSERT "
-    "#]],
+            "  1 |     "
+            "          "
+            "          "
+            "scratch:1:"
+            "-- INSERT "
+        "#]],
     );
 
     editor.insert_char_at_cursor('\n');
     snapshot(
         &mut editor,
         expect![[r#"
-            "   1      "
-            "   2 |    "
+            "  1       "
+            "  2 |     "
             "          "
             "scratch:2:"
             "-- INSERT "

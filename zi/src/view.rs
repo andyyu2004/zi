@@ -1,4 +1,4 @@
-use tui::LineNumber;
+use tui::LineNumberStyle;
 use zi_core::{Offset, Size};
 use zi_text::{self, Text as _, TextSlice};
 
@@ -13,12 +13,15 @@ use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, U
 pub struct Config {
     /// The width of the line numbers column including a space between the number and the text
     pub number_width: Setting<u8>,
-    pub line_number: Setting<LineNumber>,
+    pub line_number_style: Setting<LineNumberStyle>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { number_width: Setting::new(4), line_number: Setting::new(LineNumber::Absolute(4)) }
+        Self {
+            number_width: Setting::new(4),
+            line_number_style: Setting::new(LineNumberStyle::Absolute),
+        }
     }
 }
 
