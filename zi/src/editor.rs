@@ -713,7 +713,7 @@ impl Editor {
         }
     }
 
-    pub fn execute_command(&mut self) {
+    fn execute_buffered_command(&mut self) {
         let State::Command(state) = &mut self.state else { return };
 
         if state.buffer.starts_with('/') {

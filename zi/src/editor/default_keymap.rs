@@ -208,7 +208,7 @@ pub(super) fn new() -> Keymap {
         goto_prev_match,
         inspect,
         delete_char_backward,
-        execute_command,
+        execute_buffered_command,
         open_jump_list,
     );
 
@@ -231,7 +231,7 @@ pub(super) fn new() -> Keymap {
                 Mode::Command => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                     "<BS>" => delete_char_backward,
-                    "<CR>" => execute_command,
+                    "<CR>" => execute_buffered_command,
                 }),
                 Mode::Insert => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
