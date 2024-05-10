@@ -852,6 +852,8 @@ impl Editor {
         self.tree.focus_direction(direction)
     }
 
+    // Bad API used in tests for now
+    #[doc(hidden)]
     pub fn delete_char_backward(&mut self) {
         match &mut self.state {
             State::Command(state) => {
@@ -888,6 +890,8 @@ impl Editor {
         }
     }
 
+    // Bad API used in tests for now
+    #[doc(hidden)]
     pub fn insert_char_at_cursor(&mut self, c: char) {
         let mut cbuf = [0; 4];
         let view = self.view(Active);

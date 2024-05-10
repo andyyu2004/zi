@@ -1,4 +1,5 @@
 mod insert;
+mod line_number;
 mod split;
 
 use tui::backend::{Backend as _, TestBackend};
@@ -11,9 +12,8 @@ pub fn new_with_snapshot(
 ) -> (zi::Editor, impl FnMut(&mut zi::Editor, expect_test::Expect)) {
     let (mut editor, _tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
-    for c in content.chars() {
-        editor.insert_char_at_cursor(c);
-    }
+    editor.edit(zi::Active, &zi::Delta::insert_at(0, content));
+    editor.set_cursor(zi::Active, content.len());
 
     let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
     (editor, move |editor, expect| {

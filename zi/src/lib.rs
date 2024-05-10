@@ -7,6 +7,7 @@
     iter_from_coroutine
 )]
 
+pub use tui::LineNumberStyle;
 mod boring_impls;
 pub mod buffer;
 mod command;

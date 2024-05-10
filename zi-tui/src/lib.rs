@@ -2,10 +2,10 @@ mod element;
 mod sequence;
 
 use std::borrow::Cow;
-use std::fmt;
 use std::iter::Peekable;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::{cmp, fmt};
 
 pub use ratatui::backend::Backend;
 pub use ratatui::buffer::Buffer;
@@ -73,9 +73,9 @@ where
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LineNumberStyle {
-    #[default]
     Absolute,
-    // Relative,
+    #[default]
+    Relative,
     None,
 }
 
@@ -85,7 +85,7 @@ impl FromStr for LineNumberStyle {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "abs" | "absolute" => Ok(Self::Absolute),
-            // "relative" => Ok(Self::Relative),
+            "rel" | "relative" => Ok(Self::Relative),
             "none" | "off" => Ok(Self::None),
             _ => anyhow::bail!(
                 "unknown line number style: {s} (expected `absolute`, `none`, or `relative)"
@@ -98,7 +98,7 @@ impl fmt::Display for LineNumberStyle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Absolute => write!(f, "absolute"),
-            // Self::Relative => write!(f, "relative"),
+            Self::Relative => write!(f, "relative"),
             Self::None => write!(f, "none"),
         }
     }
@@ -110,6 +110,7 @@ pub struct Lines<'a, I: Iterator> {
     line_number_style: LineNumberStyle,
     tab_width: u8,
     min_number_width: u8,
+    cursor_line: usize,
     chunks: Peekable<I>,
     _marker: PhantomData<&'a ()>,
 }
@@ -117,6 +118,7 @@ pub struct Lines<'a, I: Iterator> {
 impl<I: Iterator> Lines<'_, I> {
     pub fn new(
         line_offset: usize,
+        cursor_line: usize,
         line_number_style: LineNumberStyle,
         tab_width: u8,
         min_number_width: u8,
@@ -127,6 +129,7 @@ impl<I: Iterator> Lines<'_, I> {
             line_number_style,
             tab_width,
             min_number_width,
+            cursor_line,
             chunks: chunks.peekable(),
             _marker: PhantomData,
         }
@@ -147,14 +150,23 @@ where
             assert!(spans.is_empty());
             // FIXME not handling where the line number is longer than the width
             let width = self.min_number_width.saturating_sub(1);
+            let style = Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75));
+
             let line_number_span = match self.line_number_style {
+                LineNumberStyle::Relative => {
+                    let number = match self.cursor_line.cmp(&(i + self.line_offset)) {
+                        cmp::Ordering::Less => i + self.line_offset - self.cursor_line,
+                        cmp::Ordering::Equal => self.cursor_line + 1,
+                        cmp::Ordering::Greater => self.cursor_line - i - self.line_offset,
+                    };
+
+                    Span::styled(format!("{:width$} ", number, width = width as usize), style)
+                }
                 LineNumberStyle::Absolute => Span::styled(
                     format!("{:width$} ", self.line_offset + i + 1, width = width as usize),
-                    Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)),
+                    style,
                 ),
-                LineNumberStyle::None => {
-                    Span::styled(" ", Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75)))
-                }
+                LineNumberStyle::None => Span::styled(" ", style),
             };
 
             spans.push(line_number_span);

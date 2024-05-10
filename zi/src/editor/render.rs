@@ -170,6 +170,7 @@ impl Editor {
 
         let lines = tui::Lines::new(
             line_offset,
+            view.cursor().line(),
             view.config().line_number_style.read(),
             buf.config().tab_width.read(),
             view.config().line_number_width.read(),
