@@ -205,13 +205,13 @@ where
                         cmp::Ordering::Greater => self.cursor_line - i - self.line_offset,
                     };
 
-                    Span::styled(format!("{:width$} ", number, width = number_width - 1), style)
+                    Span::styled(format!(" {:width$} ", number, width = number_width - 1), style)
                 }
                 LineNumberStyle::Absolute => Span::styled(
-                    format!("{:width$} ", self.line_offset + i + 1, width = number_width - 1),
+                    format!(" {:width$} ", self.line_offset + i + 1, width = number_width - 1),
                     style,
                 ),
-                LineNumberStyle::None => Span::styled(SPACE, style),
+                LineNumberStyle::None => Span::styled("  ", style),
             };
 
             line.spans[0] = line_number_span;
@@ -221,7 +221,8 @@ where
             buf.set_line(area.x, area.y + i as u16, line, area.width);
         });
 
-        number_width
+        // + 1 for the ever present left padding space
+        1 + number_width
     }
 }
 

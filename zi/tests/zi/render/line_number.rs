@@ -16,12 +16,12 @@ fn line_number_width_grows_and_shrinks_as_required() {
     snapshot(
         &mut editor,
         expect![[r#"
-            " 7 7                                               "
-            " 8 8                                               "
-            " 9 9                                               "
-            "10 10                                              "
-            "11 11                                              "
-            "12 12|                                             "
+            "  7 7                                              "
+            "  8 8                                              "
+            "  9 9                                              "
+            " 10 10                                             "
+            " 11 11                                             "
+            " 12 12|                                            "
             "scratch:12:2                                       "
             "-- INSERT --                                       "
         "#]],
@@ -32,12 +32,12 @@ fn line_number_width_grows_and_shrinks_as_required() {
     snapshot(
         &mut editor,
         expect![[r#"
-            " 5 7                                               "
-            " 4 8                                               "
-            " 3 9                                               "
-            " 2 10                                              "
-            " 1 11                                              "
-            "12 12|                                             "
+            "  5 7                                              "
+            "  4 8                                              "
+            "  3 9                                              "
+            "  2 10                                             "
+            "  1 11                                             "
+            " 12 12|                                            "
             "scratch:12:2                                       "
             "-- INSERT --                                       "
         "#]],
@@ -48,12 +48,12 @@ fn line_number_width_grows_and_shrinks_as_required() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "2 7                                                "
-            "1 8                                                "
-            "9 9|                                               "
-            "1 10                                               "
-            "2 11                                               "
-            "3 12                                               "
+            " 2 7                                               "
+            " 1 8                                               "
+            " 9 9|                                              "
+            " 1 10                                              "
+            " 2 11                                              "
+            " 3 12                                              "
             "scratch:9:1                                        "
             "-- INSERT --                                       "
         "#]],
@@ -69,9 +69,9 @@ fn no_line_number() {
     snapshot(
         &mut editor,
         expect![[r#"
-            " a                                                 "
-            " b                                                 "
-            " c|                                                "
+            "  a                                                "
+            "  b                                                "
+            "  c|                                               "
             "                                                   "
             "                                                   "
             "                                                   "
@@ -95,12 +95,12 @@ fn relative_line_number() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "  2 7                                              "
-            "  1 8                                              "
-            "  9 9|                                             "
-            "  1 10                                             "
-            "  2 11                                             "
-            "  3 12                                             "
+            "   2 7                                             "
+            "   1 8                                             "
+            "   9 9|                                            "
+            "   1 10                                            "
+            "   2 11                                            "
+            "   3 12                                            "
             "scratch:9:1                                        "
             "-- INSERT --                                       "
         "#]],
@@ -111,12 +111,12 @@ fn relative_line_number() {
     snapshot(
         &mut editor,
         expect![[r#"
-            "  3 7                                              "
-            "  2 8                                              "
-            "  1 9                                              "
-            " 10 10|                                            "
-            "  1 11                                             "
-            "  2 12                                             "
+            "   3 7                                             "
+            "   2 8                                             "
+            "   1 9                                             "
+            "  10 10|                                           "
+            "   1 11                                            "
+            "   2 12                                            "
             "scratch:10:2                                       "
             "-- INSERT --                                       "
         "#]],
