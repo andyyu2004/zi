@@ -3,9 +3,24 @@ use zi_core::{Offset, Size};
 use zi_text::{self, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
+use crate::config::Setting;
 use crate::editor::{Resource, Selector};
 use crate::private::Sealed;
 use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
+
+/// View-local configuration
+#[derive(Clone, Debug)]
+pub struct Config {
+    /// The width of the line numbers column including a space between the number and the text
+    pub number_width: Setting<u8>,
+    pub line_number: Setting<LineNumber>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { number_width: Setting::new(4), line_number: Setting::new(LineNumber::Absolute(4)) }
+    }
+}
 
 slotmap::new_key_type! {
     pub struct ViewId;
@@ -50,10 +65,10 @@ pub struct View {
     offset: Offset,
     /// The cursor position in the buffer
     cursor: Cursor,
-    line_number: LineNumber,
     group: Option<ViewGroupId>,
     url: Url,
     jumps: JumpList<Location>,
+    config: Config,
 }
 
 impl Sealed for View {}
@@ -148,13 +163,9 @@ impl View {
         self.buf
     }
 
-    pub fn line_number(&self) -> LineNumber {
-        self.line_number
-    }
-
     #[inline]
-    pub fn with_line_number(self, line_number: LineNumber) -> Self {
-        Self { line_number, ..self }
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     #[inline]
@@ -467,10 +478,6 @@ impl View {
         );
     }
 
-    pub fn line_number_width(&self) -> u8 {
-        self.line_number.width()
-    }
-
     #[inline]
     pub fn offset(&self) -> Offset {
         self.offset
@@ -481,11 +488,11 @@ impl View {
             id,
             url: Url::parse(&format!("view://{}", id.0.as_ffi())).unwrap(),
             buf,
+            config: Default::default(),
             group: Default::default(),
             cursor: Default::default(),
             offset: Default::default(),
-            line_number: Default::default(),
-            jumps: JumpList::default(),
+            jumps: Default::default(),
         }
     }
 

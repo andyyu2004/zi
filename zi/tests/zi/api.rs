@@ -3,6 +3,7 @@ use std::io::Write;
 use expect_test::Expect;
 
 mod command;
+mod config;
 mod cursor;
 mod edit;
 mod motion;

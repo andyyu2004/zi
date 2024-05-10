@@ -1,3 +1,4 @@
+mod config;
 pub(crate) mod cursor;
 mod default_keymap;
 mod render;
@@ -32,6 +33,7 @@ use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlic
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
+use self::config::Config;
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -73,6 +75,8 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    #[allow(unused)] // no global config settings for now
+    config: Config,
     search_state: SearchState,
     state: State,
     keymap: Keymap,
@@ -322,6 +326,7 @@ impl Editor {
             keymap: default_keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
+            config: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
             language_servers: Default::default(),
@@ -1481,9 +1486,9 @@ impl Editor {
 
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
         let preview = self.views.insert_with_key(|id| {
-            View::new(id, preview_buf)
-                .with_line_number(tui::LineNumber::None)
-                .with_group(view_group)
+            let view = View::new(id, preview_buf).with_group(view_group);
+            view.config().line_number.write(tui::LineNumber::None);
+            view
         });
 
         self.tree.push(Layer::new_with_area(preview, |area| {

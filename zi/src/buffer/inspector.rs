@@ -8,6 +8,7 @@ pub struct InspectorBuffer {
     text: String,
     path: PathBuf,
     url: Url,
+    config: Config,
 }
 
 impl InspectorBuffer {
@@ -16,6 +17,7 @@ impl InspectorBuffer {
             id,
             path: PathBuf::from("inspector"),
             url: Url::parse("buffer://zi/inspector").unwrap(),
+            config: Default::default(),
             text: Default::default(),
         }
     }
@@ -46,8 +48,8 @@ impl Buffer for InspectorBuffer {
         &FileType::TEXT
     }
 
-    fn tab_width(&self) -> u8 {
-        4
+    fn config(&self) -> &Config {
+        &self.config
     }
 
     fn text(&self) -> &dyn AnyText {

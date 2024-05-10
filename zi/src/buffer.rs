@@ -16,6 +16,7 @@ pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
+use crate::config::Setting;
 use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
 use crate::private::Sealed;
@@ -44,6 +45,17 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct SnapshotFlags: u8 {
         const ALLOW_EMPTY = 0b0000_0001;
+    }
+}
+
+/// Buffer local configuration
+pub struct Config {
+    pub tab_width: Setting<u8>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { tab_width: Setting::new(4) }
     }
 }
 
@@ -137,9 +149,9 @@ pub trait Buffer {
 
     fn file_type(&self) -> &FileType;
 
-    fn tab_width(&self) -> u8;
-
     fn text(&self) -> &dyn AnyText;
+
+    fn config(&self) -> &Config;
 
     fn version(&self) -> u32;
 
@@ -207,7 +219,7 @@ pub trait Buffer {
 
     fn char_width(&self, c: char) -> usize {
         c.width().unwrap_or(match c {
-            '\t' => self.tab_width() as usize,
+            '\t' => self.config().tab_width.read() as usize,
             _ => 0,
         })
     }
@@ -278,8 +290,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn tab_width(&self) -> u8 {
-        self.as_ref().tab_width()
+    fn config(&self) -> &Config {
+        self.as_ref().config()
     }
 
     #[inline]

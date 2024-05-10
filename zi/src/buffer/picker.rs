@@ -21,6 +21,7 @@ pub struct PickerBuffer<P: Picker> {
     picker: P,
     url: Url,
     dynamic_handler: Option<DynamicHandler<P::Entry>>,
+    config: Config,
 }
 
 pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
@@ -135,6 +136,7 @@ where
             picker,
             dynamic_handler: None,
             url: Url::parse("buffer://zi/picker").unwrap(),
+            config: Default::default(),
             text: Default::default(),
             keymap: {
                 let next: Action = |editor| Self::select(editor, Direction::Down);
@@ -253,8 +255,8 @@ impl<P: Picker> Buffer for PickerBuffer<P> {
         &FileType::PICKER
     }
 
-    fn tab_width(&self) -> u8 {
-        4
+    fn config(&self) -> &Config {
+        &self.config
     }
 
     fn text(&self) -> &dyn AnyText {

@@ -16,6 +16,7 @@ pub struct ExplorerBuffer<T: Entry, F: 'static> {
     cancel: Cancel,
     keymap: Keymap,
     confirm: F,
+    config: Config,
 }
 
 impl<T, F> ExplorerBuffer<T, F>
@@ -63,6 +64,7 @@ where
                 keymap,
                 confirm,
                 url: Url::parse("buffer://zi/explorer").unwrap(),
+                config: Default::default(),
                 text: Default::default(),
             },
             injector,
@@ -96,8 +98,8 @@ impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
         &FileType::EXPLORER
     }
 
-    fn tab_width(&self) -> u8 {
-        4
+    fn config(&self) -> &Config {
+        &self.config
     }
 
     fn text(&self) -> &dyn AnyText {

@@ -19,7 +19,7 @@ pub struct TextBuffer<X> {
     syntax: Option<Syntax>,
     highlight_map: HighlightMap,
     version: u32,
-    tab_width: u8,
+    config: Config,
     undo_tree: UndoTree<UndoEntry>,
     /// Changes to the buffer that have not been saved to the undo tree
     changes: Vec<Change>,
@@ -110,8 +110,8 @@ impl<X: Text + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn tab_width(&self) -> u8 {
-        self.tab_width
+    fn config(&self) -> &Config {
+        &self.config
     }
 
     #[inline]
@@ -265,7 +265,7 @@ impl<X: Text> TextBuffer<X> {
             syntax,
             language_id,
             highlight_map,
-            tab_width: 4,
+            config: Default::default(),
             changes: Default::default(),
             version: Default::default(),
             undo_tree: Default::default(),
