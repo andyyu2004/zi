@@ -3652,6 +3652,7 @@ dependencies = [
 name = "zi-tui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "ratatui",
  "tracing",
 ]

@@ -95,7 +95,7 @@ impl Editor {
                 state.buffer.len().checked_sub(1).expect("should have a preceding `/` or `:`")
                     as u16
             }
-            _ => view.config().number_width.read() as u16,
+            _ => view.config().line_number_width.read() as u16,
         };
 
         frame.set_cursor(x + offset, y);
@@ -172,7 +172,7 @@ impl Editor {
             line_offset,
             view.config().line_number_style.read(),
             buf.config().tab_width.read(),
-            view.config().number_width.read(),
+            view.config().line_number_width.read(),
             chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
                 |(line, text, style)| {
                     // let line = line - line_offset;

@@ -8,5 +8,6 @@ workspace = true
 
 [dependencies]
 ratatui = "0.26.1"
+anyhow = { workspace = true }
 tracing = { workspace = true }
 

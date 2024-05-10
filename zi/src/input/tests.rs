@@ -28,7 +28,21 @@ fn parse_key_event_fail() {
 
 #[test]
 fn parse_key_sequence() {
-    for s in ["Y", "S-y", "<C-r>s", "abcd<C-r>s", "<C-r><C-r>s", "<C-w>j", "<C-w>'", "<C-w>\""] {
+    for s in [
+        "Y",
+        "S-y",
+        "<C-r>s",
+        "abcd<C-r>s",
+        "<C-r><C-r>s",
+        "<C-w>j",
+        "<C-w>'",
+        "<C-w>\"",
+        ":",
+        ":w",
+        ":w<CR>",
+        "<C-w>",
+        "<C-w>j",
+    ] {
         let parsed = s.parse::<KeySequence>().unwrap_or_else(|err| {
             panic!("case: `{s}` should parse but failed to parse with error: `{err:?}`")
         });

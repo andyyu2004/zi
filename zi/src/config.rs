@@ -10,6 +10,13 @@ pub struct Setting<T> {
     tx: watch::Sender<T>,
 }
 
+impl<T: PartialEq> PartialEq<T> for Setting<T> {
+    #[inline]
+    fn eq(&self, other: &T) -> bool {
+        &*self.rx.borrow() == other
+    }
+}
+
 impl<T: fmt::Debug> fmt::Debug for Setting<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Setting({:?})", *self.rx.borrow())

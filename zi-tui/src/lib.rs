@@ -2,8 +2,10 @@ mod element;
 mod sequence;
 
 use std::borrow::Cow;
+use std::fmt;
 use std::iter::Peekable;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 pub use ratatui::backend::Backend;
 pub use ratatui::buffer::Buffer;
@@ -75,6 +77,31 @@ pub enum LineNumberStyle {
     Absolute,
     // Relative,
     None,
+}
+
+impl FromStr for LineNumberStyle {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "abs" | "absolute" => Ok(Self::Absolute),
+            // "relative" => Ok(Self::Relative),
+            "none" | "off" => Ok(Self::None),
+            _ => anyhow::bail!(
+                "unknown line number style: {s} (expected `absolute`, `none`, or `relative)"
+            ),
+        }
+    }
+}
+
+impl fmt::Display for LineNumberStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Absolute => write!(f, "absolute"),
+            // Self::Relative => write!(f, "relative"),
+            Self::None => write!(f, "none"),
+        }
+    }
 }
 
 pub struct Lines<'a, I: Iterator> {

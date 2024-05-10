@@ -391,7 +391,7 @@ impl<T: Entry> Injector<T> {
 
     /// Push an item into the injector
     /// Returns `Err` if the injector has been cancelled
-    pub fn push(&self, item: T) -> Result<(), ()> {
+    pub(crate) fn push(&self, item: T) -> Result<(), ()> {
         self.injector.push(item.clone(), |_, dst| dst[0] = format!("{item}").into());
         if self.cancel.is_cancelled() { Err(()) } else { Ok(()) }
     }

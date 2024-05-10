@@ -45,7 +45,7 @@ impl fmt::Debug for Command {
 }
 
 impl FromStr for Command {
-    type Err = String;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         command().parse(s).map_err(|errs| {
@@ -54,7 +54,7 @@ impl FromStr for Command {
             for err in errs {
                 write!(msg, "{err}").unwrap();
             }
-            msg
+            anyhow::anyhow!("{msg}")
         })
     }
 }
@@ -270,7 +270,11 @@ impl Handler {
 }
 
 impl Arity {
-    const ZERO: Self = Self { min: 0, max: 0 };
+    const ZERO: Self = Self::exact(0);
+
+    const fn exact(n: u8) -> Self {
+        Self { min: n, max: n }
+    }
 }
 
 pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
@@ -325,10 +329,38 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             })
             .into(),
         },
+        // `set x y` to set parameter `x` to value `y`
+        Handler {
+            name: "set".try_into().unwrap(),
+            arity: Arity::exact(2),
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.len() == 2);
+                let key = &args[0];
+                let value = &args[1];
+
+                set(editor, key, value)
+            })
+            .into(),
+        },
     ]
     .into_iter()
     .map(|handler| (handler.name.clone(), handler))
     .collect()
+}
+
+fn set(editor: &Editor, key: &Word, value: &Word) -> crate::Result<()> {
+    let buf = editor.buffer(Active).config();
+    let view = editor.view(Active).config();
+
+    match key.as_str() {
+        "tabstop" | "ts" | "tabwidth" => buf.tab_width.write(value.parse()?),
+        "numberwidth" | "nuw" => view.line_number_width.write(value.parse()?),
+        "numberstyle" | "nus" => view.line_number_style.write(value.parse()?),
+        _ => anyhow::bail!("unknown parameter: `{key}`"),
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -39,7 +39,7 @@ fn parse_command() {
     ] {
         match src.parse::<Command>() {
             Ok(cmd) => expect.assert_debug_eq(&cmd),
-            Err(err) => expect.assert_eq(&err),
+            Err(err) => expect.assert_eq(&err.to_string()),
         };
     }
 }

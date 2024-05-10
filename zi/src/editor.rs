@@ -703,19 +703,24 @@ impl Editor {
         mode!(self)
     }
 
-    pub fn execute(&mut self, cmd: Command) {
+    pub fn execute(&mut self, s: impl AsRef<str>) -> crate::Result<()> {
+        let cmd = s.as_ref().parse::<Command>()?;
+        self.execute_cmd(cmd)
+    }
+
+    fn execute_cmd(&mut self, cmd: Command) -> crate::Result<()> {
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
                 if let Some(handler) = self.command_handlers.get(cmd).cloned() {
-                    if let Err(err) = handler.execute(self, range, args) {
-                        set_error!(self, err);
-                    }
+                    handler.execute(self, range, args)?;
                 } else {
-                    set_error!(self, format!("unknown command: {cmd}"));
+                    anyhow::bail!("unknown command: {cmd}")
                 }
             }
         }
+
+        Ok(())
     }
 
     fn execute_buffered_command(&mut self) {
@@ -732,7 +737,9 @@ impl Editor {
         match cmd.parse::<Command>() {
             Ok(cmd) => {
                 state.buffer.clear();
-                self.execute(cmd);
+                if let Err(err) = self.execute_cmd(cmd) {
+                    set_error!(self, err);
+                }
             }
             Err(err) => set_error!(self, err),
         };

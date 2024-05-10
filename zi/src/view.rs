@@ -12,14 +12,14 @@ use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, U
 #[derive(Clone, Debug)]
 pub struct Config {
     /// The width of the line numbers column including a space between the number and the text
-    pub number_width: Setting<u8>,
+    pub line_number_width: Setting<u8>,
     pub line_number_style: Setting<LineNumberStyle>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            number_width: Setting::new(4),
+            line_number_width: Setting::new(4),
             line_number_style: Setting::new(LineNumberStyle::Absolute),
         }
     }

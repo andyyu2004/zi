@@ -8,7 +8,7 @@
 )]
 
 mod boring_impls;
-mod buffer;
+pub mod buffer;
 mod command;
 mod config;
 mod dirs;
@@ -26,7 +26,7 @@ mod plugin;
 mod private;
 mod syntax;
 mod undo;
-mod view;
+pub mod view;
 
 pub use location::Location;
 pub use tokio::sync::Notify;
