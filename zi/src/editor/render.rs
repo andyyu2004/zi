@@ -95,7 +95,7 @@ impl Editor {
                 state.buffer.len().checked_sub(1).expect("should have a preceding `/` or `:`")
                     as u16
             }
-            _ => view.config().line_number_width.read() as u16,
+            _ => view.number_width.get(),
         };
 
         frame.set_cursor(x + offset, y);
@@ -176,7 +176,6 @@ impl Editor {
             view.config().line_number_width.read(),
             chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
                 |(line, text, style)| {
-                    // let line = line - line_offset;
                     let default_style = theme.default_style();
                     // The merge is still necessary to fill in the missing fields in the style.
                     let style = default_style.merge(style.unwrap_or(default_style));
@@ -186,6 +185,7 @@ impl Editor {
         );
 
         surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
-        lines.render(area, surface);
+        let width = lines.render_(area, surface);
+        view.number_width.set(width as u16);
     }
 }

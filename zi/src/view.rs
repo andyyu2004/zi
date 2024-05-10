@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use tui::LineNumberStyle;
 use zi_core::{Offset, Size};
 use zi_text::{self, Text as _, TextSlice};
@@ -72,6 +74,11 @@ pub struct View {
     url: Url,
     jumps: JumpList<Location>,
     config: Config,
+
+    /// The actual width of the line numbers column including a space between the number and the text.
+    /// This should be at least `config.line_number_width` but can be larger if the line numbers are wider.
+    /// This value should be updated when rendering the view.
+    pub(crate) number_width: Cell<u16>,
 }
 
 impl Sealed for View {}
@@ -491,6 +498,7 @@ impl View {
             id,
             url: Url::parse(&format!("view://{}", id.0.as_ffi())).unwrap(),
             buf,
+            number_width: Cell::new(0),
             config: Default::default(),
             group: Default::default(),
             cursor: Default::default(),

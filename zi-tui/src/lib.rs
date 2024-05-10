@@ -12,7 +12,7 @@ pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Style};
 pub use ratatui::text::{Line, Span, Text};
-pub use ratatui::widgets::{Clear, Widget};
+pub use ratatui::widgets::{Clear, Widget, WidgetRef};
 pub use ratatui::{backend, Frame, Terminal};
 
 /// Convenience trait to allow replacing the frame with a faster implementation for testing.
@@ -136,40 +136,45 @@ impl<I: Iterator> Lines<'_, I> {
     }
 }
 
-impl<'a, I> Widget for Lines<'a, I>
+impl<'a, I> Lines<'a, I>
 where
     I: Iterator<Item = (usize, Cow<'a, str>, Style)>,
 {
-    fn render(mut self, area: Rect, buf: &mut Buffer) {
-        let mut spans = vec![];
+    /// Render the lines to the buffer returning the width of the line numbers.
+    pub fn render_(mut self, area: Rect, buf: &mut Buffer) -> usize {
+        fn count_digits(n: usize) -> usize {
+            1 + n.abs_diff(0).checked_ilog10().unwrap_or_default() as usize
+        }
+
+        fn replace_tabs(tab_width: usize, span: &mut Span<'_>) {
+            if span.content.contains('\t') {
+                span.content =
+                    span.content.replace('\t', &format!("{:width$}", "", width = tab_width)).into();
+            }
+        }
+
+        let mut lines = vec![];
+        const SPACE: &str = " ";
+        let mut number_width = match self.line_number_style {
+            LineNumberStyle::None => SPACE.len(),
+            _ => self.min_number_width as usize,
+        };
+
         while let Some(&(i, ..)) = self.chunks.peek() {
             if i >= area.height as usize {
                 break;
             }
 
-            assert!(spans.is_empty());
-            // FIXME not handling where the line number is longer than the width
-            let width = self.min_number_width.saturating_sub(1);
-            let style = Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75));
+            // Include placeholder span to replace with line number.
+            let mut spans = vec![Span::raw("")];
 
-            let line_number_span = match self.line_number_style {
-                LineNumberStyle::Relative => {
-                    let number = match self.cursor_line.cmp(&(i + self.line_offset)) {
-                        cmp::Ordering::Less => i + self.line_offset - self.cursor_line,
-                        cmp::Ordering::Equal => self.cursor_line + 1,
-                        cmp::Ordering::Greater => self.cursor_line - i - self.line_offset,
-                    };
-
-                    Span::styled(format!("{:width$} ", number, width = width as usize), style)
-                }
-                LineNumberStyle::Absolute => Span::styled(
-                    format!("{:width$} ", self.line_offset + i + 1, width = width as usize),
-                    style,
-                ),
-                LineNumberStyle::None => Span::styled(" ", style),
-            };
-
-            spans.push(line_number_span);
+            number_width = number_width.max(
+                1 + match self.line_number_style {
+                    LineNumberStyle::None => 0,
+                    LineNumberStyle::Absolute => count_digits(self.line_offset + i + 1),
+                    LineNumberStyle::Relative => count_digits(self.cursor_line + 1),
+                },
+            );
 
             while let Some(&(j, ref text, style)) = self.chunks.peek() {
                 if j != i {
@@ -182,21 +187,49 @@ where
 
             // Tabs are currently not rendered at all. We replace them with spaces for rendering purposes.
             // https://github.com/ratatui-org/ratatui/issues/876
-            for span in &mut spans {
-                if span.content.contains('\t') {
-                    span.content = span
-                        .content
-                        .replace('\t', &format!("{:width$}", "", width = self.tab_width as usize))
-                        .into();
-                }
-            }
+            spans.iter_mut().for_each(|span| replace_tabs(self.tab_width as usize, span));
 
-            let line = Line::default().spans(std::mem::take(&mut spans));
-            buf.set_line(area.x, area.y + i as u16, &line, area.width);
-
-            // retake the span to reuse the allocation
-            spans = line.spans;
-            spans.clear();
+            lines.push(Line::default().spans(spans));
         }
+
+        assert!(number_width > 0, "number_width should include room for one space");
+
+        for (i, line) in lines.iter_mut().enumerate() {
+            // Set line number spans for each line.
+            let style = Style::new().fg(Color::Rgb(0x58, 0x6e, 0x75));
+            let line_number_span = match self.line_number_style {
+                LineNumberStyle::Relative => {
+                    let number = match self.cursor_line.cmp(&(i + self.line_offset)) {
+                        cmp::Ordering::Less => i + self.line_offset - self.cursor_line,
+                        cmp::Ordering::Equal => self.cursor_line + 1,
+                        cmp::Ordering::Greater => self.cursor_line - i - self.line_offset,
+                    };
+
+                    Span::styled(format!("{:width$} ", number, width = number_width - 1), style)
+                }
+                LineNumberStyle::Absolute => Span::styled(
+                    format!("{:width$} ", self.line_offset + i + 1, width = number_width - 1),
+                    style,
+                ),
+                LineNumberStyle::None => Span::styled(SPACE, style),
+            };
+
+            line.spans[0] = line_number_span;
+        }
+
+        lines.iter().enumerate().for_each(|(i, line)| {
+            buf.set_line(area.x, area.y + i as u16, line, area.width);
+        });
+
+        number_width
+    }
+}
+
+impl<'a, I> Widget for Lines<'a, I>
+where
+    I: Iterator<Item = (usize, Cow<'a, str>, Style)>,
+{
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.render_(area, buf);
     }
 }
