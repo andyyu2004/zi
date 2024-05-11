@@ -41,7 +41,7 @@ impl ReadonlyText<Mmap> {
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };
-        Ok(ReadonlyText { buf, len_lines: OnceLock::new() })
+        Ok(ReadonlyText::new(buf))
     }
 }
 

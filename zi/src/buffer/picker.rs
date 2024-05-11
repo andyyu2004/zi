@@ -98,7 +98,12 @@ where
                     editor.reveal(self.preview, Point::new(line, 0), VerticalAlignment::Center)
                 }
             }
-            Err(err) => editor.set_error(err),
+            Err(err) => match err {
+                zi_lsp::Error::Io(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+                    editor.set_buffer(self.preview, editor.empty_buffer());
+                }
+                err => editor.set_error(err),
+            },
         }
     }
 

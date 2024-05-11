@@ -37,6 +37,7 @@ zi-core = { workspace = true, features = ["tree-sitter"] }
 zi-lsp = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }
+content_inspector = "0.2.4"
 
 [dev-dependencies]
 expect-test = { workspace = true }

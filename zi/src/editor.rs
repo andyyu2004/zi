@@ -75,6 +75,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    empty_buffer: BufferId,
     #[allow(unused)] // no global config settings for now
     config: Config,
     search_state: SearchState,
@@ -297,7 +298,7 @@ impl Editor {
         let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
-        let buf = buffers.insert_with_key(|id| {
+        let scratch_buffer = buffers.insert_with_key(|id| {
             TextBuffer::new(
                 id,
                 BufferFlags::empty(),
@@ -309,7 +310,11 @@ impl Editor {
             .boxed()
         });
         let mut views = SlotMap::default();
-        let active_view = views.insert_with_key(|id| View::new(id, buf));
+        let active_view = views.insert_with_key(|id| View::new(id, scratch_buffer));
+
+        let empty_buffer = buffers.insert_with_key(|id| {
+            TextBuffer::new(id, BufferFlags::READONLY, FileType::TEXT, "empty", "", &theme).boxed()
+        });
 
         // Using an unbounded channel as we need `callbacks_tx.send()` to be sync.
         let (callbacks_tx, callbacks_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -323,6 +328,7 @@ impl Editor {
             callbacks_tx,
             requests_tx,
             plugins,
+            empty_buffer,
             keymap: default_keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
@@ -367,6 +373,15 @@ impl Editor {
         }
 
         if path.exists() {
+            // Try ensure that the file does not contains non-utf8 data.
+            use std::io::Read;
+            let mut buf = [0u8; 1024];
+            let n = File::open(&path)?.read(&mut buf)?;
+            match content_inspector::inspect(&buf[..n]) {
+                content_inspector::ContentType::UTF_8 => {}
+                _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data").into()),
+            }
+
             path = path.canonicalize()?.into();
         }
 
@@ -451,6 +466,10 @@ impl Editor {
 
     pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
         self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
+    }
+
+    pub(crate) fn empty_buffer(&self) -> BufferId {
+        self.empty_buffer
     }
 
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
