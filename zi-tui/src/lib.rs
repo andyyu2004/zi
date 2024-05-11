@@ -106,7 +106,7 @@ impl FromStr for LineNumberStyle {
             "rel" | "relative" => Ok(Self::Relative),
             "none" | "off" => Ok(Self::None),
             _ => anyhow::bail!(
-                "unknown line number style: {s} (expected `absolute`, `none`, or `relative)"
+                "unknown line number style: {s} (expected `absolute`, `none`, or `relative`)"
             ),
         }
     }

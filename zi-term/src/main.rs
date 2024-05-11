@@ -60,6 +60,13 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    let init_path = zi::dirs::config().join("init.zi");
+    if init_path.exists() {
+        for cmd in std::fs::read_to_string(init_path)?.parse::<zi::Commands>()? {
+            editor.execute(cmd)?;
+        }
+    }
+
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
     std::panic::update_hook(move |prev, info| {
         let backtrace = Backtrace::capture();
@@ -72,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
 
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
+
     app.run(&mut editor, events, tasks).await?;
 
     Ok(())

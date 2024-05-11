@@ -12,7 +12,7 @@ mod boring_impls;
 pub mod buffer;
 mod command;
 mod config;
-mod dirs;
+pub mod dirs;
 mod editor;
 pub mod event;
 pub mod input;
@@ -39,6 +39,7 @@ pub use zi_text::Delta;
 pub use zi_textobject::motion;
 
 pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
+pub use self::command::{Command, Commands};
 pub use self::editor::{Active, Client, Editor, Match, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageServerId};

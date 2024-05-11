@@ -733,12 +733,12 @@ impl Editor {
         mode!(self)
     }
 
-    pub fn execute(&mut self, s: impl AsRef<str>) -> crate::Result<()> {
-        let cmd = s.as_ref().parse::<Command>()?;
-        self.execute_cmd(cmd)
-    }
-
-    fn execute_cmd(&mut self, cmd: Command) -> crate::Result<()> {
+    pub fn execute<C>(&mut self, cmd: C) -> crate::Result<()>
+    where
+        C: TryInto<Command>,
+        Error: From<<C as TryInto<Command>>::Error>,
+    {
+        let cmd = cmd.try_into()?;
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
@@ -767,7 +767,7 @@ impl Editor {
         match cmd.parse::<Command>() {
             Ok(cmd) => {
                 state.buffer.clear();
-                if let Err(err) = self.execute_cmd(cmd) {
+                if let Err(err) = self.execute(cmd) {
                     set_error!(self, err);
                 }
             }

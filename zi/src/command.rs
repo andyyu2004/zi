@@ -2,6 +2,8 @@ use std::fmt;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
 
+use chumsky::primitive::end;
+use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
@@ -9,6 +11,47 @@ use smol_str::SmolStr;
 use crate::plugin::PluginId;
 use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Active, Editor, Error};
+
+pub struct Commands(Box<[Command]>);
+
+impl fmt::Debug for Commands {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for cmd in self.iter() {
+            write!(f, "{cmd:?};")?;
+        }
+        Ok(())
+    }
+}
+
+impl Commands {
+    pub fn iter(&self) -> impl Iterator<Item = &Command> {
+        self.0.iter()
+    }
+}
+
+impl IntoIterator for Commands {
+    type Item = Command;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_vec().into_iter()
+    }
+}
+
+impl FromStr for Commands {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        commands().then_ignore(end()).parse(s).map_err(|errs| {
+            use std::fmt::Write;
+            let mut msg = String::new();
+            for err in errs {
+                write!(msg, "{err}").unwrap();
+            }
+            anyhow::anyhow!("{msg}")
+        })
+    }
+}
 
 pub enum CommandRange {}
 
@@ -48,7 +91,7 @@ impl FromStr for Command {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        command().parse(s).map_err(|errs| {
+        command().then_ignore(whitespace()).then_ignore(end()).parse(s).map_err(|errs| {
             use std::fmt::Write;
             let mut msg = String::new();
             for err in errs {
@@ -57,6 +100,23 @@ impl FromStr for Command {
             anyhow::anyhow!("{msg}")
         })
     }
+}
+
+impl TryFrom<&str> for Command {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+fn commands() -> impl Parser<char, Commands, Error = chumsky::error::Simple<char>> {
+    use chumsky::prelude::*;
+
+    command()
+        .separated_by(just(';').ignored().or(newline()))
+        .allow_trailing()
+        .map(|commands| Commands(commands.into_boxed_slice()))
 }
 
 fn command() -> impl Parser<char, Command, Error = chumsky::error::Simple<char>> {
@@ -69,31 +129,18 @@ fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simp
     // A generic command is just a bunch of whitespace separated words.
     // The first word is the command, the rest are string arguments.
 
-    // Something like the following hangs.
-    // whitespace()
-    //     .not()
-    //     .repeated()
-    //     .separated_by(whitespace())
-    //     .at_least(1)
-    //     .allow_leading()
-    //     .allow_trailing()
-    //     .map(|text: Vec<Vec<char>>| {
-    //         let mut words =
-    //             text.into_iter().map(|word| Word::from(word.into_iter().collect::<String>()));
-    //         let cmd = words.next().expect("expect at least 1 word");
-    //         let args = words.collect::<Box<_>>();
-    //         CommandKind::Generic(cmd, args)
-    //     })
-
-    any().repeated().at_least(1).try_map(|text, span| {
-        let s = text.into_iter().collect::<String>();
-        let mut words = s.split_whitespace().map(Word::try_from).map(Result::unwrap);
-        let cmd = words
-            .next()
-            .ok_or_else(|| chumsky::error::Simple::custom(span, "expected at least 1 word"))?;
-        let args = words.collect::<Box<_>>();
-        Ok(CommandKind::Generic(cmd, args))
-    })
+    ident()
+        .or(digits(10))
+        .separated_by(filter(|&c: &char| c.is_whitespace() && c != '\n').ignored().repeated())
+        .at_least(1)
+        .allow_leading()
+        .allow_trailing()
+        .map(|words| {
+            let mut words = words.into_iter().map(|s| Word::try_from(s).unwrap());
+            let cmd = words.next().expect("expect at least 1 word");
+            let args = words.collect::<Box<_>>();
+            CommandKind::Generic(cmd, args)
+        })
 }
 
 /// A single word in a command, without whitespace.
