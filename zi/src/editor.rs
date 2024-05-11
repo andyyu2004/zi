@@ -1006,6 +1006,7 @@ impl Editor {
         let cursor = self[view].cursor();
         let target_col = self[view].cursor_target_col();
         let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
+            self.set_cursor(view, cursor);
             return self.set_mode(Mode::Normal);
         };
 
