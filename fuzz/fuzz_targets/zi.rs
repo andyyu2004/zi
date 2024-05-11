@@ -21,7 +21,7 @@ fuzz_target!(|inputs: zi::input::KeySequence| {
     let inputs = inputs.into_iter().chain(quit_sequence.cycle());
 
     let (width, height) = (24, 10);
-    let (editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
+    let (mut editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
     let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
     let inputs = stream::iter(inputs.map(zi::input::Event::Key).map(Ok));
 

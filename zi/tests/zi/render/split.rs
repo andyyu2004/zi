@@ -4,18 +4,18 @@ use expect_test::expect;
 use zi::Constraint::*;
 use zi::Direction::*;
 
-use super::new_with_snapshot;
+use super::run;
 
-#[test]
-fn view_only() {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
-    let v = editor.split(zi::Active, Right, Fill(1));
-    editor.split(zi::Active, Down, Fill(1));
-    editor.view_only(v);
+#[tokio::test]
+async fn view_only() {
+    run(zi::Size::new(51, 8), "1\n2\n3\n", |editor, mut snapshot| {
+        let v = editor.split(zi::Active, Right, Fill(1));
+        editor.split(zi::Active, Down, Fill(1));
+        editor.view_only(v);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                                             "
             "   2 2                                             "
             "   3 3                                             "
@@ -25,19 +25,21 @@ fn view_only() {
             "scratch:4:0                                        "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
+    })
+    .await;
 }
 
-#[test]
-fn close_view() {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
-    editor.split(zi::Active, Right, Fill(1));
-    editor.close_view(zi::Active);
-    assert!(!editor.should_quit());
+#[tokio::test]
+async fn close_view() {
+    run(zi::Size::new(51, 8), "1\n2\n3\n", |editor, mut snapshot| {
+        editor.split(zi::Active, Right, Fill(1));
+        editor.close_view(zi::Active);
+        assert!(!editor.should_quit());
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                                             "
             "   2 2                                             "
             "   3 3                                             "
@@ -47,14 +49,14 @@ fn close_view() {
             "scratch:4:0                                        "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
 
-    editor.split(zi::Active, Right, Fill(1));
-    editor.split(zi::Active, Down, Fill(1));
+        editor.split(zi::Active, Right, Fill(1));
+        editor.split(zi::Active, Down, Fill(1));
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                       1 1                   "
             "   2 2                       2 2                   "
             "   3 3                       3 3                   "
@@ -64,13 +66,13 @@ fn close_view() {
             "scratch:4:0                    |                   "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
 
-    editor.close_view(zi::Active);
+        editor.close_view(zi::Active);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                       1 1                   "
             "   2 2                       2 2                   "
             "   3 3                       3 3                   "
@@ -80,24 +82,25 @@ fn close_view() {
             "scratch:4:0                                        "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
 
-    editor.close_view(zi::Active);
-    assert!(!editor.should_quit());
+        editor.close_view(zi::Active);
+        assert!(!editor.should_quit());
 
-    editor.close_view(zi::Active);
-    assert!(editor.should_quit());
+        editor.close_view(zi::Active);
+        assert!(editor.should_quit());
+    })
+    .await;
 }
 
-#[test]
-fn splits_have_independent_scroll() -> io::Result<()> {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(51, 8), "1\n2\n3\n");
+#[tokio::test]
+async fn splits_have_independent_scroll() -> io::Result<()> {
+    run(zi::Size::new(51, 8), "1\n2\n3\n", |editor, mut snapshot| {
+        editor.split(zi::Active, Right, Fill(1));
 
-    editor.split(zi::Active, Right, Fill(1));
-
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                       1 1                   "
             "   2 2                       2 2                   "
             "   3 3                       3 3                   "
@@ -107,13 +110,13 @@ fn splits_have_independent_scroll() -> io::Result<()> {
             "scratch:4:0                                        "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
 
-    editor.scroll(zi::Active, Down, 1);
+        editor.scroll(zi::Active, Down, 1);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 1                       2 2                   "
             "   2 2                       3 3                   "
             "   3 3                       4 |                   "
@@ -123,20 +126,21 @@ fn splits_have_independent_scroll() -> io::Result<()> {
             "scratch:4:0                                        "
             "-- INSERT --                                       "
         "#]],
-    );
+        );
+    })
+    .await;
 
     Ok(())
 }
 
-#[test]
-fn split() -> io::Result<()> {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
+#[tokio::test]
+async fn split() -> io::Result<()> {
+    run(zi::Size::new(50, 8), "abc", |editor, mut snapshot| {
+        editor.split(zi::Active, Down, Fill(1));
 
-    editor.split(zi::Active, Down, Fill(1));
-
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc                                          "
             "                                                  "
             "                                                  "
@@ -146,15 +150,16 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
+    })
+    .await;
 
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(50, 8), "abc");
+    run(zi::Size::new(50, 8), "abc", |editor, mut snapshot| {
+        editor.split(zi::Active, Right, Fill(1));
 
-    editor.split(zi::Active, Right, Fill(1));
-
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc                    1 abc|                "
             "                                                  "
             "                                                  "
@@ -164,12 +169,12 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
 
-    editor.split(zi::Active, Right, Fill(1));
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        editor.split(zi::Active, Right, Fill(1));
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc            1 abc           1 abc|        "
             "                                                  "
             "                                                  "
@@ -179,12 +184,12 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
 
-    editor.split(zi::Active, Down, Fill(1));
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        editor.split(zi::Active, Down, Fill(1));
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
@@ -194,12 +199,12 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
 
-    editor.split(zi::Active, Left, Fill(1));
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        editor.split(zi::Active, Left, Fill(1));
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
@@ -209,12 +214,12 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
 
-    editor.split(zi::Active, Up, Fill(1));
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        editor.split(zi::Active, Up, Fill(1));
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc            1 abc           1 abc         "
             "                                                  "
             "                                                  "
@@ -224,25 +229,26 @@ fn split() -> io::Result<()> {
             "scratch:1:3                                       "
             "-- INSERT --                                      "
         "#]],
-    );
+        );
+    })
+    .await;
 
     Ok(())
 }
 
-#[test]
-fn more_splits() {
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(20, 8), "abc");
+#[tokio::test]
+async fn more_splits() {
+    run(zi::Size::new(20, 8), "abc", |editor, mut snapshot| {
+        let a = editor.view(zi::Active).id();
+        editor.split(zi::Active, Right, Fill(1));
+        editor.split(zi::Active, Down, Fill(1));
+        editor.focus(a);
+        editor.split(zi::Active, Down, Fill(1));
+        editor.split(zi::Active, Down, Fill(1));
 
-    let a = editor.view(zi::Active).id();
-    editor.split(zi::Active, Right, Fill(1));
-    editor.split(zi::Active, Down, Fill(1));
-    editor.focus(a);
-    editor.split(zi::Active, Down, Fill(1));
-    editor.split(zi::Active, Down, Fill(1));
-
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc     1 abc  "
             "                    "
             "   1 abc            "
@@ -252,20 +258,22 @@ fn more_splits() {
             "scratch:1:3         "
             "-- INSERT --        "
         "#]],
-    );
+        );
+    })
+    .await;
 }
 
-#[test]
-fn test_directional_focus() {
+#[tokio::test]
+async fn test_directional_focus() {
     // regression test for cb801c66734ff16be921087a982b53fa626a976a
 
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(24, 6), "abc");
-    let a = editor.view(zi::Active).id();
-    let b = editor.split(zi::Active, Right, Fill(1));
+    run(zi::Size::new(24, 6), "abc", |editor, mut snapshot| {
+        let a = editor.view(zi::Active).id();
+        let b = editor.split(zi::Active, Right, Fill(1));
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc       1 abc|   "
             "                        "
             "                        "
@@ -273,13 +281,13 @@ fn test_directional_focus() {
             "scratch:1:3             "
             "-- INSERT --            "
         "#]],
-    );
+        );
 
-    assert_eq!(editor.focus_direction(Left), a);
+        assert_eq!(editor.focus_direction(Left), a);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc|      1 abc    "
             "                        "
             "                        "
@@ -287,12 +295,12 @@ fn test_directional_focus() {
             "scratch:1:3             "
             "-- INSERT --            "
         "#]],
-    );
+        );
 
-    let _c = editor.split(zi::Active, Down, Fill(1));
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        let _c = editor.split(zi::Active, Down, Fill(1));
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc       1 abc    "
             "                        "
             "   1 abc|               "
@@ -300,12 +308,12 @@ fn test_directional_focus() {
             "scratch:1:3             "
             "-- INSERT --            "
         "#]],
-    );
+        );
 
-    assert_eq!(editor.focus_direction(Right), b);
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        assert_eq!(editor.focus_direction(Right), b);
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 abc       1 abc|   "
             "                        "
             "   1 abc                "
@@ -313,21 +321,23 @@ fn test_directional_focus() {
             "scratch:1:3             "
             "-- INSERT --            "
         "#]],
-    );
+        );
+    })
+    .await;
 }
 
-#[test]
-fn test_directional_focus_propagation() {
+#[tokio::test]
+async fn test_directional_focus_propagation() {
     // regression test for cb801c66734ff16be921087a982b53fa626a976a
 
-    let (mut editor, mut snapshot) = new_with_snapshot(zi::Size::new(32, 6), "ab");
-    editor.split(zi::Active, Right, Fill(1));
-    editor.split(zi::Active, Down, Fill(1));
-    editor.split(zi::Active, Right, Fill(1));
+    run(zi::Size::new(32, 6), "ab", |editor, mut snapshot| {
+        editor.split(zi::Active, Right, Fill(1));
+        editor.split(zi::Active, Down, Fill(1));
+        editor.split(zi::Active, Right, Fill(1));
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 ab            1 ab         "
             "                                "
             "                   1 ab    1 ab|"
@@ -335,13 +345,13 @@ fn test_directional_focus_propagation() {
             "scratch:1:2                     "
             "-- INSERT --                    "
         "#]],
-    );
+        );
 
-    editor.focus_direction(Left);
+        editor.focus_direction(Left);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 ab            1 ab         "
             "                                "
             "                   1 ab|   1 ab "
@@ -349,14 +359,14 @@ fn test_directional_focus_propagation() {
             "scratch:1:2                     "
             "-- INSERT --                    "
         "#]],
-    );
+        );
 
-    // If the focus can't move any further in the requested direction, it should propagate up.
-    editor.focus_direction(Left);
+        // If the focus can't move any further in the requested direction, it should propagate up.
+        editor.focus_direction(Left);
 
-    snapshot(
-        &mut editor,
-        expect![[r#"
+        snapshot(
+            editor,
+            expect![[r#"
             "   1 ab|           1 ab         "
             "                                "
             "                   1 ab    1 ab "
@@ -364,5 +374,7 @@ fn test_directional_focus_propagation() {
             "scratch:1:2                     "
             "-- INSERT --                    "
         "#]],
-    );
+        );
+    })
+    .await;
 }

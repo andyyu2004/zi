@@ -16,15 +16,15 @@ fn jump_list() {
     // jumping should store where we came from
     editor.jump_to(zi::Location::new(a, (0, 0)));
     expect![[r#"
-        BufferId(2v1):0:0
+        BufferId(3v1):0:0
          <<<
     "#]]
     .assert_debug_eq(&editor.view(zi::Active).jump_list());
 
     editor.jump_to(zi::Location::new(b, (0, 1)));
     expect![[r#"
-        BufferId(2v1):0:0
         BufferId(3v1):0:0
+        BufferId(4v1):0:0
          <<<
     "#]]
     .assert_debug_eq(&editor.view(zi::Active).jump_list());
@@ -45,9 +45,9 @@ fn jump_list() {
     assert_eq!(editor.jump_back(), Some(loc_a));
 
     expect![[r#"
-        BufferId(2v1):0:0
-        BufferId(3v1):0:0 <<<
-        BufferId(4v1):0:1
+        BufferId(3v1):0:0
+        BufferId(4v1):0:0 <<<
+        BufferId(5v1):0:1
     "#]]
     .assert_debug_eq(&editor.view(zi::Active).jump_list());
 }

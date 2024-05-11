@@ -544,7 +544,7 @@ impl Editor {
     }
 
     #[cfg(test)]
-    pub async fn test_run(self, tasks: Tasks) -> io::Result<()> {
+    pub async fn test_run(mut self, tasks: Tasks) -> io::Result<()> {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
 
@@ -556,12 +556,12 @@ impl Editor {
     // This can be executed with any executor
     #[doc(hidden)]
     pub async fn fuzz(
-        mut self,
+        &mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        render(&mut self)?;
+        render(self)?;
 
         let mut requests = requests.fuse();
         let mut callbacks = callbacks.buffer_unordered(16);
@@ -574,10 +574,10 @@ impl Editor {
                 () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
                 req = requests.select_next_some() => {
                     // If the receiver dropped then we just ignore the request.
-                    let _ = req.tx.send((req.f)(&mut self));
+                    let _ = req.tx.send((req.f)(self));
                 },
                 f = callbacks.select_next_some() => match f {
-                    Ok(f) => if let Err(err) = f(&mut self) {
+                    Ok(f) => if let Err(err) = f(self) {
                         tracing::error!("task callback failed: {err:?}");
                         self.set_error(err);
                     }
@@ -592,7 +592,7 @@ impl Editor {
                 break;
             }
 
-            render(&mut self)?;
+            render(self)?;
         }
 
         self.cleanup().await;
@@ -601,7 +601,7 @@ impl Editor {
     }
 
     pub async fn run(
-        self,
+        &mut self,
         events: impl Stream<Item = io::Result<Event>>,
         tasks: Tasks,
         render: impl FnMut(&mut Self) -> io::Result<()>,

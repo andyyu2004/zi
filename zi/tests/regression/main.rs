@@ -19,7 +19,7 @@ fn run(seq: KeySequence) -> Result<()> {
 
     let (width, height) = (24, 10);
     let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
-    let (editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
+    let (mut editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
 
     let quit_sequence = [
         KeyCode::Esc,
