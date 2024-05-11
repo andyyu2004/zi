@@ -43,10 +43,7 @@ pub trait Picker: Copy + 'static {
 pub trait PathPickerEntry: Entry {
     fn path(&self) -> &Path;
 
-    #[inline]
-    fn line(&self) -> Option<usize> {
-        None
-    }
+    fn line(&self) -> Option<usize>;
 }
 
 impl<P> PathPickerEntry for P
@@ -56,6 +53,11 @@ where
     #[inline]
     fn path(&self) -> &Path {
         self.as_ref()
+    }
+
+    #[inline]
+    fn line(&self) -> Option<usize> {
+        None
     }
 }
 

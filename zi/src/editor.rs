@@ -1555,11 +1555,6 @@ impl Editor {
     }
 
     pub fn open_jump_list(&mut self) -> ViewGroupId {
-        #[derive(Debug, Clone, Copy)]
-        struct JumpListPicker {
-            preview: ViewId,
-        }
-
         #[derive(Clone)]
         struct Jump {
             buf: BufferId,
@@ -1580,38 +1575,21 @@ impl Editor {
             }
         }
 
-        impl Picker for JumpListPicker {
-            type Entry = Jump;
-
-            fn new(preview: crate::ViewId) -> Self {
-                Self { preview }
+        impl PathPickerEntry for Jump {
+            #[inline]
+            fn path(&self) -> &Path {
+                &self.path
             }
 
-            fn confirm(self, editor: &mut Editor, item: Jump) {
-                let path = &item.path;
-                assert!(path.is_file(), "directories should not be in the jump list");
-                // We can close any of the views, they are all in the same group
-                editor.close_view(self.preview);
-                if let Err(err) = editor.open_active(path) {
-                    editor.set_error(err);
-                }
-
-                editor.jump_to(item);
-            }
-
-            // TODO preview the point in the jump list
-            fn select(self, editor: &mut Editor, jump: Jump) {
-                let path = jump.path;
-                match editor.open(path, OpenFlags::READONLY) {
-                    Ok(buffer) => editor.set_buffer(self.preview, buffer),
-                    Err(err) => editor.set_error(err),
-                }
+            #[inline]
+            fn line(&self) -> Option<usize> {
+                Some(self.point.line())
             }
         }
 
         // Save the current view so the jumps we get are from the right view.
         let view = self.view(Active).id();
-        self.open_static_picker::<JumpListPicker>(
+        self.open_static_picker::<PathPicker<_>>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
             move |editor, injector| {
