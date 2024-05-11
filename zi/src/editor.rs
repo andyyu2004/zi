@@ -76,7 +76,6 @@ pub struct Editor {
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     empty_buffer: BufferId,
-    #[allow(unused)] // no global config settings for now
     config: Config,
     search_state: SearchState,
     state: State,
@@ -580,10 +579,6 @@ impl Editor {
                 biased;
                 Some(event) = events.next() => self.handle_input(event?),
                 () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
-                req = requests.select_next_some() => {
-                    // If the receiver dropped then we just ignore the request.
-                    let _ = req.tx.send((req.f)(self));
-                },
                 f = callbacks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(self) {
                         tracing::error!("task callback failed: {err:?}");
@@ -593,6 +588,10 @@ impl Editor {
                         tracing::error!("task failed: {err}");
                         self.set_error(err);
                     }
+                },
+                req = requests.select_next_some() => {
+                    // If the receiver dropped then we just ignore the request.
+                    let _ = req.tx.send((req.f)(self));
                 },
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
@@ -1533,8 +1532,9 @@ impl Editor {
             view
         });
 
-        self.tree.push(Layer::new_with_area(preview, |area| {
-            tui::Layout::vertical(tui::Constraint::from_percentages([50, 50])).areas::<2>(area)[1]
+        let (a, b) = self.config.picker_split_proportion.read();
+        self.tree.push(Layer::new_with_area(preview, move |area| {
+            tui::Layout::vertical(tui::Constraint::from_fills([a, b])).areas::<2>(area)[1]
         }));
 
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
@@ -1586,7 +1586,7 @@ impl Editor {
     }
 
     pub fn open_jump_list(&mut self) -> ViewGroupId {
-        #[derive(Clone)]
+        #[derive(Clone, Debug)]
         struct Jump {
             buf: BufferId,
             path: PathBuf,
@@ -1640,31 +1640,41 @@ impl Editor {
             Url::parse("view-group://files").unwrap(),
             path,
             |_editor, injector| {
-                let walk = ignore::WalkBuilder::new(path).build_parallel();
-                pool().spawn(move || {
-                    walk.run(|| {
-                        Box::new(|entry| {
-                            let entry = match entry {
-                                Ok(entry) => match entry.file_type() {
-                                    Some(ft) if ft.is_file() => entry,
-                                    _ => return WalkState::Continue,
-                                },
-                                Err(_) => return WalkState::Continue,
-                            };
+                let mut entries =
+                    ignore::WalkBuilder::new(path).build().filter_map(|entry| match entry {
+                        Ok(entry) => match entry.file_type() {
+                            Some(ft) if ft.is_file() => Some(entry),
+                            _ => None,
+                        },
+                        Err(err) => {
+                            tracing::error!(%err, "file picker error");
+                            None
+                        }
+                    });
 
-                            match injector.push(entry.into_path().display_owned()) {
-                                Ok(()) => WalkState::Continue,
-                                Err(()) => WalkState::Quit,
+                let deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+                for entry in entries.by_ref() {
+                    if let Err(()) = injector.push(entry.into_path().display_owned()) {
+                        break;
+                    }
+
+                    if std::time::Instant::now() > deadline {
+                        pool().spawn(move || {
+                            for entry in entries {
+                                if let Err(()) = injector.push(entry.into_path().display_owned()) {
+                                    break;
+                                }
                             }
-                        })
-                    })
-                });
+                        });
+                        break;
+                    }
+                }
             },
         )
     }
 
     pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
-        #[derive(Clone)]
+        #[derive(Clone, Debug)]
         struct Entry {
             #[allow(unused)]
             // TODO can be used to highlight the matching portion of the line
@@ -1908,6 +1918,11 @@ impl Editor {
             State::Command(state) => Some(&state.buffer),
             _ => None,
         }
+    }
+
+    #[inline]
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 }
 

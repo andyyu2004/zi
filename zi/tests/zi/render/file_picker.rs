@@ -2,26 +2,38 @@ use super::*;
 
 #[tokio::test]
 async fn file_picker() {
-    let cx = new(zi::Size::new(51, 10), "").await;
+    let cx = new(zi::Size::new(100, 8), "").await;
 
-    // run(zi::Size::new(51, 10), "", |editor, mut snapshot| {
-    //     editor.open_file_picker(".");
-    //
-    //     snapshot(
-    //         editor.client(),
-    //         expect![[r#"
-    //             "   1                                               "
-    //             "                                                   "
-    //             "                                                   "
-    //             "                                                   "
-    //             "  |                                                "
-    //             "                                                   "
-    //             "                                                   "
-    //             "                                                   "
-    //             "picker:1:0                                         "
-    //             "-- INSERT --                                       "
-    //         "#]],
-    //     );
-    // })
-    // .await;
+    cx.with(|editor| {
+        editor.config().picker_split_proportion.write((0, 100));
+        editor.open_file_picker("tests/zi/testdirs");
+    })
+    .await;
+
+    cx.snapshot(expect![[r#"
+        "  |                                                                                                 "
+        "  tests/zi/testdirs/binary.bin                                                                      "
+        "  tests/zi/testdirs/test.txt                                                                        "
+        "                                                                                                    "
+        "                                                                                                    "
+        "                                                                                                    "
+        "picker:1:0                                                                                          "
+        "-- INSERT --                                                                                        "
+    "#]])
+        .await;
+
+    cx.with(|editor| editor.input("bin").unwrap()).await;
+
+    // Preview the binary file shouldn't break. Currently just renders an empty buffer.
+    cx.snapshot(expect![[r#"
+        "  bin|                                                                                              "
+        "  tests/zi/testdirs/binary.bin                                                                      "
+        "                                                                                                    "
+        "                                                                                                    "
+        "                                                                                                    "
+        "                                                                                                    "
+        "picker:1:3                                                                                          "
+        "-- INSERT --                                                                                        "
+    "#]])
+        .await;
 }

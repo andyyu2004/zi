@@ -3,7 +3,7 @@ mod insert;
 mod line_number;
 mod split;
 
-use expect_test::Expect;
+use expect_test::{expect, Expect};
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
@@ -23,6 +23,11 @@ impl TestContext {
 
     pub async fn snapshot(&self, expect: Expect) {
         let size = self.size;
+        // Have to render twice to get updated output for certain events.
+        self.client
+            .request(move |editor| editor.render(&mut tui::TestFrame::new(size.width, size.height)))
+            .await;
+
         self.client
             .request(move |editor| {
                 let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();

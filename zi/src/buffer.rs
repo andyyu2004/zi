@@ -373,9 +373,9 @@ impl Buffer for Box<dyn Buffer> {
     }
 }
 
-pub trait Entry: fmt::Display + Clone + Sync + Send + 'static {}
+pub trait Entry: fmt::Display + fmt::Debug + Clone + Sync + Send + 'static {}
 
-impl<T> Entry for T where T: fmt::Display + Clone + Sync + Send + 'static {}
+impl<T> Entry for T where T: fmt::Display + fmt::Debug + Clone + Sync + Send + 'static {}
 
 /// Wrapper around a `nucleo::Injector` with cancellation support
 #[derive(Clone)]

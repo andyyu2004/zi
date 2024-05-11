@@ -18,7 +18,7 @@ fn run(seq: KeySequence) -> Result<()> {
     eprintln!("{seq:#?}\n{seq}");
 
     let (width, height) = (24, 10);
-    let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
+    let mut frame = tui::TestFrame::new(width, height);
     let (mut editor, tasks) = zi::Editor::new(zi::Size::new(width, height));
 
     let quit_sequence = [
@@ -41,16 +41,4 @@ fn run(seq: KeySequence) -> Result<()> {
     }))?;
 
     Ok(())
-}
-
-struct TestFrame {
-    buffer: tui::Buffer,
-}
-
-impl tui::DynFrame for TestFrame {
-    fn buffer_mut(&mut self) -> &mut tui::Buffer {
-        &mut self.buffer
-    }
-
-    fn set_cursor(&mut self, _x: u16, _y: u16) {}
 }

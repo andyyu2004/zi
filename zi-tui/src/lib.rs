@@ -34,6 +34,24 @@ impl DynFrame for Frame<'_> {
     }
 }
 
+pub struct TestFrame {
+    buffer: Buffer,
+}
+
+impl TestFrame {
+    pub fn new(width: u16, height: u16) -> Self {
+        Self { buffer: Buffer::empty(Rect::new(0, 0, width, height)) }
+    }
+}
+
+impl DynFrame for TestFrame {
+    fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
+
+    fn set_cursor(&mut self, _x: u16, _y: u16) {}
+}
+
 pub use self::element::Element;
 pub use self::sequence::ElementSeq;
 
