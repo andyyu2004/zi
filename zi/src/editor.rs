@@ -1006,6 +1006,8 @@ impl Editor {
         let cursor = self[view].cursor();
         let target_col = self[view].cursor_target_col();
         let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
+            // Set cursor to update target column
+            // See 0793bc3910afb0982a85f2243b36dcfb2472b5d6
             self.set_cursor(view, cursor);
             return self.set_mode(Mode::Normal);
         };
