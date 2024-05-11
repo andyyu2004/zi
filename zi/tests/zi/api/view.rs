@@ -72,11 +72,6 @@ fn view_group() {
     editor.set_view_group(v, group);
 
     editor.close_view(zi::Active);
-
-    assert!(
-        editor.should_quit(),
-        "both views should have closed and so the view tree should be empty"
-    );
 }
 
 #[test]

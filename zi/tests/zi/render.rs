@@ -3,40 +3,48 @@ mod insert;
 mod line_number;
 mod split;
 
-use expect_test::{expect, Expect};
-use tokio::task::LocalSet;
+use expect_test::Expect;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
 
-pub async fn run(
+pub struct TestContext {
     size: zi::Size,
-    content: &str,
-    f: impl FnOnce(&mut zi::Editor, Box<dyn FnMut(&mut zi::Editor, Expect)>) + Send + 'static,
-) {
+    client: zi::Client,
+}
+
+impl TestContext {
+    pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + 'static) -> R
+    where
+        R: Send + 'static,
+    {
+        self.client.request(f).await
+    }
+
+    pub async fn snapshot(&self, expect: Expect) {
+        let size = self.size;
+        self.client
+            .request(move |editor| {
+                let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
+                term.draw(|frame| editor.render(frame)).unwrap();
+                expect.assert_eq(&render(term.backend_mut()))
+            })
+            .await;
+    }
+}
+
+pub async fn new(size: zi::Size, content: &str) -> TestContext {
     let (mut editor, tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
     editor.edit(zi::Active, &zi::Delta::insert_at(0, content));
     editor.set_cursor(zi::Active, content.len());
 
     let client = editor.client();
-    let local = LocalSet::new();
-    local.spawn_local(async move {
+    tokio::spawn(async move {
         editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
     });
 
-    let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
-
-    local
-        .run_until(client.request(move |editor| {
-            let snapshot = Box::new(move |editor: &mut zi::Editor, expect: Expect| {
-                term.draw(|frame| editor.render(frame)).unwrap();
-                expect.assert_eq(&render(term.backend_mut()))
-            });
-
-            f(editor, snapshot);
-        }))
-        .await;
+    TestContext { client, size }
 }
 
 /// Copied from ratatui's `buffer_view`, but draws the cursor too.

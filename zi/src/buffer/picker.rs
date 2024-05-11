@@ -237,7 +237,7 @@ impl<P: Picker> PickerBuffer<P> {
     }
 }
 
-impl<P: Picker> Buffer for PickerBuffer<P> {
+impl<P: Picker + Send> Buffer for PickerBuffer<P> {
     fn id(&self) -> BufferId {
         self.id
     }

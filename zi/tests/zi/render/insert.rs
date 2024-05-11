@@ -1,32 +1,27 @@
 use expect_test::expect;
 
-use super::run;
+use crate::render::new;
 
 #[tokio::test]
 async fn insert_newline_in_blank_buffer() {
-    run(zi::Size::new(10, 5), "", |editor, mut snapshot| {
-        snapshot(
-            editor,
-            expect![[r#"
-            "   1 |    "
-            "          "
-            "          "
-            "scratch:1:"
-            "-- INSERT "
-        "#]],
-        );
+    let cx = new(zi::Size::new(10, 5), "").await;
+    cx.snapshot(expect![[r#"
+        "   1 |    "
+        "          "
+        "          "
+        "scratch:1:"
+        "-- INSERT "
+    "#]])
+        .await;
 
-        editor.insert_char_at_cursor('\n');
-        snapshot(
-            editor,
-            expect![[r#"
-            "   1      "
-            "   2 |    "
-            "          "
-            "scratch:2:"
-            "-- INSERT "
-        "#]],
-        );
-    })
-    .await;
+    cx.with(|editor| editor.insert_char_at_cursor('\n')).await;
+
+    cx.snapshot(expect![[r#"
+        "   1      "
+        "   2 |    "
+        "          "
+        "scratch:2:"
+        "-- INSERT "
+    "#]])
+        .await;
 }

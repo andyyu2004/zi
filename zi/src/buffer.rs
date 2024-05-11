@@ -136,7 +136,7 @@ pub trait BufferHistory {
     fn snapshot_cursor(&mut self, cursor: Point);
 }
 
-pub trait Buffer {
+pub trait Buffer: Send {
     fn id(&self) -> BufferId;
 
     fn flags(&self) -> BufferFlags;

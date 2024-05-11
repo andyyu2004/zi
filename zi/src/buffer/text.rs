@@ -78,7 +78,7 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     }
 }
 
-impl<X: Text + 'static> Buffer for TextBuffer<X> {
+impl<X: Text + Send + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id

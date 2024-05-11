@@ -72,7 +72,7 @@ where
     }
 }
 
-impl<T: Entry, F> Buffer for ExplorerBuffer<T, F> {
+impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
     fn id(&self) -> BufferId {
         self.id
     }

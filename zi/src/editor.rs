@@ -91,6 +91,7 @@ pub struct Editor {
     status_error: Option<String>,
     command_handlers: FxHashMap<Word, Handler>,
     plugins: Plugins,
+    notify_quit: Notify,
 }
 
 macro_rules! mode {
@@ -332,6 +333,7 @@ impl Editor {
             keymap: default_keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
+            notify_quit: Default::default(),
             config: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
@@ -489,8 +491,14 @@ impl Editor {
         }
     }
 
-    pub fn should_quit(&self) -> bool {
-        self.tree.is_empty()
+    #[doc(hidden)]
+    pub fn check_quit(&self) -> bool {
+        if self.tree.is_empty() {
+            self.notify_quit.notify_one();
+            return true;
+        }
+
+        false
     }
 
     pub fn get_error(&mut self) -> Option<&str> {
@@ -586,9 +594,13 @@ impl Editor {
                         self.set_error(err);
                     }
                 },
+                // Put the quit case last to ensure we handle all events first
+                () = self.notify_quit.notified() => break,
             }
 
-            if self.should_quit() {
+            // Don't immediately break here as we want to finish handling any events first
+            if self.check_quit() {
+                // TODO if we don't break here some assertions fail
                 break;
             }
 
