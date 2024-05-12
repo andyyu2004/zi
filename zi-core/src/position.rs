@@ -329,12 +329,12 @@ impl Point {
 
     #[inline]
     pub fn down(self, amt: usize) -> Self {
-        Self::new(self.line + amt, self.col)
+        Self::new(self.line.saturating_add(amt), self.col)
     }
 
     #[inline]
     pub fn right(self, amt: usize) -> Self {
-        Self::new(self.line, self.col + amt)
+        Self::new(self.line, self.col.saturating_add(amt))
     }
 
     pub fn with_line(self, line: Line) -> Self {

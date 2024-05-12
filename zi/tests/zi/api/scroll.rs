@@ -74,6 +74,15 @@ fn scroll() {
 }
 
 #[test]
+fn scroll_overflow() {
+    let mut editor = new(&"a\n".repeat(20));
+    editor.move_cursor(zi::Active, Down, 1);
+    assert_eq!(editor.cursor(zi::Active), (1, 0));
+
+    editor.scroll(zi::Active, Down, usize::MAX);
+}
+
+#[test]
 fn scroll_bounds_check() {
     let mut editor = new("1\n2\n3\n4\n5");
 

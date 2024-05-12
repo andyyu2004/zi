@@ -39,7 +39,7 @@ impl Editor {
         &mut self,
         selector: impl Selector<ViewId>,
         direction: Direction,
-        amt: u32,
+        amt: usize,
     ) -> Point {
         let motion = match direction {
             Direction::Left => &motion::PrevChar as &dyn Motion,
@@ -47,7 +47,7 @@ impl Editor {
             Direction::Up => &motion::PrevLine,
             Direction::Down => &motion::NextLine,
         }
-        .repeat(amt as usize);
+        .repeat(amt);
         self.motion(selector, motion)
     }
 
