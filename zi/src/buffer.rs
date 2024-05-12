@@ -39,12 +39,13 @@ impl Selector<Self> for BufferId {
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct BufferFlags: u8 {
-        const READONLY = 0b0000_0001;
+        const READONLY = 1 << 0;
+        const DIRTY = 1 << 1;
     }
 
     #[derive(Debug, Clone, Copy)]
     pub struct SnapshotFlags: u8 {
-        const ALLOW_EMPTY = 0b0000_0001;
+        const ALLOW_EMPTY = 1 << 0;
     }
 }
 

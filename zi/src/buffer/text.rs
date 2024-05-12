@@ -295,6 +295,10 @@ impl<X: Text> TextBuffer<X> {
 
         match self.text.as_text_mut() {
             Some(text) => {
+                if !delta.is_identity() {
+                    self.flags.insert(BufferFlags::DIRTY);
+                }
+
                 let (inversion, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
                     syntax.edit(text, delta)
                 } else {

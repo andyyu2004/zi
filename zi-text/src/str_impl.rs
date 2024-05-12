@@ -1,3 +1,5 @@
+use std::io;
+
 use super::*;
 
 fn str_lines_inclusive(s: &str) -> impl Iterator<Item = &str> {
@@ -66,6 +68,11 @@ impl Text for str {
     #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         Text::lines(self).nth(line_idx)
+    }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        io::Cursor::new(self)
     }
 }
 
@@ -160,24 +167,34 @@ impl Text for String {
     where
         Self: 'a;
 
+    #[inline]
     fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.as_str().byte_slice(byte_range)
     }
 
+    #[inline]
     fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.as_str().line_slice(line_range)
     }
 
+    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         self.as_str().chars()
     }
 
+    #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.as_str().lines()
     }
 
+    #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         self.as_str().get_line(line_idx)
+    }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        self.as_str().reader()
     }
 }
 

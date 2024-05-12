@@ -250,6 +250,8 @@ pub trait AnyText: TextBase + fmt::Display {
 
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
 
+    fn dyn_reader(&self) -> Box<dyn Read + '_>;
+
     fn as_boxed_any(self: Box<Self>) -> Box<dyn Any>
     where
         Self: 'static;
@@ -312,6 +314,10 @@ impl Text for dyn AnyTextMut + '_ {
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         (self as &dyn AnyText).lines()
     }
+
+    fn reader(&self) -> impl Read + '_ {
+        (self as &dyn AnyText).reader()
+    }
 }
 
 impl Text for dyn AnyText + '_ {
@@ -319,28 +325,39 @@ impl Text for dyn AnyText + '_ {
     where
         Self: 'a;
 
+    #[inline]
     fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.dyn_line_slice((line_range.start_bound().cloned(), line_range.end_bound().cloned()))
     }
 
+    #[inline]
     fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
         self.dyn_byte_slice((byte_range.start_bound().cloned(), byte_range.end_bound().cloned()))
     }
 
+    #[inline]
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         self.dyn_get_line(line_idx)
     }
 
+    #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         self.dyn_chars()
     }
 
+    #[inline]
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>> {
         self.dyn_lines()
+    }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        self.dyn_reader()
     }
 }
 
 impl<T: Text> AnyText for T {
+    #[inline]
     fn dyn_byte_slice(
         &self,
         byte_range: (Bound<usize>, Bound<usize>),
@@ -348,6 +365,7 @@ impl<T: Text> AnyText for T {
         Box::new(self.byte_slice(byte_range))
     }
 
+    #[inline]
     fn dyn_line_slice(
         &self,
         line_range: (Bound<usize>, Bound<usize>),
@@ -355,25 +373,34 @@ impl<T: Text> AnyText for T {
         Box::new(self.line_slice(line_range))
     }
 
+    #[inline]
     fn dyn_chars(&self) -> Box<dyn DoubleEndedIterator<Item = char> + '_> {
         Box::new(self.chars())
     }
 
+    #[inline]
     fn dyn_lines(
         &self,
     ) -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_> {
         Box::new(self.lines().map(|s| Box::new(s) as _))
     }
 
+    #[inline]
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
         self.get_line(line_idx).map(|s| Box::new(s) as _)
     }
 
+    #[inline]
     fn as_boxed_any(self: Box<Self>) -> Box<dyn Any>
     where
         Self: 'static,
     {
         self
+    }
+
+    #[inline]
+    fn dyn_reader(&self) -> Box<dyn Read + '_> {
+        Box::new(self.reader())
     }
 }
 
@@ -443,30 +470,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice>;
 
     fn reader(&self) -> impl Read + 'a {
-        struct RopeReader<'a, I> {
-            chunk: &'a [u8],
-            chunks: I,
-        }
-
-        impl<'a, I> Read for RopeReader<'a, I>
-        where
-            I: Iterator<Item = &'a str>,
-        {
-            #[inline]
-            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-                if self.chunk.is_empty() {
-                    let Some(chunk) = self.chunks.next() else { return Ok(0) };
-                    self.chunk = chunk.as_bytes();
-                }
-
-                let n = buf.len().min(self.chunk.len());
-                buf[..n].copy_from_slice(&self.chunk[..n]);
-                self.chunk = &self.chunk[n..];
-                Ok(n)
-            }
-        }
-
-        RopeReader { chunk: &[], chunks: self.chunks() }
+        TextReader::new(self.chunks())
     }
 
     fn annotate<T: Copy>(
@@ -498,6 +502,8 @@ pub trait Text: TextBase {
 
     /// Returns the line at the given index excluding the newline character(s).
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
+
+    fn reader(&self) -> impl Read + '_;
 
     #[inline]
     fn char_at_point(&self, point: Point) -> Option<char> {
@@ -648,6 +654,11 @@ impl<T: Text + ?Sized> Text for &T {
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         (**self).get_line(line_idx)
     }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        (**self).reader()
+    }
 }
 
 impl<T: TextBase + ?Sized> TextBase for &T {
@@ -760,6 +771,35 @@ impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
 
     fn get_line(&self, line_idx: usize) -> Option<Self> {
         self.as_ref().dyn_get_line(line_idx)
+    }
+}
+
+struct TextReader<'a, I> {
+    chunk: &'a [u8],
+    chunks: I,
+}
+
+impl<'a, I> TextReader<'a, I> {
+    fn new(chunks: I) -> Self {
+        Self { chunk: &[], chunks }
+    }
+}
+
+impl<'a, I> Read for TextReader<'a, I>
+where
+    I: Iterator<Item = &'a str>,
+{
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.chunk.is_empty() {
+            let Some(chunk) = self.chunks.next() else { return Ok(0) };
+            self.chunk = chunk.as_bytes();
+        }
+
+        let n = buf.len().min(self.chunk.len());
+        buf[..n].copy_from_slice(&self.chunk[..n]);
+        self.chunk = &self.chunk[n..];
+        Ok(n)
     }
 }
 

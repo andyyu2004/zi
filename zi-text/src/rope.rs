@@ -33,6 +33,11 @@ impl Text for crop::Rope {
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         self.chars()
     }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        TextReader::new(self.chunks())
+    }
 }
 
 impl TextBase for crop::Rope {

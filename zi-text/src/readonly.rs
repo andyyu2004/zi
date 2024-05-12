@@ -1,5 +1,6 @@
 use core::fmt;
 use std::fs::File;
+use std::io::Read;
 use std::ops::{self, Deref};
 use std::path::Path;
 use std::sync::OnceLock;
@@ -81,6 +82,11 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     #[inline]
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
         <str as Text>::chars(self.as_str())
+    }
+
+    #[inline]
+    fn reader(&self) -> impl Read + '_ {
+        <str as Text>::reader(self.as_str())
     }
 }
 
