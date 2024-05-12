@@ -37,12 +37,18 @@ set y z"#,
 #[test]
 fn parse_command() {
     for (src, expect) in [
-        ("foo", expect![[r#"
+        (
+            "foo",
+            expect![[r#"
             foo
-        "#]]),
-        ("foo bar", expect![[r#"
+        "#]],
+        ),
+        (
+            "foo bar",
+            expect![[r#"
             foo bar
-        "#]]),
+        "#]],
+        ),
         (
             "set x y",
             expect![[r#"

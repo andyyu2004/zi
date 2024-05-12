@@ -115,7 +115,10 @@ impl Default for Config {
                 FileType::GQLT,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
             ),
-            (FileType::C, LanguageConfig { language_servers: Box::new([LanguageServerId::CLANGD]) }),
+            (
+                FileType::C,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::CLANGD]) },
+            ),
             (FileType::TEXT, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::TOML, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),

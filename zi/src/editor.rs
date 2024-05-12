@@ -9,7 +9,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter, Write};
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
@@ -1335,6 +1335,29 @@ impl Editor {
     fn close_buffer(&mut self, buf: BufferId) {
         // can't naively remove the buffer as it might be referenced by multiple views
         self.buffers[buf].on_leave();
+    }
+
+    pub fn save(&mut self, selector: impl Selector<BufferId>) -> io::Result<()> {
+        let buf = selector.select(self);
+        let buf = &self[buf];
+
+        if buf.flags().contains(BufferFlags::READONLY) {
+            assert!(
+                !buf.flags().contains(BufferFlags::DIRTY),
+                "readonly buffer should not be dirty"
+            );
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"));
+        }
+
+        let mut reader = buf.text().reader();
+        let mut file = File::create(buf.path())?;
+        let mut writer = BufWriter::new(&mut file);
+        io::copy(&mut reader, &mut writer)?;
+        writer.flush()?;
+        drop(writer);
+        file.flush()?;
+        // TODO remove dirty flag
+        Ok(())
     }
 
     pub fn close_view(&mut self, selector: impl Selector<ViewId>) {
