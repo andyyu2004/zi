@@ -253,7 +253,7 @@ pub trait AnyText: DynClone + TextBase + fmt::Display {
 
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
 
-    fn dyn_reader(&self) -> Box<dyn Read + '_>;
+    fn dyn_reader(&self) -> Box<dyn Read + Send + '_>;
 
     fn as_boxed_any(self: Box<Self>) -> Box<dyn Any>
     where
@@ -354,7 +354,7 @@ impl Text for dyn AnyText + '_ {
     }
 
     #[inline]
-    fn reader(&self) -> impl Read + '_ {
+    fn reader(&self) -> impl Read + Send + '_ {
         self.dyn_reader()
     }
 }
@@ -402,7 +402,7 @@ impl<T: Text + Clone> AnyText for T {
     }
 
     #[inline]
-    fn dyn_reader(&self) -> Box<dyn Read + '_> {
+    fn dyn_reader(&self) -> Box<dyn Read + Send + '_> {
         Box::new(self.reader())
     }
 }
@@ -506,7 +506,7 @@ pub trait Text: TextBase {
     /// Returns the line at the given index excluding the newline character(s).
     fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
-    fn reader(&self) -> impl Read + '_;
+    fn reader(&self) -> impl Read + Send + '_;
 
     #[inline]
     fn char_at_point(&self, point: Point) -> Option<char> {

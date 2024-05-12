@@ -3569,6 +3569,7 @@ dependencies = [
  "test-strategy",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tracing",
  "tree-sitter",
  "unicode-width",

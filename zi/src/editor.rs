@@ -9,7 +9,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::BufReader;
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
@@ -24,6 +24,7 @@ use ignore::WalkState;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::{PathExt, Relative};
+use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
@@ -1337,10 +1338,11 @@ impl Editor {
         self.buffers[buf].on_leave();
     }
 
+    // Manual `impl Future` as we don't want to capture the `'self`
     pub fn save(
         &mut self,
         selector: impl Selector<BufferId>,
-    ) -> impl Future<Output = io::Result<()>> {
+    ) -> impl Future<Output = io::Result<()>> + Send + 'static {
         let buf = selector.select(self);
 
         let flags = self[buf].flags();
@@ -1348,19 +1350,25 @@ impl Editor {
         let text: Box<dyn AnyText + 'static> = dyn_clone::clone_box(self[buf].text());
 
         async move {
+            // TODO check if file is modified.
+            if !flags.contains(BufferFlags::DIRTY) {
+                return Ok(());
+            }
+
             if flags.contains(BufferFlags::READONLY) {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"));
             }
 
-            let mut reader = text.reader();
-            let mut file = File::create(path)?;
-            let mut writer = BufWriter::new(&mut file);
-            io::copy(&mut reader, &mut writer)?;
-            writer.flush()?;
-            drop(writer);
-            file.flush()?;
-            // TODO remove dirty flag
+            use tokio_util::compat::FuturesAsyncReadCompatExt;
+            let mut file = tokio::fs::File::create(path).await?;
+            let mut reader = futures_util::io::AllowStdIo::new(text.reader()).compat();
+            let mut writer = tokio::io::BufWriter::new(&mut file);
+            tokio::io::copy(&mut reader, &mut writer).await?;
+            writer.flush().await?;
+            // drop(writer);
+            file.flush().await?;
+
             Ok(())
         }
     }
