@@ -34,7 +34,8 @@ bitflags::bitflags! {
         /// This is used to help match neovim behaviour. There are certain special cases
         /// that only apply to exclusive text objects. This does not affect what `byte_range`
         /// should return.
-        const EXCLUSIVE = 0b0001;
+        const EXCLUSIVE = 1 << 0;
+        const UPDATE_TARGET_COLUMN = 1 << 1;
     }
 }
 
@@ -204,7 +205,7 @@ impl TextObject for PrevToken {
 
     #[inline]
     fn flags(&self) -> TextObjectFlags {
-        TextObjectFlags::EXCLUSIVE
+        TextObjectFlags::EXCLUSIVE | TextObjectFlags::UPDATE_TARGET_COLUMN
     }
 }
 
@@ -286,7 +287,7 @@ impl TextObject for PrevWord {
 
     #[inline]
     fn flags(&self) -> TextObjectFlags {
-        TextObjectFlags::EXCLUSIVE
+        TextObjectFlags::EXCLUSIVE | TextObjectFlags::UPDATE_TARGET_COLUMN
     }
 }
 

@@ -62,6 +62,7 @@ fn scratch() {
     }
 
     test("A\n AA", "WkdBj");
+    test("A\n  a", "Wlkdkj");
 }
 
 #[track_caller]

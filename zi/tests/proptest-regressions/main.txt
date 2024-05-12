@@ -71,3 +71,4 @@ cc 844f5e2ea4bb8b1458dc559583d45d45f9814fab0080827a1717c83b03082604 # shrinks to
 cc 6ab411997107040b66e5c5c8c17a8fa64b76b328e69875d7f37977d72b9b06bd # shrinks to inputs = "WWWkdd", text = "a\nAA"
 cc 634657e3aea88ac5cc771e4bc19d928904ee6237ca240ac39d71add075b554d3 # shrinks to inputs = "ddWljdW", text = "A\n\naa\n\n!a"
 cc 5b6f204a23432ce37e869286f048c6ebdb0d293c767b180dd9b1921c0d44638d # shrinks to inputs = "WkdBj", text = "A\n AA"
+cc c8e98ebed452408ba88653dcee5316ce18cae17ed0fef4e196e8cd170b01c3bb # shrinks to inputs = "Wlkdkj", text = "A\n  a"
