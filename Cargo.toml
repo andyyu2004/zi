@@ -43,6 +43,7 @@ tree-sitter = { version = "0.22.5" }
 tracing = "0.1.40"
 wit-bindgen = "0.24.0"
 wit-bindgen-rt = "0.24.0"
+dyn-clone = "1.0.17"
 
 [profile.dev.package.cranelift-codegen]
 opt-level = 3

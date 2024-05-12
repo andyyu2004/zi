@@ -52,7 +52,7 @@ impl Buffer for InspectorBuffer {
         &self.config
     }
 
-    fn text(&self) -> &dyn AnyText {
+    fn text(&self) -> &(dyn AnyText + 'static) {
         &self.text
     }
 

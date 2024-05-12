@@ -15,6 +15,7 @@ use std::{fmt, iter, ops};
 
 pub use crop::{Rope, RopeBuilder, RopeSlice};
 pub use cursor::RopeCursor;
+use dyn_clone::DynClone;
 use zi_core::{Line, Point, PointOrByte, PointRange};
 
 pub use self::delta::{Delta, DeltaRange};
@@ -52,7 +53,7 @@ impl<T: AnyText + TextMut + Send + 'static> AnyTextMut for T {
 }
 
 /// dyn-safe interface for reading text
-pub trait TextBase: fmt::Display + fmt::Debug {
+pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut>;
 
     /// Returns the number of lines in the text.
@@ -232,7 +233,9 @@ pub trait AnyTextSlice<'a>: TextBase {
     fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>>;
 }
 
-pub trait AnyText: TextBase + fmt::Display {
+dyn_clone::clone_trait_object!(AnyText);
+
+pub trait AnyText: DynClone + TextBase + fmt::Display {
     fn dyn_byte_slice(
         &self,
         byte_range: (Bound<usize>, Bound<usize>),
@@ -356,7 +359,7 @@ impl Text for dyn AnyText + '_ {
     }
 }
 
-impl<T: Text> AnyText for T {
+impl<T: Text + Clone> AnyText for T {
     #[inline]
     fn dyn_byte_slice(
         &self,

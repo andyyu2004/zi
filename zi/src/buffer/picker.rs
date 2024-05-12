@@ -266,7 +266,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         &self.config
     }
 
-    fn text(&self) -> &dyn AnyText {
+    fn text(&self) -> &(dyn AnyText + 'static) {
         &self.text
     }
 

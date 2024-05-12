@@ -26,7 +26,7 @@ pub struct TextBuffer<X> {
     saved_cursor: Option<Point>,
 }
 
-impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
+impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
     fn undo(&mut self) -> Option<UndoEntry> {
         // Nothing to undo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
@@ -78,7 +78,7 @@ impl<X: Text + 'static> BufferHistory for TextBuffer<X> {
     }
 }
 
-impl<X: Text + Send + 'static> Buffer for TextBuffer<X> {
+impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id
@@ -115,7 +115,7 @@ impl<X: Text + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn text(&self) -> &dyn AnyText {
+    fn text(&self) -> &(dyn AnyText + 'static) {
         &self.text
     }
 
@@ -213,7 +213,7 @@ bitflags::bitflags! {
     }
 }
 
-impl<X: Text> TextBuffer<X> {
+impl<X: Text + Clone> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,

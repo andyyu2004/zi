@@ -29,7 +29,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
-use zi_text::{Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
+use zi_text::{AnyText, Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -1337,27 +1337,32 @@ impl Editor {
         self.buffers[buf].on_leave();
     }
 
-    pub fn save(&mut self, selector: impl Selector<BufferId>) -> io::Result<()> {
+    pub fn save(
+        &mut self,
+        selector: impl Selector<BufferId>,
+    ) -> impl Future<Output = io::Result<()>> {
         let buf = selector.select(self);
-        let buf = &self[buf];
 
-        if buf.flags().contains(BufferFlags::READONLY) {
-            assert!(
-                !buf.flags().contains(BufferFlags::DIRTY),
-                "readonly buffer should not be dirty"
-            );
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"));
+        let flags = self[buf].flags();
+        let path = self[buf].path().to_path_buf();
+        let text: Box<dyn AnyText + 'static> = dyn_clone::clone_box(self[buf].text());
+
+        async move {
+            if flags.contains(BufferFlags::READONLY) {
+                assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"));
+            }
+
+            let mut reader = text.reader();
+            let mut file = File::create(path)?;
+            let mut writer = BufWriter::new(&mut file);
+            io::copy(&mut reader, &mut writer)?;
+            writer.flush()?;
+            drop(writer);
+            file.flush()?;
+            // TODO remove dirty flag
+            Ok(())
         }
-
-        let mut reader = buf.text().reader();
-        let mut file = File::create(buf.path())?;
-        let mut writer = BufWriter::new(&mut file);
-        io::copy(&mut reader, &mut writer)?;
-        writer.flush()?;
-        drop(writer);
-        file.flush()?;
-        // TODO remove dirty flag
-        Ok(())
     }
 
     pub fn close_view(&mut self, selector: impl Selector<ViewId>) {
@@ -1484,7 +1489,7 @@ impl Editor {
     pub fn create_readonly_buffer(
         &mut self,
         path: impl AsRef<Path>,
-        s: impl Deref<Target = [u8]> + Send + 'static,
+        s: impl Deref<Target = [u8]> + Send + Sync + 'static,
     ) -> BufferId {
         self.buffers.insert_with_key(|id| {
             TextBuffer::new(
@@ -1931,7 +1936,7 @@ impl Editor {
         self.callback(desc, fut, |_, ()| Ok(()))
     }
 
-    fn callback<R: 'static>(
+    pub(crate) fn callback<R: 'static>(
         &self,
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,

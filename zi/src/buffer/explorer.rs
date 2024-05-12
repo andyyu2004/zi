@@ -102,7 +102,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         &self.config
     }
 
-    fn text(&self) -> &dyn AnyText {
+    fn text(&self) -> &(dyn AnyText + 'static) {
         &self.text
     }
 

@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::{self, Deref};
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::{io, str};
 
 use memmap2::{Mmap, MmapOptions};
@@ -12,6 +12,17 @@ use crate::{AnyTextMut, Text, TextBase};
 
 /// A readonly text buffer suitable for reading large files incrementally.
 pub struct ReadonlyText<B> {
+    inner: Arc<Inner<B>>,
+}
+
+impl<B> Clone for ReadonlyText<B> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { inner: Arc::clone(&self.inner) }
+    }
+}
+
+struct Inner<B> {
     buf: B,
     len_lines: OnceLock<usize>,
 }
@@ -19,7 +30,7 @@ pub struct ReadonlyText<B> {
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
-        Self { buf, len_lines: OnceLock::new() }
+        Self { inner: Arc::new(Inner { buf, len_lines: OnceLock::new() }) }
     }
 
     #[inline]
@@ -32,7 +43,7 @@ impl<B: Deref<Target = [u8]>> AsRef<str> for ReadonlyText<B> {
     #[inline]
     fn as_ref(&self) -> &str {
         // Safety: We've checked that the buffer is valid utf-8 in `new`.
-        unsafe { str::from_utf8_unchecked(&self.buf) }
+        unsafe { str::from_utf8_unchecked(&self.inner.buf) }
     }
 }
 
@@ -48,7 +59,7 @@ impl ReadonlyText<Mmap> {
 
 impl<B: Deref<Target = [u8]>> fmt::Display for ReadonlyText<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        String::from_utf8_lossy(&self.buf).fmt(f)
+        std::str::from_utf8(&self.inner.buf).unwrap().fmt(f)
     }
 }
 
@@ -58,7 +69,7 @@ impl<B: Deref<Target = [u8]>> fmt::Debug for ReadonlyText<B> {
     }
 }
 
-impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
+impl<B: Deref<Target = [u8]> + Send + Sync> Text for ReadonlyText<B> {
     type Slice<'a> = &'a str where Self: 'a;
 
     fn byte_slice(&self, byte_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
@@ -90,7 +101,7 @@ impl<B: Deref<Target = [u8]>> Text for ReadonlyText<B> {
     }
 }
 
-impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
+impl<B: Deref<Target = [u8]> + Send + Sync> TextBase for ReadonlyText<B> {
     #[inline]
     fn as_text_mut(&mut self) -> Option<&mut dyn AnyTextMut> {
         None
@@ -98,12 +109,12 @@ impl<B: Deref<Target = [u8]>> TextBase for ReadonlyText<B> {
 
     #[inline]
     fn len_lines(&self) -> usize {
-        *self.len_lines.get_or_init(|| self.as_str().len_lines())
+        *self.inner.len_lines.get_or_init(|| self.as_str().len_lines())
     }
 
     #[inline]
     fn len_bytes(&self) -> usize {
-        self.buf.len()
+        self.inner.buf.len()
     }
 
     #[inline]

@@ -345,7 +345,8 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             handler: LocalHandler(|editor, range, args| {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.save(Active)?;
+                let fut = editor.save(Active);
+                editor.schedule("save", async { Ok(fut.await?) });
                 Ok(())
             })
             .into(),
