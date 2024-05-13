@@ -1991,18 +1991,55 @@ impl Editor {
         &self.config
     }
 
+    async fn format(&mut self, buf: BufferId) -> Result<Vec<lsp_types::TextEdit>, zi_lsp::Error> {
+        let buffer = &self[buf];
+        let buf_config = buffer.config();
+        let tab_size = buf_config.tab_width.read() as u32;
+        let Some(uri) = buffer.file_url().cloned() else { return Ok(vec![]) };
+
+        let Some(fut) = self.language_servers.values_mut().find_map(|server| {
+            match server.capabilities.document_formatting_provider {
+                Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => {
+                    Some(server.formatting(lsp_types::DocumentFormattingParams {
+                        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+                        options: lsp_types::FormattingOptions {
+                            tab_size,
+                            insert_spaces: true,
+                            trim_trailing_whitespace: Some(true),
+                            insert_final_newline: Some(true),
+                            trim_final_newlines: Some(true),
+                            properties: Default::default(),
+                        },
+                        work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
+                    }))
+                }
+                _ => None,
+            }
+        }) else {
+            return Ok(vec![]);
+        };
+
+        Ok(fut.await?.unwrap_or_default())
+    }
+
     async fn subscribe_async_events() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
-            let fut = client.request(move |editor| {
-                let buffer = &editor[event.buf];
-                let buf_config = buffer.config();
-                let tab_size = buf_config.tab_width.read() as u32;
-                let format = buf_config.format_on_save.read();
-                format
-                    .then(|| {
-                        editor[event.buf].file_url().cloned().and_then(|uri| {
-                            editor.language_servers.values_mut().find_map(|server| {
-                                match server.capabilities.document_formatting_provider {
+            let format_fut = client
+                .request(move |editor| {
+                    let buffer = &editor[event.buf];
+                    let buf_config = buffer.config();
+                    let tab_size = buf_config.tab_width.read() as u32;
+                    let format = buf_config.format_on_save.read();
+
+                    format
+                        .then(|| {
+                            editor[event.buf].file_url().cloned().and_then(|uri| {
+                                editor.language_servers.values_mut().find_map(|server| match server
+                                    .capabilities
+                                    .document_formatting_provider
+                                {
                                     Some(
                                         lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
                                     ) => Some(server.formatting(
@@ -2025,12 +2062,18 @@ impl Editor {
                                         },
                                     )),
                                     _ => None,
-                                }
+                                })
                             })
                         })
-                    })
-                    .flatten()
-            });
+                        .flatten()
+                })
+                .await;
+
+            if let Some(fut) = format_fut {
+                let edits = fut.await.expect("todo");
+                dbg!(edits);
+            }
+
             HandlerResult::Ok
         })
         .await;
