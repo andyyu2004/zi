@@ -2035,7 +2035,11 @@ impl Editor {
                 .await;
 
             if let Some(fut) = format_fut {
-                let edits = fut.await?;
+                if let Some(edits) = fut.await? {
+                    client.request(|editor| {
+                        editor.edit();
+                    })
+                }
             }
 
             Ok(HandlerResult::Continue)
