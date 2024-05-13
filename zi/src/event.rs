@@ -38,9 +38,7 @@ pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     registry().subscribe(handler)
 }
 
-pub fn subscribe_with<E: Event>(
-    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
-) {
+pub fn subscribe_with<E: Event>(f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static) {
     subscribe(handler(f));
 }
 
@@ -48,10 +46,10 @@ pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Even
     registry().subscribe_async(handler).await
 }
 
-pub async fn subscribe_async_with<E, Fut>(f: impl FnMut(Client, E) -> Fut + Send + Sync + 'static)
+pub async fn subscribe_async_with<E, Fut>(f: impl FnMut(Client, E) -> Fut + Send + 'static)
 where
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + Sync + 'static,
+    Fut: Future<Output = HandlerResult> + Send + 'static,
 {
     subscribe_async(async_handler(f)).await;
 }
@@ -105,7 +103,8 @@ pub enum HandlerResult {
 }
 
 /// Marker trait for a synchronous event.
-pub trait Event: Any + Send + Sync {}
+pub trait Event: Any + Send {}
 
 /// Marker trait for an asynchronous event.
 pub trait AsyncEvent: Any + Clone + Send + Sync {}
+

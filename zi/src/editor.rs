@@ -268,9 +268,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn request<T: Send + Sync + 'static>(
+    pub async fn request<T: Send + 'static>(
         &self,
-        f: impl FnOnce(&mut Editor) -> T + Send + Sync + 'static,
+        f: impl FnOnce(&mut Editor) -> T + Send + 'static,
     ) -> T {
         let (tx, rx) = oneshot::channel();
         self.tx
@@ -1993,50 +1993,44 @@ impl Editor {
 
     async fn subscribe_async_events() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
-            // client
-            // .request(move |editor| {
-            // let buffer = &editor[event.buf];
-            // let flags = buffer.flags();
-            // let path = buffer.path().to_path_buf();
-            // let text = dyn_clone::clone_box(buffer.text());
-            // let buf_config = buffer.config();
-            // let tab_size = buf_config.tab_width.read() as u32;
-            // let format = buf_config.format_on_save.read();
-            // let format_fut = format
-            //     .then(|| {
-            //         editor[event.buf].file_url().cloned().and_then(|uri| {
-            //             editor.language_servers.values_mut().find_map(|server| match server
-            //                 .capabilities
-            //                 .document_formatting_provider
-            //             {
-            //                 Some(
-            //                     lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
-            //                 ) => Some(server.formatting(
-            //                     lsp_types::DocumentFormattingParams {
-            //                         text_document: lsp_types::TextDocumentIdentifier {
-            //                             uri: uri.clone(),
-            //                         },
-            //                         options: lsp_types::FormattingOptions {
-            //                             tab_size,
-            //                             insert_spaces: true,
-            //                             trim_trailing_whitespace: Some(true),
-            //                             insert_final_newline: Some(true),
-            //                             trim_final_newlines: Some(true),
-            //                             properties: Default::default(),
-            //                         },
-            //                         work_done_progress_params:
-            //                             lsp_types::WorkDoneProgressParams {
-            //                                 work_done_token: None,
-            //                             },
-            //                     },
-            //                 )),
-            //                 _ => None,
-            //             })
-            //         })
-            //     })
-            //     .flatten();
-            // })
-            // .await;
+            let fut = client.request(move |editor| {
+                let buffer = &editor[event.buf];
+                let buf_config = buffer.config();
+                let tab_size = buf_config.tab_width.read() as u32;
+                let format = buf_config.format_on_save.read();
+                format
+                    .then(|| {
+                        editor[event.buf].file_url().cloned().and_then(|uri| {
+                            editor.language_servers.values_mut().find_map(|server| {
+                                match server.capabilities.document_formatting_provider {
+                                    Some(
+                                        lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
+                                    ) => Some(server.formatting(
+                                        lsp_types::DocumentFormattingParams {
+                                            text_document: lsp_types::TextDocumentIdentifier {
+                                                uri: uri.clone(),
+                                            },
+                                            options: lsp_types::FormattingOptions {
+                                                tab_size,
+                                                insert_spaces: true,
+                                                trim_trailing_whitespace: Some(true),
+                                                insert_final_newline: Some(true),
+                                                trim_final_newlines: Some(true),
+                                                properties: Default::default(),
+                                            },
+                                            work_done_progress_params:
+                                                lsp_types::WorkDoneProgressParams {
+                                                    work_done_token: None,
+                                                },
+                                        },
+                                    )),
+                                    _ => None,
+                                }
+                            })
+                        })
+                    })
+                    .flatten()
+            });
             HandlerResult::Ok
         })
         .await;

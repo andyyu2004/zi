@@ -14,9 +14,9 @@ pub struct TestContext {
 }
 
 impl TestContext {
-    pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + 'static) -> R
+    pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + Sync + 'static) -> R
     where
-        R: Send + 'static,
+        R: Send + Sync + 'static,
     {
         self.client.request(f).await
     }

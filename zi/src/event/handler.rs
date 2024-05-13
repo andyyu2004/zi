@@ -4,14 +4,14 @@ use super::*;
 use crate::Client;
 
 #[async_trait]
-pub trait AsyncEventHandler: Send + Sync + 'static {
+pub trait AsyncEventHandler: Send + 'static {
     type Event: AsyncEvent;
 
     async fn on_event(&mut self, client: Client, event: Self::Event) -> HandlerResult;
 }
 
 #[async_trait]
-pub(super) trait ErasedAsyncEventHandler: Send + Sync + 'static {
+pub(super) trait ErasedAsyncEventHandler: Send + 'static {
     async fn dyn_on_event(
         &mut self,
         client: Client,
@@ -45,9 +45,9 @@ struct AsyncHandlerFunc<F, Fut, E> {
 #[async_trait]
 impl<F, E, Fut> AsyncEventHandler for AsyncHandlerFunc<F, Fut, E>
 where
-    F: FnMut(Client, E) -> Fut + Send + Sync + 'static,
+    F: FnMut(Client, E) -> Fut + Send + 'static,
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + Sync + 'static,
+    Fut: Future<Output = HandlerResult> + Send + 'static,
 {
     type Event = E;
 
@@ -59,22 +59,22 @@ where
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
 pub(crate) fn async_handler<E, Fut>(
-    f: impl FnMut(Client, E) -> Fut + Send + Sync + 'static,
+    f: impl FnMut(Client, E) -> Fut + Send + 'static,
 ) -> impl AsyncEventHandler<Event = E>
 where
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + Sync + 'static,
+    Fut: Future<Output = HandlerResult> + Send + 'static,
 {
     AsyncHandlerFunc::<_, Fut, E> { f, _marker: std::marker::PhantomData }
 }
 
-pub trait EventHandler: Send + Sync + 'static {
+pub trait EventHandler: Send + 'static {
     type Event: Event;
 
     fn on_event(&mut self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
 }
 
-pub(super) trait ErasedEventHandler: Send + Sync + 'static {
+pub(super) trait ErasedEventHandler: Send + 'static {
     fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
 }
 
@@ -98,7 +98,7 @@ struct HandlerFunc<F, E> {
 
 impl<F, E> EventHandler for HandlerFunc<F, E>
 where
-    F: FnMut(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
+    F: FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
     E: Event,
 {
     type Event = E;
@@ -111,7 +111,7 @@ where
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
 pub(crate) fn handler<E: Event>(
-    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
+    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
 ) -> impl EventHandler<Event = E> {
     HandlerFunc { f, _marker: std::marker::PhantomData }
 }
