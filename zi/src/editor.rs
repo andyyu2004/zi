@@ -1344,22 +1344,66 @@ impl Editor {
     pub fn save(
         &mut self,
         selector: impl Selector<BufferId>,
-    ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-        let buf = selector.select(self);
+    ) -> impl Future<Output = crate::Result<()>> + Send + 'static {
+        let buf_id = selector.select(self);
 
-        let flags = self[buf].flags();
-        let path = self[buf].path().to_path_buf();
-        let text: Box<dyn AnyText + 'static> = dyn_clone::clone_box(self[buf].text());
+        let buf = &self[buf_id];
+        let flags = buf.flags();
+        let path = buf.path().to_path_buf();
+        let text: Box<dyn AnyText + 'static> = dyn_clone::clone_box(buf.text());
+        let buf_config = buf.config();
+        let tab_size = buf_config.tab_width.read() as u32;
+        let format = buf_config.format_on_save.read();
+
+        let format_fut = format
+            .then(|| {
+                self[buf_id].file_url().cloned().and_then(|uri| {
+                    self.language_servers.values_mut().find_map(|server| {
+                        match server.capabilities.document_formatting_provider {
+                            Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => {
+                                Some(server.formatting(lsp_types::DocumentFormattingParams {
+                                    text_document: lsp_types::TextDocumentIdentifier {
+                                        uri: uri.clone(),
+                                    },
+                                    options: lsp_types::FormattingOptions {
+                                        tab_size,
+                                        insert_spaces: true,
+                                        trim_trailing_whitespace: Some(true),
+                                        insert_final_newline: Some(true),
+                                        trim_final_newlines: Some(true),
+                                        properties: Default::default(),
+                                    },
+                                    work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                                        work_done_token: None,
+                                    },
+                                }))
+                            }
+                            _ => None,
+                        }
+                    })
+                })
+            })
+            .flatten();
 
         async move {
-            // TODO check if file is modified.
-            if !flags.contains(BufferFlags::DIRTY) {
-                return Ok(());
-            }
-
             if flags.contains(BufferFlags::READONLY) {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
-                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"));
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
+            }
+
+            if let Some(fut) = format_fut {
+                if let Some(res) = fut.await? {
+                    dbg!(res);
+                }
+
+                // TODO
+                // If the text has been edited while formatting, either
+                // - we should not apply the formatting
+                // - adjust the formatting somehow so it doesn't leave a mess
+            }
+
+            if !flags.contains(BufferFlags::DIRTY) {
+                return Ok(());
             }
 
             use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -1368,8 +1412,9 @@ impl Editor {
             let mut writer = tokio::io::BufWriter::new(&mut file);
             tokio::io::copy(&mut reader, &mut writer).await?;
             writer.flush().await?;
-            // drop(writer);
             file.flush().await?;
+
+            // TODO mark buffer as clean
 
             Ok(())
         }

@@ -52,11 +52,12 @@ bitflags::bitflags! {
 /// Buffer local configuration
 pub struct Config {
     pub tab_width: Setting<u8>,
+    pub format_on_save: Setting<bool>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { tab_width: Setting::new(4) }
+        Self { tab_width: Setting::new(4), format_on_save: Setting::new(true) }
     }
 }
 
