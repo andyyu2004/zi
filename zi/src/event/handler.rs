@@ -7,7 +7,7 @@ use crate::Client;
 pub trait AsyncEventHandler: Send + 'static {
     type Event: AsyncEvent;
 
-    async fn on_event(&mut self, client: Client, event: Self::Event) -> HandlerResult;
+    async fn on_event(&mut self, client: Client, event: Self::Event) -> AsyncHandlerResult;
 }
 
 #[async_trait]
@@ -16,7 +16,7 @@ pub(super) trait ErasedAsyncEventHandler: Send + 'static {
         &mut self,
         client: Client,
         event: &(dyn Any + Send + Sync),
-    ) -> HandlerResult;
+    ) -> AsyncHandlerResult;
 }
 
 #[async_trait]
@@ -28,12 +28,12 @@ where
         &mut self,
         client: Client,
         event: &(dyn Any + Send + Sync),
-    ) -> HandlerResult {
+    ) -> AsyncHandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
             return self.on_event(client.clone(), event.clone()).await;
         }
 
-        HandlerResult::Ok
+        Ok(HandlerResult::Continue)
     }
 }
 
@@ -47,11 +47,11 @@ impl<F, E, Fut> AsyncEventHandler for AsyncHandlerFunc<F, Fut, E>
 where
     F: FnMut(Client, E) -> Fut + Send + 'static,
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + 'static,
+    Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
     type Event = E;
 
-    async fn on_event(&mut self, client: Client, event: E) -> HandlerResult {
+    async fn on_event(&mut self, client: Client, event: E) -> AsyncHandlerResult {
         (self.f)(client, event).await
     }
 }
@@ -63,7 +63,7 @@ pub(crate) fn async_handler<E, Fut>(
 ) -> impl AsyncEventHandler<Event = E>
 where
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + 'static,
+    Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
     AsyncHandlerFunc::<_, Fut, E> { f, _marker: std::marker::PhantomData }
 }
@@ -87,7 +87,7 @@ where
             return self.on_event(editor, event);
         }
 
-        HandlerResult::Ok
+        HandlerResult::Continue
     }
 }
 

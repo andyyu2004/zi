@@ -12,7 +12,7 @@ use self::handler::{
     async_handler, handler, AsyncEventHandler, ErasedAsyncEventHandler, ErasedEventHandler,
     EventHandler,
 };
-use crate::{Client, Editor};
+use crate::{Client, Editor, Result};
 
 #[derive(Default)]
 pub struct Registry {
@@ -30,7 +30,7 @@ pub fn dispatch(editor: &mut Editor, event: impl Event) {
     registry().dispatch(editor, &event)
 }
 
-pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) {
+pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) -> Result<()> {
     registry().dispatch_async(client, &event).await
 }
 
@@ -49,9 +49,9 @@ pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Even
 pub async fn subscribe_async_with<E, Fut>(f: impl FnMut(Client, E) -> Fut + Send + 'static)
 where
     E: AsyncEvent,
-    Fut: Future<Output = HandlerResult> + Send + 'static,
+    Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
-    subscribe_async(async_handler(f)).await;
+    subscribe_async(async_handler(f)).await
 }
 
 impl Registry {
@@ -71,18 +71,25 @@ impl Registry {
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
         if let Some(handlers) = self.handlers.lock().get_mut(&TypeId::of::<T>()) {
             handlers.retain_mut(|handler| match handler.dyn_on_event(editor, event) {
-                HandlerResult::Ok => true,
+                HandlerResult::Continue => true,
                 HandlerResult::Unsubscribe => false,
             });
         }
     }
 
-    pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) {
+    pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
         if let Some(handlers) = self.async_handlers.lock().await.get_mut(&TypeId::of::<T>()) {
             let mut indices_to_remove = vec![];
             for (i, handler) in handlers.iter_mut().enumerate() {
-                if handler.dyn_on_event(client.clone(), event).await == HandlerResult::Unsubscribe {
-                    indices_to_remove.push(i);
+                match handler.dyn_on_event(client.clone(), event).await {
+                    Ok(HandlerResult::Continue) => (),
+                    Ok(HandlerResult::Unsubscribe) => indices_to_remove.push(i),
+                    Err(err) => {
+                        for i in indices_to_remove.into_iter().rev() {
+                            handlers.remove(i);
+                        }
+                        return Err(err);
+                    }
                 }
             }
 
@@ -90,6 +97,8 @@ impl Registry {
                 handlers.remove(i);
             }
         }
+
+        Ok(())
     }
 }
 
@@ -97,14 +106,15 @@ impl Registry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandlerResult {
     /// Continue processing the event.
-    Ok,
+    Continue,
     /// Unsubscribe the handler from the event.
     Unsubscribe,
 }
+
+pub type AsyncHandlerResult = Result<HandlerResult>;
 
 /// Marker trait for a synchronous event.
 pub trait Event: Any + Send {}
 
 /// Marker trait for an asynchronous event.
 pub trait AsyncEvent: Any + Clone + Send + Sync {}
-

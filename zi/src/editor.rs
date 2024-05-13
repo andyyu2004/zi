@@ -1366,7 +1366,7 @@ impl Editor {
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
             }
 
-            event::dispatch_async(&client, event::WillSaveBuffer { buf }).await;
+            event::dispatch_async(&client, event::WillSaveBuffer { buf }).await?;
 
             // // There should be a generic async hook mechanism or something similar to the existing
             // // sync ones.
@@ -1630,7 +1630,7 @@ impl Editor {
                     editor.set_mode(mode);
                     return event::HandlerResult::Unsubscribe;
                 }
-                event::HandlerResult::Ok
+                event::HandlerResult::Continue
             }
         });
 
@@ -1991,39 +1991,6 @@ impl Editor {
         &self.config
     }
 
-    async fn format(&mut self, buf: BufferId) -> Result<Vec<lsp_types::TextEdit>, zi_lsp::Error> {
-        let buffer = &self[buf];
-        let buf_config = buffer.config();
-        let tab_size = buf_config.tab_width.read() as u32;
-        let Some(uri) = buffer.file_url().cloned() else { return Ok(vec![]) };
-
-        let Some(fut) = self.language_servers.values_mut().find_map(|server| {
-            match server.capabilities.document_formatting_provider {
-                Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => {
-                    Some(server.formatting(lsp_types::DocumentFormattingParams {
-                        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                        options: lsp_types::FormattingOptions {
-                            tab_size,
-                            insert_spaces: true,
-                            trim_trailing_whitespace: Some(true),
-                            insert_final_newline: Some(true),
-                            trim_final_newlines: Some(true),
-                            properties: Default::default(),
-                        },
-                        work_done_progress_params: lsp_types::WorkDoneProgressParams {
-                            work_done_token: None,
-                        },
-                    }))
-                }
-                _ => None,
-            }
-        }) else {
-            return Ok(vec![]);
-        };
-
-        Ok(fut.await?.unwrap_or_default())
-    }
-
     async fn subscribe_async_events() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
             let format_fut = client
@@ -2056,9 +2023,7 @@ impl Editor {
                                                 properties: Default::default(),
                                             },
                                             work_done_progress_params:
-                                                lsp_types::WorkDoneProgressParams {
-                                                    work_done_token: None,
-                                                },
+                                                lsp_types::WorkDoneProgressParams::default(),
                                         },
                                     )),
                                     _ => None,
@@ -2070,11 +2035,10 @@ impl Editor {
                 .await;
 
             if let Some(fut) = format_fut {
-                let edits = fut.await.expect("todo");
-                dbg!(edits);
+                let edits = fut.await?;
             }
 
-            HandlerResult::Ok
+            Ok(HandlerResult::Continue)
         })
         .await;
     }
@@ -2107,7 +2071,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
                     .map(|c| &c.language_servers)
                     .map_or(false, |servers| servers.contains(&server_id))
                 {
-                    return event::HandlerResult::Ok;
+                    return event::HandlerResult::Continue;
                 }
 
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
@@ -2125,7 +2089,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
                     })
                     .expect("lsp did_change failed");
             }
-            event::HandlerResult::Ok
+            event::HandlerResult::Continue
         }
     });
 
@@ -2146,7 +2110,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
                 })
                 .expect("lsp did_open failed");
         }
-        event::HandlerResult::Ok
+        event::HandlerResult::Continue
     });
 }
 

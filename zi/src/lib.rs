@@ -46,9 +46,8 @@ pub use self::language::{FileType, LanguageServerId};
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
 
-// Consider a proper error type
 pub type Error = anyhow::Error;
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod wit {
     wasmtime::component::bindgen!({
