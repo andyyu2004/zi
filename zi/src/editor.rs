@@ -30,7 +30,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
-use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
+use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -44,6 +44,7 @@ use crate::buffer::{
     TextBuffer, UndoEntry,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
+use crate::event::HandlerResult;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
@@ -267,9 +268,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn request<T: Send + 'static>(
+    pub async fn request<T: Send + Sync + 'static>(
         &self,
-        f: impl FnOnce(&mut Editor) -> T + Send + 'static,
+        f: impl FnOnce(&mut Editor) -> T + Send + Sync + 'static,
     ) -> T {
         let (tx, rx) = oneshot::channel();
         self.tx
@@ -569,6 +570,8 @@ impl Editor {
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
+        Self::subscribe_async_events().await;
+
         render(self)?;
 
         let mut requests = requests.fuse();
@@ -1317,7 +1320,7 @@ impl Editor {
                             "inserted duplicate language server"
                         );
 
-                        register_lsp_event_handlers(server_id);
+                        subscribe_lsp_event_handlers(server_id);
 
                         // Must dispatch this event after the server is inserted
                         // FIXME this is wrong to just generate an event and send it to all
@@ -1345,62 +1348,37 @@ impl Editor {
         &mut self,
         selector: impl Selector<BufferId>,
     ) -> impl Future<Output = crate::Result<()>> + Send + 'static {
-        let buf_id = selector.select(self);
+        let buf = selector.select(self);
 
-        let buf = &self[buf_id];
-        let flags = buf.flags();
-        let path = buf.path().to_path_buf();
-        let text: Box<dyn AnyText + 'static> = dyn_clone::clone_box(buf.text());
-        let buf_config = buf.config();
-        let tab_size = buf_config.tab_width.read() as u32;
-        let format = buf_config.format_on_save.read();
+        let buffer = &self[buf];
+        let flags = buffer.flags();
+        let path = buffer.path().to_path_buf();
+        let text = dyn_clone::clone_box(buffer.text());
+        // let buf_config = buffer.config();
+        // let tab_size = buf_config.tab_width.read() as u32;
+        // let format = buf_config.format_on_save.read();
 
-        let format_fut = format
-            .then(|| {
-                self[buf_id].file_url().cloned().and_then(|uri| {
-                    self.language_servers.values_mut().find_map(|server| {
-                        match server.capabilities.document_formatting_provider {
-                            Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => {
-                                Some(server.formatting(lsp_types::DocumentFormattingParams {
-                                    text_document: lsp_types::TextDocumentIdentifier {
-                                        uri: uri.clone(),
-                                    },
-                                    options: lsp_types::FormattingOptions {
-                                        tab_size,
-                                        insert_spaces: true,
-                                        trim_trailing_whitespace: Some(true),
-                                        insert_final_newline: Some(true),
-                                        trim_final_newlines: Some(true),
-                                        properties: Default::default(),
-                                    },
-                                    work_done_progress_params: lsp_types::WorkDoneProgressParams {
-                                        work_done_token: None,
-                                    },
-                                }))
-                            }
-                            _ => None,
-                        }
-                    })
-                })
-            })
-            .flatten();
-
+        let client = self.client();
         async move {
+            let _ = client;
             if flags.contains(BufferFlags::READONLY) {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
             }
 
-            if let Some(fut) = format_fut {
-                if let Some(res) = fut.await? {
-                    dbg!(res);
-                }
+            event::dispatch_async(&client, event::WillSaveBuffer { buf }).await;
 
-                // TODO
-                // If the text has been edited while formatting, either
-                // - we should not apply the formatting
-                // - adjust the formatting somehow so it doesn't leave a mess
-            }
+            // // There should be a generic async hook mechanism or something similar to the existing
+            // // sync ones.
+            // if let Some(fut) = format_fut {
+            //     if let Some(_edits) = fut.await? {
+            //         // TODO
+            //         // If the text has been edited while formatting, either
+            //         // - we should not apply the formatting
+            //         // - adjust the formatting somehow so it doesn't leave a mess
+            //         // dbg!(edits);
+            //     }
+            // }
 
             if !flags.contains(BufferFlags::DIRTY) {
                 return Ok(());
@@ -2012,6 +1990,57 @@ impl Editor {
     pub fn config(&self) -> &Config {
         &self.config
     }
+
+    async fn subscribe_async_events() {
+        event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
+            // client
+            // .request(move |editor| {
+            // let buffer = &editor[event.buf];
+            // let flags = buffer.flags();
+            // let path = buffer.path().to_path_buf();
+            // let text = dyn_clone::clone_box(buffer.text());
+            // let buf_config = buffer.config();
+            // let tab_size = buf_config.tab_width.read() as u32;
+            // let format = buf_config.format_on_save.read();
+            // let format_fut = format
+            //     .then(|| {
+            //         editor[event.buf].file_url().cloned().and_then(|uri| {
+            //             editor.language_servers.values_mut().find_map(|server| match server
+            //                 .capabilities
+            //                 .document_formatting_provider
+            //             {
+            //                 Some(
+            //                     lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
+            //                 ) => Some(server.formatting(
+            //                     lsp_types::DocumentFormattingParams {
+            //                         text_document: lsp_types::TextDocumentIdentifier {
+            //                             uri: uri.clone(),
+            //                         },
+            //                         options: lsp_types::FormattingOptions {
+            //                             tab_size,
+            //                             insert_spaces: true,
+            //                             trim_trailing_whitespace: Some(true),
+            //                             insert_final_newline: Some(true),
+            //                             trim_final_newlines: Some(true),
+            //                             properties: Default::default(),
+            //                         },
+            //                         work_done_progress_params:
+            //                             lsp_types::WorkDoneProgressParams {
+            //                                 work_done_token: None,
+            //                             },
+            //                     },
+            //                 )),
+            //                 _ => None,
+            //             })
+            //         })
+            //     })
+            //     .flatten();
+            // })
+            // .await;
+            HandlerResult::Ok
+        })
+        .await;
+    }
 }
 
 /// A synchronous client to the editor.
@@ -2024,7 +2053,7 @@ impl SyncClient {
     }
 }
 
-fn register_lsp_event_handlers(server_id: LanguageServerId) {
+fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
     event::subscribe_with::<event::DidChangeBuffer>({
         let server_id = server_id.clone();

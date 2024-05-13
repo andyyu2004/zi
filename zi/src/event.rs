@@ -1,70 +1,98 @@
+mod events;
+mod handler;
+
 use std::any::{Any, TypeId};
+use std::future::Future;
 use std::sync::OnceLock;
 
-use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use crate::{BufferId, Editor, ViewId};
+pub use self::events::*;
+use self::handler::{
+    async_handler, handler, AsyncEventHandler, ErasedAsyncEventHandler, ErasedEventHandler,
+    EventHandler,
+};
+use crate::{Client, Editor};
 
+#[derive(Default)]
 pub struct Registry {
-    handlers: FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send>>>,
+    handlers: parking_lot::Mutex<FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send>>>>,
+    async_handlers:
+        tokio::sync::Mutex<FxHashMap<TypeId, Vec<Box<dyn ErasedAsyncEventHandler + Send>>>>,
 }
 
-static REGISTRY: OnceLock<Mutex<Registry>> = OnceLock::new();
-
-fn with(f: impl FnOnce(&mut Registry)) {
-    f(&mut REGISTRY.get_or_init(|| Mutex::new(Registry::new())).lock());
+fn registry() -> &'static Registry {
+    static REGISTRY: OnceLock<Registry> = OnceLock::new();
+    REGISTRY.get_or_init(Registry::default)
 }
 
 pub fn dispatch(editor: &mut Editor, event: impl Event) {
-    with(|registry| registry.dispatch(editor, &event));
+    registry().dispatch(editor, &event)
+}
+
+pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) {
+    registry().dispatch_async(client, &event).await
 }
 
 pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
-    with(|registry| registry.subscribe(handler));
+    registry().subscribe(handler)
 }
 
-pub fn subscribe_with<T: Event>(f: impl FnMut(&mut Editor, &T) -> HandlerResult + Send + 'static) {
+pub fn subscribe_with<E: Event>(
+    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
+) {
     subscribe(handler(f));
 }
 
-/// Create a new event handler from a closure.
-// Can't find a way to implement this as a blanket impl
-fn handler<E: Event>(
-    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
-) -> impl EventHandler<Event = E> {
-    HandlerFunc { f, _marker: std::marker::PhantomData }
+pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Event = E>) {
+    registry().subscribe_async(handler).await
+}
+
+pub async fn subscribe_async_with<E, Fut>(f: impl FnMut(Client, E) -> Fut + Send + Sync + 'static)
+where
+    E: AsyncEvent,
+    Fut: Future<Output = HandlerResult> + Send + Sync + 'static,
+{
+    subscribe_async(async_handler(f)).await;
 }
 
 impl Registry {
-    fn new() -> Self {
-        Self { handlers: FxHashMap::default() }
+    pub fn subscribe<T: Event>(&self, handler: impl EventHandler<Event = T>) {
+        self.handlers.lock().entry(TypeId::of::<T>()).or_default().push(Box::new(handler));
     }
 
-    pub fn subscribe<T: Event>(&mut self, handler: impl EventHandler<Event = T>) {
-        self.handlers.entry(TypeId::of::<T>()).or_default().push(Box::new(handler));
+    pub async fn subscribe_async<T: AsyncEvent>(&self, handler: impl AsyncEventHandler<Event = T>) {
+        self.async_handlers
+            .lock()
+            .await
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .push(Box::new(handler));
     }
 
-    pub fn dispatch<T: Event>(&mut self, editor: &mut Editor, event: &T) {
-        if let Some(handlers) = self.handlers.get_mut(&TypeId::of::<T>()) {
+    pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
+        if let Some(handlers) = self.handlers.lock().get_mut(&TypeId::of::<T>()) {
             handlers.retain_mut(|handler| match handler.dyn_on_event(editor, event) {
                 HandlerResult::Ok => true,
                 HandlerResult::Unsubscribe => false,
             });
         }
     }
-}
 
-impl Default for Registry {
-    fn default() -> Self {
-        Self::new()
+    pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) {
+        if let Some(handlers) = self.async_handlers.lock().await.get_mut(&TypeId::of::<T>()) {
+            let mut indices_to_remove = vec![];
+            for (i, handler) in handlers.iter_mut().enumerate() {
+                if handler.dyn_on_event(client.clone(), event).await == HandlerResult::Unsubscribe {
+                    indices_to_remove.push(i);
+                }
+            }
+
+            for i in indices_to_remove.into_iter().rev() {
+                handlers.remove(i);
+            }
+        }
     }
-}
-
-pub trait EventHandler: Send + 'static {
-    type Event: Event;
-
-    fn on_event(&mut self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
 }
 
 #[must_use]
@@ -76,59 +104,8 @@ pub enum HandlerResult {
     Unsubscribe,
 }
 
-struct HandlerFunc<F, E> {
-    f: F,
-    _marker: std::marker::PhantomData<E>,
-}
+/// Marker trait for a synchronous event.
+pub trait Event: Any + Send + Sync {}
 
-impl<F, E> EventHandler for HandlerFunc<F, E>
-where
-    F: FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
-    E: Event,
-{
-    type Event = E;
-
-    fn on_event(&mut self, editor: &mut Editor, event: &E) -> HandlerResult {
-        (self.f)(editor, event)
-    }
-}
-
-trait ErasedEventHandler {
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
-}
-
-impl<H> ErasedEventHandler for H
-where
-    H: EventHandler,
-{
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult {
-        if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
-            return self.on_event(editor, event);
-        }
-
-        HandlerResult::Ok
-    }
-}
-
-pub trait Event: Any + Send {}
-
-#[derive(Debug)]
-pub struct DidChangeBuffer {
-    pub buf: BufferId,
-}
-
-impl Event for DidChangeBuffer {}
-
-#[derive(Debug)]
-pub struct DidOpenBuffer {
-    pub buf: BufferId,
-}
-
-impl Event for DidOpenBuffer {}
-
-#[derive(Debug)]
-pub struct DidCloseView {
-    pub view: ViewId,
-}
-
-impl Event for DidCloseView {}
+/// Marker trait for an asynchronous event.
+pub trait AsyncEvent: Any + Clone + Send + Sync {}
