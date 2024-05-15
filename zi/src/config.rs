@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Deref;
 
 use tokio::sync::watch;
 
@@ -30,11 +31,8 @@ impl<T> Setting<T> {
     }
 
     #[inline]
-    pub fn read(&self) -> T
-    where
-        T: Clone,
-    {
-        self.rx.borrow().clone()
+    pub fn read(&self) -> impl Deref<Target = T> + '_ {
+        self.rx.borrow()
     }
 
     #[inline]

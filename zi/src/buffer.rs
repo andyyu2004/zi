@@ -222,7 +222,7 @@ pub trait Buffer: Send {
 
     fn char_width(&self, c: char) -> usize {
         c.width().unwrap_or(match c {
-            '\t' => self.config().tab_width.read() as usize,
+            '\t' => *self.config().tab_width.read() as usize,
             _ => 0,
         })
     }

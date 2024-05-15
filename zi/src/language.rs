@@ -2,10 +2,12 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
+use std::ops::DerefMut;
 use std::path::Path;
 
 use anyhow::bail;
 
+use crate::lsp::LanguageClient;
 use crate::Result;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -157,4 +159,13 @@ pub struct LanguageConfig {
 pub struct LanguageServerConfig {
     pub command: OsString,
     pub args: Box<[OsString]>,
+}
+
+impl LanguageServerConfig {
+    pub(crate) fn spawn(
+        &self,
+    ) -> zi_lsp::Result<Box<impl DerefMut<Target = zi_lsp::DynLanguageServer>>> {
+        tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
+        zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..]).map(Box::new)
+    }
 }

@@ -1295,12 +1295,8 @@ impl Editor {
                     continue;
                 }
 
-                let server_config = &self.language_config.language_servers[&server_id];
-                let command = &server_config.command;
-                let args = &server_config.args;
-                tracing::debug!(%server_id, ?command, ?args, "language server initialization");
-                let mut server =
-                    Box::new(zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?);
+                let mut server = self.language_config.language_servers[&server_id].spawn()?;
+
                 callback(
                     &self.callbacks_tx,
                     "initializing language server",
@@ -1590,7 +1586,7 @@ impl Editor {
             view
         });
 
-        let (a, b) = self.config.picker_split_proportion.read();
+        let (a, b) = *self.config.picker_split_proportion.read();
         self.tree.push(Layer::new_with_area(preview, move |area| {
             tui::Layout::vertical(tui::Constraint::from_fills([a, b])).areas::<2>(area)[1]
         }));
@@ -1989,8 +1985,8 @@ impl Editor {
                 .request(move |editor| {
                     let buffer = &editor[event.buf];
                     let buf_config = buffer.config();
-                    let tab_size = buf_config.tab_width.read() as u32;
-                    let format = buf_config.format_on_save.read();
+                    let tab_size = *buf_config.tab_width.read() as u32;
+                    let format = *buf_config.format_on_save.read();
 
                     let buf_version = buffer.version();
                     let format_fut = format
