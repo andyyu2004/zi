@@ -191,6 +191,11 @@ pub(super) fn new() -> Keymap {
         let _ = editor.search("");
     }
 
+    fn save(editor: &mut Editor) {
+        let fut = editor.save(Active);
+        editor.schedule("save", fut);
+    }
+
     macro_rules! action {
         ($($name:ident,)*) => {
             $(
@@ -251,6 +256,7 @@ pub(super) fn new() -> Keymap {
                     "y" => text_object_current_line_exclusive,
                 })),
                 Mode::Normal => trie!({
+                    "<C-s>" => save,
                     "<C-o>" => jump_back,
                     "<C-i>" => jump_forward,
                     "<C-d>" => scroll_down,

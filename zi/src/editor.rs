@@ -1360,31 +1360,15 @@ impl Editor {
         let flags = buffer.flags();
         let path = buffer.path().to_path_buf();
         let text = dyn_clone::clone_box(buffer.text());
-        // let buf_config = buffer.config();
-        // let tab_size = buf_config.tab_width.read() as u32;
-        // let format = buf_config.format_on_save.read();
 
         let client = self.client();
         async move {
-            let _ = client;
             if flags.contains(BufferFlags::READONLY) {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
             }
 
             event::dispatch_async(&client, event::WillSaveBuffer { buf }).await?;
-
-            // // There should be a generic async hook mechanism or something similar to the existing
-            // // sync ones.
-            // if let Some(fut) = format_fut {
-            //     if let Some(_edits) = fut.await? {
-            //         // TODO
-            //         // If the text has been edited while formatting, either
-            //         // - we should not apply the formatting
-            //         // - adjust the formatting somehow so it doesn't leave a mess
-            //         // dbg!(edits);
-            //     }
-            // }
 
             if !flags.contains(BufferFlags::DIRTY) {
                 return Ok(());
