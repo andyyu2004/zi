@@ -206,31 +206,38 @@ impl zi_lsp::LanguageClient for LanguageClient {
 }
 
 pub(crate) struct LanguageServer {
-    pub server: zi_lsp::Server,
     pub capabilities: lsp_types::ServerCapabilities,
+    // Storing this odd type to allow for a test implementation.
+    // The `DerefMut` is useful to make it easy to defer the actual server implementation to an inner type.
+    server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
 }
 
 impl LanguageServer {
-    pub(crate) async fn shutdown(self) -> Result<()> {
-        self.server.shutdown().await
+    pub(crate) fn new(
+        capabilities: lsp_types::ServerCapabilities,
+        server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+    ) -> Self {
+        Self { capabilities, server }
     }
 }
 
 impl Deref for LanguageServer {
-    type Target = zi_lsp::Server;
+    type Target = zi_lsp::DynLanguageServer;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.server
+        &*self.server
     }
 }
 
 impl DerefMut for LanguageServer {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.server
+        &mut *self.server
     }
 }
 
-pub fn capabilities() -> ClientCapabilities {
+pub fn client_capabilities() -> ClientCapabilities {
     lsp_types::ClientCapabilities {
         workspace: None,
         text_document: Some(lsp_types::TextDocumentClientCapabilities { ..Default::default() }),

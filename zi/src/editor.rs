@@ -29,7 +29,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
-use zi_lsp::{lsp_types, LanguageServer as _};
+use zi_lsp::lsp_types;
 use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
@@ -486,9 +486,10 @@ impl Editor {
     }
 
     pub async fn cleanup(&mut self) {
-        for server in mem::take(&mut self.language_servers).into_values() {
+        for mut server in mem::take(&mut self.language_servers).into_values() {
             // TODO shutdown concurrenly
-            let _ = server.shutdown().await;
+            let _ = server.shutdown(()).await;
+            let _ = server.exit(());
         }
     }
 
@@ -1298,29 +1299,30 @@ impl Editor {
                 let command = &server_config.command;
                 let args = &server_config.args;
                 tracing::debug!(%server_id, ?command, ?args, "language server initialization");
-                let mut server = zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?;
+                let mut server =
+                    Box::new(zi_lsp::Server::start(LanguageClient, ".", command, &args[..])?);
                 callback(
                     &self.callbacks_tx,
                     "initializing language server",
                     async move {
                         let res = server
                             .initialize(lsp_types::InitializeParams {
-                                capabilities: lsp::capabilities(),
+                                capabilities: lsp::client_capabilities(),
                                 ..Default::default()
                             })
                             .await?;
                         tracing::debug!("lsp initialized");
                         server.initialized(lsp_types::InitializedParams {})?;
 
-                        Ok((server, res))
+                        Ok((res, server))
                     },
-                    move |editor, (server, res)| {
+                    move |editor, (res, server)| {
                         assert!(
                             editor
                                 .language_servers
                                 .insert(
                                     server_id.clone(),
-                                    LanguageServer { server, capabilities: res.capabilities },
+                                    LanguageServer::new(res.capabilities, server),
                                 )
                                 .is_none(),
                             "inserted duplicate language server"

@@ -6,6 +6,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use async_lsp::concurrency::ConcurrencyLayer;
+use async_lsp::lsp_types::request::Request;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
@@ -13,6 +14,7 @@ pub use async_lsp::{
     lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
     ServerSocket,
 };
+use futures_util::future::BoxFuture;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
@@ -24,6 +26,29 @@ pub struct Server {
     server: ServerSocket,
     handle: tokio::task::JoinHandle<()>,
 }
+
+pub trait X: Send + DerefMut<Target = DynLanguageServer> {
+    fn shutdown(self: Box<Self>) -> BoxFuture<'static, crate::Result<()>>;
+}
+
+impl X for Server {
+    fn shutdown(mut self: Box<Self>) -> BoxFuture<'static, crate::Result<()>> {
+        Box::pin(async move {
+            self.server.shutdown(()).await?;
+            self.server.exit(())?;
+            if tokio::time::timeout(Duration::from_millis(100), &mut self.handle).await.is_err() {
+                // If the server doesn't exit in time, abort the task
+                self.handle.abort()
+            }
+            Ok(())
+        })
+    }
+}
+
+pub type DynLanguageServer =
+    dyn LanguageServer<Error = async_lsp::Error, NotifyResult = Result<(), async_lsp::Error>>;
+
+pub type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
 
 impl Server {
     pub async fn shutdown(mut self) -> crate::Result<()> {
@@ -86,7 +111,7 @@ impl Server {
 }
 
 impl Deref for Server {
-    type Target = ServerSocket;
+    type Target = DynLanguageServer;
 
     fn deref(&self) -> &Self::Target {
         &self.server
