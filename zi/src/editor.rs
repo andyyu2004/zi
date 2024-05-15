@@ -48,7 +48,7 @@ use crate::event::HandlerResult;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, Conv, LanguageClient, LanguageServer};
+use crate::lsp::{self, Conv, LanguageServer};
 use crate::plugin::Plugins;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
