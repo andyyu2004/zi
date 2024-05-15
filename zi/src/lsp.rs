@@ -1,4 +1,4 @@
-mod proto;
+pub(crate) mod proto;
 
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};

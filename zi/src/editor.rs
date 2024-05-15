@@ -942,10 +942,11 @@ impl Editor {
         };
     }
 
-    pub fn edit(&mut self, selector: impl Selector<ViewId>, deltas: &Deltas<'_>) {
-        let view_id = selector.select(self);
-        // Don't care if we're actually in insert mode, that's more a key binding namespace.
-        let (view, buf) = get!(self: view_id);
+    pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
+        let buf_id = selector.select(self);
+        // // Don't care if we're actually in insert mode, that's more a key binding namespace.
+        // let (view, buf) = get!(self: view_id);
+        let buf = &mut self[buf_id];
 
         if buf.flags().contains(BufferFlags::READONLY) {
             set_error!(self, "buffer is readonly");
@@ -954,9 +955,14 @@ impl Editor {
 
         buf.edit(deltas);
         let buf = buf.id();
-        // set the cursor again as it may be out of bounds after the edit
-        let cursor = view.cursor();
-        self.set_cursor_flags(view_id, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
+
+        // set the cursor again in relevant views as it may be out of bounds after the edit
+        let views =
+            self.tree.views().filter(|&view| self[view].buffer() == buf).collect::<Vec<_>>();
+        for view in views {
+            let cursor = self[view].cursor();
+            self.set_cursor_flags(view, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
+        }
 
         self.dispatch(event::DidChangeBuffer { buf });
     }
@@ -1993,14 +1999,15 @@ impl Editor {
 
     async fn subscribe_async_events() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
-            let format_fut = client
+            let (version, format_fut) = client
                 .request(move |editor| {
                     let buffer = &editor[event.buf];
                     let buf_config = buffer.config();
                     let tab_size = buf_config.tab_width.read() as u32;
                     let format = buf_config.format_on_save.read();
 
-                    format
+                    let buf_version = buffer.version();
+                    let format_fut = format
                         .then(|| {
                             editor[event.buf].file_url().cloned().and_then(|uri| {
                                 editor.language_servers.values_mut().find_map(|server| match server
@@ -2030,15 +2037,31 @@ impl Editor {
                                 })
                             })
                         })
-                        .flatten()
+                        .flatten();
+
+                    (buf_version, format_fut)
                 })
                 .await;
 
             if let Some(fut) = format_fut {
                 if let Some(edits) = fut.await? {
-                    client.request(|editor| {
-                        editor.edit();
-                    })
+                    client
+                        .request(move |editor| {
+                            let buf = &editor[event.buf];
+                            let text = buf.text();
+                            let deltas = lsp::proto::deltas_from_lsp_edits(text, edits);
+
+                            if buf.version() == version {
+                                editor.edit(buf.id(), &deltas);
+                            } else {
+                                assert!(buf.version() > version, "version has gone down?");
+                                tracing::info!(
+                                    "buffer version changed, skipping formatting: {} > {version}",
+                                    buf.version(),
+                                );
+                            }
+                        })
+                        .await;
                 }
             }
 

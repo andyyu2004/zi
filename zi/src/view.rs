@@ -59,6 +59,12 @@ impl Selector<Self> for ViewId {
     }
 }
 
+impl Selector<BufferId> for ViewId {
+    fn select(&self, editor: &Editor) -> BufferId {
+        editor.view(*self).buffer()
+    }
+}
+
 /// A view is a viewport into a buffer.
 #[derive(Debug, Clone)]
 pub struct View {
