@@ -2,8 +2,8 @@ use super::*;
 
 impl TextMut for crop::Rope {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static> {
-        delta.apply(self)
+    fn edit(&mut self, deltas: &Deltas<'_>) -> Deltas<'static> {
+        deltas.apply(self)
     }
 }
 

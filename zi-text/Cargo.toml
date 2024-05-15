@@ -8,6 +8,7 @@ zi-core = { workspace = true }
 regex-cursor = { workspace = true }
 crop = { workspace = true }
 dyn-clone = { workspace = true }
+stdx = { workspace = true }
 memmap2 = "0.9.4"
 
 [dev-dependencies]

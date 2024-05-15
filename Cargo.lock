@@ -3655,6 +3655,7 @@ dependencies = [
  "memmap2",
  "proptest",
  "regex-cursor",
+ "stdx",
  "zi-core",
 ]
 

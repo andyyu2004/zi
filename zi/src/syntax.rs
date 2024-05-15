@@ -6,9 +6,9 @@ use std::sync::OnceLock;
 
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
-use tree_sitter::{Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
-use zi_core::PointRange;
-use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Text, TextMut, TextSlice};
+use tree_sitter::{InputEdit, Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
+use zi_core::{Point, PointRange};
+use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
 
 pub(crate) use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
 use crate::{dirs, FileType};
@@ -100,15 +100,11 @@ impl Syntax {
     pub fn edit(
         &mut self,
         text: &mut dyn AnyTextMut,
-        delta: &Delta<'_>,
-    ) -> (Delta<'static>, Option<Tree>) {
-        let delta = match &mut self.tree {
-            Some(tree) => {
-                let (delta, edit) = delta_to_ts_edit(text, delta);
-                tree.edit(&edit);
-                delta
-            }
-            _ => text.edit(delta).to_owned(),
+        deltas: &Deltas<'_>,
+    ) -> (Deltas<'static>, Option<Tree>) {
+        let deltas = match &mut self.tree {
+            Some(tree) => apply_deltas(text, deltas, tree),
+            _ => text.edit(deltas).to_owned(),
         };
 
         let prev_tree = PARSER.with(|parser| {
@@ -124,7 +120,7 @@ impl Syntax {
             }
         });
 
-        (delta, prev_tree)
+        (deltas, prev_tree)
     }
 
     pub fn highlights<'a, 'tree: 'a>(
@@ -172,33 +168,51 @@ fn smallest_node_that_covers_range(tree: &Tree, range: PointRange) -> Node<'_> {
     cursor.node()
 }
 
-// tree-sitter point column is byte-indexed, but very poorly documented
-fn delta_to_ts_edit(
+fn apply_deltas(
     text: &mut dyn AnyTextMut,
-    delta: &Delta<'_>,
-) -> (Delta<'static>, tree_sitter::InputEdit) {
-    let byte_range = text.delta_to_byte_range(delta);
-    let point_range = text.delta_to_point_range(delta);
+    deltas: &Deltas<'_>,
+    tree: &mut Tree,
+) -> Deltas<'static> {
+    // Since deltas are sorted in descending range and are disjoint, we can apply them in without interference.
+    deltas.iter().for_each(|delta| tree.edit(&delta_to_ts_edit(text.as_text(), delta)));
+    text.edit(deltas)
+}
+
+// tree-sitter's `point.column` is byte-indexed, but very poorly documented
+fn delta_to_ts_edit(text: impl Text, delta: &Delta<'_>) -> InputEdit {
+    let byte_range = delta.range();
+    let point_range = text.byte_range_to_point_range(&byte_range);
 
     let start_byte = byte_range.start;
     let old_end_byte = byte_range.end;
+
     let new_end_byte = start_byte + delta.text().len();
+    let new_end_position = walk(point_range.start(), delta.text()).into();
 
-    let delta = text.edit(delta).to_owned();
+    fn walk(point: Point, text: &str) -> Point {
+        let mut line = point.line();
+        let mut col = point.col();
 
-    let new_end_position = text.byte_to_point(new_end_byte).into();
+        for c in text.chars() {
+            if c == '\n' {
+                line += 1;
+                col = 0;
+            } else {
+                col += c.len_utf8();
+            }
+        }
 
-    (
-        delta,
-        tree_sitter::InputEdit {
-            start_byte,
-            old_end_byte,
-            new_end_byte,
-            start_position: point_range.start().into(),
-            old_end_position: point_range.end().into(),
-            new_end_position,
-        },
-    )
+        Point::new(line, col)
+    }
+
+    tree_sitter::InputEdit {
+        start_byte,
+        old_end_byte,
+        new_end_byte,
+        start_position: point_range.start().into(),
+        old_end_position: point_range.end().into(),
+        new_end_position,
+    }
 }
 
 /// A private wrapper type that allows us to construct an empty iterator if we have no highlights to provide

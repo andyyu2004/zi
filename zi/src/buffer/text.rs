@@ -49,7 +49,7 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
 
         let entry = self.undo_tree.redo().cloned()?;
         for change in entry.changes.iter() {
-            self.edit(&change.delta, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
+            self.edit(&change.deltas, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
         }
 
         Some(entry)
@@ -124,8 +124,8 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         self.syntax.as_ref()
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.edit(delta, EditFlags::empty());
+    fn edit(&mut self, deltas: &Deltas<'_>) {
+        self.edit(deltas, EditFlags::empty());
     }
 
     fn version(&self) -> u32 {
@@ -279,34 +279,35 @@ impl<X: Text + Clone> TextBuffer<X> {
     fn ensure_trailing_newline(&mut self) {
         if self.text.chars().next_back() != Some('\n') {
             let len = self.text.len_bytes();
-            self.edit(&Delta::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
+            self.edit(&Deltas::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
         }
     }
 
-    fn edit(&mut self, delta: &Delta<'_>, flags: EditFlags) {
+    fn edit(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
         // Ensure the buffer ends with a newline before any insert.
         let should_ensure_newline =
-            !flags.contains(EditFlags::NO_ENSURE_NEWLINE) && !delta.text().is_empty();
+            !flags.contains(EditFlags::NO_ENSURE_NEWLINE) && deltas.has_inserts();
+
         if should_ensure_newline {
             self.ensure_trailing_newline();
         }
 
-        tracing::trace!(?flags, ?delta, "edit buffer");
+        tracing::trace!(?flags, ?deltas, "edit buffer");
 
         match self.text.as_text_mut() {
             Some(text) => {
-                if !delta.is_identity() {
+                if !deltas.is_identity() {
                     self.flags.insert(BufferFlags::DIRTY);
                 }
 
                 let (inversion, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(text, delta)
+                    syntax.edit(text, deltas)
                 } else {
-                    (text.edit(delta), None)
+                    (text.edit(deltas), None)
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {
-                    let change = Change { delta: delta.to_owned(), inversion };
+                    let change = Change { deltas: deltas.to_owned(), inversion };
                     match self.changes.pop() {
                         None => self.changes.push(change),
                         // attempt to merge changes if possible

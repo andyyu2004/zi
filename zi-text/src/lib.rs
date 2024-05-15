@@ -18,24 +18,24 @@ pub use cursor::RopeCursor;
 use dyn_clone::DynClone;
 use zi_core::{Line, Point, PointOrByte, PointRange};
 
-pub use self::delta::{Delta, DeltaRange};
+pub use self::delta::{Delta, DeltaRange, Deltas};
 pub use self::readonly::ReadonlyText;
 
 /// Text that can be modified.
 /// Required to be cloneable to store snapshots in the undo tree.
 pub trait TextMut: Text {
-    fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
+    fn edit(&mut self, deltas: &Deltas<'_>) -> Deltas<'static>;
 }
 
 pub trait AnyTextMut: AnyText + Send + 'static {
-    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Delta<'static>;
+    fn dyn_edit(&mut self, deltas: &Deltas<'_>) -> Deltas<'static>;
 
     fn as_text(&self) -> &dyn AnyText;
 }
 
 impl TextMut for dyn AnyTextMut + '_ {
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) -> Delta<'static> {
+    fn edit(&mut self, delta: &Deltas<'_>) -> Deltas<'static> {
         self.dyn_edit(delta)
     }
 }
@@ -47,8 +47,8 @@ impl<T: AnyText + TextMut + Send + 'static> AnyTextMut for T {
     }
 
     #[inline]
-    fn dyn_edit(&mut self, delta: &Delta<'_>) -> Delta<'static> {
-        <T as TextMut>::edit(self, delta)
+    fn dyn_edit(&mut self, deltas: &Deltas<'_>) -> Deltas<'static> {
+        <T as TextMut>::edit(self, deltas)
     }
 }
 
@@ -82,24 +82,6 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     }
 
     #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
-        match delta.range() {
-            DeltaRange::Point(p) => p,
-            DeltaRange::Byte(range) => {
-                PointRange::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
-            }
-        }
-    }
-
-    #[inline]
-    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
-        match delta.range() {
-            DeltaRange::Point(range) => self.point_range_to_byte_range(range),
-            DeltaRange::Byte(range) => range,
-        }
-    }
-
-    #[inline]
     fn point_to_byte(&self, point: Point) -> usize {
         // This doesn't actually check whether the column is within bounds of the line
         self.line_to_byte(point.line()) + point.col()
@@ -111,7 +93,7 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     }
 
     #[inline]
-    fn byte_range_to_point_range(&self, range: ops::Range<usize>) -> PointRange {
+    fn byte_range_to_point_range(&self, range: &ops::Range<usize>) -> PointRange {
         PointRange::new(self.byte_to_point(range.start), self.byte_to_point(range.end))
     }
 
@@ -176,16 +158,6 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     #[inline]
     fn byte_to_point(&self, byte_idx: usize) -> Point {
         (**self).byte_to_point(byte_idx)
-    }
-
-    #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
-        (**self).delta_to_point_range(delta)
-    }
-
-    #[inline]
-    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
-        (**self).delta_to_byte_range(delta)
     }
 
     #[inline]
@@ -708,16 +680,6 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn byte_to_point(&self, byte_idx: usize) -> Point {
         (**self).byte_to_point(byte_idx)
-    }
-
-    #[inline]
-    fn delta_to_point_range(&self, delta: &Delta<'_>) -> PointRange {
-        (**self).delta_to_point_range(delta)
-    }
-
-    #[inline]
-    fn delta_to_byte_range(&self, delta: &Delta<'_>) -> ops::Range<usize> {
-        (**self).delta_to_byte_range(delta)
     }
 
     #[inline]

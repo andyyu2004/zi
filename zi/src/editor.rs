@@ -30,7 +30,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::{lsp_types, LanguageServer as _};
-use zi_text::{AnyText, Delta, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
+use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -798,7 +798,8 @@ impl Editor {
 
                 (start != end).then(|| PointRange::new(start, end))
             }) {
-                self.edit(Active, &Delta::delete(range));
+                let byte_range = self[buf].text().point_range_to_byte_range(range);
+                self.edit(Active, &Deltas::delete(byte_range));
             }
         }
 
@@ -908,7 +909,7 @@ impl Editor {
                 let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
                 let start_byte_idx =
                     byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
-                buf.edit(&Delta::delete(start_byte_idx..byte_idx));
+                buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
 
                 view.set_cursor_bytewise(
                     mode!(self),
@@ -927,7 +928,8 @@ impl Editor {
         let mut cbuf = [0; 4];
         let view = self.view(Active);
         let cursor = view.cursor();
-        self.edit(view.id(), &Delta::insert_at(cursor, &*c.encode_utf8(&mut cbuf)));
+        let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
+        self.edit(view.id(), &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
 
         let (view, buf) = get!(self);
         let area = self.tree.view_area(view.id());
@@ -937,7 +939,7 @@ impl Editor {
         };
     }
 
-    pub fn edit(&mut self, selector: impl Selector<ViewId>, delta: &Delta<'_>) {
+    pub fn edit(&mut self, selector: impl Selector<ViewId>, deltas: &Deltas<'_>) {
         let view_id = selector.select(self);
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
         let (view, buf) = get!(self: view_id);
@@ -947,7 +949,7 @@ impl Editor {
             return;
         }
 
-        buf.edit(delta);
+        buf.edit(deltas);
         let buf = buf.id();
         // set the cursor again as it may be out of bounds after the edit
         let cursor = view.cursor();
@@ -1072,9 +1074,9 @@ impl Editor {
             range = start_byte..end_byte;
         }
 
-        let (delta, new_cursor) = match operator {
+        let (deltas, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
-                let delta = Delta::delete(range.clone());
+                let deltas = Deltas::delete(range.clone());
                 let cursor = match motion_kind {
                     // linewise deletions move the line but maintain the column
                     TextObjectKind::Linewise => {
@@ -1083,7 +1085,7 @@ impl Editor {
                     // charwise deletions moves the cursor to the start of the range
                     TextObjectKind::Charwise => PointOrByte::Byte(range.start),
                 };
-                (delta, Some(cursor))
+                (deltas, Some(cursor))
             }
             Operator::Yank => todo!(),
         };
@@ -1098,7 +1100,7 @@ impl Editor {
             Operator::Yank | Operator::Delete => {}
         }
 
-        self.edit(view, &delta);
+        self.edit(view, &deltas);
 
         match operator {
             Operator::Change => self.set_mode(Mode::Insert),
@@ -1207,7 +1209,7 @@ impl Editor {
 
         let cursor = match (entry.cursor, entry.changes.first()) {
             (Some(cursor), _) => cursor.into(),
-            (_, Some(fst)) => fst.delta.range().start(),
+            (_, Some(fst)) => fst.deltas.iter().next().unwrap().range().start.into(),
             _ => return,
         };
 

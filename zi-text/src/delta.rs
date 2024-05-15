@@ -2,9 +2,85 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use std::{fmt, ops};
 
-use zi_core::{PointOrByte, PointRange};
+use stdx::range::RangeExt;
 
 use super::Text;
+
+// A set of text deltas to apply to a document.
+// This has the same semantics as the lsp `TextEdit[]`.
+// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textEditArray
+#[derive(Clone, Default, Debug)]
+pub struct Deltas<'a> {
+    /// The set of deltas to apply to the text stored order by their start point ascending.
+    deltas: Box<[Delta<'a>]>,
+}
+
+impl<'a> Deltas<'a> {
+    /// See [`Deltas`] for more information.
+    /// This will sort the deltas by their start point, and assert they are non-overlapping, and use the same unit of range.
+    #[must_use]
+    pub fn new(deltas: impl IntoIterator<Item = Delta<'a>>) -> Self {
+        let mut deltas = deltas.into_iter().collect::<Box<_>>();
+        deltas.sort_by(|a, b| {
+            a.range()
+                .start
+                .partial_cmp(&b.range().start)
+                .expect("cannot mix point and byte ranges within set of deltas")
+        });
+
+        deltas.iter().zip(deltas.iter().skip(1)).for_each(|(a, b)| {
+            assert!(
+                !a.range().intersects(&b.range()),
+                "deltas must not overlap: {:?} and {:?}",
+                a,
+                b
+            );
+        });
+
+        Self { deltas }
+    }
+
+    /// Returns an iterator over the deltas ordered by their start point descending.
+    pub fn iter(&self) -> impl Iterator<Item = &Delta<'a>> {
+        self.deltas.iter().rev()
+    }
+
+    pub(crate) fn apply(&self, text: &mut impl TextReplace) -> Deltas<'static> {
+        let mut inverse_deltas = Vec::<Delta<'_>>::with_capacity(self.deltas.len());
+
+        // Reminder that this iterator returns deltas are sorted by their start point in descending order.
+        for delta in self.iter() {
+            let shift = delta.text().len() as isize - delta.range().len() as isize;
+            inverse_deltas.iter_mut().for_each(|d| d.shift(shift));
+
+            let inverse = delta.apply(text);
+            inverse_deltas.push(inverse);
+        }
+
+        Deltas::new(inverse_deltas)
+    }
+
+    pub fn has_inserts(&self) -> bool {
+        self.deltas.iter().any(|d| !d.text().is_empty())
+    }
+
+    pub fn is_identity(&self) -> bool {
+        // There are more cases where a delta is an identity,
+        self.deltas.iter().all(|d| d.is_identity())
+    }
+
+    pub fn insert_at(at: usize, text: impl Into<Cow<'a, str>>) -> Self {
+        Deltas::new([Delta::insert_at(at, text)])
+    }
+
+    pub fn delete(range: impl Into<DeltaRange>) -> Self {
+        Deltas::new([Delta::delete(range)])
+    }
+
+    pub fn to_owned(&self) -> Deltas<'static> {
+        Deltas::new(self.deltas.iter().map(|d| d.to_owned()))
+    }
+}
 
 #[derive(Clone)]
 pub struct Delta<'a> {
@@ -20,70 +96,7 @@ impl fmt::Debug for Delta<'_> {
     }
 }
 
-#[derive(Clone)]
-pub enum DeltaRange {
-    /// The point range to replace
-    Point(PointRange),
-    /// The byte range to replace
-    Byte(ops::Range<usize>),
-}
-
-impl fmt::Debug for DeltaRange {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Point(r) => write!(f, "{r:?}"),
-            Self::Byte(r) => write!(f, "{r:?}"),
-        }
-    }
-}
-
-impl DeltaRange {
-    #[inline]
-    pub fn start(&self) -> PointOrByte {
-        match self {
-            Self::Point(r) => PointOrByte::Point(r.start()),
-            Self::Byte(r) => PointOrByte::Byte(r.start),
-        }
-    }
-
-    #[inline]
-    pub fn end(&self) -> PointOrByte {
-        match self {
-            Self::Point(r) => PointOrByte::Point(r.end()),
-            Self::Byte(r) => PointOrByte::Byte(r.end),
-        }
-    }
-
-    #[inline]
-    pub fn empty(at: impl Into<PointOrByte>) -> Self {
-        match at.into() {
-            PointOrByte::Point(p) => DeltaRange::Point(PointRange::new(p, p)),
-            PointOrByte::Byte(c) => DeltaRange::Byte(c..c),
-        }
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Point(r) => r.is_empty(),
-            Self::Byte(r) => r.is_empty(),
-        }
-    }
-}
-
-impl From<ops::Range<usize>> for DeltaRange {
-    #[inline]
-    fn from(v: ops::Range<usize>) -> Self {
-        Self::Byte(v)
-    }
-}
-
-impl From<PointRange> for DeltaRange {
-    #[inline]
-    fn from(v: PointRange) -> Self {
-        Self::Point(v)
-    }
-}
+pub type DeltaRange = ops::Range<usize>;
 
 impl<'a> Delta<'a> {
     pub fn new(range: impl Into<DeltaRange>, text: impl Into<Cow<'a, str>>) -> Self {
@@ -96,8 +109,8 @@ impl<'a> Delta<'a> {
     }
 
     #[inline]
-    pub fn insert_at(at: impl Into<PointOrByte>, text: impl Into<Cow<'a, str>>) -> Self {
-        Self::new(DeltaRange::empty(at), text)
+    pub fn insert_at(at: usize, text: impl Into<Cow<'a, str>>) -> Self {
+        Self::new(at..at, text)
     }
 
     #[inline]
@@ -112,13 +125,7 @@ impl<'a> Delta<'a> {
 
     #[inline]
     pub fn to_owned(&self) -> Delta<'static> {
-        Delta::new(
-            match &self.range {
-                DeltaRange::Point(r) => DeltaRange::Point(*r),
-                DeltaRange::Byte(r) => DeltaRange::Byte(r.clone()),
-            },
-            self.text.to_string(),
-        )
+        Delta::new(self.range.clone(), self.text.to_string())
     }
 
     #[inline]
@@ -136,11 +143,16 @@ impl<'a> Delta<'a> {
 
     /// Apply the delta to the text and return the inverse delta
     pub(crate) fn apply(&self, text: &mut impl TextReplace) -> Delta<'static> {
-        let byte_range = text.delta_to_byte_range(self);
+        let byte_range = self.range();
         let start = byte_range.start;
         let deleted_text = text.byte_slice(byte_range.clone()).to_string();
         text.replace(byte_range, self.text());
         Delta::new(start..start + self.text.len(), deleted_text)
+    }
+
+    fn shift(&mut self, shift: isize) {
+        self.range = (self.range.start as isize + shift).try_into().unwrap()
+            ..(self.range.end as isize + shift).try_into().unwrap();
     }
 }
 

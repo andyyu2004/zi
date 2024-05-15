@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use unicode_width::UnicodeWidthChar;
-use zi_text::{AnyText, Delta};
+use zi_text::{AnyText, Delta, Deltas};
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
@@ -97,31 +97,32 @@ pub struct UndoEntry {
 
 #[derive(Clone, Debug)]
 pub struct Change {
-    /// The delta that was applied
-    pub delta: Delta<'static>,
-    /// The delta that can be applied to undo the operation
-    pub inversion: Delta<'static>,
+    /// The deltas that were applied
+    pub deltas: Deltas<'static>,
+    /// The deltas that can be applied to undo the operation
+    pub inversion: Deltas<'static>,
 }
 
 impl Change {
     #[allow(clippy::result_large_err)]
     fn try_merge(self, other: Self) -> Result<Self, [Self; 2]> {
-        let delta = match self.delta.try_merge(other.delta) {
-            Ok(delta) => delta,
-            Err([a, b]) => {
-                return Err([
-                    Self { delta: a, inversion: self.inversion },
-                    Self { delta: b, inversion: other.inversion },
-                ]);
-            }
-        };
+        Err([self, other])
+        // let delta = match self.deltas.try_merge(other.deltas) {
+        //     Ok(delta) => delta,
+        //     Err([a, b]) => {
+        //         return Err([
+        //             Self { deltas: a, inversion: self.inversion },
+        //             Self { deltas: b, inversion: other.inversion },
+        //         ]);
+        //     }
+        // };
 
-        let inversion = self
-            .inversion
-            .try_merge(other.inversion)
-            .expect("inversion should be invertible if the delta is");
-
-        Ok(Self { delta, inversion })
+        // let inversion = self
+        //     .inversion
+        //     .try_merge(other.inversion)
+        //     .expect("inversion should be invertible if the delta is");
+        //
+        // Ok(Self { deltas: delta, inversion })
     }
 }
 
@@ -165,7 +166,7 @@ pub trait Buffer: Send {
     }
 
     /// Edit the buffer with a delta.
-    fn edit(&mut self, delta: &Delta<'_>);
+    fn edit(&mut self, deltas: &Deltas<'_>);
 
     fn syntax(&self) -> Option<&Syntax> {
         None
@@ -321,8 +322,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.as_mut().edit(delta)
+    fn edit(&mut self, deltas: &Deltas<'_>) {
+        self.as_mut().edit(deltas)
     }
 
     #[inline]

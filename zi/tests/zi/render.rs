@@ -41,7 +41,7 @@ impl TestContext {
 pub async fn new(size: zi::Size, content: &str) -> TestContext {
     let (mut editor, tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
-    editor.edit(zi::Active, &zi::Delta::insert_at(0, content));
+    editor.edit(zi::Active, &zi::Deltas::insert_at(0, content));
     editor.set_cursor(zi::Active, content.len());
 
     let client = editor.client();

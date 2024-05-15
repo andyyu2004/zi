@@ -274,8 +274,8 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         0
     }
 
-    fn edit(&mut self, delta: &Delta<'_>) {
-        self.text.edit(delta);
+    fn edit(&mut self, deltas: &Deltas<'_>) {
+        self.text.edit(deltas);
 
         tracing::debug!(%self.text, "update picker search pattern");
 
@@ -324,7 +324,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
                 writeln!(s, "{item}")?;
             }
 
-            editor.edit(display_view, &Delta::new(0..text.len_bytes(), s));
+            editor.edit(display_view, &Deltas::new([Delta::new(0..text.len_bytes(), s)]));
             Ok(())
         });
     }

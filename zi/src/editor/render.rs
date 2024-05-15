@@ -140,7 +140,7 @@ impl Editor {
             .iter()
             .enumerate()
             .filter_map(|(i, mat)| {
-                let range = text.byte_range_to_point_range(mat.byte_range.clone());
+                let range = text.byte_range_to_point_range(&mat.byte_range);
                 if range.end().line() < line_offset {
                     return None;
                 }

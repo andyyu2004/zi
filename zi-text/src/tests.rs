@@ -20,7 +20,7 @@ fn mut_impls<'a>(s: &'a str) -> [Box<dyn AnyTextMut + 'a>; 2] {
 #[test]
 fn text_edit() {
     for mut imp in mut_impls("abc") {
-        imp.edit(&Delta::new(0..0, "x"));
+        imp.edit(&Deltas::new([Delta::new(0..0, "x")]));
         assert_eq!(imp.to_string(), "xabc");
     }
 }
@@ -94,14 +94,48 @@ fn ascii_str_and_range() -> impl Strategy<Value = (String, ops::Range<usize>)> {
 
 proptest! {
     #[test]
-    fn invert((mut s, range) in ascii_str_and_range(), replacement in "[ -~]*") {
+    fn prop_invert_delta((mut s, range) in ascii_str_and_range(), replacement in "[ -~]*") {
         let delta = Delta::new(range, replacement);
         let original = s.clone();
         let invert = delta.apply(&mut s);
         invert.apply(&mut s);
         assert_eq!(s, original, "applying the inverse delta should result in the original text");
-
     }
+}
+
+#[test]
+fn invert_deltas() {
+    #[track_caller]
+    fn t(text: &str, expected: &str, deltas: impl IntoIterator<Item = Delta<'static>>) {
+        let deltas = Deltas::new(deltas);
+        let mut text = crop::Rope::from(text);
+        let original = text.clone();
+        let inverted = deltas.apply(&mut text);
+        assert_eq!(
+            text.to_string(),
+            expected,
+            "applying the deltas should result in the expected text"
+        );
+        inverted.apply(&mut text);
+        assert_eq!(
+            text, original,
+            "applying the inverse deltas should result in the original text"
+        );
+    }
+
+    t("abc", "xabc", [Delta::new(0..0, "x")]);
+    t("abc", "xb", [Delta::new(0..1, "x"), Delta::new(2..3, "")]);
+    t("abc", "xab", [Delta::new(0..0, "x"), Delta::new(2..3, "")]);
+
+    t(
+        "abc
+def
+ghi",
+        "xabc
+ydef
+zghi",
+        [Delta::new(0..0, "x"), Delta::new(4..4, "y"), Delta::new(8..8, "z")],
+    );
 }
 
 proptest! {

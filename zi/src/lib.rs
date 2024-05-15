@@ -35,7 +35,7 @@ pub use tree_sitter;
 pub use tui::Constraint;
 pub use zi_core::{Col, Direction, Line, Offset, Point, PointRange, Size};
 pub use zi_lsp::lsp_types::Url;
-pub use zi_text::Delta;
+pub use zi_text::{Delta, Deltas};
 pub use zi_textobject::motion;
 
 pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
