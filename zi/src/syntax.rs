@@ -43,7 +43,7 @@ static QUERY_CACHE: OnceLock<RwLock<FxHashMap<FileType, (tree_sitter::Language, 
 
 impl Syntax {
     #[tracing::instrument]
-    pub fn for_language(ft: &FileType) -> anyhow::Result<Option<Self>> {
+    pub fn for_file_type(ft: &FileType) -> anyhow::Result<Option<Self>> {
         let cache = QUERY_CACHE.get_or_init(Default::default);
         let read_guard = cache.read();
         let (language, highlights_query) = match read_guard.get(ft) {

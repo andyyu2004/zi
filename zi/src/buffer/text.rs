@@ -218,7 +218,7 @@ impl<X: Text + Clone> TextBuffer<X> {
     pub fn new(
         id: BufferId,
         flags: BufferFlags,
-        language_id: FileType,
+        ft: FileType,
         path: impl AsRef<Path>,
         mut text: X,
         theme: &Theme,
@@ -237,11 +237,11 @@ impl<X: Text + Clone> TextBuffer<X> {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
-        let mut syntax = match Syntax::for_language(&language_id) {
+        let mut syntax = match Syntax::for_file_type(&ft) {
             Ok(syntax) => syntax,
             Err(err) => {
                 // TODO show the error somewhere
-                tracing::error!("failed to load syntax for {}: {}", language_id, err);
+                tracing::error!("failed to load syntax for {}: {}", ft, err);
                 None
             }
         };
@@ -263,7 +263,7 @@ impl<X: Text + Clone> TextBuffer<X> {
             file_url,
             text,
             syntax,
-            language_id,
+            language_id: ft,
             highlight_map,
             config: Default::default(),
             changes: Default::default(),

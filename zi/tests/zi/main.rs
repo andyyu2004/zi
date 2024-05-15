@@ -6,7 +6,11 @@ mod lsp;
 mod perf;
 mod render;
 
+use std::io;
+use std::path::PathBuf;
+
 use expect_test::{expect, Expect};
+use tempfile::TempPath;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
@@ -17,9 +21,9 @@ pub struct TestContext {
 }
 
 impl TestContext {
-    pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + Sync + 'static) -> R
+    pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + 'static) -> R
     where
-        R: Send + Sync + 'static,
+        R: Send + 'static,
     {
         self.client.request(f).await
     }
@@ -38,6 +42,19 @@ impl TestContext {
                 expect.assert_eq(&render(term.backend_mut()))
             })
             .await;
+    }
+
+    pub fn tempdir(&self) -> io::Result<PathBuf> {
+        tempfile::tempdir().map(|dir| dir.into_path())
+    }
+
+    pub fn tempfile(&self, content: &str) -> io::Result<TempPath> {
+        let file = tempfile::NamedTempFile::new()?;
+        std::fs::write(file.path(), content)?;
+        let path = file.into_temp_path();
+        assert!(path.exists());
+        debug_assert_eq!(std::fs::read_to_string(&path)?, content);
+        Ok(path)
     }
 }
 

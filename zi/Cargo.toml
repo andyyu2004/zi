@@ -43,13 +43,14 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 expect-test = { workspace = true }
+serde_json = { workspace = true}
 datatest-stable = "0.2.3"
 duct = "0.13.7"
 proptest = "1.4.0"
 tempfile = "3.10.0"
 test-strategy = "0.3.1"
 futures-executor = "0.3.30"
-zi = { path = ".", features = ["arbitrary"] }
+zi = { workspace = true, features = ["arbitrary"] }
 zi-nvim = { path = "../zi-nvim" }
 regex = "1"
 

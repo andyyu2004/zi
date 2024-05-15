@@ -27,24 +27,6 @@ pub struct Server {
     handle: tokio::task::JoinHandle<()>,
 }
 
-pub trait X: Send + DerefMut<Target = DynLanguageServer> {
-    fn shutdown(self: Box<Self>) -> BoxFuture<'static, crate::Result<()>>;
-}
-
-impl X for Server {
-    fn shutdown(mut self: Box<Self>) -> BoxFuture<'static, crate::Result<()>> {
-        Box::pin(async move {
-            self.server.shutdown(()).await?;
-            self.server.exit(())?;
-            if tokio::time::timeout(Duration::from_millis(100), &mut self.handle).await.is_err() {
-                // If the server doesn't exit in time, abort the task
-                self.handle.abort()
-            }
-            Ok(())
-        })
-    }
-}
-
 pub type DynLanguageServer =
     dyn LanguageServer<Error = async_lsp::Error, NotifyResult = Result<(), async_lsp::Error>>;
 

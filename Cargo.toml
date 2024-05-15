@@ -44,6 +44,7 @@ tracing = "0.1.40"
 wit-bindgen = "0.24.0"
 wit-bindgen-rt = "0.24.0"
 dyn-clone = "1.0.17"
+serde_json = "1.0.95"
 
 [profile.dev.package.cranelift-codegen]
 opt-level = 3

@@ -388,7 +388,8 @@ impl Editor {
             path = path.canonicalize()?.into();
         }
 
-        let lang = FileType::detect(&path);
+        let ft = FileType::detect(&path);
+
         let buf = if let Some(buf) = self.buffers.values().find(|b| b.path() == path) {
             let id = buf.id();
             // If the buffer is already open, we can reuse it.
@@ -405,7 +406,7 @@ impl Editor {
                 let buf = TextBuffer::new(
                     buf.id(),
                     BufferFlags::empty(),
-                    lang.clone(),
+                    ft.clone(),
                     &path,
                     rope,
                     &self.theme,
@@ -421,33 +422,19 @@ impl Editor {
                     debug_assert!(path.exists() && path.is_file());
                     // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                     let text = unsafe { ReadonlyText::open(&path) }?;
-                    TextBuffer::new(
-                        id,
-                        BufferFlags::READONLY,
-                        lang.clone(),
-                        &path,
-                        text,
-                        &self.theme,
-                    )
-                    .boxed()
+                    TextBuffer::new(id, BufferFlags::READONLY, ft.clone(), &path, text, &self.theme)
+                        .boxed()
                 } else {
                     let rope = if path.exists() {
                         rope_from_reader(File::open(&path)?)?
                     } else {
                         Rope::new()
                     };
-                    TextBuffer::new(
-                        id,
-                        BufferFlags::empty(),
-                        lang.clone(),
-                        &path,
-                        rope,
-                        &self.theme,
-                    )
-                    .boxed()
+                    TextBuffer::new(id, BufferFlags::empty(), ft.clone(), &path, rope, &self.theme)
+                        .boxed()
                 };
 
-                tracing::info!(?path, %lang, time = ?start.elapsed(), "opened buffer");
+                tracing::info!(?path, %ft, time = ?start.elapsed(), "opened buffer");
                 Ok(buf)
             })?
         };
@@ -457,7 +444,7 @@ impl Editor {
         }
 
         if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_lang(buf, &lang)?;
+            self.spawn_language_servers_for_lang(buf, &ft)?;
         }
 
         Ok(buf)

@@ -36,16 +36,22 @@ impl FileType {
     pub const PICKER: Self = Self(Cow::Borrowed("picker"));
     pub const EXPLORER: Self = Self(Cow::Borrowed("explorer"));
 
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self(name.into())
+    }
+
     pub fn detect(path: &Path) -> Self {
         match path.extension() {
-            Some(ext) => match ext {
-                x if x == "c" => Self::C,
-                x if x == "rs" => Self::RUST,
-                x if x == "go" => Self::GO,
-                x if x == "toml" => Self::TOML,
-                x if x == "json" => Self::JSON,
-                x if x == "gqlt" => Self::GQLT,
-                _ => Self::TEXT,
+            Some(ext) => match ext.to_str() {
+                Some("c") => Self::C,
+                Some("rs") => Self::RUST,
+                Some("go") => Self::GO,
+                Some("toml") => Self::TOML,
+                Some("json") => Self::JSON,
+                Some("gqlt") => Self::GQLT,
+                Some("txt") | Some("text") => Self::TEXT,
+                Some(ext) => Self(ext.to_owned().into()),
+                None => Self::TEXT,
             },
             None => Self::TEXT,
         }
@@ -66,6 +72,16 @@ impl AsRef<Path> for FileType {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LanguageServerId(Cow<'static, str>);
 
+impl LanguageServerId {
+    pub fn new(id: impl Into<Cow<'static, str>>) -> Self {
+        Self(id.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl fmt::Display for LanguageServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -79,14 +95,20 @@ impl LanguageServerId {
     pub const CLANGD: Self = Self(Cow::Borrowed("clangd"));
 }
 
-pub struct Config {
-    pub languages: BTreeMap<FileType, LanguageConfig>,
-    pub language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
+impl From<&'static str> for LanguageServerId {
+    fn from(id: &'static str) -> Self {
+        Self(Cow::Borrowed(id))
+    }
 }
 
 pub trait LanguageServerConfig {
     fn spawn(&self)
     -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>>;
+}
+
+pub struct Config {
+    pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
+    pub(crate) language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
 }
 
 impl Config {
@@ -103,6 +125,24 @@ impl Config {
         }
 
         Ok(Self { languages, language_servers })
+    }
+
+    pub fn add_language(
+        &mut self,
+        file_type: impl Into<FileType>,
+        config: LanguageConfig,
+    ) -> &mut Self {
+        self.languages.insert(file_type.into(), config);
+        self
+    }
+
+    pub fn add_language_server(
+        &mut self,
+        id: impl Into<LanguageServerId>,
+        config: impl LanguageServerConfig + Send + 'static,
+    ) -> &mut Self {
+        self.language_servers.insert(id.into(), Box::new(config));
+        self
     }
 }
 
@@ -162,7 +202,13 @@ impl Default for Config {
 
 #[derive(Debug, Default)]
 pub struct LanguageConfig {
-    pub language_servers: Box<[LanguageServerId]>,
+    pub(crate) language_servers: Box<[LanguageServerId]>,
+}
+
+impl LanguageConfig {
+    pub fn new(language_servers: impl IntoIterator<Item = LanguageServerId>) -> Self {
+        Self { language_servers: language_servers.into_iter().collect() }
+    }
 }
 
 #[derive(Debug)]

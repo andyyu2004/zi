@@ -42,7 +42,7 @@ pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
 pub use self::command::{Command, Commands};
 pub use self::editor::{Active, Client, Editor, Match, OpenFlags, Tasks};
 pub(crate) use self::jump::JumpList;
-pub use self::language::{FileType, LanguageServerId};
+pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServerId};
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
 
