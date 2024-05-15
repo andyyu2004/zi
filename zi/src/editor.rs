@@ -1979,6 +1979,16 @@ impl Editor {
         &self.config
     }
 
+    #[inline]
+    pub fn language_config(&self) -> &language::Config {
+        &self.language_config
+    }
+
+    #[inline]
+    pub fn language_config_mut(&mut self) -> &mut language::Config {
+        &mut self.language_config
+    }
+
     async fn subscribe_async_events() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
             let (version, format_fut) = client

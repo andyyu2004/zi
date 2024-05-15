@@ -79,16 +79,20 @@ impl LanguageServerId {
     pub const CLANGD: Self = Self(Cow::Borrowed("clangd"));
 }
 
-#[derive(Debug)]
 pub struct Config {
     pub languages: BTreeMap<FileType, LanguageConfig>,
-    pub language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
+    pub language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
+}
+
+pub trait LanguageServerConfig {
+    fn spawn(&self)
+    -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>>;
 }
 
 impl Config {
     pub fn new(
         languages: BTreeMap<FileType, LanguageConfig>,
-        language_servers: BTreeMap<LanguageServerId, LanguageServerConfig>,
+        language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
     ) -> Result<Self> {
         for (lang, config) in &languages {
             for server in &*config.language_servers {
@@ -126,25 +130,31 @@ impl Default for Config {
             (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),
         ]);
 
-        let language_servers = BTreeMap::from([
-            (
-                LanguageServerId::RUST_ANALYZER,
-                // LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
-                LanguageServerConfig { command: "ra-multiplex".into(), args: Box::new([]) },
-            ),
-            (
-                LanguageServerId::GOPLS,
-                LanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
-            ),
-            (
-                LanguageServerId::GQLT,
-                LanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
-            ),
-            (
-                LanguageServerId::CLANGD,
-                LanguageServerConfig { command: "clangd".into(), args: Box::new([]) },
-            ),
-        ]);
+        let language_servers = BTreeMap::from(
+            [
+                (
+                    LanguageServerId::RUST_ANALYZER,
+                    // LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+                    ExecutableLanguageServerConfig {
+                        command: "ra-multiplex".into(),
+                        args: Box::new([]),
+                    },
+                ),
+                (
+                    LanguageServerId::GOPLS,
+                    ExecutableLanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
+                ),
+                (
+                    LanguageServerId::GQLT,
+                    ExecutableLanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
+                ),
+                (
+                    LanguageServerId::CLANGD,
+                    ExecutableLanguageServerConfig { command: "clangd".into(), args: Box::new([]) },
+                ),
+            ]
+            .map(|(k, v)| (k, Box::new(v) as _)),
+        );
 
         Self::new(languages, language_servers).expect("invalid default config")
     }
@@ -156,16 +166,17 @@ pub struct LanguageConfig {
 }
 
 #[derive(Debug)]
-pub struct LanguageServerConfig {
+pub struct ExecutableLanguageServerConfig {
     pub command: OsString,
     pub args: Box<[OsString]>,
 }
 
-impl LanguageServerConfig {
-    pub(crate) fn spawn(
+impl LanguageServerConfig for ExecutableLanguageServerConfig {
+    fn spawn(
         &self,
-    ) -> zi_lsp::Result<Box<impl DerefMut<Target = zi_lsp::DynLanguageServer>>> {
+    ) -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>> {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..]).map(Box::new)
+        let server = zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..])?;
+        Ok(Box::new(server))
     }
 }
