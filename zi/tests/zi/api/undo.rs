@@ -1,4 +1,5 @@
 use super::new;
+use crate::new_cx;
 
 #[test]
 fn undo_insertion() {
@@ -43,4 +44,13 @@ fn undo_dwdwdd() {
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
     editor.input("dd").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+}
+
+#[tokio::test]
+async fn undo_marks_buffer_dirty() {
+    let cx = new_cx("abc").await;
+    cx.with(|editor| {
+        editor.buffer(zi::Active).flags();
+    })
+    .await;
 }

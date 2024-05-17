@@ -87,7 +87,8 @@ impl TestContext {
     }
 }
 
-pub async fn new_cx(size: zi::Size, content: &str) -> TestContext {
+pub async fn new_cx_with_size(size: impl Into<zi::Size>, content: &str) -> TestContext {
+    let size = size.into();
     let (mut editor, tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
     editor.edit(zi::Active, &zi::Deltas::insert_at(0, content));
@@ -99,6 +100,10 @@ pub async fn new_cx(size: zi::Size, content: &str) -> TestContext {
     });
 
     TestContext { client, size }
+}
+
+pub async fn new_cx(content: &str) -> TestContext {
+    new_cx_with_size(zi::Size::new(80, 12), content).await
 }
 
 /// Copied from ratatui's `buffer_view`, but draws the cursor too.

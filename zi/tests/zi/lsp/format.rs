@@ -5,7 +5,7 @@ use super::*;
 
 #[tokio::test]
 async fn lsp_format() -> zi::Result<()> {
-    let cx = new_cx(zi::Size::new(10, 5), "").await;
+    let cx = new_cx("").await;
 
     let path = cx.tempfile(r#"abc"#)?;
 

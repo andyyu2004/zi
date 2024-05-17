@@ -2,7 +2,7 @@ use crate::new_cx;
 
 #[tokio::test]
 async fn save() -> zi::Result<()> {
-    let cx = new_cx(zi::Size::new(10, 5), "").await;
+    let cx = new_cx("").await;
 
     let path = cx.tempfile("abc").unwrap();
     let buf = cx.with(|editor| editor.open(path, zi::OpenFlags::ACTIVE)).await?;

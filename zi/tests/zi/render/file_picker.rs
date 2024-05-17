@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn file_picker() {
-    let cx = new_cx(zi::Size::new(100, 8), "").await;
+    let cx = new_cx_with_size(zi::Size::new(100, 8), "").await;
 
     cx.with(|editor| {
         editor.config().picker_split_proportion.write((0, 100));
