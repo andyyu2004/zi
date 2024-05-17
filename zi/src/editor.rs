@@ -1387,7 +1387,6 @@ impl Editor {
         let buffer = &self[buf];
         let flags = buffer.flags();
         let path = buffer.path().to_path_buf();
-        let text = dyn_clone::clone_box(buffer.text());
 
         let client = self.client();
         async move {
@@ -1397,6 +1396,14 @@ impl Editor {
             }
 
             event::dispatch_async(&client, event::WillSaveBuffer { buf }).await?;
+
+            // Need to refetch flags as the hooks may have updated them
+            let (flags, text) = client
+                .request(move |editor| {
+                    let buf = &editor[buf];
+                    (buf.flags(), dyn_clone::clone_box(buf.text()))
+                })
+                .await;
 
             if !flags.contains(BufferFlags::DIRTY) {
                 return Ok(());

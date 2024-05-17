@@ -1,3 +1,4 @@
+use tokio::fs;
 use zi_lsp::lsp_types::{self, request, OneOf};
 
 use super::*;
@@ -32,17 +33,18 @@ async fn lsp_format() -> zi::Result<()> {
     .await;
 
     let buf = cx
-        .with(|editor| {
-            let buf = editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)?;
-            Ok::<_, zi::Error>(buf)
+        .with({
+            let path = path.to_path_buf();
+            move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
         })
         .await?;
-
     let save_fut = cx.with(move |editor| editor.save(buf)).await;
 
+    assert_eq!(fs::read_to_string(&path).await?, "abc");
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "abc")).await;
     let () = save_fut.await?;
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "def\n")).await;
+    assert_eq!(fs::read_to_string(&path).await?, "def\n");
 
     Ok(())
 }
