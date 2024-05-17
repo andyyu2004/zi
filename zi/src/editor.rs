@@ -83,7 +83,8 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
-    language_servers: FxHashMap<LanguageServerId, LanguageServer>,
+    active_language_servers: FxHashMap<LanguageServerId, LanguageServer>,
+    active_language_servers_for_ft: FxHashMap<FileType, Vec<LanguageServerId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
@@ -193,6 +194,17 @@ macro_rules! get {
         // cast away the `Send` bound
         let buf = &mut *$editor.buffers[view.buffer()] as &mut dyn $crate::buffer::Buffer;
         (view, buf)
+    }};
+}
+
+macro_rules! active_servers_of {
+    ($editor:ident, $selector:expr) => {{
+        let buf = $selector.select($editor);
+        $editor
+            .active_language_servers_for_ft
+            .get($editor.buffers[buf].file_type())
+            .map_or(&[][..], |s| &s[..])
+            .iter()
     }};
 }
 
@@ -338,7 +350,8 @@ impl Editor {
             config: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
-            language_servers: Default::default(),
+            active_language_servers: Default::default(),
+            active_language_servers_for_ft: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
             theme: Default::default(),
@@ -473,7 +486,7 @@ impl Editor {
     }
 
     pub async fn cleanup(&mut self) {
-        for mut server in mem::take(&mut self.language_servers).into_values() {
+        for mut server in mem::take(&mut self.active_language_servers).into_values() {
             // TODO shutdown concurrenly
             let _ = server.shutdown(()).await;
             let _ = server.exit(());
@@ -1228,7 +1241,8 @@ impl Editor {
     }
 
     pub(crate) fn goto_definition(&mut self) {
-        for server in self.language_servers.values_mut() {
+        for server_id in active_servers_of!(self, Active) {
+            let server = self.active_language_servers.get_mut(server_id).unwrap();
             match &server.capabilities.definition_provider {
                 Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => (),
                 _ => continue,
@@ -1277,7 +1291,7 @@ impl Editor {
     ) -> zi_lsp::Result<()> {
         if let Some(config) = &self.language_config.languages.get(lang) {
             for server_id in config.language_servers.iter().cloned() {
-                if self.language_servers.contains_key(&server_id) {
+                if self.active_language_servers.contains_key(&server_id) {
                     // Language server already running
                     continue;
                 }
@@ -1302,7 +1316,7 @@ impl Editor {
                     move |editor, (res, server)| {
                         assert!(
                             editor
-                                .language_servers
+                                .active_language_servers
                                 .insert(
                                     server_id.clone(),
                                     LanguageServer::new(res.capabilities, server),
@@ -1989,30 +2003,32 @@ impl Editor {
                     let format_fut = format
                         .then(|| {
                             editor[event.buf].file_url().cloned().and_then(|uri| {
-                                editor.language_servers.values_mut().find_map(|server| match server
-                                    .capabilities
-                                    .document_formatting_provider
-                                {
-                                    Some(
-                                        lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
-                                    ) => Some(server.formatting(
-                                        lsp_types::DocumentFormattingParams {
-                                            text_document: lsp_types::TextDocumentIdentifier {
-                                                uri: uri.clone(),
+                                active_servers_of!(editor, event.buf).find_map(|server_id| {
+                                    let server =
+                                        editor.active_language_servers.get_mut(server_id).unwrap();
+                                    match server.capabilities.document_formatting_provider {
+                                        Some(
+                                            lsp_types::OneOf::Left(true)
+                                            | lsp_types::OneOf::Right(_),
+                                        ) => Some(server.formatting(
+                                            lsp_types::DocumentFormattingParams {
+                                                text_document: lsp_types::TextDocumentIdentifier {
+                                                    uri: uri.clone(),
+                                                },
+                                                options: lsp_types::FormattingOptions {
+                                                    tab_size,
+                                                    insert_spaces: true,
+                                                    trim_trailing_whitespace: Some(true),
+                                                    insert_final_newline: Some(true),
+                                                    trim_final_newlines: Some(true),
+                                                    properties: Default::default(),
+                                                },
+                                                work_done_progress_params:
+                                                    lsp_types::WorkDoneProgressParams::default(),
                                             },
-                                            options: lsp_types::FormattingOptions {
-                                                tab_size,
-                                                insert_spaces: true,
-                                                trim_trailing_whitespace: Some(true),
-                                                insert_final_newline: Some(true),
-                                                trim_final_newlines: Some(true),
-                                                properties: Default::default(),
-                                            },
-                                            work_done_progress_params:
-                                                lsp_types::WorkDoneProgressParams::default(),
-                                        },
-                                    )),
-                                    _ => None,
+                                        )),
+                                        _ => None,
+                                    }
                                 })
                             })
                         })
@@ -2068,7 +2084,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
             tracing::debug!(?event, "buffer did change");
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
-                (editor.language_servers.get_mut(&server_id), buf.file_url())
+                (editor.active_language_servers.get_mut(&server_id), buf.file_url())
             {
                 if !editor
                     .language_config
@@ -2102,7 +2118,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
     event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
         let buf = &editor.buffers[event.buf];
         if let (Some(server), Some(uri)) =
-            (editor.language_servers.get_mut(&server_id), buf.file_url())
+            (editor.active_language_servers.get_mut(&server_id), buf.file_url())
         {
             tracing::debug!(?event, ?server_id, "lsp buffer did open");
             server
