@@ -44,8 +44,8 @@ impl Buffer for InspectorBuffer {
         None
     }
 
-    fn file_type(&self) -> &FileType {
-        &FileType::TEXT
+    fn file_type(&self) -> FileType {
+        FileType::TEXT
     }
 
     fn config(&self) -> &Config {

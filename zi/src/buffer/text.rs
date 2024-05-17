@@ -105,8 +105,8 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn file_type(&self) -> &FileType {
-        &self.language_id
+    fn file_type(&self) -> FileType {
+        self.language_id
     }
 
     #[inline]
@@ -237,11 +237,11 @@ impl<X: Text + Clone> TextBuffer<X> {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
-        let mut syntax = match Syntax::for_file_type(&ft) {
+        let mut syntax = match Syntax::for_file_type(ft) {
             Ok(syntax) => syntax,
             Err(err) => {
                 // TODO show the error somewhere
-                tracing::error!("failed to load syntax for {}: {}", ft, err);
+                tracing::error!("failed to load syntax for {ft}: {err}");
                 None
             }
         };

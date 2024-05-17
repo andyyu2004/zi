@@ -14,7 +14,7 @@ async fn lsp_format() -> zi::Result<()> {
             let server_id = zi::LanguageServerId::new("test");
             editor
                 .language_config_mut()
-                .add_language(zi::FileType::TEXT, zi::LanguageConfig::new([server_id.clone()]))
+                .add_language(zi::FileType::TEXT, zi::LanguageConfig::new([server_id]))
                 .add_language_server(
                     server_id,
                     FakeLanguageServer::builder()

@@ -258,8 +258,8 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         None
     }
 
-    fn file_type(&self) -> &FileType {
-        &FileType::PICKER
+    fn file_type(&self) -> FileType {
+        FileType::PICKER
     }
 
     fn config(&self) -> &Config {

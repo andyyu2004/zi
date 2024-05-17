@@ -150,7 +150,7 @@ pub trait Buffer: Send {
 
     fn file_url(&self) -> Option<&Url>;
 
-    fn file_type(&self) -> &FileType;
+    fn file_type(&self) -> FileType;
 
     fn text(&self) -> &(dyn AnyText + 'static);
 
@@ -288,7 +288,7 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn file_type(&self) -> &FileType {
+    fn file_type(&self) -> FileType {
         self.as_ref().file_type()
     }
 

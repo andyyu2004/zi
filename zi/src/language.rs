@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
@@ -8,10 +7,11 @@ use std::path::Path;
 use anyhow::bail;
 
 use crate::lsp::LanguageClient;
+use crate::symbol::Symbol;
 use crate::Result;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileType(Cow<'static, str>);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FileType(Symbol);
 
 impl fmt::Display for FileType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -26,18 +26,18 @@ impl fmt::Debug for FileType {
 }
 
 impl FileType {
-    pub const TEXT: Self = Self(Cow::Borrowed("text"));
-    pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
-    pub const C: Self = Self(Cow::Borrowed("c"));
-    pub const RUST: Self = Self(Cow::Borrowed("rust"));
-    pub const GO: Self = Self(Cow::Borrowed("go"));
-    pub const TOML: Self = Self(Cow::Borrowed("toml"));
-    pub const JSON: Self = Self(Cow::Borrowed("json"));
-    pub const PICKER: Self = Self(Cow::Borrowed("picker"));
-    pub const EXPLORER: Self = Self(Cow::Borrowed("explorer"));
+    pub const TEXT: Self = Self(Symbol::const_new("text"));
+    pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
+    pub const C: Self = Self(Symbol::const_new("c"));
+    pub const RUST: Self = Self(Symbol::const_new("rust"));
+    pub const GO: Self = Self(Symbol::const_new("go"));
+    pub const TOML: Self = Self(Symbol::const_new("toml"));
+    pub const JSON: Self = Self(Symbol::const_new("json"));
+    pub const PICKER: Self = Self(Symbol::const_new("picker"));
+    pub const EXPLORER: Self = Self(Symbol::const_new("explorer"));
 
-    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self(name.into())
+    pub fn new(name: &'static str) -> Self {
+        Self(Symbol::const_new(name))
     }
 
     pub fn detect(path: &Path) -> Self {
@@ -50,7 +50,9 @@ impl FileType {
                 Some("json") => Self::JSON,
                 Some("gqlt") => Self::GQLT,
                 Some("txt") | Some("text") => Self::TEXT,
-                Some(ext) => Self(ext.to_owned().into()),
+                // Some(ext) => Self(Symbol::const_new(ext)),
+                // TODO need some string interning mechanism to get &'static str without repeated allocations
+                Some(_ext) => Self::TEXT,
                 None => Self::TEXT,
             },
             None => Self::TEXT,
@@ -69,11 +71,11 @@ impl AsRef<Path> for FileType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LanguageServerId(Cow<'static, str>);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LanguageServerId(Symbol);
 
 impl LanguageServerId {
-    pub fn new(id: impl Into<Cow<'static, str>>) -> Self {
+    pub fn new(id: impl Into<Symbol>) -> Self {
         Self(id.into())
     }
 
@@ -89,15 +91,15 @@ impl fmt::Display for LanguageServerId {
 }
 
 impl LanguageServerId {
-    pub const RUST_ANALYZER: Self = Self(Cow::Borrowed("rust-analyzer"));
-    pub const GOPLS: Self = Self(Cow::Borrowed("gopls"));
-    pub const GQLT: Self = Self(Cow::Borrowed("gqlt"));
-    pub const CLANGD: Self = Self(Cow::Borrowed("clangd"));
+    pub const RUST_ANALYZER: Self = Self(Symbol::const_new("rust-analyzer"));
+    pub const GOPLS: Self = Self(Symbol::const_new("gopls"));
+    pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
+    pub const CLANGD: Self = Self(Symbol::const_new("clangd"));
 }
 
 impl From<&'static str> for LanguageServerId {
     fn from(id: &'static str) -> Self {
-        Self(Cow::Borrowed(id))
+        Self(Symbol::const_new(id))
     }
 }
 

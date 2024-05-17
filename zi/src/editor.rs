@@ -202,7 +202,7 @@ macro_rules! active_servers_of {
         let buf = $selector.select($editor);
         $editor
             .active_language_servers_for_ft
-            .get($editor.buffers[buf].file_type())
+            .get(&$editor.buffers[buf].file_type())
             .map_or(&[][..], |s| &s[..])
             .iter()
     }};
@@ -416,15 +416,9 @@ impl Editor {
                 let rope =
                     if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
 
-                let buf = TextBuffer::new(
-                    buf.id(),
-                    BufferFlags::empty(),
-                    ft.clone(),
-                    &path,
-                    rope,
-                    &self.theme,
-                )
-                .boxed();
+                let buf =
+                    TextBuffer::new(buf.id(), BufferFlags::empty(), ft, &path, rope, &self.theme)
+                        .boxed();
                 self.buffers[id] = buf
             }
             id
@@ -435,16 +429,14 @@ impl Editor {
                     debug_assert!(path.exists() && path.is_file());
                     // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                     let text = unsafe { ReadonlyText::open(&path) }?;
-                    TextBuffer::new(id, BufferFlags::READONLY, ft.clone(), &path, text, &self.theme)
-                        .boxed()
+                    TextBuffer::new(id, BufferFlags::READONLY, ft, &path, text, &self.theme).boxed()
                 } else {
                     let rope = if path.exists() {
                         rope_from_reader(File::open(&path)?)?
                     } else {
                         Rope::new()
                     };
-                    TextBuffer::new(id, BufferFlags::empty(), ft.clone(), &path, rope, &self.theme)
-                        .boxed()
+                    TextBuffer::new(id, BufferFlags::empty(), ft, &path, rope, &self.theme).boxed()
                 };
 
                 tracing::info!(?path, %ft, time = ?start.elapsed(), "opened buffer");
@@ -457,7 +449,7 @@ impl Editor {
         }
 
         if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_lang(buf, &ft)?;
+            self.spawn_language_servers_for_lang(buf, ft)?;
         }
 
         Ok(buf)
@@ -1287,9 +1279,9 @@ impl Editor {
     fn spawn_language_servers_for_lang(
         &mut self,
         buf: BufferId,
-        lang: &FileType,
+        ft: FileType,
     ) -> zi_lsp::Result<()> {
-        if let Some(config) = &self.language_config.languages.get(lang) {
+        if let Some(config) = &self.language_config.languages.get(&ft) {
             for server_id in config.language_servers.iter().cloned() {
                 if self.active_language_servers.contains_key(&server_id) {
                     // Language server already running
@@ -1314,13 +1306,15 @@ impl Editor {
                         Ok((res, server))
                     },
                     move |editor, (res, server)| {
+                        editor
+                            .active_language_servers_for_ft
+                            .entry(ft)
+                            .or_default()
+                            .push(server_id);
                         assert!(
                             editor
                                 .active_language_servers
-                                .insert(
-                                    server_id.clone(),
-                                    LanguageServer::new(res.capabilities, server),
-                                )
+                                .insert(server_id, LanguageServer::new(res.capabilities, server),)
                                 .is_none(),
                             "inserted duplicate language server"
                         );
@@ -2079,7 +2073,6 @@ impl SyncClient {
 fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
     event::subscribe_with::<event::DidChangeBuffer>({
-        let server_id = server_id.clone();
         move |editor, event| {
             tracing::debug!(?event, "buffer did change");
             let buf = &editor.buffers[event.buf];
@@ -2089,7 +2082,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
                 if !editor
                     .language_config
                     .languages
-                    .get(buf.file_type())
+                    .get(&buf.file_type())
                     .map(|c| &c.language_servers)
                     .map_or(false, |servers| servers.contains(&server_id))
                 {

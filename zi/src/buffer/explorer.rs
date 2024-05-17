@@ -94,8 +94,8 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         None
     }
 
-    fn file_type(&self) -> &FileType {
-        &FileType::EXPLORER
+    fn file_type(&self) -> FileType {
+        FileType::EXPLORER
     }
 
     fn config(&self) -> &Config {
