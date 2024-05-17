@@ -312,15 +312,7 @@ impl<X: Text + Clone> TextBuffer<X> {
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {
-                    let change = Change { deltas: deltas.to_owned(), inversion };
-                    match self.changes.pop() {
-                        None => self.changes.push(change),
-                        // attempt to merge changes if possible
-                        Some(prev) => match prev.try_merge(change) {
-                            Ok(composed) => self.changes.push(composed),
-                            Err(changes) => self.changes.extend(changes),
-                        },
-                    }
+                    self.changes.push(Change { deltas: deltas.to_owned(), inversion });
                 }
 
                 self.version.checked_add(1).unwrap();

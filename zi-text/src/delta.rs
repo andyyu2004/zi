@@ -133,14 +133,6 @@ impl<'a> Delta<'a> {
         self.text.is_empty() && self.range.is_empty()
     }
 
-    /// Try to compose two deltas into one. If the deltas cannot be composed, `Err([self, other])` is returned
-    #[allow(clippy::result_large_err)]
-    #[inline]
-    pub fn try_merge(self, other: Self) -> Result<Self, [Self; 2]> {
-        // TODO
-        Err([self, other])
-    }
-
     /// Apply the delta to the text and return the inverse delta
     pub(crate) fn apply(&self, text: &mut impl TextReplace) -> Delta<'static> {
         let byte_range = self.range();

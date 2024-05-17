@@ -104,29 +104,6 @@ pub struct Change {
     pub inversion: Deltas<'static>,
 }
 
-impl Change {
-    #[allow(clippy::result_large_err)]
-    fn try_merge(self, other: Self) -> Result<Self, [Self; 2]> {
-        Err([self, other])
-        // let delta = match self.deltas.try_merge(other.deltas) {
-        //     Ok(delta) => delta,
-        //     Err([a, b]) => {
-        //         return Err([
-        //             Self { deltas: a, inversion: self.inversion },
-        //             Self { deltas: b, inversion: other.inversion },
-        //         ]);
-        //     }
-        // };
-
-        // let inversion = self
-        //     .inversion
-        //     .try_merge(other.inversion)
-        //     .expect("inversion should be invertible if the delta is");
-        //
-        // Ok(Self { deltas: delta, inversion })
-    }
-}
-
 pub trait BufferHistory {
     fn undo(&mut self) -> Option<UndoEntry>;
 
