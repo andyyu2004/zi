@@ -90,7 +90,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn flush(&mut self, _: Internal) {
+    fn flushed(&mut self, _: Internal) {
         self.flags.remove(BufferFlags::DIRTY);
     }
 

@@ -81,7 +81,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         BufferFlags::READONLY
     }
 
-    fn flush(&mut self, _: Internal) {
+    fn flushed(&mut self, _: Internal) {
         unreachable!("explorer buffer does not have a backing file")
     }
 

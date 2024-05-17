@@ -1432,7 +1432,7 @@ impl Editor {
             writer.flush().await?;
             file.flush().await?;
 
-            client.request(move |editor| editor[buf].flush(Internal(()))).await;
+            client.request(move |editor| editor[buf].flushed(Internal(()))).await;
             Ok(())
         }
     }

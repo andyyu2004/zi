@@ -32,7 +32,7 @@ impl Buffer for InspectorBuffer {
         BufferFlags::READONLY
     }
 
-    fn flush(&mut self, _: Internal) {
+    fn flushed(&mut self, _: Internal) {
         panic!("inspector buffer has no backing file")
     }
 

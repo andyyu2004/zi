@@ -246,7 +246,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         BufferFlags::empty()
     }
 
-    fn flush(&mut self, _: Internal) {
+    fn flushed(&mut self, _: Internal) {
         panic!("picker buffer has no backing file")
     }
 

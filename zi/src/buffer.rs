@@ -149,10 +149,10 @@ pub trait Buffer: Send {
     #[doc(hidden)]
     fn edit(&mut self, _: Internal, deltas: &Deltas<'_>);
 
-    /// `flush` is called when the current text has been written to disk.
+    /// `flushed` is called after the current text has been successfully written to disk.
     /// The implementation should update the buffer's state to reflect this.
     #[doc(hidden)]
-    fn flush(&mut self, _: Internal);
+    fn flushed(&mut self, _: Internal);
 
     #[doc(hidden)]
     fn syntax(&self) -> Option<&Syntax> {
@@ -263,8 +263,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn flush(&mut self, internal: Internal) {
-        self.as_mut().flush(internal);
+    fn flushed(&mut self, internal: Internal) {
+        self.as_mut().flushed(internal);
     }
 
     #[inline]
