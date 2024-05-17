@@ -49,8 +49,7 @@ async fn main() -> anyhow::Result<()> {
             std::env::set_current_dir(&path)?;
             editor.open_file_explorer(".");
         } else {
-            let mut flags =
-                zi::OpenFlags::SET_ACTIVE_BUFFER | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
+            let mut flags = zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
 
             if opts.readonly {
                 flags.insert(zi::OpenFlags::READONLY);

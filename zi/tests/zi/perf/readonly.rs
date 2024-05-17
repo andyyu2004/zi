@@ -9,8 +9,7 @@ use std::path::PathBuf;
 fn perf_readonly_large_file() {
     let path = create_file(1000);
     let (mut editor, ..) = zi::Editor::new(zi::Size::new(80, 24));
-    let buf =
-        editor.open(path, zi::OpenFlags::SET_ACTIVE_BUFFER | zi::OpenFlags::READONLY).unwrap();
+    let buf = editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY).unwrap();
     assert_eq!(editor.buffer(zi::Active).id(), buf);
 
     // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.

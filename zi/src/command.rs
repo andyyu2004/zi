@@ -8,6 +8,7 @@ use chumsky::Parser;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
+use crate::editor::SaveFlags;
 use crate::plugin::PluginId;
 use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Active, Editor, Error};
@@ -345,7 +346,7 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             handler: LocalHandler(|editor, range, args| {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_fut = editor.save(Active);
+                let save_fut = editor.save(Active, SaveFlags::empty());
                 editor.schedule("save", save_fut);
                 Ok(())
             })

@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use stdx::merge::Merge;
 
-use crate::editor::Action;
+use crate::editor::{Action, SaveFlags};
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
 use crate::{hashmap, motion, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment};
@@ -192,7 +192,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn save(editor: &mut Editor) {
-        let fut = editor.save(Active);
+        let fut = editor.save(Active, SaveFlags::empty());
         editor.schedule("save", fut);
     }
 

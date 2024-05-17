@@ -90,6 +90,11 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
+    fn flush(&mut self) {
+        self.flags.remove(BufferFlags::DIRTY);
+    }
+
+    #[inline]
     fn path(&self) -> &Path {
         &self.path
     }

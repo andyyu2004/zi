@@ -38,7 +38,8 @@ async fn lsp_format() -> zi::Result<()> {
             move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
         })
         .await?;
-    let save_fut = cx.with(move |editor| editor.save(buf)).await;
+
+    let save_fut = cx.with(move |editor| editor.save(buf, zi::SaveFlags::empty())).await;
 
     assert_eq!(fs::read_to_string(&path).await?, "abc");
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "abc")).await;

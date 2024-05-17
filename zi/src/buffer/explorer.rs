@@ -81,6 +81,10 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         BufferFlags::READONLY
     }
 
+    fn flush(&mut self) {
+        unreachable!("explorer buffer does not have a backing file")
+    }
+
     fn path(&self) -> &Path {
         // TODO get the actual directory path we're looking at
         Path::new("explorer")

@@ -129,7 +129,7 @@ fn insert_char() {
 fn insert_into_readonly() -> zi::Result<()> {
     let mut editor = new("abc");
     let path = tempfile::NamedTempFile::new()?.into_temp_path();
-    let buf = editor.open(path, zi::OpenFlags::READONLY | zi::OpenFlags::SET_ACTIVE_BUFFER)?;
+    let buf = editor.open(path, zi::OpenFlags::READONLY | zi::OpenFlags::ACTIVE)?;
     assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));
 
     assert!(editor.get_error().is_none());

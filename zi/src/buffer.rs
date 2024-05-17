@@ -144,6 +144,10 @@ pub trait Buffer: Send {
 
     fn flags(&self) -> BufferFlags;
 
+    /// `flush` is called when the current text has been written to disk.
+    /// The implementation should update the buffer's state to reflect this.
+    fn flush(&mut self);
+
     fn path(&self) -> &Path;
 
     fn url(&self) -> &Url;
@@ -270,6 +274,11 @@ impl Buffer for Box<dyn Buffer> {
     #[inline]
     fn flags(&self) -> BufferFlags {
         self.as_ref().flags()
+    }
+
+    #[inline]
+    fn flush(&mut self) {
+        self.as_mut().flush();
     }
 
     #[inline]

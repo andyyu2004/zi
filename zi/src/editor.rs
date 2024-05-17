@@ -63,7 +63,13 @@ bitflags::bitflags! {
         const NONE = 0;
         const READONLY = 1 << 0;
         const SPAWN_LANGUAGE_SERVERS = 1 << 1;
-        const SET_ACTIVE_BUFFER = 1 << 2;
+        /// Open the buffer in the active view
+        const ACTIVE = 1 << 2;
+    }
+
+    pub struct SaveFlags: u32 {
+        /// Flush the buffer to disk even if it's not dirty
+        const FORCE = 1 << 0;
     }
 }
 
@@ -454,7 +460,7 @@ impl Editor {
             })?
         };
 
-        if open_flags.contains(OpenFlags::SET_ACTIVE_BUFFER) {
+        if open_flags.contains(OpenFlags::ACTIVE) {
             self.set_buffer(Active, buf);
         }
 
@@ -470,7 +476,7 @@ impl Editor {
     }
 
     pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
-        self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::SET_ACTIVE_BUFFER)
+        self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::ACTIVE)
     }
 
     pub(crate) fn empty_buffer(&self) -> BufferId {
@@ -1381,6 +1387,7 @@ impl Editor {
     pub fn save(
         &mut self,
         selector: impl Selector<BufferId>,
+        save_flags: SaveFlags,
     ) -> impl Future<Output = crate::Result<()>> + Send + 'static {
         let buf = selector.select(self);
 
@@ -1405,7 +1412,7 @@ impl Editor {
                 })
                 .await;
 
-            if !flags.contains(BufferFlags::DIRTY) {
+            if !flags.contains(BufferFlags::DIRTY) && !save_flags.contains(SaveFlags::FORCE) {
                 return Ok(());
             }
 
@@ -1417,8 +1424,7 @@ impl Editor {
             writer.flush().await?;
             file.flush().await?;
 
-            // TODO mark buffer as clean
-
+            client.request(move |editor| editor[buf].flush()).await;
             Ok(())
         }
     }

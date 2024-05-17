@@ -246,6 +246,10 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         BufferFlags::empty()
     }
 
+    fn flush(&mut self) {
+        panic!("picker buffer has no backing file")
+    }
+
     fn path(&self) -> &Path {
         Path::new("picker")
     }

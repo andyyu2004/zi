@@ -32,6 +32,10 @@ impl Buffer for InspectorBuffer {
         BufferFlags::READONLY
     }
 
+    fn flush(&mut self) {
+        panic!("inspector buffer has no backing file")
+    }
+
     fn path(&self) -> &Path {
         &self.path
     }
@@ -102,7 +106,8 @@ impl Buffer for InspectorBuffer {
                 }
             };
 
-            let this = editor[buf].as_any_mut().downcast_mut::<InspectorBuffer>().unwrap();
+            let this =
+                editor.buffer_mut(buf).as_any_mut().downcast_mut::<InspectorBuffer>().unwrap();
             this.text = output;
 
             Ok(())

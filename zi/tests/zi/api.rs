@@ -9,6 +9,7 @@ mod edit;
 mod motion;
 mod open;
 mod picker;
+mod save;
 mod scroll;
 mod search;
 mod undo;
