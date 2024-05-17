@@ -7,6 +7,7 @@ use zi_core::{Offset, PointRange, RangeMergeIter};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
+use crate::private::Internal;
 use crate::syntax::HighlightName;
 use crate::ViewId;
 
@@ -27,7 +28,7 @@ impl Editor {
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             // do not swap the order of the calls, since we need it to not short-circuit
-            buf.pre_render(&sender, view, area)
+            buf.pre_render(Internal(()), &sender, view, area)
         });
 
         self.tree.render(self, frame.buffer_mut());

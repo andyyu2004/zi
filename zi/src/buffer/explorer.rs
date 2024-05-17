@@ -81,7 +81,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         BufferFlags::READONLY
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self, _: Internal) {
         unreachable!("explorer buffer does not have a backing file")
     }
 
@@ -118,19 +118,19 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any {
         self
     }
 
-    fn edit(&mut self, _deltas: &Deltas<'_>) {
+    fn edit(&mut self, _: Internal, _deltas: &Deltas<'_>) {
         unreachable!("explorer buffer is read-only")
     }
 
-    fn keymap(&mut self) -> Option<&mut Keymap> {
+    fn keymap(&mut self, _: Internal) -> Option<&mut Keymap> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _client: &SyncClient, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, _client: &SyncClient, _view: &View, area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }
@@ -159,7 +159,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         )
     }
 
-    fn on_leave(&mut self) {
+    fn on_leave(&mut self, _: Internal) {
         self.cancel.cancel();
     }
 }

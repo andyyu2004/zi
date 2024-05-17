@@ -246,7 +246,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         BufferFlags::empty()
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self, _: Internal) {
         panic!("picker buffer has no backing file")
     }
 
@@ -278,7 +278,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         0
     }
 
-    fn edit(&mut self, deltas: &Deltas<'_>) {
+    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
         self.text.edit(deltas);
 
         tracing::debug!(%self.text, "update picker search pattern");
@@ -301,7 +301,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         }
     }
 
-    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, client: &SyncClient, _view: &View, _area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }
@@ -333,11 +333,11 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         });
     }
 
-    fn keymap(&mut self) -> Option<&mut Keymap> {
+    fn keymap(&mut self, _: Internal) -> Option<&mut Keymap> {
         Some(&mut self.keymap)
     }
 
-    fn on_leave(&mut self) {
+    fn on_leave(&mut self, _: Internal) {
         self.cancel.cancel()
     }
 
@@ -345,7 +345,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any {
         self
     }
 }

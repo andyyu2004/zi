@@ -19,7 +19,7 @@ pub use self::text::TextBuffer;
 use crate::config::Setting;
 use crate::editor::{Resource, Selector, SyncClient};
 use crate::keymap::Keymap;
-use crate::private::Sealed;
+use crate::private::{Internal, Sealed};
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::{Editor, FileType, Point, PointRange, Size, Url, View};
 
@@ -144,10 +144,6 @@ pub trait Buffer: Send {
 
     fn flags(&self) -> BufferFlags;
 
-    /// `flush` is called when the current text has been written to disk.
-    /// The implementation should update the buffer's state to reflect this.
-    fn flush(&mut self);
-
     fn path(&self) -> &Path;
 
     fn url(&self) -> &Url;
@@ -164,15 +160,24 @@ pub trait Buffer: Send {
 
     fn as_any(&self) -> &dyn Any;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any;
+    #[doc(hidden)]
+    fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any;
 
-    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
+    #[doc(hidden)]
+    fn history_mut(&mut self, _: Internal) -> Option<&mut dyn BufferHistory> {
         None
     }
 
     /// Edit the buffer with a delta.
-    fn edit(&mut self, deltas: &Deltas<'_>);
+    #[doc(hidden)]
+    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>);
 
+    /// `flush` is called when the current text has been written to disk.
+    /// The implementation should update the buffer's state to reflect this.
+    #[doc(hidden)]
+    fn flush(&mut self, _: Internal);
+
+    #[doc(hidden)]
     fn syntax(&self) -> Option<&Syntax> {
         None
     }
@@ -182,6 +187,7 @@ pub trait Buffer: Send {
     /// The highlights must cover at least the given point range, it is valid to return
     /// highlights that extend beyond.
     // TODO we should pass in a byte or point range (currently known as DeltaRange)
+    #[doc(hidden)]
     fn syntax_highlights<'a>(
         &'a self,
         editor: &Editor,
@@ -195,6 +201,7 @@ pub trait Buffer: Send {
     /// Overlay highlights iterator that are merged with the syntax highlights.
     /// Overlay highlights take precedence.
     /// All ranges must be single-line ranges.
+    #[doc(hidden)]
     fn overlay_highlights<'a>(
         &'a self,
         editor: &'a Editor,
@@ -212,17 +219,18 @@ pub trait Buffer: Send {
         Box::new(self)
     }
 
-    fn keymap(&mut self) -> Option<&mut Keymap> {
+    #[doc(hidden)]
+    fn keymap(&mut self, _: Internal) -> Option<&mut Keymap> {
         None
     }
 
     /// Called just before rendering the buffer, returns whether the buffer needs to be re-rendered.
-    fn pre_render(&mut self, _client: &SyncClient, view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, _client: &SyncClient, view: &View, _area: tui::Rect) {
         assert_eq!(self.id(), view.buffer());
     }
 
     /// Called when a view is closed that was displaying this buffer
-    fn on_leave(&mut self) {}
+    fn on_leave(&mut self, _: Internal) {}
 
     fn char_width(&self, c: char) -> usize {
         c.width().unwrap_or(match c {
@@ -235,30 +243,30 @@ pub trait Buffer: Send {
 impl dyn Buffer + '_ {
     #[inline]
     pub fn redo(&mut self) -> Option<UndoEntry> {
-        self.history_mut().and_then(|h| h.redo())
+        self.history_mut(Internal(())).and_then(|h| h.redo())
     }
 
     #[inline]
     pub fn undo(&mut self) -> Option<UndoEntry> {
-        self.history_mut().and_then(|h| h.undo())
+        self.history_mut(Internal(())).and_then(|h| h.undo())
     }
 
     #[inline]
     pub fn clear_undo(&mut self) {
-        if let Some(h) = self.history_mut() {
+        if let Some(h) = self.history_mut(Internal(())) {
             h.clear();
         }
     }
 
     #[inline]
     pub fn snapshot(&mut self, flags: SnapshotFlags) {
-        if let Some(h) = self.history_mut() {
+        if let Some(h) = self.history_mut(Internal(())) {
             h.snapshot(flags)
         }
     }
 
     pub fn snapshot_cursor(&mut self, cursor: Point) {
-        if let Some(h) = self.history_mut() {
+        if let Some(h) = self.history_mut(Internal(())) {
             h.snapshot_cursor(cursor)
         }
     }
@@ -277,8 +285,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn flush(&mut self) {
-        self.as_mut().flush();
+    fn flush(&mut self, internal: Internal) {
+        self.as_mut().flush(internal);
     }
 
     #[inline]
@@ -327,18 +335,18 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self.as_mut().as_any_mut()
+    fn as_any_mut(&mut self, internal: Internal) -> &mut dyn Any {
+        self.as_mut().as_any_mut(internal)
     }
 
     #[inline]
-    fn edit(&mut self, deltas: &Deltas<'_>) {
-        self.as_mut().edit(deltas)
+    fn edit(&mut self, internal: Internal, deltas: &Deltas<'_>) {
+        self.as_mut().edit(internal, deltas)
     }
 
     #[inline]
-    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
-        self.as_mut().history_mut()
+    fn history_mut(&mut self, internal: Internal) -> Option<&mut dyn BufferHistory> {
+        self.as_mut().history_mut(internal)
     }
 
     #[inline]
@@ -370,18 +378,24 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn keymap(&mut self) -> Option<&mut Keymap> {
-        self.as_mut().keymap()
+    fn keymap(&mut self, internal: Internal) -> Option<&mut Keymap> {
+        self.as_mut().keymap(internal)
     }
 
     #[inline]
-    fn pre_render(&mut self, sender: &SyncClient, view: &View, area: tui::Rect) {
-        self.as_mut().pre_render(sender, view, area)
+    fn pre_render(
+        &mut self,
+        internal: Internal,
+        sender: &SyncClient,
+        view: &View,
+        area: tui::Rect,
+    ) {
+        self.as_mut().pre_render(internal, sender, view, area)
     }
 
     #[inline]
-    fn on_leave(&mut self) {
-        self.as_mut().on_leave();
+    fn on_leave(&mut self, internal: Internal) {
+        self.as_mut().on_leave(internal);
     }
 }
 

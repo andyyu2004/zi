@@ -32,7 +32,7 @@ impl Buffer for InspectorBuffer {
         BufferFlags::READONLY
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self, _: Internal) {
         panic!("inspector buffer has no backing file")
     }
 
@@ -68,15 +68,15 @@ impl Buffer for InspectorBuffer {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any {
         self
     }
 
-    fn edit(&mut self, _deltas: &Deltas<'_>) {
+    fn edit(&mut self, _: Internal, _deltas: &Deltas<'_>) {
         panic!("is readonly")
     }
 
-    fn pre_render(&mut self, client: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, client: &SyncClient, _view: &View, _area: tui::Rect) {
         let buf = self.id;
         client.request(move |editor| {
             let mut query_cursor = QueryCursor::new();
@@ -106,8 +106,11 @@ impl Buffer for InspectorBuffer {
                 }
             };
 
-            let this =
-                editor.buffer_mut(buf).as_any_mut().downcast_mut::<InspectorBuffer>().unwrap();
+            let this = editor
+                .buffer_mut(buf)
+                .as_any_mut(Internal(()))
+                .downcast_mut::<InspectorBuffer>()
+                .unwrap();
             this.text = output;
 
             Ok(())

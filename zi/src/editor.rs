@@ -50,7 +50,7 @@ use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, Conv, LanguageServer};
 use crate::plugin::Plugins;
-use crate::private::Sealed;
+use crate::private::{Internal, Sealed};
 use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
@@ -194,7 +194,7 @@ macro_rules! get {
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
         let view = &mut $editor.views[$view];
-        let buf = $editor.buffers[view.buffer()].as_any_mut().downcast_mut::<$ty>().expect("buffer downcast failed");
+        let buf = $editor.buffers[view.buffer()].as_any_mut(Internal(())).downcast_mut::<$ty>().expect("buffer downcast failed");
         (view, buf)
     }};
     ($editor:ident: $view:expr) => {{
@@ -734,7 +734,7 @@ impl Editor {
 
         let mut empty = Keymap::default();
         let (_, buf) = get!(self);
-        let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
+        let mut keymap = self.keymap.pair(buf.keymap(Internal(())).unwrap_or(&mut empty));
 
         tracing::debug!(%key, "handling key");
         match key.code() {
@@ -944,7 +944,8 @@ impl Editor {
                 let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
                 let start_byte_idx =
                     byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
-                buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
+
+                buf.edit(Internal(()), &Deltas::delete(start_byte_idx..byte_idx));
 
                 view.set_cursor_bytewise(
                     mode!(self),
@@ -985,7 +986,7 @@ impl Editor {
             return;
         }
 
-        buf.edit(deltas);
+        buf.edit(Internal(()), deltas);
         let buf = buf.id();
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
@@ -1380,7 +1381,7 @@ impl Editor {
 
     fn close_buffer(&mut self, buf: BufferId) {
         // can't naively remove the buffer as it might be referenced by multiple views
-        self.buffers[buf].on_leave();
+        self.buffers[buf].on_leave(Internal(()));
     }
 
     // Manual `impl Future` as we don't want to capture the `'self`
@@ -1424,7 +1425,7 @@ impl Editor {
             writer.flush().await?;
             file.flush().await?;
 
-            client.request(move |editor| editor[buf].flush()).await;
+            client.request(move |editor| editor[buf].flush(Internal(()))).await;
             Ok(())
         }
     }

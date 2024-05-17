@@ -90,7 +90,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn flush(&mut self) {
+    fn flush(&mut self, _: Internal) {
         self.flags.remove(BufferFlags::DIRTY);
     }
 
@@ -129,7 +129,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         self.syntax.as_ref()
     }
 
-    fn edit(&mut self, deltas: &Deltas<'_>) {
+    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
         self.edit(deltas, EditFlags::empty());
     }
 
@@ -137,7 +137,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         self.version
     }
 
-    fn history_mut(&mut self) -> Option<&mut dyn BufferHistory> {
+    fn history_mut(&mut self, _: Internal) -> Option<&mut dyn BufferHistory> {
         Some(self)
     }
 
@@ -203,7 +203,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         self
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any {
         self
     }
 }
