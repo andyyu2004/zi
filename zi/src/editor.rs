@@ -1234,11 +1234,11 @@ impl Editor {
         }
     }
 
-    pub fn redo(&mut self, selector: impl Selector<ViewId>) {
+    pub fn redo(&mut self, selector: impl Selector<ViewId>) -> bool {
         self.undoredo(selector, |buf| buf.redo())
     }
 
-    pub fn undo(&mut self, selector: impl Selector<ViewId>) {
+    pub fn undo(&mut self, selector: impl Selector<ViewId>) -> bool {
         self.undoredo(selector, |buf| buf.undo())
     }
 
@@ -1246,15 +1246,15 @@ impl Editor {
         &mut self,
         selector: impl Selector<ViewId>,
         f: impl FnOnce(&mut dyn Buffer) -> Option<UndoEntry>,
-    ) {
+    ) -> bool {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
-        let Some(entry) = f(buf) else { return };
+        let Some(entry) = f(buf) else { return false };
 
         let cursor = match (entry.cursor, entry.changes.first()) {
             (Some(cursor), _) => cursor.into(),
             (_, Some(fst)) => fst.deltas.iter().next().unwrap().range().start.into(),
-            _ => return,
+            _ => return false,
         };
 
         let area = self.tree.view_area(view.id());
@@ -1266,6 +1266,7 @@ impl Editor {
                 view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
             }
         };
+        true
     }
 
     // Don't think we want this to be a public api, used for tests for now
@@ -2092,7 +2093,8 @@ impl Editor {
                             let deltas = lsp::proto::deltas_from_lsp_edits(text, edits);
 
                             if buf.version() == version {
-                                editor.edit(buf.id(), &deltas);
+                                editor.edit(event.buf, &deltas);
+                                editor[event.buf].snapshot(SnapshotFlags::empty());
                             } else {
                                 assert!(buf.version() > version, "version has gone down?");
                                 tracing::info!(

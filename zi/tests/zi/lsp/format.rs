@@ -35,7 +35,7 @@ async fn lsp_format() -> zi::Result<()> {
     let buf = cx
         .with({
             let path = path.to_path_buf();
-            move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
+            move |editor| editor.open_active(path)
         })
         .await?;
 
@@ -43,9 +43,17 @@ async fn lsp_format() -> zi::Result<()> {
 
     assert_eq!(fs::read_to_string(&path).await?, "abc");
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "abc")).await;
+
     let () = save_fut.await?;
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "def\n")).await;
     assert_eq!(fs::read_to_string(&path).await?, "def\n");
+
+    cx.with(move |editor| {
+        assert!(editor.undo(zi::Active));
+        assert_eq!(editor[buf].text().to_string(), "abc");
+        assert!(editor[buf].flags().contains(zi::BufferFlags::DIRTY));
+    })
+    .await;
 
     Ok(())
 }

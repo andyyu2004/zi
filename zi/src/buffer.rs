@@ -242,30 +242,31 @@ pub trait Buffer: Send {
 
 impl dyn Buffer + '_ {
     #[inline]
-    pub fn redo(&mut self) -> Option<UndoEntry> {
+    pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
         self.history_mut(Internal(())).and_then(|h| h.redo())
     }
 
     #[inline]
-    pub fn undo(&mut self) -> Option<UndoEntry> {
+    pub(crate) fn undo(&mut self) -> Option<UndoEntry> {
         self.history_mut(Internal(())).and_then(|h| h.undo())
     }
 
     #[inline]
-    pub fn clear_undo(&mut self) {
+    pub(crate) fn clear_undo(&mut self) {
         if let Some(h) = self.history_mut(Internal(())) {
             h.clear();
         }
     }
 
     #[inline]
-    pub fn snapshot(&mut self, flags: SnapshotFlags) {
+    pub(crate) fn snapshot(&mut self, flags: SnapshotFlags) {
         if let Some(h) = self.history_mut(Internal(())) {
             h.snapshot(flags)
         }
     }
 
-    pub fn snapshot_cursor(&mut self, cursor: Point) {
+    #[inline]
+    pub(crate) fn snapshot_cursor(&mut self, cursor: Point) {
         if let Some(h) = self.history_mut(Internal(())) {
             h.snapshot_cursor(cursor)
         }
