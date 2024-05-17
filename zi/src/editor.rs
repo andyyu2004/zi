@@ -1266,6 +1266,9 @@ impl Editor {
                 view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
             }
         };
+
+        let buf = buf.id();
+        self.dispatch(event::DidChangeBuffer { buf });
         true
     }
 
@@ -1417,6 +1420,7 @@ impl Editor {
                 .await;
 
             if !flags.contains(BufferFlags::DIRTY) && !save_flags.contains(SaveFlags::FORCE) {
+                tracing::info!("buffer is not dirty, skipping save");
                 return Ok(());
             }
 

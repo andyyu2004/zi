@@ -302,6 +302,7 @@ impl<X: Text + Clone> TextBuffer<X> {
         match self.text.as_text_mut() {
             Some(text) => {
                 if !deltas.is_identity() {
+                    tracing::debug!("set buffer dirty");
                     self.flags.insert(BufferFlags::DIRTY);
                 }
 
