@@ -6,11 +6,6 @@ mod lsp;
 mod perf;
 mod render;
 
-
-
-
-
-
 use std::io;
 use std::path::PathBuf;
 
@@ -19,6 +14,9 @@ use tempfile::TempPath;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
+use zi_lsp::lsp_types::{self, notification, request};
+
+use self::lsp::{FakeLanguageServer, FakeLanguageServerBuilder};
 
 pub struct TestContext {
     size: zi::Size,
@@ -60,6 +58,32 @@ impl TestContext {
         assert!(path.exists());
         debug_assert_eq!(std::fs::read_to_string(&path)?, content);
         Ok(path)
+    }
+
+    pub async fn setup_lang_server<St: Send + Clone + 'static>(
+        &self,
+        ft: zi::FileType,
+        server_id: impl Into<zi::LanguageServerId>,
+        st: St,
+        f: impl FnOnce(FakeLanguageServerBuilder<St>) -> FakeLanguageServerBuilder<St>,
+    ) {
+        let server_id = server_id.into();
+        // Setup a few default handlers.
+        let server = f(FakeLanguageServer::builder()
+            .request::<request::Initialize, _>(|_, _| async {
+                Ok(lsp_types::InitializeResult::default())
+            })
+            .notification::<notification::Initialized>(|_st, _params| Ok(()))
+            .notification::<notification::DidOpenTextDocument>(|_st, _params| Ok(()))
+            .notification::<notification::DidChangeTextDocument>(|_st, _params| Ok(())));
+
+        self.with(move |editor| {
+            editor
+                .language_config_mut()
+                .add_language(ft, zi::LanguageConfig::new([server_id]))
+                .add_language_server(server_id, server.finish(st));
+        })
+        .await
     }
 }
 
