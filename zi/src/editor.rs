@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
 
 use anyhow::anyhow;
-use futures_util::{Stream, StreamExt};
+use futures_util::{FutureExt, Stream, StreamExt};
 use ignore::WalkState;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
@@ -94,6 +94,8 @@ pub struct Editor {
     command_handlers: FxHashMap<Word, Handler>,
     plugins: Plugins,
     notify_quit: Notify,
+    notify_idle: &'static Notify,
+    is_idle: bool,
 }
 
 macro_rules! mode {
@@ -234,7 +236,7 @@ macro_rules! get_ref {
 
 pub(crate) use {get, get_ref};
 
-pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>;
+pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
 
 type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
 type Requests = impl Stream<Item = Request> + Unpin;
@@ -297,6 +299,7 @@ pub struct Tasks {
     requests: Requests,
     callbacks: Callbacks,
     notify_redraw: &'static Notify,
+    notify_idle: &'static Notify,
 }
 
 impl Editor {
@@ -336,6 +339,9 @@ impl Editor {
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
         let plugins = Plugins::new(Client { tx: requests_tx.clone() });
 
+        static NOTIFY_IDLE: OnceLock<Notify> = OnceLock::new();
+        let notify_idle = NOTIFY_IDLE.get_or_init(Default::default);
+
         let mut editor = Self {
             buffers,
             views,
@@ -343,6 +349,8 @@ impl Editor {
             requests_tx,
             plugins,
             empty_buffer,
+            notify_idle,
+            is_idle: Default::default(),
             keymap: default_keymap::new(),
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
@@ -360,12 +368,14 @@ impl Editor {
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
         editor.resize(size);
+
         (
             editor,
             Tasks {
                 requests: ChannelStream(requests_rx),
                 callbacks: UnboundedChannelStream(callbacks_rx),
                 notify_redraw,
+                notify_idle,
             },
         )
     }
@@ -499,6 +509,17 @@ impl Editor {
         self.status_error.as_deref()
     }
 
+    /// A hack for tests to wait for background tasks to complete.
+    #[doc(hidden)]
+    pub fn wait_until_idle(&self) -> impl Future + 'static {
+        let &Self { is_idle, notify_idle, .. } = self;
+        async move {
+            if !is_idle {
+                notify_idle.notified().await
+            }
+        }
+    }
+
     pub fn set_error(&mut self, error: impl fmt::Display) {
         // TODO push all the corresponding tracing error in here
         set_error!(self, error);
@@ -560,15 +581,15 @@ impl Editor {
     pub async fn fuzz(
         &mut self,
         mut events: impl Stream<Item = io::Result<Event>>,
-        Tasks { requests, callbacks, notify_redraw }: Tasks,
+        Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        Self::subscribe_async_events().await;
+        Self::subscribe_async_hooks().await;
 
         render(self)?;
 
         let mut requests = requests.fuse();
-        let mut callbacks = callbacks.buffer_unordered(16);
+        let mut callbacks = pin!(callbacks.buffer_unordered(16).peekable());
 
         let mut events = pin!(events);
         loop {
@@ -592,6 +613,13 @@ impl Editor {
                 },
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
+            }
+
+            if callbacks.as_mut().peek().now_or_never().is_none() {
+                notify_idle.notify_waiters();
+                self.is_idle = true;
+            } else {
+                self.is_idle = false;
             }
 
             // Don't immediately break here as we want to finish handling any events first
@@ -1300,24 +1328,26 @@ impl Editor {
                                 ..Default::default()
                             })
                             .await?;
-                        tracing::debug!("lsp initialized");
-                        server.initialized(lsp_types::InitializedParams {})?;
 
                         Ok((res, server))
                     },
-                    move |editor, (res, server)| {
+                    move |editor, (res, mut server)| {
+                        tracing::debug!("lsp initialized");
+                        server.initialized(lsp_types::InitializedParams {})?;
+
+                        assert!(
+                            editor
+                                .active_language_servers
+                                .insert(server_id, LanguageServer::new(res.capabilities, server))
+                                .is_none(),
+                            "inserted duplicate language server"
+                        );
+
                         editor
                             .active_language_servers_for_ft
                             .entry(ft)
                             .or_default()
                             .push(server_id);
-                        assert!(
-                            editor
-                                .active_language_servers
-                                .insert(server_id, LanguageServer::new(res.capabilities, server),)
-                                .is_none(),
-                            "inserted duplicate language server"
-                        );
 
                         subscribe_lsp_event_handlers(server_id);
 
@@ -1952,7 +1982,7 @@ impl Editor {
         self.callback(desc, fut, |_, ()| Ok(()))
     }
 
-    pub(crate) fn callback<R: 'static>(
+    pub(crate) fn callback<R: Send + 'static>(
         &self,
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
@@ -1984,7 +2014,7 @@ impl Editor {
         &mut self.language_config
     }
 
-    async fn subscribe_async_events() {
+    async fn subscribe_async_hooks() {
         event::subscribe_async_with::<event::WillSaveBuffer, _>(|client, event| async move {
             let (version, format_fut) = client
                 .request(move |editor| {
@@ -2258,7 +2288,7 @@ impl Selector<BufferId> for Active {
     }
 }
 
-fn callback<R: 'static>(
+fn callback<R: Send + 'static>(
     tx: &CallbacksSender,
     desc: impl fmt::Display + Send + 'static,
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
@@ -2270,7 +2300,7 @@ fn callback<R: 'static>(
             |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {TIMEOUT:?}"),
         )??;
         Ok(Box::new(move |editor: &mut Editor| f(editor, res))
-            as Box<dyn FnOnce(&mut Editor) -> Result<(), Error>>)
+            as Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>)
     }))
     .expect("send failed");
 }

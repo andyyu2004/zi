@@ -22,11 +22,25 @@ impl<St> Default for FakeLanguageServerBuilder<St> {
     }
 }
 
-impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServer<St> {
+pub struct FakeLanguageServerTemplate<St> {
+    init_state: St,
+    handlers: Arc<Handlers<St>>,
+}
+
+impl<St: Default> Default for FakeLanguageServerTemplate<St> {
+    fn default() -> Self {
+        Self { init_state: Default::default(), handlers: Default::default() }
+    }
+}
+
+impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServerTemplate<St> {
     fn spawn(
         &self,
     ) -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>> {
-        Ok(Box::new(self.clone()))
+        Ok(Box::new(FakeLanguageServer {
+            handlers: Arc::clone(&self.handlers),
+            state: self.init_state.clone(),
+        }))
     }
 }
 
@@ -60,8 +74,8 @@ struct Handlers<St> {
 }
 
 impl<St> FakeLanguageServerBuilder<St> {
-    pub fn finish(self, state: St) -> FakeLanguageServer<St> {
-        FakeLanguageServer { state, handlers: Arc::new(self.handlers) }
+    pub fn finish(self, init_state: St) -> FakeLanguageServerTemplate<St> {
+        FakeLanguageServerTemplate { init_state, handlers: Arc::new(self.handlers) }
     }
 
     pub fn request<R: Request, Fut>(
@@ -108,7 +122,6 @@ impl<St> FakeLanguageServerBuilder<St> {
     }
 }
 
-#[derive(Clone)]
 pub struct FakeLanguageServer<St> {
     state: St,
     handlers: Arc<Handlers<St>>,
@@ -128,12 +141,6 @@ type BoxReqFuture<Error> = Pin<Box<dyn Future<Output = Result<Value, Error>> + S
 type BoxReqHandler<St, Error> =
     Box<dyn Fn(&mut St, AnyRequest) -> BoxReqFuture<Error> + Send + Sync>;
 type BoxNotifHandler<St> = Box<dyn Fn(&mut St, AnyNotification) -> Result<()> + Send + Sync>;
-
-impl<St: Default> Default for FakeLanguageServer<St> {
-    fn default() -> Self {
-        Self::builder().finish(Default::default())
-    }
-}
 
 impl<St> FakeLanguageServer<St> {
     pub fn builder() -> FakeLanguageServerBuilder<St> {
