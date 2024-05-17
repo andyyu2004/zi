@@ -921,7 +921,7 @@ impl Editor {
 
     // Bad API used in tests for now
     #[doc(hidden)]
-    pub fn delete_char_backward(&mut self) {
+    pub fn delete_char(&mut self, selector: impl Selector<ViewId>) {
         match &mut self.state {
             State::Command(state) => {
                 state.buffer.pop();
@@ -931,7 +931,8 @@ impl Editor {
                 self.update_search();
             }
             _ => {
-                let (view, buf) = get!(self);
+                let view = selector.select(self);
+                let (view, buf) = get!(self: view);
                 if buf.flags().contains(BufferFlags::READONLY) {
                     // fixme we should return a proper error
                     set_error!(self, "buffer is readonly");

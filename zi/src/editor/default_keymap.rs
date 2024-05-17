@@ -196,6 +196,10 @@ pub(super) fn new() -> Keymap {
         editor.schedule("save", fut);
     }
 
+    fn backspace(editor: &mut Editor) {
+        editor.delete_char(Active);
+    }
+
     macro_rules! action {
         ($($name:ident,)*) => {
             $(
@@ -212,7 +216,6 @@ pub(super) fn new() -> Keymap {
         goto_next_match,
         goto_prev_match,
         inspect,
-        delete_char_backward,
         execute_buffered_command,
         open_jump_list,
     );
@@ -235,13 +238,13 @@ pub(super) fn new() -> Keymap {
             Keymap::from(hashmap! {
                 Mode::Command => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
-                    "<BS>" => delete_char_backward,
+                    "<BS>" => backspace,
                     "<CR>" => execute_buffered_command,
                 }),
                 Mode::Insert => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                     "<CR>" => insert_newline,
-                    "<BS>" => delete_char_backward,
+                    "<BS>" => backspace,
                     "f" => {
                         "d" => normal_mode,
                     },
