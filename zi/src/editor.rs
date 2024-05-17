@@ -511,11 +511,13 @@ impl Editor {
 
     /// A hack for tests to wait for background tasks to complete.
     #[doc(hidden)]
-    pub fn wait_until_idle(&self) -> impl Future + 'static {
-        let &Self { is_idle, notify_idle, .. } = self;
+    pub fn wait_until_idle(&mut self) -> impl Future + 'static {
+        let Self { is_idle, notify_idle, .. } = *self;
         async move {
             if !is_idle {
-                notify_idle.notified().await
+                let mut fut = pin!(notify_idle.notified());
+                fut.as_mut().enable();
+                fut.await;
             }
         }
     }
@@ -580,7 +582,7 @@ impl Editor {
     #[doc(hidden)]
     pub async fn fuzz(
         &mut self,
-        mut events: impl Stream<Item = io::Result<Event>>,
+        events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
@@ -588,7 +590,7 @@ impl Editor {
 
         render(self)?;
 
-        let mut requests = requests.fuse();
+        let mut requests = pin!(requests.fuse().peekable());
         let mut callbacks = pin!(callbacks.buffer_unordered(16).peekable());
 
         let mut events = pin!(events);
@@ -615,9 +617,12 @@ impl Editor {
                 () = self.notify_quit.notified() => break,
             }
 
-            if callbacks.as_mut().peek().now_or_never().is_none() {
-                notify_idle.notify_waiters();
+            if callbacks.as_mut().peek().now_or_never().is_none()
+                && requests.as_mut().peek().now_or_never().is_none()
+            {
                 self.is_idle = true;
+                notify_idle.notify_waiters();
+                notify_idle.notify_one();
             } else {
                 self.is_idle = false;
             }

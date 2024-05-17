@@ -77,7 +77,6 @@ async fn main() -> anyhow::Result<()> {
     let mut app = zi_term::App::new(term, panic_rx)?;
     app.enter()?;
 
-
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
 

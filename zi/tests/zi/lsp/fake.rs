@@ -46,31 +46,13 @@ impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServer
 
 impl<St> Default for Handlers<St> {
     fn default() -> Self {
-        Self {
-            reqs: HashMap::new(),
-            notifs: HashMap::new(),
-            unhandled_req: Box::new(|_, req| {
-                Box::pin(ready(Err(ResponseError::new(
-                    ErrorCode::METHOD_NOT_FOUND,
-                    format!("no such method {}", req.method),
-                )
-                .into())))
-            }),
-            unhandled_notif: Box::new(|_, notif| {
-                Err(ResponseError::new(
-                    ErrorCode::METHOD_NOT_FOUND,
-                    format!("no such method {}", notif.method),
-                ))?
-            }),
-        }
+        Self { reqs: HashMap::new(), notifs: HashMap::new() }
     }
 }
 
 struct Handlers<St> {
     reqs: HashMap<&'static str, BoxReqHandler<St, zi_lsp::Error>>,
     notifs: HashMap<&'static str, BoxNotifHandler<St>>,
-    unhandled_req: BoxReqHandler<St, zi_lsp::Error>,
-    unhandled_notif: BoxNotifHandler<St>,
 }
 
 impl<St> FakeLanguageServerBuilder<St> {
@@ -128,12 +110,10 @@ pub struct FakeLanguageServer<St> {
 }
 
 struct AnyRequest {
-    method: &'static str,
     params: Value,
 }
 
 struct AnyNotification {
-    method: &'static str,
     params: Value,
 }
 
@@ -149,11 +129,12 @@ impl<St> FakeLanguageServer<St> {
 
     pub fn request<R: Request>(&mut self, params: R::Params) -> ResponseFuture<R> {
         tracing::info!("request: {}", R::METHOD);
-        let f = self.handlers.reqs.get(R::METHOD).unwrap_or(&self.handlers.unhandled_req);
-        let req = AnyRequest {
-            method: R::METHOD,
-            params: serde_json::to_value(params).expect("failed to serialize"),
-        };
+        let f = self
+            .handlers
+            .reqs
+            .get(R::METHOD)
+            .unwrap_or_else(|| panic!("missing request handler: {}", R::METHOD));
+        let req = AnyRequest { params: serde_json::to_value(params).expect("failed to serialize") };
         let res = f(&mut self.state, req);
         Box::pin(async move {
             let x = res.await?;
@@ -163,11 +144,13 @@ impl<St> FakeLanguageServer<St> {
 
     pub fn notify<N: Notification>(&mut self, params: N::Params) -> Result<()> {
         tracing::info!("notification: {}", N::METHOD);
-        let f = self.handlers.notifs.get(N::METHOD).unwrap_or(&self.handlers.unhandled_notif);
-        let notif = AnyNotification {
-            method: N::METHOD,
-            params: serde_json::to_value(params).expect("failed to serialize"),
-        };
+        let f = self
+            .handlers
+            .notifs
+            .get(N::METHOD)
+            .unwrap_or_else(|| panic!("missing notification handler: {}", N::METHOD));
+        let notif =
+            AnyNotification { params: serde_json::to_value(params).expect("failed to serialize") };
 
         f(&mut self.state, notif)
     }

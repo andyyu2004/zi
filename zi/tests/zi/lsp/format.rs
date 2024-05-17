@@ -1,4 +1,4 @@
-use zi_lsp::lsp_types::{self, request, OneOf};
+use zi_lsp::lsp_types::{self, notification, request, OneOf};
 
 use super::*;
 use crate::lsp::fake::FakeLanguageServer;
@@ -9,7 +9,7 @@ async fn lsp_format() -> zi::Result<()> {
 
     let path = cx.tempfile(r#"abc"#)?;
 
-    let (buf, wait) = cx
+    let buf = cx
         .with(|editor| {
             let server_id = zi::LanguageServerId::new("test");
 
@@ -32,6 +32,9 @@ async fn lsp_format() -> zi::Result<()> {
                         new_text: "def".to_string(),
                     }]))
                 })
+                .notification::<notification::Initialized>(|_st: &mut (), _params| Ok(()))
+                .notification::<notification::DidOpenTextDocument>(|_st: &mut (), _params| Ok(()))
+                .notification::<notification::DidChangeTextDocument>(|_st: &mut (), _params| Ok(()))
                 .finish(());
 
             editor
@@ -39,19 +42,16 @@ async fn lsp_format() -> zi::Result<()> {
                 .add_language(zi::FileType::TEXT, zi::LanguageConfig::new([server_id]))
                 .add_language_server(server_id, server);
 
-            let wait = editor.wait_until_idle();
             let buf = editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)?;
-            Ok::<_, zi::Error>((buf, wait))
+            Ok::<_, zi::Error>(buf)
         })
         .await?;
-
-    wait.await;
 
     let save_fut = cx.with(move |editor| editor.save(buf)).await;
 
     cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "abc")).await;
     let () = save_fut.await?;
-    cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "def")).await;
+    cx.with(move |editor| assert_eq!(editor[buf].text().to_string(), "def\n")).await;
 
     Ok(())
 }
