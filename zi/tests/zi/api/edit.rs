@@ -9,14 +9,14 @@ fn delete_char_backward() {
 
     // ensure that multi-byte characters are handled correctly
     let c = '\u{100000}';
-    editor.insert_char_at_cursor(c);
+    editor.insert_char(zi::Active, c);
     assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8()));
     editor.delete_char_backward();
     assert_eq!(editor.cursor_line(), "");
 
-    editor.insert_char_at_cursor('a');
-    editor.insert_char_at_cursor('b');
-    editor.insert_char_at_cursor('c');
+    editor.insert_char(zi::Active, 'a');
+    editor.insert_char(zi::Active, 'b');
+    editor.insert_char(zi::Active, 'c');
 
     // works on single line
     assert_eq!(editor.cursor_line(), "abc");
@@ -30,7 +30,7 @@ fn delete_char_backward() {
     assert_eq!(editor.cursor_line(), "a");
     assert_eq!(editor.cursor(zi::Active), (0, 1));
 
-    editor.insert_char_at_cursor('x');
+    editor.insert_char(zi::Active, 'x');
     assert_eq!(editor.cursor_line(), "ax");
     assert_eq!(editor.cursor(zi::Active), (0, 2));
 
@@ -47,7 +47,7 @@ fn delete_char_backward() {
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     // works on multiple lines
-    editor.insert_at_cursor("abc\nd");
+    editor.insert(zi::Active, "abc\nd");
     assert_eq!(editor.cursor_line(), "d");
     editor.delete_char_backward();
     assert_eq!(editor.cursor_line(), "");
@@ -110,9 +110,9 @@ fn insert_char() {
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 
     assert_eq!(editor.cursor(zi::Active), (0, 0));
-    editor.insert_char_at_cursor('a');
+    editor.insert_char(zi::Active, 'a');
     assert_eq!(editor.cursor(zi::Active), (0, 1));
-    editor.insert_char_at_cursor('b');
+    editor.insert_char(zi::Active, 'b');
     assert_eq!(editor.cursor(zi::Active), (0, 2));
     assert_eq!(editor.cursor_line(), "ab");
 
@@ -134,7 +134,7 @@ fn insert_into_readonly() -> zi::Result<()> {
 
     assert!(editor.get_error().is_none());
 
-    editor.insert_at_cursor("def");
+    editor.insert(zi::Active, "def");
 
     assert_eq!(editor.buffer(buf).text().to_string(), "");
     assert!(editor.get_error().is_some());

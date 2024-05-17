@@ -5,7 +5,7 @@ fn undo_insertion() {
     let mut editor = new("x");
     editor.set_mode(zi::Mode::Insert);
     for c in ['a', 'b', 'c'] {
-        editor.insert_char_at_cursor(c);
+        editor.insert_char(zi::Active, c);
     }
 
     editor.set_mode(zi::Mode::Normal);

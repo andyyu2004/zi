@@ -32,7 +32,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn insert_newline(editor: &mut Editor) {
-        editor.insert_char_at_cursor('\n');
+        editor.insert_char(Active, '\n');
     }
 
     fn normal_mode(editor: &mut Editor) {
@@ -85,7 +85,7 @@ pub(super) fn new() -> Keymap {
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
-        editor.insert_char_at_cursor('\n');
+        editor.insert_char(Active, '\n');
     }
 
     fn next_token(editor: &mut Editor) {

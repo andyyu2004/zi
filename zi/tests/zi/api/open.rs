@@ -36,7 +36,7 @@ fn test_open_replace_readonly_with_writable() -> zi::Result<()> {
     let buf = editor.open(&path, zi::OpenFlags::empty())?;
     assert_eq!(buf, readonly, "the buffer should retain it's identity");
 
-    editor.insert_char_at_cursor('a');
+    editor.insert_char(zi::Active, 'a');
     assert!(editor.get_error().is_none());
 
     Ok(())

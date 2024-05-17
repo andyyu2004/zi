@@ -718,7 +718,7 @@ impl Editor {
 
     fn handle_insert(&mut self, c: char) {
         match &mut self.state {
-            State::Insert(..) => self.insert_char_at_cursor(c),
+            State::Insert(..) => self.insert_char(Active, c),
             State::Command(state) => {
                 state.buffer.push(c);
                 self.update_search();
@@ -960,9 +960,9 @@ impl Editor {
 
     // Bad API used in tests for now
     #[doc(hidden)]
-    pub fn insert_char_at_cursor(&mut self, c: char) {
+    pub fn insert_char(&mut self, selector: impl Selector<ViewId>, c: char) {
         let mut cbuf = [0; 4];
-        let view = self.view(Active);
+        let view = self.view(selector);
         let cursor = view.cursor();
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
         self.edit(view.id(), &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
@@ -976,10 +976,10 @@ impl Editor {
     }
 
     pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
-        let buf_id = selector.select(self);
+        let buf = selector.select(self);
         // // Don't care if we're actually in insert mode, that's more a key binding namespace.
         // let (view, buf) = get!(self: view_id);
-        let buf = &mut self[buf_id];
+        let buf = &mut self[buf];
 
         if buf.flags().contains(BufferFlags::READONLY) {
             set_error!(self, "buffer is readonly");
@@ -1004,9 +1004,10 @@ impl Editor {
         event::dispatch(self, event);
     }
 
-    pub fn insert_at_cursor(&mut self, text: &str) {
+    pub fn insert(&mut self, selector: impl Selector<ViewId>, text: &str) {
+        let view = selector.select(self);
         for c in text.chars() {
-            self.insert_char_at_cursor(c);
+            self.insert_char(view, c);
         }
     }
 

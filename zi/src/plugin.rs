@@ -88,7 +88,7 @@ impl editor::HostBuffer for EditorClient {
 #[async_trait::async_trait]
 impl editor::Host for EditorClient {
     async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.insert_at_cursor(&text)).await;
+        self.request(move |editor| editor.insert(Active, &text)).await;
         Ok(())
     }
 
