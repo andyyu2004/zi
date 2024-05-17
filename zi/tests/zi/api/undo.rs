@@ -47,10 +47,26 @@ fn undo_dwdwdd() {
 }
 
 #[tokio::test]
-async fn undo_marks_buffer_dirty() {
-    let cx = new_cx("abc").await;
-    cx.with(|editor| {
-        editor.buffer(zi::Active).flags();
+async fn undo_marks_buffer_dirty() -> zi::Result<()> {
+    let is_dirty =
+        |editor: &zi::Editor| editor.buffer(zi::Active).flags().contains(zi::BufferFlags::DIRTY);
+
+    let cx = new_cx("").await;
+    cx.with(move |editor| {
+        assert!(!is_dirty(editor));
+        editor.insert_char(zi::Active, 'a');
+        assert!(is_dirty(editor));
+        editor.save(zi::Active, zi::SaveFlags::empty())
+    })
+    .await
+    .await?;
+
+    cx.with(move |editor| {
+        assert!(!is_dirty(editor));
+        editor.undo(zi::Active);
+        assert!(is_dirty(editor));
     })
     .await;
+
+    Ok(())
 }
