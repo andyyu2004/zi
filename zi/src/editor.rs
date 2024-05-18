@@ -1255,7 +1255,10 @@ impl Editor {
 
         let cursor = match (entry.cursor, entry.changes.first()) {
             (Some(cursor), _) => cursor.into(),
-            (_, Some(fst)) => fst.deltas.iter().next().unwrap().range().start.into(),
+            (_, Some(fst)) => match fst.deltas.iter().next() {
+                Some(delta) => delta.range().start.into(),
+                None => return false,
+            },
             _ => return false,
         };
 
