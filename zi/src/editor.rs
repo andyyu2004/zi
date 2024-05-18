@@ -993,14 +993,21 @@ impl Editor {
         let buf = buf.id();
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
-        let views =
-            self.tree.views().filter(|&view| self[view].buffer() == buf).collect::<Vec<_>>();
-        for view in views {
+        for view in self.views_into_buf(buf) {
             let cursor = self[view].cursor();
             self.set_cursor_flags(view, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
         }
 
         self.dispatch(event::DidChangeBuffer { buf });
+    }
+
+    fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
+        self.tree
+            .views()
+            .filter(move |&view| self[view].buffer() == buf)
+            // Collect first to avoid borrowing self
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     fn dispatch(&mut self, event: impl event::Event) {
@@ -1236,22 +1243,21 @@ impl Editor {
         }
     }
 
-    pub fn redo(&mut self, selector: impl Selector<ViewId>) -> bool {
+    pub fn redo(&mut self, selector: impl Selector<BufferId>) -> bool {
         self.undoredo(selector, |buf| buf.redo())
     }
 
-    pub fn undo(&mut self, selector: impl Selector<ViewId>) -> bool {
+    pub fn undo(&mut self, selector: impl Selector<BufferId>) -> bool {
         self.undoredo(selector, |buf| buf.undo())
     }
 
     fn undoredo(
         &mut self,
-        selector: impl Selector<ViewId>,
+        selector: impl Selector<BufferId>,
         f: impl FnOnce(&mut dyn Buffer) -> Option<UndoEntry>,
     ) -> bool {
-        let view = selector.select(self);
-        let (view, buf) = get!(self: view);
-        let Some(entry) = f(buf) else { return false };
+        let buf = selector.select(self);
+        let Some(entry) = f(&mut self[buf]) else { return false };
 
         let cursor = match (entry.cursor, entry.changes.first()) {
             (Some(cursor), _) => cursor.into(),
@@ -1262,17 +1268,19 @@ impl Editor {
             _ => return false,
         };
 
-        let area = self.tree.view_area(view.id());
-        match cursor {
-            PointOrByte::Point(point) => {
-                view.set_cursor_linewise(mode!(self), area, buf, point, SetCursorFlags::empty())
-            }
-            PointOrByte::Byte(byte) => {
-                view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
-            }
-        };
+        for view in self.views_into_buf(buf) {
+            let area = self.tree.view_area(view);
+            let (view, buf) = get!(self: view);
+            match cursor {
+                PointOrByte::Point(point) => {
+                    view.set_cursor_linewise(mode!(self), area, buf, point, SetCursorFlags::empty())
+                }
+                PointOrByte::Byte(byte) => {
+                    view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
+                }
+            };
+        }
 
-        let buf = buf.id();
         self.dispatch(event::DidChangeBuffer { buf });
         true
     }
