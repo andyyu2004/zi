@@ -3,7 +3,6 @@ use std::io;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::path::Path;
 use std::process::Stdio;
-use std::time::Duration;
 
 use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::lsp_types::request::Request;
@@ -23,8 +22,9 @@ pub struct Server {
     // Storing child with `kill_on_drop` set so that it gets killed when this struct is dropped
     #[allow(dead_code)]
     child: async_process::Child,
-    server: ServerSocket,
+    #[allow(dead_code)]
     handle: tokio::task::JoinHandle<()>,
+    server: ServerSocket,
 }
 
 pub type DynLanguageServer =
@@ -33,16 +33,6 @@ pub type DynLanguageServer =
 pub type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
 
 impl Server {
-    pub async fn shutdown(mut self) -> crate::Result<()> {
-        self.server.shutdown(()).await?;
-        self.server.exit(())?;
-        if tokio::time::timeout(Duration::from_millis(100), &mut self.handle).await.is_err() {
-            // If the server doesn't exit in time, abort the task
-            self.handle.abort()
-        }
-        Ok(())
-    }
-
     pub fn start<C>(
         client: C,
         cwd: impl AsRef<Path>,
