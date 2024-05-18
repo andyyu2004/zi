@@ -3,7 +3,30 @@ use stdx::bomb::DropBomb;
 use super::*;
 
 #[tokio::test]
-async fn lsp_change() -> zi::Result<()> {
+async fn lsp_change_no_sync() -> zi::Result<()> {
+    let cx = new_cx("").await;
+    let bomb = DropBomb::new("initialize should be called");
+
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+        builder
+            .request::<request::Initialize, _>(move |_, _| {
+                bomb.defuse();
+                async { Ok(lsp_types::InitializeResult::default()) }
+            })
+            .notification::<notification::DidChangeTextDocument>(move |_st, params| {
+                panic!("should not call did_change as capability is not set: {:?}", params)
+            })
+    })
+    .await;
+
+    let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lsp_change_full_sync() -> zi::Result<()> {
     let cx = new_cx("").await;
     let bomb = DropBomb::new("did_change should be called");
 

@@ -968,6 +968,7 @@ impl Editor {
         let mut cbuf = [0; 4];
         let view = self.view(selector);
         let cursor = view.cursor();
+
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
         self.edit(view.id(), &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
 
@@ -1827,7 +1828,7 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
             tracing::debug!(?event, "buffer did change");
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
-                (editor.active_language_servers.get_mut(&server_id), buf.file_url())
+                (editor.active_language_servers.get_mut(&server_id), buf.file_url().cloned())
             {
                 if !editor
                     .language_config
@@ -1839,20 +1840,43 @@ fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
                     return event::HandlerResult::Continue;
                 }
 
+                let kind = match &server.capabilities.text_document_sync {
+                    Some(cap) => match cap {
+                        lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
+                        lsp_types::TextDocumentSyncCapability::Options(opts) => {
+                            match &opts.change {
+                                Some(kind) => kind,
+                                None => return event::HandlerResult::Continue,
+                            }
+                        }
+                    },
+                    None => return event::HandlerResult::Continue,
+                };
+
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
-                server
-                    .did_change(lsp_types::DidChangeTextDocumentParams {
-                        text_document: lsp_types::VersionedTextDocumentIdentifier {
-                            uri: uri.clone(),
-                            version: buf.version() as i32,
-                        },
-                        content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text: buf.text().to_string(),
-                        }],
-                    })
-                    .expect("lsp did_change failed");
+                let text_document = lsp_types::VersionedTextDocumentIdentifier {
+                    uri,
+                    version: buf.version() as i32,
+                };
+
+                if let Err(err) = match *kind {
+                    // TODO incremental
+                    lsp_types::TextDocumentSyncKind::INCREMENTAL
+                    | lsp_types::TextDocumentSyncKind::FULL => {
+                        server.did_change(lsp_types::DidChangeTextDocumentParams {
+                            text_document,
+                            content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
+                                range: None,
+                                range_length: None,
+                                text: buf.text().to_string(),
+                            }],
+                        })
+                    }
+                    lsp_types::TextDocumentSyncKind::NONE => return event::HandlerResult::Continue,
+                    _ => unreachable!("invalid text document sync kind: {kind:?}"),
+                } {
+                    tracing::error!(?err, "lsp did_change notification failed")
+                }
             }
             event::HandlerResult::Continue
         }
