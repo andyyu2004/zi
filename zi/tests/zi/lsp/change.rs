@@ -1,10 +1,11 @@
+use stdx::bomb::DropBomb;
+
 use super::*;
 
 #[tokio::test]
 async fn lsp_change() -> zi::Result<()> {
-    cov_mark::check_count!(test_lsp_change, 1);
-
     let cx = new_cx("").await;
+    let bomb = DropBomb::new("did_change should be called");
 
     cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
@@ -19,8 +20,8 @@ async fn lsp_change() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .notification::<notification::DidChangeTextDocument>(|_st, params| {
-                cov_mark::hit!(test_lsp_change);
+            .notification::<notification::DidChangeTextDocument>(move |_st, params| {
+                bomb.defuse();
                 assert_eq!(
                     params.content_changes,
                     vec![lsp_types::TextDocumentContentChangeEvent {
