@@ -1,10 +1,11 @@
-pub(crate) mod proto;
+#[doc(hidden)]
+pub mod from_proto;
 
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
 
+pub(crate) use from_proto::Conv;
 use futures_core::future::BoxFuture;
-pub(crate) use proto::Conv;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};

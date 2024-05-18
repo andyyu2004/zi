@@ -1787,7 +1787,7 @@ impl Editor {
                         .request(move |editor| {
                             let buf = &editor[event.buf];
                             let text = buf.text();
-                            let deltas = lsp::proto::deltas_from_lsp_edits(text, edits);
+                            let deltas = lsp::from_proto::deltas(text, edits);
 
                             if buf.version() == version {
                                 editor.edit(event.buf, &deltas);

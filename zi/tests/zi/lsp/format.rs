@@ -1,5 +1,4 @@
 use tokio::fs;
-use zi_lsp::lsp_types::{self, request, OneOf};
 
 use super::*;
 
@@ -20,7 +19,7 @@ async fn lsp_format() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .request::<request::Formatting, _>(|_st: &mut (), _req| async move {
+            .request::<request::Formatting, _>(|_st: &mut (), _params| async move {
                 Ok(Some(vec![lsp_types::TextEdit {
                     range: lsp_types::Range {
                         start: lsp_types::Position { line: 0, character: 0 },

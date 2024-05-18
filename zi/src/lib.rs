@@ -21,7 +21,8 @@ mod keymap;
 mod language;
 mod layout;
 mod location;
-mod lsp;
+#[doc(hidden)]
+pub mod lsp;
 mod operator;
 mod plugin;
 mod private;

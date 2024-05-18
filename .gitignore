@@ -3,3 +3,5 @@
 perf.data*
 .gdb_history
 profile.json
+mutants.out
+mutants.out.old

@@ -30,7 +30,7 @@ impl Conv for lsp_types::Position {
     }
 }
 
-pub fn deltas_from_lsp_edits(
+pub fn deltas(
     text: impl Text,
     edits: impl IntoIterator<Item = lsp_types::TextEdit>,
 ) -> Deltas<'static> {
