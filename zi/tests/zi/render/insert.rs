@@ -10,7 +10,7 @@ async fn insert_newline_in_blank_buffer() {
         "          "
         "          "
         "buffer://s"
-        "-- INSERT "
+        "          "
     "#]])
         .await;
 
@@ -21,7 +21,7 @@ async fn insert_newline_in_blank_buffer() {
         "   2 |    "
         "          "
         "buffer://s"
-        "-- INSERT "
+        "          "
     "#]])
         .await;
 }

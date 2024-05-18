@@ -14,9 +14,9 @@ async fn line_number_width_grows_and_shrinks_as_required() {
         "  9 9                                              "
         " 10 10                                             "
         " 11 11                                             "
-        " 12 12|                                            "
-        "buffer://scratch:12:2                              "
-        "-- INSERT --                                       "
+        " 12 1|                                             "
+        "buffer://scratch:12:1                              "
+        "                                                   "
     "#]])
         .await;
 
@@ -29,12 +29,12 @@ async fn line_number_width_grows_and_shrinks_as_required() {
     cx.snapshot(expect![[r#"
         " 2 7                                               "
         " 1 8                                               "
-        " 9 9|                                              "
+        " 9 |                                               "
         " 1 10                                              "
         " 2 11                                              "
         " 3 12                                              "
-        "buffer://scratch:9:1                               "
-        "-- INSERT --                                       "
+        "buffer://scratch:9:0                               "
+        "                                                   "
     "#]])
         .await;
 }
@@ -51,12 +51,12 @@ async fn no_line_number() {
     cx.snapshot(expect![[r#"
         "  a                                                "
         "  b                                                "
-        "  c|                                               "
+        "  |                                                "
         "                                                   "
         "                                                   "
         "                                                   "
-        "buffer://scratch:3:1                               "
-        "-- INSERT --                                       "
+        "buffer://scratch:3:0                               "
+        "                                                   "
     "#]])
         .await;
 }
@@ -75,12 +75,12 @@ async fn relative_line_number() {
     cx.snapshot(expect![[r#"
         "   2 7                                             "
         "   1 8                                             "
-        "   9 9|                                            "
+        "   9 |                                             "
         "   1 10                                            "
         "   2 11                                            "
         "   3 12                                            "
-        "buffer://scratch:9:1                               "
-        "-- INSERT --                                       "
+        "buffer://scratch:9:0                               "
+        "                                                   "
     "#]])
         .await;
 
@@ -90,11 +90,11 @@ async fn relative_line_number() {
         "   3 7                                             "
         "   2 8                                             "
         "   1 9                                             "
-        "  10 10|                                           "
+        "  10 1|                                            "
         "   1 11                                            "
         "   2 12                                            "
-        "buffer://scratch:10:2                              "
-        "-- INSERT --                                       "
+        "buffer://scratch:10:1                              "
+        "                                                   "
     "#]])
         .await;
 }

@@ -98,6 +98,7 @@ pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) 
     editor.set_mode(zi::Mode::Insert);
     editor.edit(zi::Active, &zi::Deltas::insert_at(0, scratch_content));
     editor.set_cursor(zi::Active, scratch_content.len());
+    editor.set_mode(zi::Mode::Normal);
 
     let client = editor.client();
     tokio::spawn(async move {

@@ -16,6 +16,7 @@ mod undo;
 mod view;
 
 /// Create a new editor with a buffer open with the given content.
+/// This only allows testing synchronous APIs. See [`crate::TestContext`] for more complex tests.
 pub fn new(content: &str) -> zi::Editor {
     new_with_size(content, zi::Size::new(80, 24))
 }

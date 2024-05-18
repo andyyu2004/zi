@@ -25,7 +25,7 @@ async fn view_only() {
         "                                                   "
         "                                                   "
         "buffer://scratch:4:0                               "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 }
@@ -48,7 +48,7 @@ async fn close_view() {
         "                                                   "
         "                                                   "
         "buffer://scratch:4:0                               "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 
@@ -66,7 +66,7 @@ async fn close_view() {
         "                             2 2                   "
         "                             3 3                   "
         "buffer://scratch:4:0           |                   "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 
@@ -79,7 +79,7 @@ async fn close_view() {
         "                                                   "
         "                                                   "
         "buffer://scratch:4:0                               "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 }
@@ -97,7 +97,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
         "                                                   "
         "                                                   "
         "buffer://scratch:4:0                               "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 
@@ -110,7 +110,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
         "                                                   "
         "                                                   "
         "buffer://scratch:4:0                               "
-        "-- INSERT --                                       "
+        "                                                   "
     "#]])
         .await;
 
@@ -126,38 +126,38 @@ async fn split() -> io::Result<()> {
         "   1 abc                                          "
         "                                                  "
         "                                                  "
-        "   1 abc|                                         "
+        "   1 ab|                                          "
         "                                                  "
         "                                                  "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
     let cx = new_cx_with_size(zi::Size::new(50, 8), "abc").await;
     cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
     cx.snapshot(expect![[r#"
-        "   1 abc                    1 abc|                "
+        "   1 abc                    1 ab|                 "
         "                                                  "
         "                                                  "
         "                                                  "
         "                                                  "
         "                                                  "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
     cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
     cx.snapshot(expect![[r#"
-        "   1 abc            1 abc           1 abc|        "
+        "   1 abc            1 abc           1 ab|         "
         "                                                  "
         "                                                  "
         "                                                  "
         "                                                  "
         "                                                  "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
@@ -166,11 +166,11 @@ async fn split() -> io::Result<()> {
         "   1 abc            1 abc           1 abc         "
         "                                                  "
         "                                                  "
-        "                                    1 abc|        "
+        "                                    1 ab|         "
         "                                                  "
         "                                                  "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
@@ -179,11 +179,11 @@ async fn split() -> io::Result<()> {
         "   1 abc            1 abc           1 abc         "
         "                                                  "
         "                                                  "
-        "                                    1 abc|   1 abc"
+        "                                    1 ab|    1 abc"
         "                                                  "
         "                                                  "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
@@ -192,11 +192,11 @@ async fn split() -> io::Result<()> {
         "   1 abc            1 abc           1 abc         "
         "                                                  "
         "                                                  "
-        "                                    1 abc|   1 abc"
+        "                                    1 ab|    1 abc"
         "                                                  "
         "                                    1 abc         "
-        "buffer://scratch:1:3                              "
-        "-- INSERT --                                      "
+        "buffer://scratch:1:2                              "
+        "                                                  "
     "#]])
         .await;
 
@@ -221,10 +221,10 @@ async fn more_splits() {
         "                    "
         "   1 abc            "
         "             1 abc  "
-        "   1 abc|           "
+        "   1 ab|            "
         "                    "
-        "buffer://scratch:1:3"
-        "-- INSERT --        "
+        "buffer://scratch:1:2"
+        "                    "
     "#]])
         .await;
 }
@@ -243,24 +243,24 @@ async fn test_directional_focus() {
         .await;
 
     cx.snapshot(expect![[r#"
-        "   1 abc       1 abc|   "
+        "   1 abc       1 ab|    "
         "                        "
         "                        "
         "                        "
-        "buffer://scratch:1:3    "
-        "-- INSERT --            "
+        "buffer://scratch:1:2    "
+        "                        "
     "#]])
         .await;
 
     cx.with(move |editor| assert_eq!(editor.focus_direction(Left), a)).await;
 
     cx.snapshot(expect![[r#"
-        "   1 abc|      1 abc    "
+        "   1 ab|       1 abc    "
         "                        "
         "                        "
         "                        "
-        "buffer://scratch:1:3    "
-        "-- INSERT --            "
+        "buffer://scratch:1:2    "
+        "                        "
     "#]])
         .await;
 
@@ -268,22 +268,73 @@ async fn test_directional_focus() {
     cx.snapshot(expect![[r#"
         "   1 abc       1 abc    "
         "                        "
-        "   1 abc|               "
+        "   1 ab|                "
         "                        "
-        "buffer://scratch:1:3    "
-        "-- INSERT --            "
+        "buffer://scratch:1:2    "
+        "                        "
     "#]])
         .await;
 
     cx.with(move |editor| assert_eq!(editor.focus_direction(Right), b)).await;
 
     cx.snapshot(expect![[r#"
-        "   1 abc       1 abc|   "
+        "   1 abc       1 ab|    "
         "                        "
         "   1 abc                "
         "                        "
-        "buffer://scratch:1:3    "
-        "-- INSERT --            "
+        "buffer://scratch:1:2    "
+        "                        "
+    "#]])
+        .await;
+}
+
+#[tokio::test]
+async fn test_multiple_views_into_same_buffer() {
+    let cx = new_cx_with_size(zi::Size::new(24, 6), "abcdefg").await;
+    cx.snapshot(expect![[r#"
+        "   1 abcdef|            "
+        "                        "
+        "                        "
+        "                        "
+        "buffer://scratch:1:6    "
+        "                        "
+    "#]])
+        .await;
+
+    cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
+
+    cx.snapshot(expect![[r#"
+        "   1 abcdefg   1 abcdef|"
+        "                        "
+        "                        "
+        "                        "
+        "buffer://scratch:1:6    "
+        "                        "
+    "#]])
+        .await;
+
+    // Delete the while focusing on the right view.
+    cx.with(|editor| editor.input("db").unwrap()).await;
+
+    cx.snapshot(expect![[r#"
+        "   1 g         1 |      "
+        "                        "
+        "                        "
+        "                        "
+        "buffer://scratch:1:0    "
+        "                        "
+    "#]])
+        .await;
+
+    cx.with(|editor| editor.focus_direction(Left)).await;
+
+    cx.snapshot(expect![[r#"
+        "   1 |         1 g      "
+        "                        "
+        "                        "
+        "                        "
+        "buffer://scratch:1:0    "
+        "                        "
     "#]])
         .await;
 }
@@ -303,10 +354,10 @@ async fn test_directional_focus_propagation() {
     cx.snapshot(expect![[r#"
         "   1 ab            1 ab         "
         "                                "
-        "                   1 ab    1 ab|"
+        "                   1 ab    1 a| "
         "                                "
-        "buffer://scratch:1:2            "
-        "-- INSERT --                    "
+        "buffer://scratch:1:1            "
+        "                                "
     "#]])
         .await;
 
@@ -315,10 +366,10 @@ async fn test_directional_focus_propagation() {
     cx.snapshot(expect![[r#"
         "   1 ab            1 ab         "
         "                                "
-        "                   1 ab|   1 ab "
+        "                   1 a|    1 ab "
         "                                "
-        "buffer://scratch:1:2            "
-        "-- INSERT --                    "
+        "buffer://scratch:1:1            "
+        "                                "
     "#]])
         .await;
 
@@ -326,12 +377,12 @@ async fn test_directional_focus_propagation() {
     cx.with(|editor| editor.focus_direction(Left)).await;
 
     cx.snapshot(expect![[r#"
-        "   1 ab|           1 ab         "
+        "   1 a|            1 ab         "
         "                                "
         "                   1 ab    1 ab "
         "                                "
-        "buffer://scratch:1:2            "
-        "-- INSERT --                    "
+        "buffer://scratch:1:1            "
+        "                                "
     "#]])
         .await;
 }
