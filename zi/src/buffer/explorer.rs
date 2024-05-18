@@ -63,7 +63,7 @@ where
                 cancel,
                 keymap,
                 confirm,
-                url: Url::parse("buffer://zi/explorer").unwrap(),
+                url: Url::parse("buffer://explorer").unwrap(),
                 config: Default::default(),
                 text: Default::default(),
             },
@@ -85,10 +85,10 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         unreachable!("explorer buffer does not have a backing file")
     }
 
-    fn path(&self) -> &Path {
-        // TODO get the actual directory path we're looking at
-        Path::new("explorer")
-    }
+    // fn path(&self) -> &Path {
+    //     // TODO get the actual directory path we're looking at
+    //     Path::new("explorer")
+    // }
 
     fn url(&self) -> &Url {
         &self.url

@@ -17,7 +17,7 @@ async fn file_picker() {
         "                                                                                                    "
         "                                                                                                    "
         "                                                                                                    "
-        "picker:1:0                                                                                          "
+        "buffer://picker:1:0                                                                                 "
         "-- INSERT --                                                                                        "
     "#]])
         .await;
@@ -32,7 +32,7 @@ async fn file_picker() {
         "                                                                                                    "
         "                                                                                                    "
         "                                                                                                    "
-        "picker:1:3                                                                                          "
+        "buffer://picker:1:3                                                                                 "
         "-- INSERT --                                                                                        "
     "#]])
         .await;

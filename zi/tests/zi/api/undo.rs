@@ -52,7 +52,11 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
         |editor: &zi::Editor| editor.buffer(zi::Active).flags().contains(zi::BufferFlags::DIRTY);
 
     let cx = new_cx("").await;
+
+    cx.open("test", zi::OpenFlags::ACTIVE).await?;
+
     cx.with(move |editor| {
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), "test");
         assert!(!is_dirty(editor));
         editor.insert_char(zi::Active, 'a');
         assert!(is_dirty(editor));
@@ -63,7 +67,9 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
 
     cx.with(move |editor| {
         assert!(!is_dirty(editor));
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), "atest\n");
         editor.undo(zi::Active);
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), "test");
         assert!(is_dirty(editor));
     })
     .await;

@@ -15,7 +15,7 @@ async fn line_number_width_grows_and_shrinks_as_required() {
         " 10 10                                             "
         " 11 11                                             "
         " 12 12|                                            "
-        "scratch:12:2                                       "
+        "buffer://scratch:12:2                              "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -33,7 +33,7 @@ async fn line_number_width_grows_and_shrinks_as_required() {
         " 1 10                                              "
         " 2 11                                              "
         " 3 12                                              "
-        "scratch:9:1                                        "
+        "buffer://scratch:9:1                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -55,7 +55,7 @@ async fn no_line_number() {
         "                                                   "
         "                                                   "
         "                                                   "
-        "scratch:3:1                                        "
+        "buffer://scratch:3:1                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -79,7 +79,7 @@ async fn relative_line_number() {
         "   1 10                                            "
         "   2 11                                            "
         "   3 12                                            "
-        "scratch:9:1                                        "
+        "buffer://scratch:9:1                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -93,7 +93,7 @@ async fn relative_line_number() {
         "  10 10|                                           "
         "   1 11                                            "
         "   2 12                                            "
-        "scratch:10:2                                       "
+        "buffer://scratch:10:2                              "
         "-- INSERT --                                       "
     "#]])
         .await;

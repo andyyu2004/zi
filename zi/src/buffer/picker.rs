@@ -142,7 +142,7 @@ where
             nucleo,
             picker,
             dynamic_handler: None,
-            url: Url::parse("buffer://zi/picker").unwrap(),
+            url: Url::parse("buffer://picker").unwrap(),
             config: Default::default(),
             text: Default::default(),
             keymap: {
@@ -250,9 +250,9 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         panic!("picker buffer has no backing file")
     }
 
-    fn path(&self) -> &Path {
-        Path::new("picker")
-    }
+    // fn path(&self) -> &Path {
+    //     Path::new("picker")
+    // }
 
     fn url(&self) -> &Url {
         &self.url

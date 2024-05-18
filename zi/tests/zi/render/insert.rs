@@ -9,7 +9,7 @@ async fn insert_newline_in_blank_buffer() {
         "   1 |    "
         "          "
         "          "
-        "scratch:1:"
+        "buffer://s"
         "-- INSERT "
     "#]])
         .await;
@@ -20,7 +20,7 @@ async fn insert_newline_in_blank_buffer() {
         "   1      "
         "   2 |    "
         "          "
-        "scratch:2:"
+        "buffer://s"
         "-- INSERT "
     "#]])
         .await;

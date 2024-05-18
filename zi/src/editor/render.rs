@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
@@ -35,13 +36,14 @@ impl Editor {
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
         let (view, buf) = get_ref!(self);
+        let path = buf.path();
+        let path = path.as_ref().map(|p| p.display());
+        let display = path
+            .as_ref()
+            .map_or_else(|| buf.url() as &dyn fmt::Display, |p| p as &dyn fmt::Display);
+
         let mut status_spans = vec![tui::Span::styled(
-            format!(
-                "{}:{}:{} ",
-                buf.path().display(),
-                view.cursor().line() + 1_usize,
-                view.cursor().col()
-            ),
+            format!("{}:{}:{} ", display, view.cursor().line() + 1_usize, view.cursor().col()),
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),

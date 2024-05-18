@@ -6,7 +6,6 @@ use crate::editor::Active;
 pub struct InspectorBuffer {
     id: BufferId,
     text: String,
-    path: PathBuf,
     url: Url,
     config: Config,
 }
@@ -15,8 +14,7 @@ impl InspectorBuffer {
     pub fn new(id: BufferId) -> Self {
         Self {
             id,
-            path: PathBuf::from("inspector"),
-            url: Url::parse("buffer://zi/inspector").unwrap(),
+            url: Url::parse("buffer://inspector").unwrap(),
             config: Default::default(),
             text: Default::default(),
         }
@@ -34,10 +32,6 @@ impl Buffer for InspectorBuffer {
 
     fn flushed(&mut self, _: Internal) {
         panic!("inspector buffer has no backing file")
-    }
-
-    fn path(&self) -> &Path {
-        &self.path
     }
 
     fn url(&self) -> &Url {

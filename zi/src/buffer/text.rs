@@ -9,7 +9,6 @@ use crate::undo::UndoTree;
 pub struct TextBuffer<X> {
     id: BufferId,
     flags: BufferFlags,
-    path: PathBuf,
     /// The resource url of this buffer
     url: Url,
     /// The url of the file (effectively a cached copy of `Url::from_file_path(&self.path)`)
@@ -92,11 +91,6 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     #[inline]
     fn flushed(&mut self, _: Internal) {
         self.flags.remove(BufferFlags::DIRTY);
-    }
-
-    #[inline]
-    fn path(&self) -> &Path {
-        &self.path
     }
 
     #[inline]
@@ -234,7 +228,7 @@ impl<X: Text + Clone> TextBuffer<X> {
 
         let url = file_url.as_ref().map_or_else(
             // maybe there's another reason a buffer wouldn't have a url?
-            || Url::parse("buffer://zi/scratch").unwrap(),
+            || Url::parse("buffer://scratch").unwrap(),
             |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
         );
 
@@ -263,7 +257,6 @@ impl<X: Text + Clone> TextBuffer<X> {
         Self {
             id,
             flags,
-            path,
             url,
             file_url,
             text,

@@ -60,6 +60,11 @@ impl TestContext {
         Ok(path)
     }
 
+    pub async fn open(&self, content: &str, flags: zi::OpenFlags) -> zi::Result<zi::BufferId> {
+        let path = self.tempfile(content)?;
+        Ok(self.with(move |editor| editor.open(path, flags)).await?)
+    }
+
     pub async fn setup_lang_server<St: Send + Clone + 'static>(
         &self,
         ft: zi::FileType,
@@ -87,12 +92,12 @@ impl TestContext {
     }
 }
 
-pub async fn new_cx_with_size(size: impl Into<zi::Size>, content: &str) -> TestContext {
+pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) -> TestContext {
     let size = size.into();
     let (mut editor, tasks) = zi::Editor::new(size);
     editor.set_mode(zi::Mode::Insert);
-    editor.edit(zi::Active, &zi::Deltas::insert_at(0, content));
-    editor.set_cursor(zi::Active, content.len());
+    editor.edit(zi::Active, &zi::Deltas::insert_at(0, scratch_content));
+    editor.set_cursor(zi::Active, scratch_content.len());
 
     let client = editor.client();
     tokio::spawn(async move {
@@ -102,8 +107,8 @@ pub async fn new_cx_with_size(size: impl Into<zi::Size>, content: &str) -> TestC
     TestContext { client, size }
 }
 
-pub async fn new_cx(content: &str) -> TestContext {
-    new_cx_with_size(zi::Size::new(80, 12), content).await
+pub async fn new_cx(scratch_content: &str) -> TestContext {
+    new_cx_with_size(zi::Size::new(80, 12), scratch_content).await
 }
 
 /// Copied from ratatui's `buffer_view`, but draws the cursor too.

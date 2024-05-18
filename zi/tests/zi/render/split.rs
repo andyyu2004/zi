@@ -24,7 +24,7 @@ async fn view_only() {
         "   4 |                                             "
         "                                                   "
         "                                                   "
-        "scratch:4:0                                        "
+        "buffer://scratch:4:0                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -47,7 +47,7 @@ async fn close_view() {
         "   4 |                                             "
         "                                                   "
         "                                                   "
-        "scratch:4:0                                        "
+        "buffer://scratch:4:0                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -65,7 +65,7 @@ async fn close_view() {
         "   4                         1 1                   "
         "                             2 2                   "
         "                             3 3                   "
-        "scratch:4:0                    |                   "
+        "buffer://scratch:4:0           |                   "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -78,7 +78,7 @@ async fn close_view() {
         "   4                         4 |                   "
         "                                                   "
         "                                                   "
-        "scratch:4:0                                        "
+        "buffer://scratch:4:0                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -96,7 +96,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
         "   4                         4 |                   "
         "                                                   "
         "                                                   "
-        "scratch:4:0                                        "
+        "buffer://scratch:4:0                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -109,7 +109,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
         "   4                                               "
         "                                                   "
         "                                                   "
-        "scratch:4:0                                        "
+        "buffer://scratch:4:0                               "
         "-- INSERT --                                       "
     "#]])
         .await;
@@ -129,7 +129,7 @@ async fn split() -> io::Result<()> {
         "   1 abc|                                         "
         "                                                  "
         "                                                  "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -143,7 +143,7 @@ async fn split() -> io::Result<()> {
         "                                                  "
         "                                                  "
         "                                                  "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -156,7 +156,7 @@ async fn split() -> io::Result<()> {
         "                                                  "
         "                                                  "
         "                                                  "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -169,7 +169,7 @@ async fn split() -> io::Result<()> {
         "                                    1 abc|        "
         "                                                  "
         "                                                  "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -182,7 +182,7 @@ async fn split() -> io::Result<()> {
         "                                    1 abc|   1 abc"
         "                                                  "
         "                                                  "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -195,7 +195,7 @@ async fn split() -> io::Result<()> {
         "                                    1 abc|   1 abc"
         "                                                  "
         "                                    1 abc         "
-        "scratch:1:3                                       "
+        "buffer://scratch:1:3                              "
         "-- INSERT --                                      "
     "#]])
         .await;
@@ -223,7 +223,7 @@ async fn more_splits() {
         "             1 abc  "
         "   1 abc|           "
         "                    "
-        "scratch:1:3         "
+        "buffer://scratch:1:3"
         "-- INSERT --        "
     "#]])
         .await;
@@ -247,7 +247,7 @@ async fn test_directional_focus() {
         "                        "
         "                        "
         "                        "
-        "scratch:1:3             "
+        "buffer://scratch:1:3    "
         "-- INSERT --            "
     "#]])
         .await;
@@ -259,7 +259,7 @@ async fn test_directional_focus() {
         "                        "
         "                        "
         "                        "
-        "scratch:1:3             "
+        "buffer://scratch:1:3    "
         "-- INSERT --            "
     "#]])
         .await;
@@ -270,7 +270,7 @@ async fn test_directional_focus() {
         "                        "
         "   1 abc|               "
         "                        "
-        "scratch:1:3             "
+        "buffer://scratch:1:3    "
         "-- INSERT --            "
     "#]])
         .await;
@@ -282,7 +282,7 @@ async fn test_directional_focus() {
         "                        "
         "   1 abc                "
         "                        "
-        "scratch:1:3             "
+        "buffer://scratch:1:3    "
         "-- INSERT --            "
     "#]])
         .await;
@@ -305,7 +305,7 @@ async fn test_directional_focus_propagation() {
         "                                "
         "                   1 ab    1 ab|"
         "                                "
-        "scratch:1:2                     "
+        "buffer://scratch:1:2            "
         "-- INSERT --                    "
     "#]])
         .await;
@@ -317,7 +317,7 @@ async fn test_directional_focus_propagation() {
         "                                "
         "                   1 ab|   1 ab "
         "                                "
-        "scratch:1:2                     "
+        "buffer://scratch:1:2            "
         "-- INSERT --                    "
     "#]])
         .await;
@@ -330,7 +330,7 @@ async fn test_directional_focus_propagation() {
         "                                "
         "                   1 ab    1 ab "
         "                                "
-        "scratch:1:2                     "
+        "buffer://scratch:1:2            "
         "-- INSERT --                    "
     "#]])
         .await;

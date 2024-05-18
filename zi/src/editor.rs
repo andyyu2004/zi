@@ -419,7 +419,9 @@ impl Editor {
 
         let ft = FileType::detect(&path);
 
-        let buf = if let Some(buf) = self.buffers.values().find(|b| b.path() == path) {
+        let buf = if let Some(buf) = self.buffers.values().find(|b| {
+            b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(path.as_ref())
+        }) {
             let id = buf.id();
             // If the buffer is already open, we can reuse it.
             // There is an exception where the buffer is already open as a readonly buffer
@@ -1400,7 +1402,9 @@ impl Editor {
 
         let buffer = &self[buf];
         let flags = buffer.flags();
-        let path = buffer.path().to_path_buf();
+        let url = buffer.url().clone();
+        let path = buffer.file_url().and_then(|url| url.to_file_path().ok());
+        self[buf].snapshot(SnapshotFlags::empty());
 
         let client = self.client();
         async move {
@@ -1408,6 +1412,14 @@ impl Editor {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
             }
+
+            let Some(path) = path else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("buffer `{url}` is not backed by a file"),
+                )
+                .into());
+            };
 
             event::dispatch_async(&client, event::WillSaveBuffer { buf }).await?;
 
@@ -1730,7 +1742,7 @@ impl Editor {
             "jumps",
             move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
-                    let path = editor.buffer(loc.buf).path().to_path_buf();
+                    let Some(path) = editor.buffer(loc.buf).path() else { continue };
                     if let Err(()) = injector.push(Jump { path, buf: loc.buf, point: loc.point }) {
                         break;
                     }

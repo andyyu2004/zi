@@ -121,9 +121,8 @@ pub trait Buffer: Send {
 
     fn flags(&self) -> BufferFlags;
 
-    fn path(&self) -> &Path;
-
     fn url(&self) -> &Url;
+
 
     fn file_url(&self) -> Option<&Url>;
 
@@ -136,6 +135,11 @@ pub trait Buffer: Send {
     fn version(&self) -> u32;
 
     fn as_any(&self) -> &dyn Any;
+
+    /// The path of the buffer, if it is backed by a file. This is derived from `file_url`
+    fn path(&self) -> Option<PathBuf> {
+        self.file_url().and_then(|url| url.to_file_path().ok())
+    }
 
     #[doc(hidden)]
     fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any;
@@ -268,7 +272,7 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn path(&self) -> &Path {
+    fn path(&self) -> Option<PathBuf> {
         self.as_ref().path()
     }
 
