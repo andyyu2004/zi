@@ -30,6 +30,9 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
         // Nothing to undo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
 
+        // Snapshot any pending changes before undoing
+        self.snapshot(SnapshotFlags::empty());
+
         tracing::debug!("undo: {:#?}", self.undo_tree);
 
         let entry = self.undo_tree.undo().cloned()?;
@@ -43,6 +46,8 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
     fn redo(&mut self) -> Option<UndoEntry> {
         // Nothing to redo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
+
+        self.snapshot(SnapshotFlags::empty());
 
         tracing::debug!("redo: {:#?}", self.undo_tree);
 

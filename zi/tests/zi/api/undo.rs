@@ -46,6 +46,22 @@ fn undo_dwdwdd() {
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
 }
 
+#[test]
+fn undo_uncommited_changes() {
+    let mut editor = new("");
+    editor.set_mode(zi::Mode::Insert);
+    editor.insert(zi::Active, "ab");
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab\n");
+
+    // These changes usually won't be committed to the undo history until we exit insert mode.
+    // However, calling undo should commit them, then undo them.
+    editor.undo(zi::Active);
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+
+    editor.redo(zi::Active);
+    assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab\n");
+}
+
 #[tokio::test]
 async fn undo_marks_buffer_dirty() -> zi::Result<()> {
     let is_dirty =
