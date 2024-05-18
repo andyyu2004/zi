@@ -8,10 +8,8 @@ use std::sync::OnceLock;
 use rustc_hash::FxHashMap;
 
 pub use self::events::*;
-use self::handler::{
-    async_handler, handler, AsyncEventHandler, ErasedAsyncEventHandler, ErasedEventHandler,
-    EventHandler,
-};
+pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler, EventHandler};
+use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
 use crate::{Client, Editor, Result};
 
 #[derive(Default)]
