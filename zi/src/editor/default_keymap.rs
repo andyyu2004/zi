@@ -56,7 +56,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn goto_definition(editor: &mut Editor) {
-        editor.goto_definition();
+        editor.goto_definition(Active);
     }
 
     fn goto_start(editor: &mut Editor) {

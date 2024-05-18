@@ -1291,15 +1291,20 @@ impl Editor {
         self.buffer_mut(Active).clear_undo()
     }
 
-    pub(crate) fn goto_definition(&mut self) {
-        for server_id in active_servers_of!(self, Active) {
+    pub(crate) fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        self.goto_definition_(view)
+    }
+
+    fn goto_definition_(&mut self, view: ViewId) {
+        for server_id in active_servers_of!(self, view) {
             let server = self.active_language_servers.get_mut(server_id).unwrap();
             match &server.capabilities.definition_provider {
                 Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => (),
                 _ => continue,
             }
 
-            let (view, buf) = get!(self);
+            let (view, buf) = get!(self: view);
             let pos = view.cursor();
 
             if let Some(uri) = buf.file_url() {
