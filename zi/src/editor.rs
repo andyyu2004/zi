@@ -1323,7 +1323,7 @@ impl Editor {
         self.buffer_mut(Active).clear_undo()
     }
 
-    pub(crate) fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
+    pub fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
         let view = selector.select(self);
         self.goto_definition_(view)
     }

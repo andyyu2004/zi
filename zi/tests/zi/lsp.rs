@@ -1,6 +1,7 @@
 use super::*;
 
 mod change;
+mod definition;
 mod encoding;
 mod fake;
 mod format;
