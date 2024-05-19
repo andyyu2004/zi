@@ -42,8 +42,8 @@ use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
-    Buffer, BufferFlags, Change, EditFlags, ExplorerBuffer, Injector, InspectorBuffer,
-    PickerBuffer, SnapshotFlags, TextBuffer, UndoEntry,
+    Buffer, BufferFlags, EditFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer,
+    SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};

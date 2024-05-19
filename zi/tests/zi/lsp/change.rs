@@ -30,6 +30,35 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     let cx = new_cx("").await;
     let bomb = DropBomb::new("did_change should be called");
 
+    let expected_events = ExpectedSequence::new([
+        vec![lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "dbc\n".to_string(),
+        }],
+        // should probably try and merge some of these events into 1
+        vec![lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "abc\n".to_string(),
+        }],
+        vec![lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "abc".to_string(),
+        }],
+        vec![lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "abc\n".to_string(),
+        }],
+        vec![lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "dbc\n".to_string(),
+        }],
+    ]);
+
     cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(|_, _| async {
@@ -45,14 +74,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
             })
             .notification::<notification::DidChangeTextDocument>(move |_st, params| {
                 bomb.defuse();
-                assert_eq!(
-                    params.content_changes,
-                    vec![lsp_types::TextDocumentContentChangeEvent {
-                        range: None,
-                        range_length: None,
-                        text: "dbc\n".to_string(),
-                    }]
-                );
+                expected_events.assert_eq(&params.content_changes);
                 Ok(())
             })
     })
@@ -70,6 +92,10 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     let deltas = zi::lsp::from_proto::deltas(text, edits);
     let buf = cx.open(text, zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
     cx.with(move |editor| editor.edit(buf, &deltas)).await;
+
+    assert!(cx.with(move |editor| editor.undo(buf)).await);
+
+    assert!(cx.with(move |editor| editor.redo(buf)).await);
 
     Ok(())
 }
