@@ -32,31 +32,15 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
 
         // Snapshot any pending changes before undoing
         self.snapshot(SnapshotFlags::empty());
-
-        tracing::debug!("undo: {:#?}", self.undo_tree);
-
-        let entry = self.undo_tree.undo().cloned()?;
-        for change in entry.changes.iter().rev() {
-            self.edit(&change.inversion, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
-        }
-
-        Some(entry)
+        self.undo_tree.undo().cloned()
     }
 
     fn redo(&mut self) -> Option<UndoEntry> {
         // Nothing to redo if the buffer is readonly
         let _text = self.text.as_text_mut()?;
-
+        // Snapshot any pending changes before redoing
         self.snapshot(SnapshotFlags::empty());
-
-        tracing::debug!("redo: {:#?}", self.undo_tree);
-
-        let entry = self.undo_tree.redo().cloned()?;
-        for change in entry.changes.iter() {
-            self.edit(&change.deltas, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
-        }
-
-        Some(entry)
+        self.undo_tree.redo().cloned()
     }
 
     fn clear(&mut self) {
@@ -128,8 +112,8 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         self.syntax.as_ref()
     }
 
-    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
-        self.edit(deltas, EditFlags::empty());
+    fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, flags: EditFlags) {
+        self.edit(deltas, flags);
     }
 
     fn version(&self) -> u32 {
@@ -204,16 +188,6 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
 
     fn as_any_mut(&mut self, _: Internal) -> &mut dyn Any {
         self
-    }
-}
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy)]
-    struct EditFlags: u8 {
-        /// Do not record this change in the undo tree.
-        const NO_RECORD = 1 << 0;
-        /// Ensure the buffer ends with a newline before any insert.
-        const NO_ENSURE_NEWLINE = 1 << 1;
     }
 }
 
@@ -311,7 +285,7 @@ impl<X: Text + Clone> TextBuffer<X> {
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {
-                    self.changes.push(Change { deltas: deltas.to_owned(), inversion });
+                    self.changes.push(Change { deltas: deltas.to_owned(), inversions: inversion });
                 }
 
                 self.version.checked_add(1).unwrap();

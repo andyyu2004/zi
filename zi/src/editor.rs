@@ -42,8 +42,8 @@ use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
-    Buffer, BufferFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer, SnapshotFlags,
-    TextBuffer, UndoEntry,
+    Buffer, BufferFlags, Change, EditFlags, ExplorerBuffer, Injector, InspectorBuffer,
+    PickerBuffer, SnapshotFlags, TextBuffer, UndoEntry,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
@@ -984,6 +984,15 @@ impl Editor {
     }
 
     pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
+        self.edit_flags(selector, deltas, EditFlags::empty())
+    }
+
+    fn edit_flags(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        deltas: &Deltas<'_>,
+        flags: EditFlags,
+    ) {
         let buf = selector.select(self);
         // // Don't care if we're actually in insert mode, that's more a key binding namespace.
         // let (view, buf) = get!(self: view_id);
@@ -994,7 +1003,7 @@ impl Editor {
             return;
         }
 
-        buf.edit(Internal(()), deltas);
+        buf.edit_flags(Internal(()), deltas, flags);
         let buf = buf.id();
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
@@ -1249,20 +1258,36 @@ impl Editor {
     }
 
     pub fn redo(&mut self, selector: impl Selector<BufferId>) -> bool {
-        self.undoredo(selector, |buf| buf.redo())
+        self.undoredo(selector, false)
     }
 
     pub fn undo(&mut self, selector: impl Selector<BufferId>) -> bool {
-        self.undoredo(selector, |buf| buf.undo())
+        self.undoredo(selector, true)
     }
 
-    fn undoredo(
-        &mut self,
-        selector: impl Selector<BufferId>,
-        f: impl FnOnce(&mut dyn Buffer) -> Option<UndoEntry>,
-    ) -> bool {
+    fn undoredo(&mut self, selector: impl Selector<BufferId>, undo: bool) -> bool {
         let buf = selector.select(self);
-        let Some(entry) = f(&mut self[buf]) else { return false };
+        let Some(entry) = (if undo { self[buf].undo() } else { self[buf].redo() }) else {
+            return false;
+        };
+
+        if undo {
+            for change in entry.changes.iter().rev() {
+                self.edit_flags(
+                    buf,
+                    &change.inversions,
+                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
+                );
+            }
+        } else {
+            for change in &entry.changes[..] {
+                self.edit_flags(
+                    buf,
+                    &change.deltas,
+                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
+                );
+            }
+        }
 
         let cursor = match (entry.cursor, entry.changes.first()) {
             (Some(cursor), _) => cursor.into(),
@@ -1286,7 +1311,6 @@ impl Editor {
             };
         }
 
-        self.dispatch(event::DidChangeBuffer { buf });
         true
     }
 

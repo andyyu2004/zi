@@ -122,7 +122,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         self
     }
 
-    fn edit(&mut self, _: Internal, _deltas: &Deltas<'_>) {
+    fn edit_flags(&mut self, _: Internal, _deltas: &Deltas<'_>, _flags: EditFlags) {
         unreachable!("explorer buffer is read-only")
     }
 

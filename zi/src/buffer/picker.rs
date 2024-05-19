@@ -278,7 +278,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         0
     }
 
-    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
+    fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, _flags: EditFlags) {
         self.text.edit(deltas);
 
         tracing::debug!(%self.text, "update picker search pattern");

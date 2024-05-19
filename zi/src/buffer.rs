@@ -47,6 +47,14 @@ bitflags::bitflags! {
     pub struct SnapshotFlags: u8 {
         const ALLOW_EMPTY = 1 << 0;
     }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct EditFlags: u8 {
+        /// Do not record this change in the undo tree.
+        const NO_RECORD = 1 << 0;
+        /// Ensure the buffer ends with a newline before any insert.
+        const NO_ENSURE_NEWLINE = 1 << 1;
+    }
 }
 
 /// Buffer local configuration
@@ -101,12 +109,14 @@ pub struct Change {
     /// The deltas that were applied
     pub deltas: Deltas<'static>,
     /// The deltas that can be applied to undo the operation
-    pub inversion: Deltas<'static>,
+    pub inversions: Deltas<'static>,
 }
 
 pub trait BufferHistory {
+    /// Return the next undo entry (without applying it)
     fn undo(&mut self) -> Option<UndoEntry>;
 
+    /// Return the next redo entry (without applying it)
     fn redo(&mut self) -> Option<UndoEntry>;
 
     fn clear(&mut self);
@@ -150,7 +160,11 @@ pub trait Buffer: Send {
 
     /// Edit the buffer with a delta.
     #[doc(hidden)]
-    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>);
+    fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, flags: EditFlags);
+
+    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
+        self.edit_flags(Internal(()), deltas, EditFlags::empty());
+    }
 
     /// `flushed` is called after the current text has been successfully written to disk.
     /// The implementation should update the buffer's state to reflect this.
@@ -321,8 +335,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn edit(&mut self, internal: Internal, deltas: &Deltas<'_>) {
-        self.as_mut().edit(internal, deltas)
+    fn edit_flags(&mut self, internal: Internal, deltas: &Deltas<'_>, flags: EditFlags) {
+        self.as_mut().edit_flags(internal, deltas, flags)
     }
 
     #[inline]
