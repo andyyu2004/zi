@@ -6,6 +6,26 @@ use stdx::range::RangeExt;
 
 use super::Text;
 
+#[macro_export]
+macro_rules! delta {
+    ($start:literal..$end:literal => $text:expr) => {
+        $crate::Delta::new($start..$end, $text)
+    };
+}
+
+#[macro_export]
+macro_rules! deltas {
+    ($(
+        $start:literal..$end:literal => $text:expr
+    ),* $(,)?) => {
+        $crate::Deltas::new([
+            $(
+                $crate::delta!($start..$end => $text),
+            )*
+        ])
+    };
+}
+
 // A set of text deltas to apply to a document.
 // This has the same semantics as the lsp `TextEdit[]`.
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textEditArray

@@ -1,4 +1,5 @@
 use stdx::bomb::DropBomb;
+use zi_text::deltas;
 
 use super::*;
 
@@ -122,12 +123,18 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
         editor.edit(buf, &zi::Deltas::insert_at(0, "abc"));
         editor.edit(
             buf,
-            &zi::Deltas::new([zi::Delta::insert_at(3, "d"), zi::Delta::insert_at(4, "e")]),
+            &deltas![
+                3..3 => "d",
+                4..4 => "e",
+            ],
         );
 
         editor.edit(
             buf,
-            &zi::Deltas::new([zi::Delta::insert_at(0, "©"), zi::Delta::insert_at(2, "z")]),
+            &deltas![
+                0..0 => "©",
+                2..2 => "z",
+            ],
         )
     })
     .await;

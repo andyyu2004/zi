@@ -20,7 +20,7 @@ fn mut_impls<'a>(s: &'a str) -> [Box<dyn AnyTextMut + 'a>; 2] {
 #[test]
 fn text_edit() {
     for mut imp in mut_impls("abc") {
-        imp.edit(&Deltas::new([Delta::new(0..0, "x")]));
+        imp.edit(&deltas!(0..0 => "x"));
         assert_eq!(imp.to_string(), "xabc");
     }
 }
