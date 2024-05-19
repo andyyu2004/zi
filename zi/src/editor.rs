@@ -31,7 +31,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
-use zi_lsp::lsp_types;
+use zi_lsp::{lsp_types, PositionEncoding};
 use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
@@ -50,7 +50,7 @@ use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, to_proto, Conv, LanguageServer};
+use crate::lsp::{self, from_proto, to_proto, LanguageServer};
 use crate::plugin::Plugins;
 use crate::private::{Internal, Sealed};
 use crate::syntax::{HighlightId, Theme};
@@ -1358,9 +1358,9 @@ impl Editor {
                 self.callback(
                     "go to definition request",
                     async move { Ok(fut.await?) },
-                    |editor, res| {
+                    move |editor, res| {
                         tracing::debug!(?res, "lsp definition response");
-                        editor.jump_to_definition(res)?;
+                        editor.jump_to_definition(encoding, res)?;
                         Ok(())
                     },
                 );
@@ -1401,14 +1401,13 @@ impl Editor {
                         Ok((res, server))
                     },
                     move |editor, (res, mut server)| {
-                        tracing::debug!("lsp initialized");
                         server.initialized(lsp_types::InitializedParams {})?;
 
+                        let server = LanguageServer::new(res.capabilities, server);
+                        tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
+
                         assert!(
-                            editor
-                                .active_language_servers
-                                .insert(server_id, LanguageServer::new(res.capabilities, server))
-                                .is_none(),
+                            editor.active_language_servers.insert(server_id, server).is_none(),
                             "inserted duplicate language server"
                         );
 
@@ -1600,6 +1599,7 @@ impl Editor {
 
     fn jump_to_definition(
         &mut self,
+        encoding: PositionEncoding,
         res: Option<lsp_types::GotoDefinitionResponse>,
     ) -> Result<(), Error> {
         let locations = match res {
@@ -1614,7 +1614,7 @@ impl Editor {
 
         match &locations[..] {
             [] => (),
-            [location] => self.jump_to_location(location)?,
+            [location] => self.lsp_jump_to_location(encoding, location)?,
             _ => {
                 tracing::warn!("multiple definitions not supported yet");
             }
@@ -1703,15 +1703,21 @@ impl Editor {
         self.search_state.matches().iter()
     }
 
-    fn jump_to_location(&mut self, location: &lsp_types::Location) -> Result<(), Error> {
+    fn lsp_jump_to_location(
+        &mut self,
+        encoding: PositionEncoding,
+        location: &lsp_types::Location,
+    ) -> Result<(), Error> {
         let path = location
             .uri
             .to_file_path()
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
         let from = self.current_location();
-        let buf_id = self.open_active(path)?;
-        self.jump(from, Location::new(buf_id, location.range.start.conv()));
+        let buf = self.open_active(path)?;
+        let text = self[buf].text();
+        let point = from_proto::point(encoding, text, location.range.start);
+        self.jump(from, Location::new(buf, point));
 
         Ok(())
     }

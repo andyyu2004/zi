@@ -21,7 +21,7 @@ impl Editor {
                                         Some(
                                             lsp_types::OneOf::Left(true)
                                             | lsp_types::OneOf::Right(_),
-                                        ) => Some(server.formatting(
+                                        ) => Some((server.position_encoding(),server.formatting(
                                             lsp_types::DocumentFormattingParams {
                                                 text_document: lsp_types::TextDocumentIdentifier {
                                                     uri: uri.clone(),
@@ -37,7 +37,7 @@ impl Editor {
                                                 work_done_progress_params:
                                                     lsp_types::WorkDoneProgressParams::default(),
                                             },
-                                        )),
+                                        ))),
                                         _ => None,
                                     }
                                 })
@@ -49,13 +49,13 @@ impl Editor {
                 })
                 .await;
 
-            if let Some(fut) = format_fut {
+            if let Some((encoding, fut)) = format_fut {
                 if let Some(edits) = fut.await? {
                     client
                         .request(move |editor| {
                             let buf = &editor[event.buf];
                             let text = buf.text();
-                            let deltas = lsp::from_proto::deltas(text, edits);
+                            let deltas = lsp::from_proto::deltas(encoding, text, edits);
 
                             if buf.version() == version {
                                 editor.edit(event.buf, &deltas);

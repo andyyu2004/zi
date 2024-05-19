@@ -47,6 +47,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
             .request::<request::Initialize, _>(|_, _| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
+                        position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
                         text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
                             lsp_types::TextDocumentSyncKind::FULL,
                         )),
@@ -72,7 +73,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     }];
 
     let text = "abc";
-    let deltas = zi::lsp::from_proto::deltas(text, edits);
+    let deltas = zi::lsp::from_proto::deltas(zi_lsp::PositionEncoding::Utf8, text, edits);
     let buf = cx.open(text, zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
     cx.with(move |editor| editor.edit(buf, &deltas)).await;
 

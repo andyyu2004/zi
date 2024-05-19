@@ -6,12 +6,6 @@ pub mod to_proto;
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
 
-pub(crate) trait Conv {
-    type Converted;
-
-    fn conv(self) -> Self::Converted;
-}
-
 use futures_core::future::BoxFuture;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
@@ -218,6 +212,7 @@ pub(crate) struct LanguageServer {
     // Storing this odd type to allow for a test implementation.
     // The `DerefMut` is useful to make it easy to defer the actual server implementation to an inner type.
     server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+    position_encoding: PositionEncoding,
 }
 
 impl LanguageServer {
@@ -225,11 +220,7 @@ impl LanguageServer {
         capabilities: lsp_types::ServerCapabilities,
         server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
     ) -> Self {
-        Self { capabilities, server }
-    }
-
-    pub(crate) fn position_encoding(&self) -> PositionEncoding {
-        match &self.capabilities.position_encoding {
+        let position_encoding = match &capabilities.position_encoding {
             Some(encoding) => match encoding {
                 enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
                 enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
@@ -238,8 +229,17 @@ impl LanguageServer {
                     PositionEncoding::default()
                 }
             },
-            None => PositionEncoding::default(),
-        }
+            None => {
+                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
+                PositionEncoding::default()
+            }
+        };
+
+        Self { capabilities, server, position_encoding }
+    }
+
+    pub(crate) fn position_encoding(&self) -> PositionEncoding {
+        self.position_encoding
     }
 }
 
