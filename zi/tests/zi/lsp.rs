@@ -36,6 +36,13 @@ impl<T> ExpectedSequence<T> {
     }
 }
 
+impl<T> Drop for ExpectedSequence<T> {
+    fn drop(&mut self) {
+        let idx = self.idx.load(atomic::Ordering::Relaxed);
+        assert_eq!(idx, self.xs.len(), "ExpectedSequence: not all expected events were received");
+    }
+}
+
 macro_rules! lsp_pos {
     ($line:literal:$character:literal) => {
         lsp_types::Position { line: $line, character: $character }

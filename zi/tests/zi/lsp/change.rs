@@ -86,28 +86,17 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
 
     lsp_range!(0:0..0:0);
 
+    // It may look like the events are out of order, but that's due to the way zi sorts deltas.
+    // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
     let expected_events = ExpectedSequence::new([
         vec![lsp_change_event!(0:0..0:0 => "abc")],
-        vec![
-            lsp_change_event!(0:3..0:3 => "d"),
-            // FIXME should be 5
-            lsp_change_event!(0:4..0:4 => "e"),
-        ],
+        vec![lsp_change_event!(0:4..0:4 => "e"), lsp_change_event!(0:3..0:3 => "d")],
+        vec![lsp_change_event!(0:2..0:2 => "z"), lsp_change_event!(0:0..0:0 => "©")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", String::new(), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, params| async {
-                assert!(
-                    params
-                        .capabilities
-                        .general
-                        .unwrap()
-                        .position_encodings
-                        .unwrap()
-                        .contains(&lsp_types::PositionEncodingKind::UTF8),
-                );
-
+            .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
@@ -119,7 +108,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .notification::<notification::DidChangeTextDocument>(move |_st, params| {
+            .notification::<notification::DidChangeTextDocument>(move |_, params| {
                 expected_events.assert_eq(&params.content_changes);
                 Ok(())
             })
@@ -127,10 +116,18 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     .await;
 
     let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
-    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
 
     cx.with(move |editor| {
-        editor.edit(buf, &zi::Deltas::new([zi::Delta::new(3..3, "d"), zi::Delta::new(4..4, "e")]))
+        editor.edit(buf, &zi::Deltas::insert_at(0, "abc"));
+        editor.edit(
+            buf,
+            &zi::Deltas::new([zi::Delta::insert_at(3, "d"), zi::Delta::insert_at(4, "e")]),
+        );
+
+        editor.edit(
+            buf,
+            &zi::Deltas::new([zi::Delta::insert_at(0, "©"), zi::Delta::insert_at(2, "z")]),
+        )
     })
     .await;
 

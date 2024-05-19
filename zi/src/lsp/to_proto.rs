@@ -4,7 +4,8 @@ use zi_text::{Deltas, Text};
 
 // For some reason, LSP defines change events that are distinct from `TextEdit`s.
 // The former is applied serially, while the latter is applied "atomically".
-// Not sure why this distinction exists, but it's annoying.
+// However, since our deltas are ordered and disjoint, we can just return them in order and because
+// they don't interfere we're all good.
 pub fn deltas_to_events(
     encoding: PositionEncoding,
     old_text: impl Text,
