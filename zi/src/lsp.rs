@@ -16,7 +16,7 @@ use futures_core::future::BoxFuture;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
-use zi_lsp::{ErrorCode, OffsetEncoding, ResponseError, Result};
+use zi_lsp::{ErrorCode, PositionEncoding, ResponseError, Result};
 
 pub(crate) struct LanguageClient;
 
@@ -228,18 +228,18 @@ impl LanguageServer {
         Self { capabilities, server }
     }
 
-    pub(crate) fn offset_encoding(&self) -> OffsetEncoding {
+    pub(crate) fn position_encoding(&self) -> PositionEncoding {
         match &self.capabilities.position_encoding {
             Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => OffsetEncoding::Utf8,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => OffsetEncoding::Utf16,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF32 => OffsetEncoding::Utf32,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF32 => PositionEncoding::Utf32,
                 _ => {
                     tracing::warn!("server returned unknown position encoding: {encoding:?}",);
-                    OffsetEncoding::default()
+                    PositionEncoding::default()
                 }
             },
-            None => OffsetEncoding::default(),
+            None => PositionEncoding::default(),
         }
     }
 }
@@ -267,9 +267,10 @@ pub fn client_capabilities() -> ClientCapabilities {
         window: None,
         general: Some(lsp_types::GeneralClientCapabilities {
             position_encodings: Some(vec![
+                // There are in order of preference
                 lsp_types::PositionEncodingKind::UTF8,
-                lsp_types::PositionEncodingKind::UTF16,
                 lsp_types::PositionEncodingKind::UTF32,
+                lsp_types::PositionEncodingKind::UTF16,
             ]),
             ..Default::default()
         }),

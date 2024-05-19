@@ -19,8 +19,8 @@ use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum OffsetEncoding {
-    /// UTF-8 code units (bytes)
+pub enum PositionEncoding {
+    /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
     Utf8,
     /// UTF-32 code units (chars)
     Utf32,

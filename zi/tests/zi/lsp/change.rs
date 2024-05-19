@@ -99,3 +99,54 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn incremental_changes_utf8() -> zi::Result<()> {
+    let cx = new_cx("").await;
+
+    let expected_events =
+        ExpectedSequence::new([vec![lsp_types::TextDocumentContentChangeEvent {
+            range: Some(lsp_types::Range {
+                start: lsp_types::Position { line: 0, character: 0 },
+                end: lsp_types::Position { line: 0, character: 0 },
+            }),
+            text: "abc".to_string(),
+            range_length: None,
+        }]]);
+
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+        builder
+            .request::<request::Initialize, _>(move |_, params| async {
+                assert!(
+                    params
+                        .capabilities
+                        .general
+                        .unwrap()
+                        .position_encodings
+                        .unwrap()
+                        .contains(&lsp_types::PositionEncodingKind::UTF8),
+                );
+
+                Ok(lsp_types::InitializeResult {
+                    capabilities: lsp_types::ServerCapabilities {
+                        position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
+                        text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
+                            lsp_types::TextDocumentSyncKind::INCREMENTAL,
+                        )),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+            })
+            .notification::<notification::DidChangeTextDocument>(move |_st, params| {
+                expected_events.assert_eq(&params.content_changes);
+                Ok(())
+            })
+    })
+    .await;
+
+    let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
+
+    Ok(())
+}

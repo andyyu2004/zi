@@ -119,6 +119,8 @@ impl Editor {
                     return event::HandlerResult::Continue;
                 }
 
+                let encoding = server.position_encoding();
+
                 let kind = match &server.capabilities.text_document_sync {
                     Some(cap) => match cap {
                         lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
@@ -138,22 +140,25 @@ impl Editor {
                     version: buf.version() as i32,
                 };
 
-                if let Err(err) = match *kind {
-                    // TODO incremental
-                    lsp_types::TextDocumentSyncKind::INCREMENTAL
-                    | lsp_types::TextDocumentSyncKind::FULL => {
-                        server.did_change(lsp_types::DidChangeTextDocumentParams {
-                            text_document,
-                            content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
-                                range: None,
-                                range_length: None,
-                                text: buf.text().to_string(),
-                            }],
-                        })
+                let content_changes = match *kind {
+                    lsp_types::TextDocumentSyncKind::INCREMENTAL => {
+                        lsp::to_proto::deltas_to_events(encoding, buf.text(), &event.deltas)
+                    }
+                    lsp_types::TextDocumentSyncKind::FULL => {
+                        vec![lsp_types::TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text: buf.text().to_string(),
+                        }]
                     }
                     lsp_types::TextDocumentSyncKind::NONE => return event::HandlerResult::Continue,
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
-                } {
+                };
+
+                if let Err(err) = server.did_change(lsp_types::DidChangeTextDocumentParams {
+                    text_document,
+                    content_changes,
+                }) {
                     tracing::error!(?err, "lsp did_change notification failed")
                 }
             }

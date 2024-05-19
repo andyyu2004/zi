@@ -1336,7 +1336,7 @@ impl Editor {
 
             let (view, buf) = get!(self: view);
             let point = view.cursor();
-            let encoding = server.offset_encoding();
+            let encoding = server.position_encoding();
 
             if let Some(uri) = buf.file_url() {
                 tracing::debug!(%uri, %point, "lsp request definition");
