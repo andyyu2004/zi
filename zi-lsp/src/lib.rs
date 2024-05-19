@@ -18,6 +18,17 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OffsetEncoding {
+    /// UTF-8 code units (bytes)
+    Utf8,
+    /// UTF-32 code units (chars)
+    Utf32,
+    /// UTF-16 code units
+    #[default]
+    Utf16,
+}
+
 pub struct Server {
     // Storing child with `kill_on_drop` set so that it gets killed when this struct is dropped
     #[allow(dead_code)]

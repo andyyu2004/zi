@@ -4,22 +4,8 @@ use zi_core::PointRange;
 use zi_lsp::lsp_types;
 use zi_text::{Delta, Deltas, Text};
 
+use super::Conv;
 use crate::Point;
-
-pub(crate) trait Conv {
-    type Converted;
-
-    fn conv(self) -> Self::Converted;
-}
-
-impl Conv for Point {
-    type Converted = lsp_types::Position;
-
-    #[inline]
-    fn conv(self) -> Self::Converted {
-        lsp_types::Position { line: self.line() as u32, character: self.col() as u32 }
-    }
-}
 
 impl Conv for lsp_types::Position {
     type Converted = Point;

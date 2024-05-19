@@ -1,8 +1,10 @@
 use super::*;
 
 mod change;
+mod encoding;
 mod fake;
 mod format;
+
 use std::fmt;
 use std::sync::atomic::{self, AtomicUsize};
 

@@ -50,7 +50,7 @@ use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, Conv, LanguageServer};
+use crate::lsp::{self, to_proto, Conv, LanguageServer};
 use crate::plugin::Plugins;
 use crate::private::{Internal, Sealed};
 use crate::syntax::{HighlightId, Theme};
@@ -1003,6 +1003,7 @@ impl Editor {
             return;
         }
 
+        let old_text = dyn_clone::clone_box(buf.text());
         buf.edit_flags(Internal(()), deltas, flags);
         let buf = buf.id();
 
@@ -1012,7 +1013,7 @@ impl Editor {
             self.set_cursor_flags(view, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
         }
 
-        self.dispatch(event::DidChangeBuffer { buf });
+        self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: deltas.to_owned() });
     }
 
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
@@ -1334,14 +1335,15 @@ impl Editor {
             }
 
             let (view, buf) = get!(self: view);
-            let pos = view.cursor();
+            let point = view.cursor();
+            let encoding = server.offset_encoding();
 
             if let Some(uri) = buf.file_url() {
-                tracing::debug!(%uri, %pos, "lsp request definition");
+                tracing::debug!(%uri, %point, "lsp request definition");
                 let fut = server.definition(lsp_types::GotoDefinitionParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                        position: pos.conv(),
+                        position: to_proto::point(encoding, buf.text(), point),
                     },
                     work_done_progress_params: lsp_types::WorkDoneProgressParams {
                         work_done_token: None,

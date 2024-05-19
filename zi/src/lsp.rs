@@ -1,15 +1,22 @@
 #[doc(hidden)]
 pub mod from_proto;
+#[doc(hidden)]
+pub mod to_proto;
 
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
 
-pub(crate) use from_proto::Conv;
+pub(crate) trait Conv {
+    type Converted;
+
+    fn conv(self) -> Self::Converted;
+}
+
 use futures_core::future::BoxFuture;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
-use zi_lsp::{ErrorCode, ResponseError, Result};
+use zi_lsp::{ErrorCode, OffsetEncoding, ResponseError, Result};
 
 pub(crate) struct LanguageClient;
 
@@ -220,6 +227,21 @@ impl LanguageServer {
     ) -> Self {
         Self { capabilities, server }
     }
+
+    pub(crate) fn offset_encoding(&self) -> OffsetEncoding {
+        match &self.capabilities.position_encoding {
+            Some(encoding) => match encoding {
+                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => OffsetEncoding::Utf8,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => OffsetEncoding::Utf16,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF32 => OffsetEncoding::Utf32,
+                _ => {
+                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+                    OffsetEncoding::default()
+                }
+            },
+            None => OffsetEncoding::default(),
+        }
+    }
 }
 
 impl Deref for LanguageServer {
@@ -243,7 +265,14 @@ pub fn client_capabilities() -> ClientCapabilities {
         workspace: None,
         text_document: Some(lsp_types::TextDocumentClientCapabilities { ..Default::default() }),
         window: None,
-        general: None,
+        general: Some(lsp_types::GeneralClientCapabilities {
+            position_encodings: Some(vec![
+                lsp_types::PositionEncodingKind::UTF8,
+                lsp_types::PositionEncodingKind::UTF16,
+                lsp_types::PositionEncodingKind::UTF32,
+            ]),
+            ..Default::default()
+        }),
         experimental: None,
     }
 }
