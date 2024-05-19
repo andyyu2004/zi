@@ -64,6 +64,9 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     fn byte_to_line(&self, byte_idx: usize) -> usize;
     fn line_to_byte(&self, line_idx: usize) -> usize;
 
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize;
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize;
+
     fn get_char(&self, byte_idx: usize) -> Option<char>;
 
     fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
@@ -133,6 +136,16 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         (**self).byte_to_line(byte_idx)
+    }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        (**self).byte_to_utf16_cu(byte_idx)
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        (**self).utf16_cu_to_byte(cu_idx)
     }
 
     #[inline]
@@ -645,6 +658,16 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn len_lines(&self) -> usize {
         (**self).len_lines()
+    }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        (**self).byte_to_utf16_cu(byte_idx)
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        (**self).utf16_cu_to_byte(cu_idx)
     }
 
     #[inline]

@@ -30,4 +30,14 @@ impl TextBase for Cow<'_, str> {
     fn get_char(&self, byte_idx: usize) -> Option<char> {
         self.as_ref().get_char(byte_idx)
     }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self.as_ref().byte_to_utf16_cu(byte_idx)
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        self.as_ref().utf16_cu_to_byte(cu_idx)
+    }
 }

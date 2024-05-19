@@ -70,6 +70,16 @@ impl TextBase for crop::Rope {
     fn get_char(&self, byte_idx: usize) -> Option<char> {
         (*self).byte_slice(byte_idx..).chars().next()
     }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        self.byte_of_utf16_code_unit(cu_idx)
+    }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self.utf16_code_unit_of_byte(byte_idx)
+    }
 }
 
 impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
@@ -139,5 +149,15 @@ impl TextBase for crop::RopeSlice<'_> {
     #[inline]
     fn get_char(&self, byte_idx: usize) -> Option<char> {
         (*self).byte_slice(byte_idx..).chars().next()
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        self.byte_of_utf16_code_unit(cu_idx)
+    }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self.utf16_code_unit_of_byte(byte_idx)
     }
 }

@@ -38,8 +38,14 @@ impl<T> ExpectedSequence<T> {
 
 impl<T> Drop for ExpectedSequence<T> {
     fn drop(&mut self) {
-        let idx = self.idx.load(atomic::Ordering::Relaxed);
-        assert_eq!(idx, self.xs.len(), "ExpectedSequence: not all expected events were received");
+        if !std::thread::panicking() {
+            let idx = self.idx.load(atomic::Ordering::Relaxed);
+            assert_eq!(
+                idx,
+                self.xs.len(),
+                "ExpectedSequence: not all expected events were received"
+            );
+        }
     }
 }
 

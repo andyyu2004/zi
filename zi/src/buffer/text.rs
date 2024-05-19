@@ -278,10 +278,9 @@ impl<X: Text + Clone> TextBuffer<X> {
                     self.flags.insert(BufferFlags::DIRTY);
                 }
 
-                let (inversion, _prev_tree) = if let Some(syntax) = self.syntax.as_mut() {
-                    syntax.edit(text, deltas)
-                } else {
-                    (text.edit(deltas), None)
+                let (inversion, _prev_tree) = match self.syntax.as_mut() {
+                    Some(syntax) => syntax.edit(text, deltas),
+                    None => (text.edit(deltas), None),
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {

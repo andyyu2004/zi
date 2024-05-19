@@ -143,3 +143,49 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
+    let cx = new_cx("").await;
+
+    // It may look like the events are out of order, but that's due to the way zi sorts deltas.
+    // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
+    let expected_events = ExpectedSequence::new([
+        vec![lsp_change_event!(0:0..0:0 => "©")],
+        // This would be 0:2 if utf-8
+        vec![lsp_change_event!(0:1..0:1 => "z")],
+    ]);
+
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", String::new(), |builder| {
+        builder
+            .request::<request::Initialize, _>(move |_, _params| async {
+                Ok(lsp_types::InitializeResult {
+                    capabilities: lsp_types::ServerCapabilities {
+                        position_encoding: Some(lsp_types::PositionEncodingKind::UTF16),
+                        text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
+                            lsp_types::TextDocumentSyncKind::INCREMENTAL,
+                        )),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+            })
+            .notification::<notification::DidChangeTextDocument>(move |_, params| {
+                expected_events.assert_eq(&params.content_changes);
+                Ok(())
+            })
+    })
+    .await;
+
+    let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+
+    cx.with(move |editor| {
+        editor.edit(buf, &deltas![0..0 => "©"]);
+        editor.edit(buf, &deltas![2..2 => "z"]);
+    })
+    .await;
+
+    cx.cleanup().await;
+
+    Ok(())
+}

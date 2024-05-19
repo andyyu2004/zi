@@ -1037,6 +1037,7 @@ impl Editor {
     }
 
     // This and `cursor_char` won't make sense with visual mode
+    #[doc(hidden)]
     pub fn cursor_line(&self) -> String {
         let (view, buffer) = get_ref!(self);
         let cursor = view.cursor();
@@ -1045,6 +1046,7 @@ impl Editor {
         line.to_string()
     }
 
+    #[doc(hidden)]
     pub fn cursor_char(&self) -> Option<char> {
         let (view, _) = get_ref!(self);
         let cursor = view.cursor();
@@ -1343,7 +1345,7 @@ impl Editor {
                 let fut = server.definition(lsp_types::GotoDefinitionParams {
                     text_document_position_params: lsp_types::TextDocumentPositionParams {
                         text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                        position: to_proto::point(encoding, buf.text(), point),
+                        position: to_proto::point(encoding, &buf.text(), point),
                     },
                     work_done_progress_params: lsp_types::WorkDoneProgressParams {
                         work_done_token: None,

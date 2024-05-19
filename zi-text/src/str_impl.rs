@@ -129,6 +129,17 @@ impl TextBase for str {
 
         self[byte_idx..].chars().next()
     }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, _byte_idx: usize) -> usize {
+        // This is mostly used for LSP so probably won't need these string implementations
+        todo!()
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, _cu_idx: usize) -> usize {
+        todo!()
+    }
 }
 
 impl TextBase for String {
@@ -159,6 +170,16 @@ impl TextBase for String {
     #[inline]
     fn get_char(&self, byte_idx: usize) -> Option<char> {
         self.as_str().get_char(byte_idx)
+    }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self.as_str().byte_to_utf16_cu(byte_idx)
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        self.as_str().utf16_cu_to_byte(cu_idx)
     }
 }
 

@@ -233,7 +233,6 @@ impl LanguageServer {
             Some(encoding) => match encoding {
                 enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
                 enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF32 => PositionEncoding::Utf32,
                 _ => {
                     tracing::warn!("server returned unknown position encoding: {encoding:?}",);
                     PositionEncoding::default()
@@ -269,8 +268,8 @@ pub fn client_capabilities() -> ClientCapabilities {
             position_encodings: Some(vec![
                 // There are in order of preference
                 lsp_types::PositionEncodingKind::UTF8,
-                lsp_types::PositionEncodingKind::UTF32,
                 lsp_types::PositionEncodingKind::UTF16,
+                // No support for UTF32 yet
             ]),
             ..Default::default()
         }),

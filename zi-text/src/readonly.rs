@@ -131,4 +131,14 @@ impl<B: Deref<Target = [u8]> + Send + Sync> TextBase for ReadonlyText<B> {
     fn get_char(&self, byte_idx: usize) -> Option<char> {
         self.as_str().get_char(byte_idx)
     }
+
+    #[inline]
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self.as_str().byte_to_utf16_cu(byte_idx)
+    }
+
+    #[inline]
+    fn utf16_cu_to_byte(&self, cu_idx: usize) -> usize {
+        self.as_str().utf16_cu_to_byte(cu_idx)
+    }
 }

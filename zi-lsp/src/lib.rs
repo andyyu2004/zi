@@ -22,8 +22,6 @@ use tower::ServiceBuilder;
 pub enum PositionEncoding {
     /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
     Utf8,
-    /// UTF-32 code units (chars)
-    Utf32,
     /// UTF-16 code units
     #[default]
     Utf16,
