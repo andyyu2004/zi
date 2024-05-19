@@ -45,6 +45,7 @@ wit-bindgen = "0.24.0"
 wit-bindgen-rt = "0.24.0"
 dyn-clone = "1.0.17"
 serde_json = "1.0.95"
+itertools = "0.13.0"
 
 [profile.dev.package.cranelift-codegen]
 opt-level = 3

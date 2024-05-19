@@ -4,8 +4,8 @@ pub mod picker;
 mod text;
 
 use std::any::Any;
-use std::fmt;
 use std::path::{Path, PathBuf};
+use std::{fmt, mem};
 
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
@@ -92,16 +92,40 @@ impl Resource for dyn Buffer {
 
 #[derive(Clone, Debug)]
 pub struct UndoEntry {
-    pub changes: Box<[Change]>,
+    pub changes: Changes,
     pub cursor: Option<Point>,
 }
 
-#[derive(Clone, Debug)]
-pub struct Change {
+#[derive(Clone, Debug, Default)]
+pub struct Changes {
     /// The deltas that were applied
-    pub deltas: Deltas<'static>,
+    deltas: Deltas<'static>,
     /// The deltas that can be applied to undo the operation
-    pub inversion: Deltas<'static>,
+    inversions: Deltas<'static>,
+}
+
+impl Changes {
+    pub fn deltas(&self) -> &Deltas<'_> {
+        &self.deltas
+    }
+
+    pub fn inversion(&self) -> &Deltas<'_> {
+        &self.inversions
+    }
+
+    fn clear(&mut self) {
+        self.deltas.clear();
+        self.inversions.clear();
+    }
+
+    fn is_empty(&self) -> bool {
+        self.deltas.is_empty()
+    }
+
+    fn compose(&mut self, deltas: Deltas<'static>, inversions: Deltas<'static>) {
+        self.deltas = mem::take(&mut self.deltas).compose(deltas);
+        self.inversions = inversions.compose(mem::take(&mut self.inversions));
+    }
 }
 
 pub trait BufferHistory {

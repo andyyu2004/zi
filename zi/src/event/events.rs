@@ -1,9 +1,12 @@
+use zi_text::Deltas;
+
 use super::{AsyncEvent, Event};
 use crate::{BufferId, ViewId};
 
 #[derive(Debug, Clone)]
 pub struct DidChangeBuffer {
     pub buf: BufferId,
+    pub deltas: Deltas<'static>,
 }
 
 impl Event for DidChangeBuffer {}

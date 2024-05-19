@@ -11,16 +11,17 @@ use super::Text;
 // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textEditArray
 #[derive(Clone, Default, Debug)]
 pub struct Deltas<'a> {
-    /// The set of deltas to apply to the text stored order by their start point ascending.
-    deltas: Box<[Delta<'a>]>,
+    deltas: Vec<Delta<'a>>,
 }
 
 impl<'a> Deltas<'a> {
     /// See [`Deltas`] for more information.
-    /// This will sort the deltas by their start point, and assert they are non-overlapping, and use the same unit of range.
+    /// This will sort the deltas by their start point (descending), and assert they are non-overlapping, and use the same unit of range.
+    /// This ensures that deltas won't interfere with each other when applied in order.
+    /// This invariant does not hold in general (i.e. for compositions of deltas)
     #[must_use]
     pub fn new(deltas: impl IntoIterator<Item = Delta<'a>>) -> Self {
-        let mut deltas = deltas.into_iter().collect::<Box<_>>();
+        let mut deltas = deltas.into_iter().collect::<Vec<_>>();
         deltas.sort_by(|a, b| {
             a.range()
                 .start
@@ -53,6 +54,14 @@ impl<'a> Deltas<'a> {
             }
             prev_start = Some(d.range().start);
         })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.deltas.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.deltas.clear();
     }
 
     pub(crate) fn apply(&self, text: &mut impl TextReplace) -> Deltas<'static> {
@@ -89,6 +98,45 @@ impl<'a> Deltas<'a> {
 
     pub fn to_owned(&self) -> Deltas<'static> {
         Deltas::new(self.deltas.iter().map(|d| d.to_owned()))
+    }
+
+    /// Compose two sets of deltas together.
+    /// If `self` transforms the text `a` to `b`, and `other` transforms `b` to `c`,
+    /// then `self.compose(other)` transforms `a` to `c`.
+    pub fn compose(self, mut other: Self) -> Self {
+        // Shift the deltas in `other` to account for the changes made by `self`
+        let mut shift = 0;
+        let mut iter = self.deltas.iter();
+        for delta in &mut other.deltas {
+            for d in iter.by_ref() {
+                if d.range().end > delta.range().start {
+                    break;
+                }
+
+                shift += d.range().len() as isize - d.text().len() as isize;
+            }
+
+            delta.shift(shift);
+        }
+
+        let mut composed_deltas = vec![];
+        let mut ds = self.deltas.into_iter().peekable();
+        let mut es = other.deltas.into_iter().peekable();
+
+        while let (Some(d), Some(e)) = (ds.peek(), es.peek()) {
+            if d.range().intersects(&e.range()) {
+                todo!()
+            } else if d.range().start < e.range().start {
+                composed_deltas.push(ds.next().unwrap());
+            } else {
+                composed_deltas.push(es.next().unwrap());
+            }
+        }
+
+        composed_deltas.extend(ds);
+        composed_deltas.extend(es);
+
+        dbg!(Deltas::new(composed_deltas))
     }
 }
 

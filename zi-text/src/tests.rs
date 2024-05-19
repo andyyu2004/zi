@@ -1,7 +1,8 @@
 use expect_test::{expect, Expect};
 use proptest::collection::vec;
+use proptest::prelude::*;
 use proptest::strategy::{Just, Strategy};
-use proptest::{bool, proptest};
+use proptest::{bool, proptest, sample};
 
 use super::*;
 
@@ -92,6 +93,74 @@ fn ascii_str_and_range() -> impl Strategy<Value = (String, ops::Range<usize>)> {
         .prop_map(|(vec, start, end)| (vec, start..end))
 }
 
+proptest::prop_compose! {
+    fn ascii_str_and_deltas(n: usize)(
+        s in "[ -~]{1,20}",
+        // It's tricky to generate valid deltas.
+        // Currently only generating replacements longer than the deletion range to avoid the
+        // string shrinking and causing ranges to become out of bounds.
+        deltas in vec(("[ -~]{20,30}", any::<sample::Index>(), any::<sample::Index>()), 0..n),
+    ) -> (String, Vec<Delta<'static>>) {
+        let deltas = deltas.into_iter().map(|(replacement, a, b)| {
+            let a = a.index(s.len());
+            let b = b.index(s.len());
+            let range = a.min(b)..a.max(b);
+            Delta::new(range, replacement)
+        }).collect();
+        (s, deltas)
+    }
+}
+
+#[test]
+fn test_compose_deltas() {
+    #[track_caller]
+    fn t(input: &str, a: Deltas<'_>, b: Deltas<'_>) {
+        let original = crop::Rope::from(input);
+        let mut target = original.clone();
+        let mut t = original.clone();
+
+        a.apply(&mut target);
+        b.apply(&mut target);
+
+        let inversion = a.compose(b).apply(&mut t);
+        assert_eq!(target, t, "applying the composed deltas should result in the expected text");
+
+        let inversion_inversion = inversion.apply(&mut t);
+        assert_eq!(
+            original, t,
+            "applying the inverse of the composed deltas should result in the original text"
+        );
+
+        inversion_inversion.apply(&mut t);
+        assert_eq!(target, t, "inverse of inverse");
+    }
+
+    t("abc", Deltas::new([Delta::new(0..0, "x")]), Deltas::new([Delta::new(2..3, "")]));
+    t("abc", Deltas::new([Delta::new(0..0, "x")]), Deltas::new([Delta::new(0..1, "")]));
+}
+
+proptest! {
+    #[test]
+    fn prop_compose_deltas((original, deltas) in ascii_str_and_deltas(10)) {
+        // Create a bunch of `Deltas` with a single delta each.
+        let deltas_iter = deltas.into_iter().map(|s| Deltas::new([s])).collect::<Vec<_>>();
+        let mut target = original.clone();
+        for deltas in &deltas_iter {
+            deltas.apply(&mut target);
+        }
+
+        // Compose the deltas into a single `Deltas` and apply it.
+        let composed = deltas_iter.into_iter().fold(Deltas::default(), |acc, deltas| acc.compose(deltas));
+        let mut actual = original.clone();
+        let inversion = composed.apply(&mut actual);
+        assert_eq!(target, actual);
+
+        // Apply the inversion and check that we get back to the original string.
+        inversion.apply(&mut actual);
+        assert_eq!(original, actual);
+    }
+}
+
 proptest! {
     #[test]
     fn prop_invert_delta((mut s, range) in ascii_str_and_range(), replacement in "[ -~]*") {
@@ -123,9 +192,9 @@ fn invert_deltas() {
         );
     }
 
+    t("abc", "xab", [Delta::new(0..0, "x"), Delta::new(2..3, "")]);
     t("abc", "xabc", [Delta::new(0..0, "x")]);
     t("abc", "xb", [Delta::new(0..1, "x"), Delta::new(2..3, "")]);
-    t("abc", "xab", [Delta::new(0..0, "x"), Delta::new(2..3, "")]);
 
     t(
         "abc

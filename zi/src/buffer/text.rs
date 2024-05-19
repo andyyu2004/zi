@@ -21,7 +21,7 @@ pub struct TextBuffer<X> {
     config: Config,
     undo_tree: UndoTree<UndoEntry>,
     /// Changes to the buffer that have not been saved to the undo tree
-    changes: Vec<Change>,
+    pending_changes: Changes,
     saved_cursor: Option<Point>,
 }
 
@@ -36,9 +36,7 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
         tracing::debug!("undo: {:#?}", self.undo_tree);
 
         let entry = self.undo_tree.undo().cloned()?;
-        for change in entry.changes.iter().rev() {
-            self.edit(&change.inversion, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
-        }
+        self.edit(&entry.changes.inversions, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
 
         Some(entry)
     }
@@ -52,29 +50,26 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
         tracing::debug!("redo: {:#?}", self.undo_tree);
 
         let entry = self.undo_tree.redo().cloned()?;
-        for change in entry.changes.iter() {
-            self.edit(&change.deltas, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
-        }
+        self.edit(&entry.changes.deltas, EditFlags::NO_ENSURE_NEWLINE | EditFlags::NO_RECORD);
 
         Some(entry)
     }
 
     fn clear(&mut self) {
-        self.changes.clear();
+        self.pending_changes.clear();
         self.undo_tree.clear();
     }
 
     #[tracing::instrument(skip(self))]
     fn snapshot(&mut self, flags: SnapshotFlags) {
-        if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.changes.is_empty() {
+        if !flags.contains(SnapshotFlags::ALLOW_EMPTY) && self.pending_changes.is_empty() {
             return;
         }
 
-        let changes = mem::take(&mut self.changes);
+        let changes = mem::take(&mut self.pending_changes);
         tracing::debug!(?flags, ?changes, "snapshot buffer");
 
-        self.undo_tree
-            .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
+        self.undo_tree.push(UndoEntry { changes, cursor: self.saved_cursor.take() });
     }
 
     fn snapshot_cursor(&mut self, cursor: Point) {
@@ -269,7 +264,7 @@ impl<X: Text + Clone> TextBuffer<X> {
             language_id: ft,
             highlight_map,
             config: Default::default(),
-            changes: Default::default(),
+            pending_changes: Default::default(),
             version: Default::default(),
             undo_tree: Default::default(),
             saved_cursor: Default::default(),
@@ -311,7 +306,7 @@ impl<X: Text + Clone> TextBuffer<X> {
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {
-                    self.changes.push(Change { deltas: deltas.to_owned(), inversion });
+                    self.pending_changes.compose(deltas.to_owned(), inversion);
                 }
 
                 self.version.checked_add(1).unwrap();

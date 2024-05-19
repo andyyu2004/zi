@@ -1003,7 +1003,7 @@ impl Editor {
             self.set_cursor_flags(view, cursor, SetCursorFlags::NO_FORCE_UPDATE_TARGET);
         }
 
-        self.dispatch(event::DidChangeBuffer { buf });
+        self.dispatch(event::DidChangeBuffer { buf, deltas: deltas.to_owned() });
     }
 
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
@@ -1264,13 +1264,12 @@ impl Editor {
         let buf = selector.select(self);
         let Some(entry) = f(&mut self[buf]) else { return false };
 
-        let cursor = match (entry.cursor, entry.changes.first()) {
+        let cursor = match (entry.cursor, entry.changes) {
             (Some(cursor), _) => cursor.into(),
-            (_, Some(fst)) => match fst.deltas.iter().next() {
+            (_, changes) => match changes.deltas().iter().next() {
                 Some(delta) => delta.range().start.into(),
                 None => return false,
             },
-            _ => return false,
         };
 
         for view in self.views_into_buf(buf) {
@@ -1286,7 +1285,7 @@ impl Editor {
             };
         }
 
-        self.dispatch(event::DidChangeBuffer { buf });
+        // self.dispatch(event::DidChangeBuffer { buf });
         true
     }
 
