@@ -123,7 +123,6 @@ pub trait Buffer: Send {
 
     fn url(&self) -> &Url;
 
-
     fn file_url(&self) -> Option<&Url>;
 
     fn file_type(&self) -> FileType;

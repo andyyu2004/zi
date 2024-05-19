@@ -40,9 +40,19 @@ impl<'a> Deltas<'a> {
         Self { deltas }
     }
 
-    /// Returns an iterator over the deltas ordered by their start point descending.
+    /// Returns an iterator over the disjoint deltas ordered by their start point descending.
+    // Note: This is an important property as the tree-sitter code is relying on it to be correct.
     pub fn iter(&self) -> impl Iterator<Item = &Delta<'a>> {
-        self.deltas.iter().rev()
+        let mut prev_start: Option<usize> = None;
+        self.deltas.iter().rev().inspect(move |d| {
+            if let Some(prev_start) = prev_start {
+                assert!(
+                    prev_start >= d.range().end,
+                    "deltas must be sorted by their start point in descending order"
+                );
+            }
+            prev_start = Some(d.range().start);
+        })
     }
 
     pub(crate) fn apply(&self, text: &mut impl TextReplace) -> Deltas<'static> {
