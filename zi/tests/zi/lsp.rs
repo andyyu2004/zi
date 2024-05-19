@@ -35,3 +35,37 @@ impl<T> ExpectedSequence<T> {
         assert_eq!(actual, expected, "ExpectedSequence: mismatch at index {idx}");
     }
 }
+
+macro_rules! lsp_pos {
+    ($line:literal:$character:literal) => {
+        lsp_types::Position { line: $line, character: $character }
+    };
+}
+
+macro_rules! lsp_range {
+    ($start_line:literal:$start_character:literal..$end_line:literal:$end_character:literal) => {
+        lsp_types::Range {
+            start: lsp_pos!($start_line:$start_character),
+            end: lsp_pos!($end_line:$end_character),
+        }
+    };
+}
+
+macro_rules! lsp_change_event {
+    ($start_line:literal:$start_character:literal..$end_line:literal:$end_character:literal =>$text:expr) => {
+        lsp_types::TextDocumentContentChangeEvent {
+            range: Some(lsp_range!($start_line:$start_character..$end_line:$end_character)),
+            text: $text.to_string(),
+            range_length: None,
+        }
+    };
+    ($text:expr) => {
+        lsp_types::TextDocumentContentChangeEvent {
+            range: None,
+            text: $text.to_string(),
+            range_length: None,
+        }
+    };
+}
+
+use {lsp_change_event, lsp_pos, lsp_range};

@@ -31,32 +31,12 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     let bomb = DropBomb::new("did_change should be called");
 
     let expected_events = ExpectedSequence::new([
-        vec![lsp_types::TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "dbc\n".to_string(),
-        }],
+        vec![lsp_change_event!("dbc\n")],
         // should probably try and merge some of these events into 1
-        vec![lsp_types::TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "abc\n".to_string(),
-        }],
-        vec![lsp_types::TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "abc".to_string(),
-        }],
-        vec![lsp_types::TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "abc\n".to_string(),
-        }],
-        vec![lsp_types::TextDocumentContentChangeEvent {
-            range: None,
-            range_length: None,
-            text: "dbc\n".to_string(),
-        }],
+        vec![lsp_change_event!("abc\n")],
+        vec![lsp_change_event!("abc")],
+        vec![lsp_change_event!("abc\n")],
+        vec![lsp_change_event!("dbc\n")],
     ]);
 
     cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
@@ -101,18 +81,19 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
 }
 
 #[tokio::test]
-async fn incremental_changes_utf8() -> zi::Result<()> {
+async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     let cx = new_cx("").await;
 
-    let expected_events =
-        ExpectedSequence::new([vec![lsp_types::TextDocumentContentChangeEvent {
-            range: Some(lsp_types::Range {
-                start: lsp_types::Position { line: 0, character: 0 },
-                end: lsp_types::Position { line: 0, character: 0 },
-            }),
-            text: "abc".to_string(),
-            range_length: None,
-        }]]);
+    lsp_range!(0:0..0:0);
+
+    let expected_events = ExpectedSequence::new([
+        vec![lsp_change_event!(0:0..0:0 => "abc")],
+        vec![
+            lsp_change_event!(0:3..0:3 => "d"),
+            // FIXME should be 5
+            lsp_change_event!(0:4..0:4 => "e"),
+        ],
+    ]);
 
     cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
@@ -147,6 +128,11 @@ async fn incremental_changes_utf8() -> zi::Result<()> {
 
     let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
     cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
+
+    cx.with(move |editor| {
+        editor.edit(buf, &zi::Deltas::new([zi::Delta::new(3..3, "d"), zi::Delta::new(4..4, "e")]))
+    })
+    .await;
 
     Ok(())
 }
