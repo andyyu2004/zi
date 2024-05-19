@@ -36,4 +36,6 @@ async fn file_picker() {
         "-- INSERT --                                                                                        "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }

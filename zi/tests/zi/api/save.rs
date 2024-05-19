@@ -21,5 +21,7 @@ async fn save() -> zi::Result<()> {
     })
     .await;
 
+    cx.cleanup().await;
+
     Ok(())
 }

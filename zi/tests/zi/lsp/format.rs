@@ -54,5 +54,6 @@ async fn lsp_format() -> zi::Result<()> {
     })
     .await;
 
+    cx.cleanup().await;
     Ok(())
 }

@@ -10,6 +10,7 @@ use std::io;
 use std::path::PathBuf;
 
 use expect_test::{expect, Expect};
+use stdx::bomb::DropBomb;
 use tempfile::TempPath;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
@@ -21,6 +22,8 @@ use self::lsp::{FakeLanguageServer, FakeLanguageServerBuilder};
 pub struct TestContext {
     size: zi::Size,
     client: zi::Client,
+    handle: Option<tokio::task::JoinHandle<()>>,
+    bomb: DropBomb,
 }
 
 impl TestContext {
@@ -90,6 +93,18 @@ impl TestContext {
         })
         .await
     }
+
+    async fn cleanup(mut self) {
+        self.bomb.defuse();
+        let handle = self.handle.take().unwrap();
+        handle.abort();
+
+        if let Err(err) = handle.await {
+            if err.is_panic() {
+                panic!("editor panicked: {err}");
+            }
+        }
+    }
 }
 
 pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) -> TestContext {
@@ -101,11 +116,16 @@ pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) 
     editor.set_mode(zi::Mode::Normal);
 
     let client = editor.client();
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
     });
 
-    TestContext { client, size }
+    TestContext {
+        client,
+        size,
+        handle: Some(handle),
+        bomb: DropBomb::new("call `cleanup().await`"),
+    }
 }
 
 pub async fn new_cx(scratch_content: &str) -> TestContext {

@@ -90,5 +90,7 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
     })
     .await;
 
+    cx.cleanup().await;
+
     Ok(())
 }

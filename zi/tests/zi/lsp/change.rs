@@ -22,6 +22,8 @@ async fn lsp_change_no_sync() -> zi::Result<()> {
     let buf = cx.open("", zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
     cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
 
+    cx.cleanup().await;
+
     Ok(())
 }
 
@@ -77,14 +79,13 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
 
     assert!(cx.with(move |editor| editor.redo(buf)).await);
 
+    cx.cleanup().await;
     Ok(())
 }
 
 #[tokio::test]
 async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     let cx = new_cx("").await;
-
-    lsp_range!(0:0..0:0);
 
     // It may look like the events are out of order, but that's due to the way zi sorts deltas.
     // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
@@ -130,6 +131,8 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
         )
     })
     .await;
+
+    cx.cleanup().await;
 
     Ok(())
 }

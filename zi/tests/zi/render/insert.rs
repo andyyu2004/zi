@@ -24,4 +24,6 @@ async fn insert_newline_in_blank_buffer() {
         "          "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }

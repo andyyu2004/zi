@@ -28,6 +28,8 @@ async fn view_only() {
         "                                                   "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -82,6 +84,8 @@ async fn close_view() {
         "                                                   "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -114,6 +118,8 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
     "#]])
         .await;
 
+    cx.cleanup().await;
+
     Ok(())
 }
 
@@ -133,6 +139,8 @@ async fn split() -> io::Result<()> {
         "                                                  "
     "#]])
         .await;
+
+    cx.cleanup().await;
 
     let cx = new_cx_with_size(zi::Size::new(50, 8), "abc").await;
     cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
@@ -200,6 +208,7 @@ async fn split() -> io::Result<()> {
     "#]])
         .await;
 
+    cx.cleanup().await;
     Ok(())
 }
 
@@ -227,6 +236,8 @@ async fn more_splits() {
         "                    "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -286,6 +297,8 @@ async fn test_directional_focus() {
         "                        "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -337,6 +350,8 @@ async fn test_multiple_views_into_same_buffer() {
         "                        "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -385,4 +400,6 @@ async fn test_directional_focus_propagation() {
         "                                "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }

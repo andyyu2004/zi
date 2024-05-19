@@ -37,6 +37,8 @@ async fn line_number_width_grows_and_shrinks_as_required() {
         "                                                   "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -59,6 +61,8 @@ async fn no_line_number() {
         "                                                   "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
 
 #[tokio::test]
@@ -97,4 +101,6 @@ async fn relative_line_number() {
         "                                                   "
     "#]])
         .await;
+
+    cx.cleanup().await;
 }
