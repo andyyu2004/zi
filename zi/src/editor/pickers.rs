@@ -156,7 +156,7 @@ impl Editor {
         view_group
     }
 
-    pub fn open_jump_list(&mut self) -> ViewGroupId {
+    pub fn open_jump_list(&mut self, selector: impl Selector<ViewId>) -> ViewGroupId {
         #[derive(Clone, Debug)]
         struct Jump {
             buf: BufferId,
@@ -189,8 +189,8 @@ impl Editor {
             }
         }
 
-        // Save the current view so the jumps we get are from the right view.
-        let view = self.view(Active).id();
+        // Save the view so the jumps we get are from the right view.
+        let view = self.view(selector).id();
         self.open_static_picker::<PathPicker<_>>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",

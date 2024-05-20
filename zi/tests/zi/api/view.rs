@@ -32,17 +32,17 @@ fn jump_list() {
     let loc_a = zi::Location::new(a, (0, 0));
     let loc_b = zi::Location::new(b, (0, 1));
 
-    assert_eq!(editor.jump_back(), Some(loc_a));
-    assert_eq!(editor.jump_back(), Some(loc_initial));
-    assert_eq!(editor.jump_back(), None);
-    assert_eq!(editor.jump_forward(), Some(loc_a));
-    assert_eq!(editor.jump_forward(), Some(loc_b));
-    assert_eq!(editor.jump_back(), Some(loc_a));
-    assert_eq!(editor.jump_forward(), Some(loc_b));
+    assert_eq!(editor.jump_back(zi::Active), Some(loc_a));
+    assert_eq!(editor.jump_back(zi::Active), Some(loc_initial));
+    assert_eq!(editor.jump_back(zi::Active), None);
+    assert_eq!(editor.jump_forward(zi::Active), Some(loc_a));
+    assert_eq!(editor.jump_forward(zi::Active), Some(loc_b));
+    assert_eq!(editor.jump_back(zi::Active), Some(loc_a));
+    assert_eq!(editor.jump_forward(zi::Active), Some(loc_b));
 
-    assert_eq!(editor.jump_forward(), None);
-    assert_eq!(editor.jump_forward(), None);
-    assert_eq!(editor.jump_back(), Some(loc_a));
+    assert_eq!(editor.jump_forward(zi::Active), None);
+    assert_eq!(editor.jump_forward(zi::Active), None);
+    assert_eq!(editor.jump_back(zi::Active), Some(loc_a));
 
     expect![[r#"
         BufferId(3v1):0:0

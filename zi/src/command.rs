@@ -360,8 +360,7 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
-                editor.open_jump_list();
-
+                editor.open_jump_list(Active);
                 Ok(())
             })
             .into(),
@@ -373,7 +372,7 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
             handler: LocalHandler(|editor, range, args| {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.inspect();
+                editor.inspect(Active);
                 Ok(())
             })
             .into(),

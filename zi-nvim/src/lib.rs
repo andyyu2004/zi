@@ -152,7 +152,7 @@ impl Nvim {
         editor.edit(zi::Active, &zi::Deltas::new([zi::Delta::new(0..n, initial)]));
         editor.set_cursor(zi::Active, (0, 0));
         editor.set_mode(zi::Mode::Normal);
-        editor.clear_undo();
+        editor.clear_undo(zi::Active);
 
         self.nvim
             .get_current_buf()

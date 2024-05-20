@@ -41,7 +41,7 @@ fn picker() {
 #[test]
 fn picker_input() {
     let mut editor = new("");
-    editor.open_jump_list();
+    editor.open_jump_list(zi::Active);
     editor.input("abc").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc");
     assert_eq!(editor.cursor(zi::Active), (0, 3));

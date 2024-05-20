@@ -1358,8 +1358,8 @@ impl Editor {
 
     // Don't think we want this to be a public api, used for tests for now
     #[doc(hidden)]
-    pub fn clear_undo(&mut self) {
-        self.buffer_mut(Active).clear_undo()
+    pub fn clear_undo(&mut self, selector: impl Selector<BufferId>) {
+        self.buffer_mut(selector).clear_undo()
     }
 
     pub fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
@@ -1580,9 +1580,9 @@ impl Editor {
         self.align_view(&selector, alignment);
     }
 
-    pub(crate) fn inspect(&mut self) {
-        let inspector_view = self.view(Active).id();
-        self.split(Active, Direction::Up, tui::Constraint::Percentage(70));
+    pub(crate) fn inspect(&mut self, selector: impl Selector<ViewId>) {
+        let inspector_view = self.view(selector).id();
+        self.split(inspector_view, Direction::Up, tui::Constraint::Percentage(70));
         let buf = self.buffers.insert_with_key(|id| InspectorBuffer::new(id).boxed());
         self.set_buffer(inspector_view, buf);
     }
@@ -1696,15 +1696,15 @@ impl Editor {
         }
     }
 
-    pub fn jump_forward(&mut self) -> Option<Location> {
-        let loc = self.view_mut(Active).jump_list_mut().next().copied()?;
+    pub fn jump_forward(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
+        let loc = self.view_mut(selector).jump_list_mut().next().copied()?;
         self.goto(loc);
         Some(loc)
     }
 
-    pub fn jump_back(&mut self) -> Option<Location> {
+    pub fn jump_back(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
         let current = self.current_location();
-        let loc = self.view_mut(Active).jump_list_mut().prev(current).copied()?;
+        let loc = self.view_mut(selector).jump_list_mut().prev(current).copied()?;
         self.goto(loc);
         Some(loc)
     }
