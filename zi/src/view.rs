@@ -254,7 +254,7 @@ impl View {
 
         let line_idx = self.cursor.point.line();
         let text = buf.text();
-        let line = text.get_line(line_idx).unwrap_or_else(|| Box::new(""));
+        let line = text.line(line_idx).unwrap_or_else(|| Box::new(""));
         let byte =
             line.chars().take(self.cursor.point.col()).map(|c| buf.char_width(c)).sum::<usize>();
         // TODO need tests for the column adjustment
@@ -379,11 +379,11 @@ impl View {
 
         // Check line is in-bounds
         let mut line_idx = pos.line();
-        let line = match text.get_line(line_idx) {
+        let line = match text.line(line_idx) {
             Some(line) => line,
             _ => {
                 line_idx = text.len_lines().saturating_sub(1);
-                text.get_line(line_idx).unwrap_or_else(|| Box::new(""))
+                text.line(line_idx).unwrap_or_else(|| Box::new(""))
             }
         };
 

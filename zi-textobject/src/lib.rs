@@ -460,7 +460,7 @@ fn line_range_to_byte_range(
     let start = text.line_to_byte(start_line);
     match inclusivity {
         Inclusivity::Exclusive => {
-            let (skip, len) = text.get_line(end_line).map_or((0, 0), |line| {
+            let (skip, len) = text.line(end_line).map_or((0, 0), |line| {
                 // We want to exclude the leading whitespace when in exclusive mode
                 let skip = line
                     .chars()

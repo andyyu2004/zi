@@ -835,7 +835,7 @@ impl Editor {
         {
             // Clear any whitespace at the end of the cursor line when exiting insert mode
             let cursor = self[view].cursor();
-            if let Some(range) = self[buf].text().get_line(cursor.line()).and_then(|line| {
+            if let Some(range) = self[buf].text().line(cursor.line()).and_then(|line| {
                 let end = Point::new(cursor.line(), line.len_bytes());
                 let mut start = end;
                 for c in line.chars().rev() {
@@ -982,14 +982,26 @@ impl Editor {
         let cursor = view.cursor();
 
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
-        self.edit(view.id(), &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
+        let id = view.id();
+        self.edit(id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
 
         let (view, buf) = get!(self);
-        let area = self.tree.view_area(view.id());
+        let area = self.tree.view_area(id);
         match c {
-            '\n' => view.move_cursor(mode!(self), area, buf, Direction::Down, 1),
+            '\n' => {
+                let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
+                self.indent(id);
+                cursor
+            }
             _ => self.motion(Active, motion::NextChar),
         };
+    }
+
+    fn indent(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        let (view, buf) = get!(self: view);
+        let text = buf.text();
+        let indent = zi_indent::indent(text, view.cursor().line());
     }
 
     pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
@@ -1051,7 +1063,7 @@ impl Editor {
         let (view, buffer) = get_ref!(self);
         let cursor = view.cursor();
         let text = buffer.text();
-        let line = text.get_line(cursor.line()).unwrap_or_else(|| Box::new(""));
+        let line = text.line(cursor.line()).unwrap_or_else(|| Box::new(""));
         line.to_string()
     }
 
@@ -1118,11 +1130,11 @@ impl Editor {
             //
             // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
             // updates the cursor before this point.
-            if inindent(text, start_point) {
+            if text.inindent(start_point) {
                 motion_kind = TextObjectKind::Linewise;
             } else {
                 let line_idx = end_point.line() - 1;
-                let line_above = text.get_line(line_idx).expect("must be in-bounds");
+                let line_above = text.line(line_idx).expect("must be in-bounds");
                 let adjusted_end_byte =
                     text.point_to_byte(Point::new(line_idx, line_above.len_bytes()));
                 if adjusted_end_byte > range.start {
@@ -1137,8 +1149,8 @@ impl Editor {
         if motion_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
-            && inindent(text, end_point)
-            && text.get_line(end_point.line()).unwrap().chars().all(char::is_whitespace)
+            && text.inindent(end_point)
+            && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
         {
             motion_kind = TextObjectKind::Linewise;
         }
@@ -1838,31 +1850,6 @@ impl Editor {
 
         Debug { view, buf }
     }
-}
-
-/// Returns true if the cursor is on or before the first non-whitespace character of the line.
-fn inindent(text: impl Text, cursor: Point) -> bool {
-    text.get_line(cursor.line())
-        .expect("cursor should be inbounds")
-        .chars()
-        .take_while(|c| c.is_whitespace())
-        .map(|c| c.len_utf8())
-        .sum::<usize>()
-        >= cursor.col()
-}
-
-#[cfg(test)]
-#[test]
-fn test_inindent() {
-    #[track_caller]
-    fn check(text: impl Text, cursor: Point, expect: bool) {
-        assert_eq!(inindent(text, cursor), expect);
-    }
-
-    check("a", Point::new(0, 0), true);
-    check(" a", Point::new(0, 0), true);
-    check(" a", Point::new(0, 1), true);
-    check(" a", Point::new(0, 2), false);
 }
 
 fn rope_from_reader(reader: impl io::Read) -> io::Result<Rope> {

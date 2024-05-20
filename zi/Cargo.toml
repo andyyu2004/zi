@@ -35,6 +35,7 @@ grep = "0.3.1"
 async-trait = { workspace = true }
 stdx = { workspace = true }
 zi-core = { workspace = true, features = ["tree-sitter"] }
+zi-indent = { workspace = true }
 zi-lsp = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }

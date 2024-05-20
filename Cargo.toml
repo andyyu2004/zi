@@ -12,11 +12,13 @@ members = [
     "zi-text",
     "zi-textobject",
     "zi-core",
+    "zi-indent",
 ]
 
 [workspace.dependencies]
 zi = { path = "zi" }
 zi-core = { path = "zi-core" }
+zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-text = { path = "zi-text" }
 zi-textobject = { path = "zi-textobject" }

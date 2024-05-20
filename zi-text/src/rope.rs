@@ -25,7 +25,7 @@ impl Text for crop::Rope {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         if line_idx < self.line_len() { Some(self.line(line_idx)) } else { None }
     }
 
@@ -115,8 +115,8 @@ impl<'a> TextSlice<'a> for crop::RopeSlice<'a> {
         (*self).chunks()
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self> {
-        if line_idx < self.line_len() { Some(self.line(line_idx)) } else { None }
+    fn line(&self, line_idx: usize) -> Option<Self> {
+        if line_idx < self.line_len() { Some((*self).line(line_idx)) } else { None }
     }
 }
 

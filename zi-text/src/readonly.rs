@@ -86,8 +86,8 @@ impl<B: Deref<Target = [u8]> + Send + Sync> Text for ReadonlyText<B> {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        self.as_str().get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_str().line(line_idx)
     }
 
     #[inline]

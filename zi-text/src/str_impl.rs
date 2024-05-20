@@ -33,8 +33,8 @@ impl<'a> TextSlice<'a> for &'a str {
         Text::lines(*self)
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self> {
-        Text::get_line(*self, line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self> {
+        Text::line(*self, line_idx)
     }
 
     fn chunks(&self) -> Self::Chunks {
@@ -66,7 +66,7 @@ impl Text for str {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
         Text::lines(self).nth(line_idx)
     }
 
@@ -209,8 +209,8 @@ impl Text for String {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        self.as_str().get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.as_str().line(line_idx)
     }
 
     #[inline]

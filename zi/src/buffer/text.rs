@@ -143,7 +143,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
                 let end = if idx == range.end_point.row {
                     range.end_point.column
                 } else {
-                    self.text.byte_slice(..).dyn_get_line(idx).unwrap().len_bytes()
+                    self.text.byte_slice(..).dyn_line(idx).unwrap().len_bytes()
                 };
 
                 SyntaxHighlight {
@@ -166,7 +166,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
         let text = editor.buffer(view).text();
 
         // We have to be careful that we don't set the end column to the middle of a char
-        let end = match text.get_line(cursor.line()) {
+        let end = match text.line(cursor.line()) {
             Some(line) => {
                 let line_byte_width =
                     line.chars().take(size.width as usize).map(|c| c.len_utf8()).sum::<usize>();

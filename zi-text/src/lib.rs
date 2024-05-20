@@ -215,7 +215,7 @@ pub trait AnyTextSlice<'a>: TextBase {
     fn dyn_lines(&self)
     -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'a> + 'a>> + 'a>;
     fn dyn_chunks(&self) -> Box<dyn DoubleEndedIterator<Item = &'a str> + 'a>;
-    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>>;
+    fn dyn_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>>;
 }
 
 dyn_clone::clone_trait_object!(AnyText);
@@ -236,7 +236,7 @@ pub trait AnyText: DynClone + TextBase + fmt::Display {
     fn dyn_lines(&self)
     -> Box<dyn DoubleEndedIterator<Item = Box<dyn AnyTextSlice<'_> + '_>> + '_>;
 
-    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
+    fn dyn_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>>;
 
     fn dyn_reader(&self) -> Box<dyn Read + Send + '_>;
 
@@ -273,8 +273,8 @@ impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
         self.dyn_chunks()
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice> {
-        self.dyn_get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice> {
+        self.dyn_line(line_idx)
     }
 }
 
@@ -291,8 +291,8 @@ impl Text for dyn AnyTextMut + '_ {
         (self as &dyn AnyText).byte_slice(byte_range)
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        (self as &dyn AnyText).get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        (self as &dyn AnyText).line(line_idx)
     }
 
     fn chars(&self) -> impl DoubleEndedIterator<Item = char> {
@@ -324,8 +324,8 @@ impl Text for dyn AnyText + '_ {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        self.dyn_get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        self.dyn_line(line_idx)
     }
 
     #[inline]
@@ -374,8 +374,8 @@ impl<T: Text + Clone> AnyText for T {
     }
 
     #[inline]
-    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
-        self.get_line(line_idx).map(|s| Box::new(s) as _)
+    fn dyn_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'_> + '_>> {
+        self.line(line_idx).map(|s| Box::new(s) as _)
     }
 
     #[inline]
@@ -428,8 +428,8 @@ where
         Box::new(<T as TextSlice<'a>>::chunks(self))
     }
 
-    fn dyn_get_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>> {
-        <T as TextSlice<'a>>::get_line(self, line_idx).map(move |s| Box::new(s) as _)
+    fn dyn_line(&self, line_idx: usize) -> Option<Box<dyn AnyTextSlice<'a> + 'a>> {
+        <T as TextSlice<'a>>::line(self, line_idx).map(move |s| Box::new(s) as _)
     }
 }
 
@@ -455,7 +455,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn chunks(&self) -> Self::Chunks;
 
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice>;
+    fn line(&self, line_idx: usize) -> Option<Self::Slice>;
 
     fn reader(&self) -> impl Read + 'a {
         TextReader::new(self.chunks())
@@ -489,7 +489,7 @@ pub trait Text: TextBase {
     fn lines(&self) -> impl DoubleEndedIterator<Item = Self::Slice<'_>>;
 
     /// Returns the line at the given index excluding the newline character(s).
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>>;
 
     fn reader(&self) -> impl Read + Send + '_;
 
@@ -511,6 +511,22 @@ pub trait Text: TextBase {
     #[inline]
     fn char_before_point(&self, point: Point) -> Option<char> {
         self.char_before_byte(self.point_to_byte(point))
+    }
+
+    /// Returns the byte index of the first non-whitespace character on the line.
+    #[inline]
+    fn indent(&self, line_idx: usize) -> usize {
+        self.line(line_idx)
+            .expect("line index out of bounds (indent_bytes)")
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .map(|c| c.len_utf8())
+            .sum::<usize>()
+    }
+
+    /// Returns true if the point is within the indentation of the line.
+    fn inindent(&self, point: Point) -> bool {
+        self.indent(point.line()) >= point.col()
     }
 
     fn annotate<'a, T: Copy>(
@@ -639,8 +655,8 @@ impl<T: Text + ?Sized> Text for &T {
     }
 
     #[inline]
-    fn get_line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
-        (**self).get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self::Slice<'_>> {
+        (**self).line(line_idx)
     }
 
     #[inline]
@@ -757,8 +773,8 @@ impl<'a> TextSlice<'a> for Box<dyn AnyTextSlice<'a> + 'a> {
         self.as_ref().dyn_chunks()
     }
 
-    fn get_line(&self, line_idx: usize) -> Option<Self> {
-        self.as_ref().dyn_get_line(line_idx)
+    fn line(&self, line_idx: usize) -> Option<Self> {
+        self.as_ref().dyn_line(line_idx)
     }
 }
 

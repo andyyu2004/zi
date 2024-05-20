@@ -64,7 +64,7 @@ fn empty_text() {
             assert_eq!(text.len_bytes(), 0, "len_bytes");
             assert_eq!(text.len_lines(), 0, "len_lines");
             assert_eq!(text.lines().count(), 0, "lines().count()");
-            assert!(text.get_line(0).is_none(), "get_line(0)");
+            assert!(text.line(0).is_none(), "get_line(0)");
         };
     }
 
@@ -73,6 +73,20 @@ fn empty_text() {
         test!(imp.byte_slice(..));
         test!(imp.line_slice(..));
     }
+}
+
+#[cfg(test)]
+#[test]
+fn test_inindent() {
+    #[track_caller]
+    fn check(text: impl Text, cursor: Point, expect: bool) {
+        assert_eq!(text.inindent(cursor), expect);
+    }
+
+    check("a", Point::new(0, 0), true);
+    check(" a", Point::new(0, 0), true);
+    check(" a", Point::new(0, 1), true);
+    check(" a", Point::new(0, 2), false);
 }
 
 // return ascii only so any byte range is valid
@@ -203,8 +217,8 @@ fn test(s: &str) {
 
         for l in 0..=reference.len_lines() {
             assert_eq!(
-                reference.get_line(l).map(|s| s.to_string()),
-                imp.get_line(l).map(|s| s.to_string()),
+                reference.line(l).map(|s| s.to_string()),
+                imp.line(l).map(|s| s.to_string()),
                 "{s:?}: on line {l}"
             );
             assert_eq!(reference.line_to_byte(l), imp.line_to_byte(l), "{s:?}`: on line {l}");
