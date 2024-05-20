@@ -5,6 +5,7 @@ pub mod to_proto;
 
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
+use std::time::Duration;
 
 use futures_core::future::BoxFuture;
 use zi_lsp::lsp_types::notification::Notification;
@@ -247,7 +248,8 @@ impl LanguageServer {
     /// Wait for the language server to finish.
     /// This assumes that `shutdown` has been requested.
     pub(crate) async fn wait(self) -> crate::Result<()> {
-        Ok(self.handle.await??)
+        self.handle.abort();
+        Ok(tokio::time::timeout(Duration::from_millis(50), self.handle).await???)
     }
 }
 
