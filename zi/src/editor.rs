@@ -42,8 +42,8 @@ use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
 use crate::buffer::{
-    Buffer, BufferFlags, EditFlags, ExplorerBuffer, Injector, InspectorBuffer, PickerBuffer,
-    SnapshotFlags, TextBuffer,
+    Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector, InspectorBuffer,
+    PickerBuffer, SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
@@ -829,8 +829,7 @@ impl Editor {
     }
 
     fn insert_to_normal(&mut self) {
-        let (view, buf) = get!(self);
-        let (view, buf) = (view.id(), buf.id());
+        let (view, buf) = self.get(Active);
 
         {
             // Clear any whitespace at the end of the cursor line when exiting insert mode
@@ -997,7 +996,22 @@ impl Editor {
         };
     }
 
-    pub fn tab(&mut self, selector: impl Selector<ViewId>) {}
+    pub fn tab(&mut self, selector: impl Selector<ViewId>) {
+        let (view, buf) = self.get(selector);
+        let indent = *self[buf].settings().indent.read();
+        match mode!(self) {
+            Mode::Normal => {
+                // TODO
+            }
+            Mode::Insert => match indent {
+                // Should probably align to a multiple of `n`
+                IndentSettings::Spaces(n) => self.insert(view, &" ".repeat(n as usize)),
+                IndentSettings::Tabs => self.insert_char(view, '\t'),
+            },
+            // TODO
+            Mode::Visual | Mode::Command | Mode::OperatorPending(_) => {}
+        }
+    }
 
     fn indent_newline(&mut self, selector: impl Selector<ViewId>) {
         let (view, buf) = self.get(selector);
@@ -1078,6 +1092,7 @@ impl Editor {
     }
 
     // This and `cursor_char` won't make sense with visual mode
+    // Used for tests for now
     #[doc(hidden)]
     pub fn cursor_line(&self) -> String {
         let (view, buffer) = get_ref!(self);
@@ -1103,9 +1118,7 @@ impl Editor {
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
     /// If there a question about why it is this way, the answer is probably "because neovim does it".
     pub(crate) fn text_object(&mut self, selector: impl Selector<ViewId>, obj: impl TextObject) {
-        let view = selector.select(self);
-        let (view, buf) = get!(self: view);
-        let (view, buf) = (view.id(), buf.id());
+        let (view, buf) = self.get(selector);
 
         // text objects only have meaning in operator pending mode
         let State::OperatorPending(state) = &self.state else { return };

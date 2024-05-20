@@ -60,12 +60,23 @@ bitflags::bitflags! {
 /// Buffer local settings
 pub struct Settings {
     pub tab_width: Setting<u8>,
+    pub indent: Setting<IndentSettings>,
     pub format_on_save: Setting<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndentSettings {
+    Spaces(u8),
+    Tabs,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { tab_width: Setting::new(4), format_on_save: Setting::new(true) }
+        Self {
+            tab_width: Setting::new(4),
+            indent: Setting::new(IndentSettings::Spaces(4)),
+            format_on_save: Setting::new(true),
+        }
     }
 }
 
