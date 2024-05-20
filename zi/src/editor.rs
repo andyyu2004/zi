@@ -36,7 +36,7 @@ use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSli
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
-use self::config::Config;
+use self::config::Settings;
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -86,7 +86,7 @@ pub struct Editor {
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     empty_buffer: BufferId,
-    config: Config,
+    settings: Settings,
     search_state: SearchState,
     state: State,
     keymap: Keymap,
@@ -365,7 +365,7 @@ impl Editor {
             command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
             notify_quit: Default::default(),
-            config: Default::default(),
+            settings: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
             active_language_servers: Default::default(),
@@ -996,6 +996,8 @@ impl Editor {
             _ => self.motion(Active, motion::NextChar),
         };
     }
+
+    pub fn tab(&mut self, selector: impl Selector<ViewId>) {}
 
     fn indent_newline(&mut self, selector: impl Selector<ViewId>) {
         let (view, buf) = self.get(selector);
@@ -1794,8 +1796,8 @@ impl Editor {
     }
 
     #[inline]
-    pub fn config(&self) -> &Config {
-        &self.config
+    pub fn settings(&self) -> &Settings {
+        &self.settings
     }
 
     #[inline]

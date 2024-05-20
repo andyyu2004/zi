@@ -21,7 +21,7 @@ pub struct PickerBuffer<P: Picker> {
     picker: P,
     url: Url,
     dynamic_handler: Option<DynamicHandler<P::Entry>>,
-    config: Config,
+    config: Settings,
 }
 
 pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
@@ -266,7 +266,7 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
         FileType::PICKER
     }
 
-    fn config(&self) -> &Config {
+    fn settings(&self) -> &Settings {
         &self.config
     }
 

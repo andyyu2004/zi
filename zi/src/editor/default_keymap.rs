@@ -216,6 +216,10 @@ pub(super) fn new() -> Keymap {
         editor.open_jump_list(Active);
     }
 
+    fn tab(editor: &mut Editor) {
+        editor.tab(Active);
+    }
+
     macro_rules! action {
         ($($name:ident,)*) => {
             $(
@@ -253,6 +257,7 @@ pub(super) fn new() -> Keymap {
                     "<ESC>" | "<C-c>" => normal_mode,
                     "<CR>" => insert_newline,
                     "<BS>" => backspace,
+                    "<Tab>" => tab,
                     "f" => {
                         "d" => normal_mode,
                     },
@@ -274,6 +279,7 @@ pub(super) fn new() -> Keymap {
                     "<C-u>" => scroll_up,
                     "<C-e>" => scroll_line_down,
                     "<C-y>" => scroll_line_up,
+                    "<Tab>" => tab,
                     "d" => delete_operator,
                     "c" => change_operator_pending,
                     "y" => yank_operator_pending,

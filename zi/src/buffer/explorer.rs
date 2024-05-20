@@ -16,7 +16,7 @@ pub struct ExplorerBuffer<T: Entry, F: 'static> {
     cancel: Cancel,
     keymap: Keymap,
     confirm: F,
-    config: Config,
+    config: Settings,
 }
 
 impl<T, F> ExplorerBuffer<T, F>
@@ -102,7 +102,7 @@ impl<T: Entry, F: Send> Buffer for ExplorerBuffer<T, F> {
         FileType::EXPLORER
     }
 
-    fn config(&self) -> &Config {
+    fn settings(&self) -> &Settings {
         &self.config
     }
 

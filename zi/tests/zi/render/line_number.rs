@@ -7,7 +7,7 @@ async fn line_number_width_grows_and_shrinks_as_required() {
     let text = (1..13).map(|n| n.to_string()).collect::<Vec<_>>().join("\n");
     let cx = new_cx_with_size(zi::Size::new(51, 8), &text).await;
 
-    cx.with(|editor| editor.view(zi::Active).config().line_number_width.write(0)).await;
+    cx.with(|editor| editor.view(zi::Active).settings().line_number_width.write(0)).await;
     cx.snapshot(expect![[r#"
         "  7 7                                              "
         "  8 8                                              "
@@ -21,7 +21,7 @@ async fn line_number_width_grows_and_shrinks_as_required() {
         .await;
 
     cx.with(|editor| {
-        editor.view(zi::Active).config().line_number_style.write(zi::LineNumberStyle::Relative);
+        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::Relative);
         editor.move_cursor(zi::Active, zi::Direction::Up, 3);
     })
     .await;
@@ -46,7 +46,7 @@ async fn no_line_number() {
     let cx = new_cx_with_size(zi::Size::new(51, 8), "a\nb\nc").await;
 
     cx.with(|editor| {
-        editor.view(zi::Active).config().line_number_style.write(zi::LineNumberStyle::None)
+        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::None)
     })
     .await;
 
@@ -72,7 +72,7 @@ async fn relative_line_number() {
 
     cx.with(|editor| {
         editor.move_cursor(zi::Active, zi::Direction::Up, 3);
-        editor.view(zi::Active).config().line_number_style.write(zi::LineNumberStyle::Relative)
+        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::Relative)
     })
     .await;
 

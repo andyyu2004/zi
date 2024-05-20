@@ -7,7 +7,7 @@ pub struct InspectorBuffer {
     id: BufferId,
     text: String,
     url: Url,
-    config: Config,
+    config: Settings,
 }
 
 impl InspectorBuffer {
@@ -46,7 +46,7 @@ impl Buffer for InspectorBuffer {
         FileType::TEXT
     }
 
-    fn config(&self) -> &Config {
+    fn settings(&self) -> &Settings {
         &self.config
     }
 

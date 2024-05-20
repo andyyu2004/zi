@@ -12,13 +12,13 @@ use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, U
 
 /// View-local configuration
 #[derive(Clone, Debug)]
-pub struct Config {
+pub struct Settings {
     /// The width of the line numbers column including a space between the number and the text
     pub line_number_width: Setting<u8>,
     pub line_number_style: Setting<LineNumberStyle>,
 }
 
-impl Default for Config {
+impl Default for Settings {
     fn default() -> Self {
         Self {
             line_number_width: Setting::new(4),
@@ -79,7 +79,7 @@ pub struct View {
     group: Option<ViewGroupId>,
     url: Url,
     jumps: JumpList<Location>,
-    config: Config,
+    settings: Settings,
 
     /// The actual width of the line numbers column including a space between the number and the text.
     /// This should be at least `config.line_number_width` but can be larger if the line numbers are wider.
@@ -180,8 +180,8 @@ impl View {
     }
 
     #[inline]
-    pub fn config(&self) -> &Config {
-        &self.config
+    pub fn settings(&self) -> &Settings {
+        &self.settings
     }
 
     #[inline]
@@ -505,7 +505,7 @@ impl View {
             url: Url::parse(&format!("view://{}", id.0.as_ffi())).unwrap(),
             buf,
             number_width: Cell::new(0),
-            config: Default::default(),
+            settings: Default::default(),
             group: Default::default(),
             cursor: Default::default(),
             offset: Default::default(),

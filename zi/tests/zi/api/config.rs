@@ -6,7 +6,7 @@ use super::new;
 fn buffer_settings() {
     let editor = new("");
 
-    let config = editor.buffer(zi::Active).config();
+    let config = editor.buffer(zi::Active).settings();
     assert_eq!(config.tab_width, 4);
     config.tab_width.write(8);
     assert_eq!(config.tab_width, 8);
@@ -16,12 +16,12 @@ fn buffer_settings() {
 fn buffer_set_command() {
     let mut editor = new("");
 
-    fn buf(editor: &Editor) -> &zi::buffer::Config {
-        editor.buffer(zi::Active).config()
+    fn buf(editor: &Editor) -> &zi::buffer::Settings {
+        editor.buffer(zi::Active).settings()
     }
 
-    fn view(editor: &Editor) -> &zi::view::Config {
-        editor.view(zi::Active).config()
+    fn view(editor: &Editor) -> &zi::view::Settings {
+        editor.view(zi::Active).settings()
     }
 
     // :set tabwidth

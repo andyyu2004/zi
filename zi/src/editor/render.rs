@@ -174,9 +174,9 @@ impl Editor {
         let lines = tui::Lines::new(
             line_offset,
             view.cursor().line(),
-            *view.config().line_number_style.read(),
-            *buf.config().tab_width.read(),
-            *view.config().line_number_width.read(),
+            *view.settings().line_number_style.read(),
+            *buf.settings().tab_width.read(),
+            *view.settings().line_number_width.read(),
             chunks.inspect(|(_, text, _)| tracing::trace!(?text, "render chunk")).map(
                 |(line, text, style)| {
                     let default_style = theme.default_style();

@@ -57,13 +57,13 @@ bitflags::bitflags! {
     }
 }
 
-/// Buffer local configuration
-pub struct Config {
+/// Buffer local settings
+pub struct Settings {
     pub tab_width: Setting<u8>,
     pub format_on_save: Setting<bool>,
 }
 
-impl Default for Config {
+impl Default for Settings {
     fn default() -> Self {
         Self { tab_width: Setting::new(4), format_on_save: Setting::new(true) }
     }
@@ -139,7 +139,7 @@ pub trait Buffer: Send {
 
     fn text(&self) -> &(dyn AnyText + 'static);
 
-    fn config(&self) -> &Config;
+    fn settings(&self) -> &Settings;
 
     fn version(&self) -> u32;
 
@@ -228,7 +228,7 @@ pub trait Buffer: Send {
 
     fn char_width(&self, c: char) -> usize {
         c.width().unwrap_or(match c {
-            '\t' => *self.config().tab_width.read() as usize,
+            '\t' => *self.settings().tab_width.read() as usize,
             _ => 0,
         })
     }
@@ -305,8 +305,8 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn config(&self) -> &Config {
-        self.as_ref().config()
+    fn settings(&self) -> &Settings {
+        self.as_ref().settings()
     }
 
     #[inline]

@@ -411,8 +411,8 @@ pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
 }
 
 fn set(editor: &Editor, key: &Word, value: &Word) -> crate::Result<()> {
-    let buf = editor.buffer(Active).config();
-    let view = editor.view(Active).config();
+    let buf = editor.buffer(Active).settings();
+    let view = editor.view(Active).settings();
 
     match key.as_str() {
         "tabstop" | "ts" | "tabwidth" => buf.tab_width.write(value.parse()?),

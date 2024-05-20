@@ -18,7 +18,7 @@ pub struct TextBuffer<X> {
     syntax: Option<Syntax>,
     highlight_map: HighlightMap,
     version: u32,
-    config: Config,
+    config: Settings,
     undo_tree: UndoTree<UndoEntry>,
     /// Changes to the buffer that have not been saved to the undo tree
     changes: Vec<Change>,
@@ -98,7 +98,7 @@ impl<X: Text + Clone + Send + 'static> Buffer for TextBuffer<X> {
     }
 
     #[inline]
-    fn config(&self) -> &Config {
+    fn settings(&self) -> &Settings {
         &self.config
     }
 

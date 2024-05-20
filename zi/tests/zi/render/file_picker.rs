@@ -5,7 +5,7 @@ async fn file_picker() {
     let cx = new_cx_with_size(zi::Size::new(100, 8), "").await;
 
     cx.with(|editor| {
-        editor.config().picker_split_proportion.write((0, 100));
+        editor.settings().picker_split_proportion.write((0, 100));
         editor.open_file_picker("tests/zi/testdirs");
     })
     .await;

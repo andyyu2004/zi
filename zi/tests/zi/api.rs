@@ -12,6 +12,7 @@ mod picker;
 mod save;
 mod scroll;
 mod search;
+mod tab;
 mod undo;
 mod view;
 

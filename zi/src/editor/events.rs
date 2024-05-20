@@ -6,7 +6,7 @@ impl Editor {
             let (version, format_fut) = client
                 .request(move |editor| {
                     let buffer = &editor[event.buf];
-                    let buf_config = buffer.config();
+                    let buf_config = buffer.settings();
                     let tab_size = *buf_config.tab_width.read() as u32;
                     let format = *buf_config.format_on_save.read();
 
