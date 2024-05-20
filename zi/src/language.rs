@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
-use std::future::Future;
 use std::ops::DerefMut;
 use std::path::Path;
-use std::pin::Pin;
 
 use anyhow::bail;
+use futures_core::future::BoxFuture;
 
 use crate::lsp::LanguageClient;
 use crate::symbol::Symbol;
@@ -108,11 +107,12 @@ impl From<&'static str> for LanguageServerId {
 pub trait LanguageServerConfig {
     /// Spawn a new language server instance.
     /// Returns a boxed language server client and a future to spawn to run the server.
+    #[allow(clippy::type_complexity)]
     fn spawn(
         &self,
     ) -> zi_lsp::Result<(
         Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-        Pin<Box<dyn Future<Output = zi_lsp::Result<()>> + Send>>,
+        BoxFuture<'static, zi_lsp::Result<()>>,
     )>;
 }
 
@@ -235,7 +235,7 @@ impl LanguageServerConfig for ExecutableLanguageServerConfig {
         &self,
     ) -> zi_lsp::Result<(
         Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-        Pin<Box<dyn std::future::Future<Output = zi_lsp::Result<()>> + Send>>,
+        BoxFuture<'static, zi_lsp::Result<()>>,
     )> {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
         let (server, fut) =
