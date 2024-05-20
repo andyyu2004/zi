@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
+use std::future::Future;
 use std::ops::DerefMut;
 use std::path::Path;
+use std::pin::Pin;
 
 use anyhow::bail;
 
@@ -104,8 +106,14 @@ impl From<&'static str> for LanguageServerId {
 }
 
 pub trait LanguageServerConfig {
-    fn spawn(&self)
-    -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>>;
+    /// Spawn a new language server instance.
+    /// Returns a boxed language server client and a future to spawn to run the server.
+    fn spawn(
+        &self,
+    ) -> zi_lsp::Result<(
+        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+        Pin<Box<dyn Future<Output = zi_lsp::Result<()>> + Send>>,
+    )>;
 }
 
 pub struct Config {
@@ -225,9 +233,13 @@ pub struct ExecutableLanguageServerConfig {
 impl LanguageServerConfig for ExecutableLanguageServerConfig {
     fn spawn(
         &self,
-    ) -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>> {
+    ) -> zi_lsp::Result<(
+        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+        Pin<Box<dyn std::future::Future<Output = zi_lsp::Result<()>> + Send>>,
+    )> {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        let server = zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..])?;
-        Ok(Box::new(server))
+        let (server, fut) =
+            zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..])?;
+        Ok((Box::new(server), Box::pin(fut)))
     }
 }

@@ -209,8 +209,9 @@ impl zi_lsp::LanguageClient for LanguageClient {
 
 pub(crate) struct LanguageServer {
     pub capabilities: lsp_types::ServerCapabilities,
+    handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
     // Storing this odd type to allow for a test implementation.
-    // The `DerefMut` is useful to make it easy to defer the actual server implementation to an inner type.
+    // The `DerefMut` is useful to make it easy to delegate the actual server implementation to an inner type.
     server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
     position_encoding: PositionEncoding,
 }
@@ -218,6 +219,7 @@ pub(crate) struct LanguageServer {
 impl LanguageServer {
     pub(crate) fn new(
         capabilities: lsp_types::ServerCapabilities,
+        handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
         server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
     ) -> Self {
         let position_encoding = match &capabilities.position_encoding {
@@ -235,11 +237,17 @@ impl LanguageServer {
             }
         };
 
-        Self { capabilities, server, position_encoding }
+        Self { capabilities, handle, server, position_encoding }
     }
 
     pub(crate) fn position_encoding(&self) -> PositionEncoding {
         self.position_encoding
+    }
+
+    /// Wait for the language server to finish.
+    /// This assumes that `shutdown` has been requested.
+    pub(crate) async fn wait(self) -> crate::Result<()> {
+        Ok(self.handle.await??)
     }
 }
 

@@ -471,7 +471,7 @@ impl Editor {
         }
 
         if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_lang(buf, ft)?;
+            self.spawn_language_servers_for_ft(buf, ft)?;
         }
 
         Ok(buf)
@@ -499,11 +499,20 @@ impl Editor {
         self.theme.id_by_name(name)
     }
 
-    pub async fn cleanup(&mut self) {
+    async fn shutdown(&mut self) {
         for mut server in mem::take(&mut self.active_language_servers).into_values() {
             // TODO shutdown concurrenly
-            let _ = server.shutdown(()).await;
-            let _ = server.exit(());
+            if let Err(err) = server.shutdown(()).await {
+                tracing::error!("language server shutdown failed: {err}");
+            }
+
+            if let Err(err) = server.exit(()) {
+                tracing::error!("language server exit failed: {err}");
+            }
+
+            if let Err(err) = server.wait().await {
+                tracing::error!("language server wait failed: {err}");
+            }
         }
     }
 
@@ -648,7 +657,7 @@ impl Editor {
             render(self)?;
         }
 
-        self.cleanup().await;
+        self.shutdown().await;
 
         Ok(())
     }
@@ -1373,11 +1382,7 @@ impl Editor {
         self.set_error("no active language server supports go to definition");
     }
 
-    fn spawn_language_servers_for_lang(
-        &mut self,
-        buf: BufferId,
-        ft: FileType,
-    ) -> zi_lsp::Result<()> {
+    fn spawn_language_servers_for_ft(&mut self, buf: BufferId, ft: FileType) -> zi_lsp::Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
             for server_id in config.language_servers.iter().cloned() {
                 if self.active_language_servers.contains_key(&server_id) {
@@ -1385,7 +1390,9 @@ impl Editor {
                     continue;
                 }
 
-                let mut server = self.language_config.language_servers[&server_id].spawn()?;
+                let (mut server, fut) =
+                    self.language_config.language_servers[&server_id].spawn()?;
+                let handle = tokio::spawn(fut);
 
                 callback(
                     &self.callbacks_tx,
@@ -1403,7 +1410,7 @@ impl Editor {
                     move |editor, (res, mut server)| {
                         server.initialized(lsp_types::InitializedParams {})?;
 
-                        let server = LanguageServer::new(res.capabilities, server);
+                        let server = LanguageServer::new(res.capabilities, handle, server);
                         tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
 
                         assert!(

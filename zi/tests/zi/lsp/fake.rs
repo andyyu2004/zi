@@ -36,11 +36,16 @@ impl<St: Default> Default for FakeLanguageServerTemplate<St> {
 impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServerTemplate<St> {
     fn spawn(
         &self,
-    ) -> zi_lsp::Result<Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>> {
-        Ok(Box::new(FakeLanguageServer {
+    ) -> zi_lsp::Result<(
+        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+        Pin<Box<dyn Future<Output = zi_lsp::Result<()>> + Send>>,
+    )> {
+        let server = Box::new(FakeLanguageServer {
             handlers: Arc::clone(&self.handlers),
             state: self.init_state.clone(),
-        }))
+        });
+
+        Ok((server, Box::pin(async { Ok(()) })))
     }
 }
 

@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::future::Future;
 use std::io;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::path::Path;
@@ -31,8 +32,6 @@ pub struct Server {
     // Storing child with `kill_on_drop` set so that it gets killed when this struct is dropped
     #[allow(dead_code)]
     child: async_process::Child,
-    #[allow(dead_code)]
-    handle: tokio::task::JoinHandle<()>,
     server: ServerSocket,
 }
 
@@ -47,7 +46,7 @@ impl Server {
         cwd: impl AsRef<Path>,
         cmd: impl AsRef<OsStr>,
         args: impl IntoIterator<Item = impl AsRef<OsStr>>,
-    ) -> Result<Server>
+    ) -> Result<(Server, impl Future<Output = Result<()>> + 'static)>
     where
         C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
             + Send
@@ -73,21 +72,19 @@ impl Server {
         let stdin = child.stdin.take().unwrap();
         let stderr = child.stderr.take().unwrap();
 
-        // write stderr to a file /tmp/zi-lsp-log
-        tokio::spawn(async move {
-            let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
-            let mut writer = tokio::io::BufWriter::new(file);
-            let mut reader = tokio::io::BufReader::new(stderr.compat());
-            tokio::io::copy(&mut reader, &mut writer).await?;
-            writer.flush().await?;
-            Ok::<_, io::Error>(())
-        });
+        Ok((Server { child, server }, async move {
+            // write stderr to a file /tmp/zi-lsp-log
+            tokio::spawn(async move {
+                let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
+                let mut writer = tokio::io::BufWriter::new(file);
+                let mut reader = tokio::io::BufReader::new(stderr.compat());
+                tokio::io::copy(&mut reader, &mut writer).await?;
+                writer.flush().await?;
+                Ok::<_, io::Error>(())
+            });
 
-        let handle = tokio::spawn(async move {
-            let _ = main_loop.run_buffered(stdout, stdin).await;
-        });
-
-        Ok(Server { child, server, handle })
+            main_loop.run_buffered(stdout, stdin).await
+        }))
     }
 }
 
