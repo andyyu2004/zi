@@ -394,6 +394,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
     async fn smoke() -> wasmtime::Result<()> {
         let (editor, tasks) = Editor::new(crate::Size::new(80, 24));
 
