@@ -176,7 +176,10 @@ impl Default for Config {
             [
                 (
                     LanguageServerId::RUST_ANALYZER,
-                    // LanguageServerConfig { command: "rust-analyzer".into(), args: Box::new([]) },
+                    // ExecutableLanguageServerConfig {
+                    //     command: "rust-analyzer".into(),
+                    //     args: Box::new([]),
+                    // },
                     ExecutableLanguageServerConfig {
                         command: "ra-multiplex".into(),
                         args: Box::new([]),

@@ -610,7 +610,7 @@ impl Editor {
             select! {
                 biased;
                 Some(event) = events.next() => self.handle_input(event?),
-                () = notify_redraw.notified() => tracing::info!("redrawing due to request"),
+                () = notify_redraw.notified() => tracing::debug!("redrawing due to request"),
                 f = callbacks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(self) {
                         tracing::error!("task callback failed: {err:?}");
