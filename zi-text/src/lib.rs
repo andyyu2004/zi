@@ -457,6 +457,23 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn line(&self, line_idx: usize) -> Option<Self::Slice>;
 
+    /// Returns the byte index of the first non-whitespace character on the line.
+    #[inline]
+    fn indent(&self, line_idx: usize) -> usize {
+        self.line(line_idx)
+            .expect("line index out of bounds (indent_bytes)")
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .map(|c| c.len_utf8())
+            .sum::<usize>()
+    }
+
+    /// Returns true if the point is within the indentation of the line.
+    #[inline]
+    fn inindent(&self, point: Point) -> bool {
+        self.indent(point.line()) >= point.col()
+    }
+
     fn reader(&self) -> impl Read + 'a {
         TextReader::new(self.chunks())
     }
@@ -516,17 +533,13 @@ pub trait Text: TextBase {
     /// Returns the byte index of the first non-whitespace character on the line.
     #[inline]
     fn indent(&self, line_idx: usize) -> usize {
-        self.line(line_idx)
-            .expect("line index out of bounds (indent_bytes)")
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .map(|c| c.len_utf8())
-            .sum::<usize>()
+        self.byte_slice(..).indent(line_idx)
     }
 
     /// Returns true if the point is within the indentation of the line.
+    #[inline]
     fn inindent(&self, point: Point) -> bool {
-        self.indent(point.line()) >= point.col()
+        self.byte_slice(..).inindent(point)
     }
 
     fn annotate<'a, T: Copy>(

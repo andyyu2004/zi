@@ -990,18 +990,36 @@ impl Editor {
         match c {
             '\n' => {
                 let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
-                self.indent(id);
+                self.indent_newline(id);
                 cursor
             }
             _ => self.motion(Active, motion::NextChar),
         };
     }
 
-    fn indent(&mut self, selector: impl Selector<ViewId>) {
+    fn indent_newline(&mut self, selector: impl Selector<ViewId>) {
+        let (view, buf) = self.get(selector);
+        let text = self[buf].text();
+        let cursor = self[view].cursor();
+        let line = text.line(cursor.line()).unwrap();
+        if cursor.col() > 0 || !line.is_empty() {
+            // Simple heuristics to determine if we should indent the new line
+            return;
+        }
+
+        let indent = zi_indent::indent(text, cursor.line());
+        let start_byte = text.line_to_byte(cursor.line());
+
+        let deltas = Deltas::insert_at(start_byte, " ".repeat(indent.bytes));
+        drop(line);
+        self.edit(buf, &deltas);
+        self.set_cursor(view, cursor.right(indent.bytes));
+    }
+
+    fn get(&self, selector: impl Selector<ViewId>) -> (ViewId, BufferId) {
         let view = selector.select(self);
-        let (view, buf) = get!(self: view);
-        let text = buf.text();
-        let indent = zi_indent::indent(text, view.cursor().line());
+        let buf = self[view].buffer();
+        (view, buf)
     }
 
     pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
