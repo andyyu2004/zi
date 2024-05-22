@@ -155,7 +155,10 @@ impl Syntax {
 
 fn smallest_node_that_covers_range(tree: &Tree, range: PointRange) -> Node<'_> {
     let mut cursor = tree.walk();
-    cursor.goto_first_child_for_point(range.start().into()).expect("range is not within tree");
+    if cursor.goto_first_child_for_point(range.start().into()).is_none() {
+        return tree.root_node();
+    }
+
     while !range.is_subrange_of(cursor.node().range()) {
         if !cursor.goto_parent() {
             assert_eq!(cursor.node(), tree.root_node());
