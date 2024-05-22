@@ -59,6 +59,14 @@ pub(super) fn new() -> Keymap {
         editor.goto_definition(Active);
     }
 
+    fn goto_declaration(editor: &mut Editor) {
+        editor.goto_definition(Active);
+    }
+
+    fn goto_type_definition(editor: &mut Editor) {
+        editor.goto_type_definition(Active);
+    }
+
     fn goto_start(editor: &mut Editor) {
         editor.scroll(Active, Direction::Up, usize::MAX);
     }
@@ -317,6 +325,8 @@ pub(super) fn new() -> Keymap {
                     },
                     "g" => {
                         "d" => goto_definition,
+                        "D" => goto_declaration,
+                        "t" => goto_type_definition,
                         "g" => goto_start,
                     },
                     "t" => {

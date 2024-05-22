@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
 
 use anyhow::anyhow;
+use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, Stream, StreamExt};
 use ignore::WalkState;
 use rustc_hash::FxHashMap;
@@ -31,6 +32,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use zi_core::{PointOrByte, PointRange, Size};
+use zi_lsp::lsp_types::OneOf;
 use zi_lsp::{lsp_types, PositionEncoding};
 use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
@@ -1379,15 +1381,62 @@ impl Editor {
 
     pub fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
         let view = selector.select(self);
-        self.goto_definition_(view)
+        self.goto_definition_(
+            "go to defintion",
+            view,
+            |cap| matches!(cap.definition_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
+            |server, params| server.definition(params),
+        )
     }
 
-    fn goto_definition_(&mut self, view: ViewId) {
+    pub fn goto_declaration(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        self.goto_definition_(
+            "go to declaration",
+            view,
+            |cap| {
+                !matches!(
+                    cap.declaration_provider,
+                    None | Some(lsp_types::DeclarationCapability::Simple(false))
+                )
+            },
+            |server, params| server.definition(params),
+        )
+    }
+
+    pub fn goto_type_definition(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        self.goto_definition_(
+            "go to type definition",
+            view,
+            |cap| {
+                !matches!(
+                    cap.type_definition_provider,
+                    None | Some(lsp_types::TypeDefinitionProviderCapability::Simple(false))
+                )
+            },
+            |server, params| server.type_definition(params),
+        )
+    }
+
+    fn goto_definition_(
+        &mut self,
+        desc: &'static str,
+        view: ViewId,
+        has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
+        do_it: impl FnOnce(
+            &mut LanguageServer,
+            lsp_types::GotoDefinitionParams,
+        ) -> BoxFuture<
+            'static,
+            zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>,
+        >,
+    ) {
         for server_id in active_servers_of!(self, view) {
             let server = self.active_language_servers.get_mut(server_id).unwrap();
-            match &server.capabilities.definition_provider {
-                Some(lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_)) => (),
-                _ => continue,
+
+            if !has_cap(&server.capabilities) {
+                continue;
             }
 
             let (view, buf) = get!(self: view);
@@ -1396,25 +1445,28 @@ impl Editor {
 
             if let Some(uri) = buf.file_url() {
                 tracing::debug!(%uri, %point, "lsp request definition");
-                let fut = server.definition(lsp_types::GotoDefinitionParams {
-                    text_document_position_params: lsp_types::TextDocumentPositionParams {
-                        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                        position: to_proto::point(encoding, &buf.text(), point),
+                let fut = do_it(
+                    server,
+                    lsp_types::GotoDefinitionParams {
+                        text_document_position_params: lsp_types::TextDocumentPositionParams {
+                            text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+                            position: to_proto::point(encoding, &buf.text(), point),
+                        },
+                        work_done_progress_params: lsp_types::WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
+                        partial_result_params: lsp_types::PartialResultParams {
+                            partial_result_token: None,
+                        },
                     },
-                    work_done_progress_params: lsp_types::WorkDoneProgressParams {
-                        work_done_token: None,
-                    },
-                    partial_result_params: lsp_types::PartialResultParams {
-                        partial_result_token: None,
-                    },
-                });
+                );
 
                 self.callback(
                     "go to definition request",
                     async move { Ok(fut.await?) },
                     move |editor, res| {
                         tracing::debug!(?res, "lsp definition response");
-                        editor.jump_to_definition(encoding, res)?;
+                        editor.lsp_jump_to_definition(encoding, res)?;
                         Ok(())
                     },
                 );
@@ -1424,7 +1476,7 @@ impl Editor {
             return;
         }
 
-        self.set_error("no active language server supports go to definition");
+        self.set_error(format!("no active language server supports {desc}"));
     }
 
     fn spawn_language_servers_for_ft(&mut self, buf: BufferId, ft: FileType) -> zi_lsp::Result<()> {
@@ -1649,7 +1701,7 @@ impl Editor {
         view.align(area, buf, alignment)
     }
 
-    fn jump_to_definition(
+    fn lsp_jump_to_definition(
         &mut self,
         encoding: PositionEncoding,
         res: Option<lsp_types::GotoDefinitionResponse>,
@@ -1665,11 +1717,9 @@ impl Editor {
         };
 
         match &locations[..] {
-            [] => (),
+            [] => self.set_error("no definition found"),
             [location] => self.lsp_jump_to_location(encoding, location)?,
-            _ => {
-                tracing::warn!("multiple definitions not supported yet");
-            }
+            _ => self.set_error("multiple definitions not supported yet"),
         };
 
         Ok(())
