@@ -30,6 +30,13 @@ impl Size {
     }
 }
 
+impl From<(u16, u16)> for Size {
+    #[inline]
+    fn from((width, height): (u16, u16)) -> Self {
+        Self::new(width, height)
+    }
+}
+
 impl From<Rect> for Size {
     #[inline]
     fn from(rect: Rect) -> Self {

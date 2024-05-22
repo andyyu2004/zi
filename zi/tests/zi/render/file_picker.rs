@@ -1,14 +1,18 @@
 use super::*;
 
-#[tokio::test]
-async fn file_picker() {
-    let cx = new_cx_with_size(zi::Size::new(100, 8), "").await;
-
+async fn new_() -> TestContext {
+    let cx = new_cx_with_size((100, 8), "").await;
     cx.with(|editor| {
         editor.settings().picker_split_proportion.write((0, 100));
         editor.open_file_picker("tests/zi/testdirs");
     })
     .await;
+    cx
+}
+
+#[tokio::test]
+async fn file_picker() {
+    let cx = new_().await;
 
     cx.snapshot(expect![[r#"
         "  |                                                                                                 "

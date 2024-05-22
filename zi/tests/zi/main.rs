@@ -37,9 +37,7 @@ impl TestContext {
     pub async fn snapshot(&self, expect: Expect) {
         let size = self.size;
         // Have to render twice to get updated output for certain events.
-        self.client
-            .request(move |editor| editor.render(&mut tui::TestFrame::new(size.width, size.height)))
-            .await;
+        self.render().await;
 
         self.client
             .request(move |editor| {
@@ -47,6 +45,13 @@ impl TestContext {
                 term.draw(|frame| editor.render(frame)).unwrap();
                 expect.assert_eq(&render(term.backend_mut()))
             })
+            .await;
+    }
+
+    pub async fn render(&self) {
+        let size = self.size;
+        self.client
+            .request(move |editor| editor.render(&mut tui::TestFrame::new(size.width, size.height)))
             .await;
     }
 
