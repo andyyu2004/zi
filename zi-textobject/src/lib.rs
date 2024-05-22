@@ -419,9 +419,7 @@ impl TextObject for NextLine {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
-        if line_idx + 1 == text.len_lines() {
-            return None;
-        }
+        text.line(line_idx + 1)?;
         Some(line_range_to_byte_range(text, line_idx..=line_idx + 1, Inclusivity::Inclusive))
     }
 

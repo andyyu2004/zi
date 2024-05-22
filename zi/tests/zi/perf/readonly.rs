@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 #[test]
 fn perf_readonly_large_file() {
-    let path = create_file(1000);
+    let path = create_file(2000);
     let (mut editor, ..) = zi::Editor::new(zi::Size::new(80, 24));
     let buf = editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY).unwrap();
     assert_eq!(editor.buffer(zi::Active).id(), buf);
@@ -23,7 +23,7 @@ fn perf_readonly_large_file() {
 fn create_file(mbs: usize) -> PathBuf {
     use duct::cmd;
 
-    assert!(mbs <= 1024, "don't go too crazy :)");
+    assert!(mbs <= 2048, "don't go too crazy :)");
 
     let path: io::Result<_> = try {
         let path = std::env::temp_dir().join(format!("zi-test-file-{}mb", mbs));

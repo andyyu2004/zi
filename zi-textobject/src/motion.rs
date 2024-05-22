@@ -173,7 +173,7 @@ impl Motion for NextLine {
     #[inline]
     fn motion(&self, text: &dyn AnyText, point: PointOrByte) -> PointOrByte {
         let point = text.point_or_byte_to_point(point);
-        if point.line() == text.len_lines() {
+        if text.line(point.line() + 1).is_none() {
             return point.into();
         }
 
