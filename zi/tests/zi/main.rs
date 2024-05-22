@@ -129,7 +129,7 @@ pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) 
 }
 
 pub async fn new_cx(scratch_content: &str) -> TestContext {
-    new_cx_with_size(zi::Size::new(80, 12), scratch_content).await
+    new_cx_with_size(zi::Size::new(80, 10), scratch_content).await
 }
 
 /// Copied from ratatui's `buffer_view`, but draws the cursor too.
