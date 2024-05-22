@@ -54,7 +54,8 @@ impl Editor {
             })
         }
     }
-    fn open_static_picker<P>(
+
+    pub(super) fn open_static_picker<P>(
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
@@ -159,16 +160,8 @@ impl Editor {
     pub fn open_jump_list(&mut self, selector: impl Selector<ViewId>) -> ViewGroupId {
         #[derive(Clone, Debug)]
         struct Jump {
-            buf: BufferId,
             path: PathBuf,
             point: Point,
-        }
-
-        #[allow(clippy::from_over_into)]
-        impl Into<Location> for Jump {
-            fn into(self) -> Location {
-                Location { buf: self.buf, point: self.point }
-            }
         }
 
         impl fmt::Display for Jump {
@@ -197,7 +190,7 @@ impl Editor {
             move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
                     let Some(path) = editor.buffer(loc.buf).path() else { continue };
-                    if let Err(()) = injector.push(Jump { path, buf: loc.buf, point: loc.point }) {
+                    if let Err(()) = injector.push(Jump { path, point: loc.point }) {
                         break;
                     }
                 }

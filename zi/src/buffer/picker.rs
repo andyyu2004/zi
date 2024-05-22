@@ -40,6 +40,7 @@ pub trait Picker: Copy + 'static {
     }
 }
 
+// We should support exact columns too
 pub trait PathPickerEntry: Entry {
     fn path(&self) -> &Path;
 
@@ -89,7 +90,7 @@ where
         nucleo::Config::DEFAULT.match_paths()
     }
 
-    fn select(self, editor: &mut Editor, entry: P) {
+    fn select(self, editor: &mut Editor, entry: Self::Entry) {
         let path = entry.path();
         match editor.open(path, OpenFlags::READONLY) {
             Ok(buffer) => {
@@ -107,7 +108,7 @@ where
         }
     }
 
-    fn confirm(self, editor: &mut Editor, entry: P) {
+    fn confirm(self, editor: &mut Editor, entry: Self::Entry) {
         let path = entry.path();
         assert!(path.is_file(), "directories should not be in the selection");
         // We can close any of the views, they are all in the same group

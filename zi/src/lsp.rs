@@ -270,9 +270,20 @@ impl DerefMut for LanguageServer {
 }
 
 pub fn client_capabilities() -> ClientCapabilities {
+    const GOTO_CAPABILITY: Option<lsp_types::GotoCapability> = Some(lsp_types::GotoCapability {
+        dynamic_registration: Some(false),
+        link_support: Some(true),
+    });
+
     lsp_types::ClientCapabilities {
         workspace: None,
-        text_document: Some(lsp_types::TextDocumentClientCapabilities { ..Default::default() }),
+        text_document: Some(lsp_types::TextDocumentClientCapabilities {
+            declaration: GOTO_CAPABILITY,
+            definition: GOTO_CAPABILITY,
+            type_definition: GOTO_CAPABILITY,
+            implementation: GOTO_CAPABILITY,
+            ..Default::default()
+        }),
         window: None,
         general: Some(lsp_types::GeneralClientCapabilities {
             position_encodings: Some(vec![

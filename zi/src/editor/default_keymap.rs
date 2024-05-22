@@ -63,6 +63,10 @@ pub(super) fn new() -> Keymap {
         editor.goto_definition(Active);
     }
 
+    fn goto_implementation(editor: &mut Editor) {
+        editor.goto_implementation(Active);
+    }
+
     fn goto_type_definition(editor: &mut Editor) {
         editor.goto_type_definition(Active);
     }
@@ -326,6 +330,7 @@ pub(super) fn new() -> Keymap {
                     "g" => {
                         "d" => goto_definition,
                         "D" => goto_declaration,
+                        "i" => goto_implementation,
                         "t" => goto_type_definition,
                         "g" => goto_start,
                     },

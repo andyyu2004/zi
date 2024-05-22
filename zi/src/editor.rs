@@ -1389,6 +1389,21 @@ impl Editor {
         )
     }
 
+    pub fn goto_implementation(&mut self, selector: impl Selector<ViewId>) {
+        let view = selector.select(self);
+        self.goto_definition_(
+            "go to implementation",
+            view,
+            |cap| {
+                !matches!(
+                    cap.implementation_provider,
+                    None | Some(lsp_types::ImplementationProviderCapability::Simple(false))
+                )
+            },
+            |server, params| server.implementation(params),
+        )
+    }
+
     pub fn goto_declaration(&mut self, selector: impl Selector<ViewId>) {
         let view = selector.select(self);
         self.goto_definition_(
@@ -1424,13 +1439,11 @@ impl Editor {
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        do_it: impl FnOnce(
+        f: impl FnOnce(
             &mut LanguageServer,
             lsp_types::GotoDefinitionParams,
-        ) -> BoxFuture<
-            'static,
-            zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>,
-        >,
+        )
+            -> BoxFuture<'static, zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>>,
     ) {
         for server_id in active_servers_of!(self, view) {
             let server = self.active_language_servers.get_mut(server_id).unwrap();
@@ -1445,7 +1458,7 @@ impl Editor {
 
             if let Some(uri) = buf.file_url() {
                 tracing::debug!(%uri, %point, "lsp request definition");
-                let fut = do_it(
+                let fut = f(
                     server,
                     lsp_types::GotoDefinitionParams {
                         text_document_position_params: lsp_types::TextDocumentPositionParams {
@@ -1712,14 +1725,53 @@ impl Editor {
             Some(lsp_types::GotoDefinitionResponse::Array(locations)) => locations,
             Some(lsp_types::GotoDefinitionResponse::Link(links)) => links
                 .into_iter()
-                .map(|link| lsp_types::Location { uri: link.target_uri, range: link.target_range })
+                .map(|link| lsp_types::Location {
+                    uri: link.target_uri,
+                    range: link.target_selection_range,
+                })
                 .collect(),
         };
+
+        #[derive(Clone, Debug)]
+        struct Entry {
+            path: PathBuf,
+            line: usize,
+        }
+
+        impl PathPickerEntry for Entry {
+            fn path(&self) -> &Path {
+                &self.path
+            }
+
+            fn line(&self) -> Option<usize> {
+                Some(self.line)
+            }
+        }
+
+        impl fmt::Display for Entry {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}:{}", self.path.display(), self.line)
+            }
+        }
 
         match &locations[..] {
             [] => self.set_error("no definition found"),
             [location] => self.lsp_jump_to_location(encoding, location)?,
-            _ => self.set_error("multiple definitions not supported yet"),
+            _ => {
+                self.open_static_picker::<PathPicker<_>>(
+                    Url::parse("view-group://lsp/picker").unwrap(),
+                    "/",
+                    move |_, injector| {
+                        for location in locations {
+                            let Ok(path) = location.uri.to_file_path() else { continue };
+                            let entry = Entry { path, line: location.range.start.line as usize };
+                            if injector.push(entry).is_err() {
+                                break;
+                            }
+                        }
+                    },
+                );
+            }
         };
 
         Ok(())
