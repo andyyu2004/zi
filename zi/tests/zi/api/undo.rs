@@ -1,9 +1,9 @@
 use super::new;
 use crate::new_cx;
 
-#[test]
-fn undo_insertion() {
-    let mut editor = new("x");
+#[tokio::test]
+async fn undo_insertion() {
+    let mut editor = new("x").await;
     editor.set_mode(zi::Mode::Insert);
     for c in ['a', 'b', 'c'] {
         editor.insert_char(zi::Active, c);
@@ -19,36 +19,36 @@ fn undo_insertion() {
     assert_eq!(editor.cursor_line(), "abcx");
 }
 
-#[test]
-fn undo_textobject_deletion() {
-    let mut editor = new("abc");
+#[tokio::test]
+async fn undo_textobject_deletion() {
+    let mut editor = new("abc").await;
     editor.input("dd").unwrap();
     assert_eq!(editor.cursor_line(), "");
     editor.undo(zi::Active);
     assert_eq!(editor.cursor_line(), "abc");
 }
 
-#[test]
-fn undo_does_not_insert_extra_newlines() {
-    let mut editor = new("a");
+#[tokio::test]
+async fn undo_does_not_insert_extra_newlines() {
+    let mut editor = new("a").await;
     editor.input("dwdw").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
     editor.undo(zi::Active);
     assert!(!editor.buffer(zi::Active).text().to_string().ends_with("\n\n"));
 }
 
-#[test]
-fn undo_dwdwdd() {
-    let mut editor = new("a");
+#[tokio::test]
+async fn undo_dwdwdd() {
+    let mut editor = new("a").await;
     editor.input("dwdw").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
     editor.input("dd").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
 }
 
-#[test]
-fn undo_uncommited_changes() {
-    let mut editor = new("");
+#[tokio::test]
+async fn undo_uncommited_changes() {
+    let mut editor = new("").await;
     editor.set_mode(zi::Mode::Insert);
     editor.insert(zi::Active, "ab");
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab\n");

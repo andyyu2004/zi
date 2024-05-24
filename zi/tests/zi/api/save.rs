@@ -5,7 +5,7 @@ async fn save() -> zi::Result<()> {
     let cx = new_cx("").await;
 
     let path = cx.tempfile("abc").unwrap();
-    let buf = cx.with(|editor| editor.open(path, zi::OpenFlags::ACTIVE)).await?;
+    let buf = cx.with(|editor| editor.open(path, zi::OpenFlags::ACTIVE)).await?.await?;
 
     cx.with(move |editor| {
         assert!(!editor[buf].flags().contains(zi::BufferFlags::DIRTY));

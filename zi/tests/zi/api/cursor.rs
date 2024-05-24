@@ -2,9 +2,9 @@ use zi::Direction::*;
 
 use crate::api::new;
 
-#[test]
-fn set_cursor() {
-    let mut editor = new("foo\ntest\n");
+#[tokio::test]
+async fn set_cursor() {
+    let mut editor = new("foo\ntest\n").await;
     assert_eq!(editor.cursor(zi::Active), (0, 0), "cursor should start at (0, 0)");
     assert_eq!(editor.cursor_line(), "foo");
     assert_eq!(editor.cursor_char(), Some('f'));
@@ -27,26 +27,26 @@ fn set_cursor() {
     assert_eq!(editor.cursor(zi::Active), (1, 0), "cursor should not move past end of buffer");
 }
 
-#[test]
-fn cursor_viewport_coords_tabs() {
-    let mut editor = new("fn main() {\n\tbar()\n}");
+#[tokio::test]
+async fn cursor_viewport_coords_tabs() {
+    let mut editor = new("fn main() {\n\tbar()\n}").await;
     editor.move_cursor(zi::Active, Down, 1);
     editor.move_cursor(zi::Active, Right, 1);
     assert_eq!(editor.cursor_viewport_coords(), (4, 1), "tab should count as 4 cells (by default)");
 }
 
-#[test]
-fn cursor_viewport_coords_scroll() {
-    let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n");
+#[tokio::test]
+async fn cursor_viewport_coords_scroll() {
+    let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n").await;
     assert_eq!(editor.cursor_viewport_coords(), (0, 0));
     editor.scroll(zi::Active, Down, 1);
     // The shouldn't actually have moved relative to the viewport
     assert_eq!(editor.cursor_viewport_coords(), (0, 0));
 }
 
-#[test]
-fn move_cursor_empty() {
-    let mut editor = new("");
+#[tokio::test]
+async fn move_cursor_empty() {
+    let mut editor = new("").await;
     assert_eq!(editor.cursor(zi::Active), (0, 0));
     for _ in 1..10 {
         for &direction in &[Left, Right, Up, Down] {
@@ -56,9 +56,9 @@ fn move_cursor_empty() {
     }
 }
 
-#[test]
-fn move_cursor_horizontal_no_newline() {
-    let mut editor = new("abc");
+#[tokio::test]
+async fn move_cursor_horizontal_no_newline() {
+    let mut editor = new("abc").await;
     assert_eq!(editor.cursor_line(), "abc");
     assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.move_cursor(zi::Active, Right, 1);
@@ -73,15 +73,16 @@ fn move_cursor_horizontal_no_newline() {
     assert_eq!(editor.cursor(zi::Active), (0, 3), "insert mode can move one character further");
 }
 
-#[test]
-fn vertical_move_cursor_remembers_column() {
+#[tokio::test]
+async fn vertical_move_cursor_remembers_column() {
     let mut editor = new(r#"foo
 test
 
 longer line!
 short
 
-"#);
+"#)
+    .await;
 
     assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.set_cursor(zi::Active, (1, 2));
@@ -115,9 +116,9 @@ short
     assert_eq!(editor.cursor(zi::Active), (3, 11));
 }
 
-#[test]
-fn cursor_with_scroll() {
-    let mut editor = new("foo\nbar\nbaz");
+#[tokio::test]
+async fn cursor_with_scroll() {
+    let mut editor = new("foo\nbar\nbaz").await;
 
     editor.scroll(zi::Active, zi::Direction::Down, 2);
     assert_eq!(editor.cursor(zi::Active), (2, 0));
@@ -128,17 +129,17 @@ fn cursor_with_scroll() {
     assert_eq!(editor.cursor(zi::Active), (2, 0));
 }
 
-#[test]
-fn cursor_newline() {
-    let mut editor = new("");
+#[tokio::test]
+async fn cursor_newline() {
+    let mut editor = new("").await;
     editor.set_mode(zi::Mode::Insert);
     editor.insert_char(zi::Active, '\n');
     assert_eq!(editor.cursor(zi::Active), (1, 0));
 }
 
-#[test]
-fn cursor_trailing_newline() {
-    let mut editor = new("\n");
+#[tokio::test]
+async fn cursor_trailing_newline() {
+    let mut editor = new("\n").await;
     editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.cursor(zi::Active), (0, 0));
 }

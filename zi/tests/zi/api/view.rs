@@ -4,9 +4,9 @@ use zi::Direction::*;
 
 use super::new;
 
-#[test]
-fn jump_list() {
-    let mut editor = new("");
+#[tokio::test]
+async fn jump_list() {
+    let mut editor = new("").await;
     let loc_initial = editor.current_location();
     let a = editor.create_readonly_buffer("a.txt", "aa".as_bytes());
     let b = editor.create_readonly_buffer("b.txt", "bb".as_bytes());
@@ -52,9 +52,9 @@ fn jump_list() {
     .assert_debug_eq(&editor.view(zi::Active).jump_list());
 }
 
-#[test]
-fn view_group() {
-    let mut editor = new("");
+#[tokio::test]
+async fn view_group() {
+    let mut editor = new("").await;
     let url = zi::Url::parse("view-group://test").unwrap();
     let group = editor.create_view_group(url.clone()).unwrap();
     assert_eq!(
@@ -74,9 +74,9 @@ fn view_group() {
     editor.close_view(zi::Active);
 }
 
-#[test]
-fn test_split() {
-    let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
+#[tokio::test]
+async fn test_split() {
+    let mut editor = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n").await;
 
     let left = editor.view(zi::Active).id();
     let right = editor.split(zi::Active, Right, Fill(1));
@@ -91,9 +91,9 @@ fn test_split() {
     assert_ne!(editor.view(left).offset(), editor.view(right).offset());
 }
 
-#[test]
-fn test_directional_focus() {
-    let mut editor = new("");
+#[tokio::test]
+async fn test_directional_focus() {
+    let mut editor = new("").await;
     let a = editor.view(zi::Active).id();
     assert_eq!(editor.focus_direction(Up), a);
     assert_eq!(editor.focus_direction(Down), a);

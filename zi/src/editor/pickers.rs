@@ -62,7 +62,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
-        P: Picker + Send,
+        P: Picker,
     {
         self.open_picker::<P>(view_group_url, path, None, f)
     }
@@ -74,7 +74,7 @@ impl Editor {
         dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
     ) -> ViewGroupId
     where
-        P: Picker + Send,
+        P: Picker,
     {
         self.open_picker::<P>(view_group_url, path, Some(Arc::new(dynamic_source)), |_, _| {})
     }
@@ -87,7 +87,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
-        P: Picker + Send,
+        P: Picker,
     {
         let view_group = match self.create_view_group(view_group_url) {
             Ok(view_group) => view_group,

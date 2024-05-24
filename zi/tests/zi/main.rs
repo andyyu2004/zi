@@ -70,7 +70,7 @@ impl TestContext {
 
     pub async fn open(&self, content: &str, flags: zi::OpenFlags) -> zi::Result<zi::BufferId> {
         let path = self.tempfile(content)?;
-        Ok(self.with(move |editor| editor.open(path, flags)).await?)
+        Ok(self.with(move |editor| editor.open(path, flags)).await?.await?)
     }
 
     pub async fn setup_lang_server<St: Send + Clone + 'static>(

@@ -2,9 +2,9 @@ use zi::Mode;
 
 use super::*;
 
-#[test]
-fn cmd_mode_backspace() {
-    let mut editor = new("");
+#[tokio::test]
+async fn cmd_mode_backspace() {
+    let mut editor = new("").await;
     editor.input(":").unwrap();
     assert_eq!(editor.mode(), Mode::Command);
     assert_eq!(editor.command_buffer(), Some(":"));

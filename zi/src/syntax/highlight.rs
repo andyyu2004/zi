@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use zi_core::style::{Color, Style};
 
+#[derive(Clone)]
 pub struct Theme {
     highlights: Vec<(Cow<'static, str>, Style)>,
     default_style: Style,

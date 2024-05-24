@@ -36,6 +36,7 @@ async fn lsp_format() -> zi::Result<()> {
             let path = path.to_path_buf();
             move |editor| editor.open_active(path)
         })
+        .await?
         .await?;
 
     let save_fut = cx.with(move |editor| editor.save(buf, zi::SaveFlags::empty())).await;

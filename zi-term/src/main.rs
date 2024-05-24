@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
                 flags.insert(zi::OpenFlags::READONLY);
             }
 
-            editor.open(path, flags)?;
+            editor.open(path, flags)?.await?;
         }
     }
 

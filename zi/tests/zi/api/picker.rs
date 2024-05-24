@@ -1,8 +1,8 @@
 use super::new;
 
-#[test]
+#[tokio::test] async
 fn picker() {
-    let mut editor = new("");
+    let mut editor = new("").await;
 
     assert_eq!(editor.views().count(), 1);
     let current_buf = editor.buffer(zi::Active).id();
@@ -38,9 +38,9 @@ fn picker() {
     );
 }
 
-#[test]
+#[tokio::test] async
 fn picker_input() {
-    let mut editor = new("");
+    let mut editor = new("").await;
     editor.open_jump_list(zi::Active);
     editor.input("abc").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc");

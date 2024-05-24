@@ -51,6 +51,7 @@ async fn lsp_definition_utf8() -> zi::Result<()> {
     cx.with(move |editor| {
         editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
     })
+    .await?
     .await?;
     cx.with(move |editor| editor.goto_definition(zi::Active)).await;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;
@@ -69,6 +70,7 @@ async fn lsp_definition_utf16() -> zi::Result<()> {
     cx.with(move |editor| {
         editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
     })
+    .await?
     .await?;
     cx.with(move |editor| editor.goto_definition(zi::Active)).await;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;

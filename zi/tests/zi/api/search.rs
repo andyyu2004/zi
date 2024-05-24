@@ -14,9 +14,9 @@ fn prev(editor: &mut zi::Editor) -> ops::Range<usize> {
     editor.goto_prev_match().unwrap().range()
 }
 
-#[test]
-fn search_switch_buffers() {
-    let editor = &mut new("abc\nabc");
+#[tokio::test]
+async fn search_switch_buffers() {
+    let editor = &mut new("abc\nabc").await;
     assert!(editor.search("abc").map(|m| m.range()).eq([0..3, 4..7]));
 
     let buf = editor.create_readonly_buffer("path", "abc".as_bytes());
@@ -27,25 +27,27 @@ fn search_switch_buffers() {
     assert!(editor.matches().map(|m| m.range()).eq(iter::once(0..3)));
 }
 
-#[test]
-fn search_cursor() {
+#[tokio::test]
+async fn search_cursor() {
     let editor = &mut new(r#"a
 a
 a
-a"#);
+a"#)
+    .await;
 
     editor.input("jj").unwrap();
     assert!(editor.search("a").map(|m| m.range()).eq([0..1, 2..3, 4..5, 6..7]));
     assert_eq!(next(editor), 6..7);
 }
 
-#[test]
-fn search_smoke() {
+#[tokio::test]
+async fn search_smoke() {
     // TODO what if we switch active buffers and a match is out of range etc
     let editor = &mut new(r#"abc
 def
 abc
-"#);
+"#)
+    .await;
     assert_eq!(editor.matches().len(), 0);
 
     assert!(editor.search("abc").map(|m| m.range()).eq([0..3, 8..11]));

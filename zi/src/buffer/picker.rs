@@ -26,7 +26,7 @@ pub struct PickerBuffer<P: Picker> {
 
 pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
 
-pub trait Picker: Copy + 'static {
+pub trait Picker: Send + Sync + Copy + 'static {
     type Entry: Entry;
 
     fn new(preview: ViewId) -> Self;
@@ -91,21 +91,27 @@ where
     }
 
     fn select(self, editor: &mut Editor, entry: Self::Entry) {
-        let path = entry.path();
-        match editor.open(path, OpenFlags::READONLY) {
-            Ok(buffer) => {
-                editor.set_buffer(self.preview, buffer);
-                if let Some(line) = entry.line() {
-                    editor.reveal(self.preview, Point::new(line, 0), VerticalAlignment::Center)
-                }
+        let fut = match editor.open(entry.path(), OpenFlags::READONLY) {
+            Ok(fut) => fut,
+            Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+                // Probably due to non-utf8 data, show an empty buffer
+                editor.set_buffer(self.preview, editor.empty_buffer());
+                return;
             }
-            Err(err) => match err {
-                zi_lsp::Error::Io(err) if err.kind() == std::io::ErrorKind::InvalidData => {
-                    editor.set_buffer(self.preview, editor.empty_buffer());
-                }
-                err => editor.set_error(err),
-            },
-        }
+            Err(err) => {
+                editor.set_error(err);
+                return;
+            }
+        };
+
+        editor.callback("open preview", async move { Ok(fut.await?) }, move |editor, buf| {
+            editor.set_buffer(self.preview, buf);
+            if let Some(line) = entry.line() {
+                editor.reveal(self.preview, Point::new(line, 0), VerticalAlignment::Center)
+            }
+
+            Ok(())
+        });
     }
 
     fn confirm(self, editor: &mut Editor, entry: Self::Entry) {
@@ -113,14 +119,15 @@ where
         assert!(path.is_file(), "directories should not be in the selection");
         // We can close any of the views, they are all in the same group
         editor.close_view(self.preview);
-        match editor.open_active(path) {
-            Ok(_) => {
-                if let Some(line) = entry.line() {
-                    editor.reveal(Active, Point::new(line, 0), VerticalAlignment::Center)
-                }
+
+        let fut = editor.open_active(path);
+        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
+            if let Some(line) = entry.line() {
+                editor.set_buffer(Active, buf);
+                editor.reveal(Active, Point::new(line, 0), VerticalAlignment::Center);
             }
-            Err(err) => editor.set_error(err),
-        }
+            Ok(())
+        })
     }
 }
 
@@ -238,7 +245,7 @@ impl<P: Picker> PickerBuffer<P> {
     }
 }
 
-impl<P: Picker + Send> Buffer for PickerBuffer<P> {
+impl<P: Picker + Send + Sync> Buffer for PickerBuffer<P> {
     fn id(&self) -> BufferId {
         self.id
     }
@@ -250,10 +257,6 @@ impl<P: Picker + Send> Buffer for PickerBuffer<P> {
     fn flushed(&mut self, _: Internal) {
         panic!("picker buffer has no backing file")
     }
-
-    // fn path(&self) -> &Path {
-    //     Path::new("picker")
-    // }
 
     fn url(&self) -> &Url {
         &self.url

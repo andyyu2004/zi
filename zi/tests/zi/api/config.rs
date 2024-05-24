@@ -2,9 +2,9 @@ use zi::Editor;
 
 use super::new;
 
-#[test]
-fn buffer_settings() {
-    let editor = new("");
+#[tokio::test]
+async fn buffer_settings() {
+    let editor = new("").await;
 
     let config = editor.buffer(zi::Active).settings();
     assert_eq!(config.tab_width, 4);
@@ -12,9 +12,9 @@ fn buffer_settings() {
     assert_eq!(config.tab_width, 8);
 }
 
-#[test]
-fn buffer_set_command() {
-    let mut editor = new("");
+#[tokio::test]
+async fn buffer_set_command() {
+    let mut editor = new("").await;
 
     fn buf(editor: &Editor) -> &zi::buffer::Settings {
         editor.buffer(zi::Active).settings()

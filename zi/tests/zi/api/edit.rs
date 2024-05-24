@@ -2,9 +2,9 @@ use expect_test::expect;
 
 use crate::api::{new, snapshot};
 
-#[test]
-fn delete_char_backward() {
-    let mut editor = new("");
+#[tokio::test]
+async fn delete_char_backward() {
+    let mut editor = new("").await;
     editor.set_mode(zi::Mode::Insert);
 
     // ensure that multi-byte characters are handled correctly
@@ -102,9 +102,9 @@ fn delete_char_backward() {
     );
 }
 
-#[test]
-fn insert_char() {
-    let mut editor = new("");
+#[tokio::test]
+async fn insert_char() {
+    let mut editor = new("").await;
     assert_eq!(editor.cursor(zi::Active), (0, 0));
     editor.set_mode(zi::Mode::Insert);
     assert_eq!(editor.cursor(zi::Active), (0, 0));
@@ -125,11 +125,11 @@ fn insert_char() {
     assert_eq!(editor.cursor(zi::Active), (0, 0), "nowhere left to move");
 }
 
-#[test]
-fn insert_into_readonly() -> zi::Result<()> {
-    let mut editor = new("abc");
+#[tokio::test]
+async fn insert_into_readonly() -> zi::Result<()> {
+    let mut editor = new("abc").await;
     let path = tempfile::NamedTempFile::new()?.into_temp_path();
-    let buf = editor.open(path, zi::OpenFlags::READONLY | zi::OpenFlags::ACTIVE)?;
+    let buf = editor.open(path, zi::OpenFlags::READONLY | zi::OpenFlags::ACTIVE)?.await?;
     assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));
 
     assert!(editor.get_error().is_none());
@@ -141,9 +141,9 @@ fn insert_into_readonly() -> zi::Result<()> {
     Ok(())
 }
 
-#[test]
-fn enter_normal_mode_on_last_line() -> zi::Result<()> {
-    let mut editor = new("");
+#[tokio::test]
+async fn enter_normal_mode_on_last_line() -> zi::Result<()> {
+    let mut editor = new("").await;
     editor.input("iabc<ESC>o").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n\n");
     assert_eq!(editor.cursor(zi::Active), (1, 0));
@@ -152,9 +152,9 @@ fn enter_normal_mode_on_last_line() -> zi::Result<()> {
     Ok(())
 }
 
-#[test]
-fn delete_last_line() {
-    let mut editor = new("");
+#[tokio::test]
+async fn delete_last_line() {
+    let mut editor = new("").await;
     editor.input("i<CR><CR><ESC>").unwrap();
     assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n\n");
     editor.input("jjdd").unwrap();

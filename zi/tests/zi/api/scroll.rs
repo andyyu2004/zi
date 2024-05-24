@@ -2,9 +2,9 @@ use zi::Direction::*;
 
 use crate::api::{new, new_with_size};
 
-#[test]
+#[tokio::test] async
 fn cursor_scrolls_when_out_of_bounds() {
-    let mut editor = new_with_size("1\n2\n3\n4\n5\n", zi::Size::new(10, 2));
+    let mut editor = new_with_size("1\n2\n3\n4\n5\n", zi::Size::new(10, 2)).await;
     editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.view(zi::Active).offset(), (1, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (1, 0));
@@ -28,15 +28,15 @@ fn cursor_scrolls_when_out_of_bounds() {
     assert_eq!(editor.view(zi::Active).cursor(), (4, 0));
 }
 
-#[test]
+#[tokio::test] async
 fn scroll() {
-    let mut editor = new("");
+    let mut editor = new("").await;
     editor.scroll(zi::Active, Down, 1);
     assert_eq!(editor.cursor_line(), "");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
 
-    let mut editor = new("foo\nbar");
+    let mut editor = new("foo\nbar").await;
     assert_eq!(editor.cursor_line(), "foo");
     assert_eq!(editor.view(zi::Active).offset(), (0, 0));
     assert_eq!(editor.view(zi::Active).cursor(), (0, 0));
@@ -73,18 +73,18 @@ fn scroll() {
     assert_eq!(editor.cursor_line(), "bar");
 }
 
-#[test]
+#[tokio::test] async
 fn scroll_overflow() {
-    let mut editor = new(&"a\n".repeat(20));
+    let mut editor = new(&"a\n".repeat(20)).await;
     editor.move_cursor(zi::Active, Down, 1);
     assert_eq!(editor.cursor(zi::Active), (1, 0));
 
     editor.scroll(zi::Active, Down, usize::MAX);
 }
 
-#[test]
+#[tokio::test] async
 fn scroll_bounds_check() {
-    let mut editor = new("1\n2\n3\n4\n5");
+    let mut editor = new("1\n2\n3\n4\n5").await;
 
     // Move cursor down one so it's desyned from the scroll
     editor.move_cursor(zi::Active, Down, 1);

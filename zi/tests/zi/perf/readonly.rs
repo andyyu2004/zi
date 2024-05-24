@@ -5,11 +5,11 @@ use std::io;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 
-#[test]
-fn perf_readonly_large_file() {
+#[tokio::test]
+async fn perf_readonly_large_file() -> zi::Result<()> {
     let path = create_file(2000);
     let (mut editor, ..) = zi::Editor::new(zi::Size::new(80, 24));
-    let buf = editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY).unwrap();
+    let buf = editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY)?.await?;
     assert_eq!(editor.buffer(zi::Active).id(), buf);
 
     // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.
@@ -18,6 +18,8 @@ fn perf_readonly_large_file() {
         editor.scroll(zi::Active, zi::Direction::Down, 20);
         editor.move_cursor(zi::Active, zi::Direction::Down, 20);
     }
+
+    Ok(())
 }
 
 fn create_file(mbs: usize) -> PathBuf {

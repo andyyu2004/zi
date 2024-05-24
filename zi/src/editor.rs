@@ -8,7 +8,6 @@ mod search;
 mod state;
 
 use std::any::Any;
-use std::borrow::Cow;
 use std::fs::File;
 use std::future::Future;
 use std::io::BufReader;
@@ -63,6 +62,7 @@ use crate::{
 };
 
 bitflags::bitflags! {
+    #[derive(Default, Clone, Copy, PartialEq, Eq)]
     pub struct OpenFlags: u32 {
         const NONE = 0;
         const READONLY = 1 << 0;
@@ -400,14 +400,16 @@ impl Editor {
         &mut self,
         path: impl AsRef<Path>,
         open_flags: OpenFlags,
-    ) -> Result<BufferId, zi_lsp::Error> {
-        let mut path = Cow::Borrowed(path.as_ref());
+    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
+        let theme = self.theme.clone();
+        let mut path = path.as_ref().to_path_buf();
+
         if path.exists() && !path.is_file() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file").into());
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
         }
 
         if !path.exists() && open_flags.contains(OpenFlags::READONLY) {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found").into());
+            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found"));
         }
 
         if path.exists() {
@@ -417,17 +419,21 @@ impl Editor {
             let n = File::open(&path)?.read(&mut buf)?;
             match content_inspector::inspect(&buf[..n]) {
                 content_inspector::ContentType::UTF_8 => {}
-                _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data").into()),
+                _ => {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data"));
+                }
             }
 
-            path = path.canonicalize()?.into();
+            path = path.canonicalize()?;
         }
 
         let ft = FileType::detect(&path);
 
-        let buf = if let Some(buf) = self.buffers.values().find(|b| {
+        let existing_buf = self.buffers.values().find(|b| {
             b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(path.as_ref())
-        }) {
+        });
+
+        let buf = if let Some(buf) = existing_buf {
             let id = buf.id();
             // If the buffer is already open, we can reuse it.
             // There is an exception where the buffer is already open as a readonly buffer
@@ -440,10 +446,9 @@ impl Editor {
                 let rope =
                     if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
 
-                let buf =
-                    TextBuffer::new(buf.id(), BufferFlags::empty(), ft, &path, rope, &self.theme)
-                        .boxed();
-                self.buffers[id] = buf
+                let buf = TextBuffer::new(buf.id(), BufferFlags::empty(), ft, &path, rope, &theme)
+                    .boxed();
+                self.buffers[id] = buf;
             }
             id
         } else {
@@ -473,17 +478,23 @@ impl Editor {
         }
 
         if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_ft(buf, ft)?;
+            self.spawn_language_servers_for_ft(buf, ft).expect(
+                "todo needs to wait to go inside the async block and have the right error type",
+            );
+            // self.spawn_language_servers_for_ft(buf, ft)?;
         }
 
-        Ok(buf)
+        Ok(async move { Ok(buf) })
     }
 
     pub fn register_command(&mut self, handler: Handler) {
         self.command_handlers.insert(handler.name(), handler);
     }
 
-    pub fn open_active(&mut self, path: impl AsRef<Path>) -> Result<BufferId, zi_lsp::Error> {
+    pub fn open_active(
+        &mut self,
+        path: impl AsRef<Path>,
+    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
         self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::ACTIVE)
     }
 
@@ -1719,7 +1730,7 @@ impl Editor {
         encoding: PositionEncoding,
         res: Option<lsp_types::GotoDefinitionResponse>,
     ) -> Result<(), Error> {
-        let locations = match res {
+        let mut locations = match res {
             None => vec![],
             Some(lsp_types::GotoDefinitionResponse::Scalar(location)) => vec![location],
             Some(lsp_types::GotoDefinitionResponse::Array(locations)) => locations,
@@ -1756,7 +1767,7 @@ impl Editor {
 
         match &locations[..] {
             [] => self.set_error("no definition found"),
-            [location] => self.lsp_jump_to_location(encoding, location)?,
+            [_] => self.lsp_jump_to_location(encoding, locations.pop().unwrap())?,
             _ => {
                 self.open_static_picker::<PathPicker<_>>(
                     Url::parse("view-group://lsp/picker").unwrap(),
@@ -1860,7 +1871,7 @@ impl Editor {
     fn lsp_jump_to_location(
         &mut self,
         encoding: PositionEncoding,
-        location: &lsp_types::Location,
+        location: lsp_types::Location,
     ) -> Result<(), Error> {
         let path = location
             .uri
@@ -1868,10 +1879,15 @@ impl Editor {
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
         let from = self.current_location();
-        let buf = self.open_active(path)?;
-        let text = self[buf].text();
-        let point = from_proto::point(encoding, text, location.range.start);
-        self.jump(from, Location::new(buf, point));
+        let open_fut = self.open_active(path)?;
+
+        self.callback("jump to location", async { Ok(open_fut.await) }, move |editor, buf| {
+            let buf = buf?;
+            let text = editor[buf].text();
+            let point = from_proto::point(encoding, text, location.range.start);
+            editor.jump(from, Location::new(buf, point));
+            Ok(())
+        });
 
         Ok(())
     }
