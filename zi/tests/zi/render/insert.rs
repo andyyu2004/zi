@@ -1,10 +1,10 @@
 use expect_test::expect;
 
-use crate::new_cx_with_size;
+use crate::new;
 
 #[tokio::test]
 async fn insert_newline_in_blank_buffer() {
-    let cx = new_cx_with_size(zi::Size::new(10, 5), "").await;
+    let cx = new("").with_size((10, 5)).await;
     cx.snapshot(expect![[r#"
         "   1 |    "
         "          "

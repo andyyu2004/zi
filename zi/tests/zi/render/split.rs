@@ -4,11 +4,11 @@ use expect_test::expect;
 use zi::Constraint::*;
 use zi::Direction::*;
 
-use crate::new_cx_with_size;
+use crate::new;
 
 #[tokio::test]
 async fn view_only() {
-    let cx = new_cx_with_size(zi::Size::new(51, 8), "1\n2\n3\n").await;
+    let cx = new("1\n2\n3\n").with_size((51, 8)).await;
 
     cx.with(|editor| {
         let v = editor.split(zi::Active, Right, Fill(1));
@@ -34,7 +34,7 @@ async fn view_only() {
 
 #[tokio::test]
 async fn close_view() {
-    let cx = new_cx_with_size(zi::Size::new(51, 8), "1\n2\n3\n").await;
+    let cx = new("1\n2\n3\n").with_size((51, 8)).await;
 
     cx.with(|editor| {
         let v = editor.split(zi::Active, Right, Fill(1));
@@ -90,7 +90,7 @@ async fn close_view() {
 
 #[tokio::test]
 async fn splits_have_independent_scroll() -> io::Result<()> {
-    let cx = new_cx_with_size(zi::Size::new(51, 8), "1\n2\n3\n").await;
+    let cx = new("1\n2\n3\n").with_size((51, 8)).await;
 
     cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
     cx.snapshot(expect![[r#"
@@ -125,7 +125,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
 
 #[tokio::test]
 async fn split() -> io::Result<()> {
-    let cx = new_cx_with_size(zi::Size::new(50, 8), "abc").await;
+    let cx = new("abc").with_size((50, 8)).await;
 
     cx.with(|editor| editor.split(zi::Active, Down, Fill(1))).await;
     cx.snapshot(expect![[r#"
@@ -142,7 +142,7 @@ async fn split() -> io::Result<()> {
 
     cx.cleanup().await;
 
-    let cx = new_cx_with_size(zi::Size::new(50, 8), "abc").await;
+    let cx = new("abc").with_size((50, 8)).await;
     cx.with(|editor| editor.split(zi::Active, Right, Fill(1))).await;
     cx.snapshot(expect![[r#"
         "   1 abc                    1 ab|                 "
@@ -214,7 +214,7 @@ async fn split() -> io::Result<()> {
 
 #[tokio::test]
 async fn more_splits() {
-    let cx = new_cx_with_size(zi::Size::new(20, 8), "abc").await;
+    let cx = new("abc").with_size((20, 8)).await;
     cx.with(|editor| {
         let a = editor.view(zi::Active).id();
         editor.split(zi::Active, Right, Fill(1));
@@ -244,7 +244,7 @@ async fn more_splits() {
 async fn test_directional_focus() {
     // regression test for cb801c66734ff16be921087a982b53fa626a976a
 
-    let cx = new_cx_with_size(zi::Size::new(24, 6), "abc").await;
+    let cx = new("abc").with_size((24, 6)).await;
     let (a, b) = cx
         .with(|editor| {
             let a = editor.view(zi::Active).id();
@@ -303,7 +303,7 @@ async fn test_directional_focus() {
 
 #[tokio::test]
 async fn test_multiple_views_into_same_buffer() {
-    let cx = new_cx_with_size(zi::Size::new(24, 6), "abcdefg").await;
+    let cx = new("abcdefg").with_size((24, 6)).await;
     cx.snapshot(expect![[r#"
         "   1 abcdef|            "
         "                        "
@@ -358,7 +358,7 @@ async fn test_multiple_views_into_same_buffer() {
 async fn test_directional_focus_propagation() {
     // regression test for cb801c66734ff16be921087a982b53fa626a976a
 
-    let cx = new_cx_with_size(zi::Size::new(32, 6), "ab").await;
+    let cx = new("ab").with_size((32, 6)).await;
     cx.with(|editor| {
         editor.split(zi::Active, Right, Fill(1));
         editor.split(zi::Active, Down, Fill(1));

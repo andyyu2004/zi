@@ -1,11 +1,11 @@
 use expect_test::expect;
 
-use crate::new_cx_with_size;
+use crate::new;
 
 #[tokio::test]
 async fn line_number_width_grows_and_shrinks_as_required() {
     let text = (1..13).map(|n| n.to_string()).collect::<Vec<_>>().join("\n");
-    let cx = new_cx_with_size(zi::Size::new(51, 8), &text).await;
+    let cx = new(&text).with_size((51, 8)).await;
 
     cx.with(|editor| editor.view(zi::Active).settings().line_number_width.write(0)).await;
     cx.snapshot(expect![[r#"
@@ -43,7 +43,7 @@ async fn line_number_width_grows_and_shrinks_as_required() {
 
 #[tokio::test]
 async fn no_line_number() {
-    let cx = new_cx_with_size(zi::Size::new(51, 8), "a\nb\nc").await;
+    let cx = new("a\nb\nc").with_size((51, 8)).await;
 
     cx.with(|editor| {
         editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::None)
@@ -68,7 +68,7 @@ async fn no_line_number() {
 #[tokio::test]
 async fn relative_line_number() {
     let text = (1..13).map(|n| n.to_string()).collect::<Vec<_>>().join("\n");
-    let cx = new_cx_with_size(zi::Size::new(51, 8), &text).await;
+    let cx = new(&text).with_size((51, 8)).await;
 
     cx.with(|editor| {
         editor.move_cursor(zi::Active, zi::Direction::Up, 3);

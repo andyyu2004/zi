@@ -6,10 +6,12 @@ mod lsp;
 mod perf;
 mod render;
 
+use std::future::IntoFuture;
 use std::io;
 use std::path::PathBuf;
 
 use expect_test::{expect, Expect};
+use futures_util::future::BoxFuture;
 use stdx::bomb::DropBomb;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
@@ -122,30 +124,47 @@ impl TestContext {
     }
 }
 
-// FIXME make this a `.with_size(size)` method on `TestContext`.
-pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) -> TestContext {
-    let size = size.into();
-    let (mut editor, tasks) = zi::Editor::new(size);
-    editor.set_mode(zi::Mode::Insert);
-    editor.edit(zi::Active, &zi::Deltas::insert_at(0, scratch_content));
-    editor.set_cursor(zi::Active, scratch_content.len());
-    editor.set_mode(zi::Mode::Normal);
+pub fn new(scratch_content: impl Into<String>) -> TestContextBuilder {
+    TestContextBuilder { size: zi::Size::new(80, 10), scratch_content: scratch_content.into() }
+}
 
-    let client = editor.client();
-    let handle = tokio::spawn(async move {
-        editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
-    });
+pub struct TestContextBuilder {
+    size: zi::Size,
+    scratch_content: String,
+}
 
-    TestContext {
-        client,
-        size,
-        handle: Some(handle),
-        bomb: DropBomb::new("call `cleanup().await`"),
+impl TestContextBuilder {
+    pub fn with_size(mut self, size: impl Into<zi::Size>) -> Self {
+        self.size = size.into();
+        self
     }
 }
 
-pub async fn new(scratch_content: &str) -> TestContext {
-    new_cx_with_size(zi::Size::new(80, 10), scratch_content).await
+impl IntoFuture for TestContextBuilder {
+    type Output = TestContext;
+    type IntoFuture = BoxFuture<'static, Self::Output>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(async move {
+            let (mut editor, tasks) = zi::Editor::new(self.size);
+            editor.set_mode(zi::Mode::Insert);
+            editor.edit(zi::Active, &zi::Deltas::insert_at(0, &self.scratch_content));
+            editor.set_cursor(zi::Active, self.scratch_content.len());
+            editor.set_mode(zi::Mode::Normal);
+
+            let client = editor.client();
+            let handle = tokio::spawn(async move {
+                editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
+            });
+
+            TestContext {
+                client,
+                size: self.size,
+                handle: Some(handle),
+                bomb: DropBomb::new("call `cleanup().await`"),
+            }
+        })
+    }
 }
 
 /// Copied from ratatui's `buffer_view`, but draws the cursor too.

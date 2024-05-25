@@ -1,9 +1,8 @@
-use crate::new_cx_with_size;
+use crate::new;
 
 #[tokio::test]
 async fn motion_scrolls_view() {
-    let height = 4;
-    let cx = new_cx_with_size(zi::Size::new(10, height), "0\n1\n2\n3\n4\n").await;
+    let cx = new("0\n1\n2\n3\n4\n").with_size((10, 4)).await;
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         for i in 0..5usize {

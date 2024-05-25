@@ -1,10 +1,10 @@
 use zi::Direction::*;
 
-use crate::{new, new_cx_with_size};
+use crate::new;
 
 #[tokio::test]
 async fn cursor_scrolls_when_out_of_bounds() {
-    let cx = new_cx_with_size(zi::Size::new(10, 4), "1\n2\n3\n4\n5\n").await;
+    let cx = new("1\n2\n3\n4\n5\n").with_size((10, 4)).await;
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         editor.scroll(zi::Active, Down, 1);
