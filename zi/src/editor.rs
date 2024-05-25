@@ -396,14 +396,7 @@ impl Editor {
         Client { tx: self.requests_tx.clone() }
     }
 
-    pub fn open(
-        &mut self,
-        path: impl AsRef<Path>,
-        open_flags: OpenFlags,
-    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
-        let theme = self.theme.clone();
-        let mut path = path.as_ref().to_path_buf();
-
+    fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
         }
@@ -424,8 +417,20 @@ impl Editor {
                 }
             }
 
-            path = path.canonicalize()?;
+            *path = path.canonicalize()?;
         }
+
+        Ok(())
+    }
+
+    pub fn open(
+        &mut self,
+        path: impl AsRef<Path>,
+        open_flags: OpenFlags,
+    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
+        let theme = self.theme.clone();
+        let mut path = path.as_ref().to_path_buf();
+        self.check_open(&mut path, open_flags)?;
 
         let ft = FileType::detect(&path);
 
@@ -433,8 +438,13 @@ impl Editor {
             b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(path.as_ref())
         });
 
-        let buf = if let Some(buf) = existing_buf {
-            let id = buf.id();
+        enum Plan {
+            Replace(BufferId),
+            Insert,
+            Existing(BufferId),
+        }
+
+        let plan = if let Some(buf) = existing_buf {
             // If the buffer is already open, we can reuse it.
             // There is an exception where the buffer is already open as a readonly buffer
             // and we want to open it as a normal buffer. In that case we drop the old buffer and
@@ -443,48 +453,77 @@ impl Editor {
             if buf.flags().contains(BufferFlags::READONLY)
                 && !open_flags.contains(OpenFlags::READONLY)
             {
-                let rope =
-                    if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
-
-                let buf = TextBuffer::new(buf.id(), BufferFlags::empty(), ft, &path, rope, &theme)
-                    .boxed();
-                self.buffers[id] = buf;
+                Plan::Replace(buf.id())
+            } else {
+                Plan::Existing(buf.id())
             }
-            id
         } else {
-            self.buffers.try_insert_with_key::<_, io::Error>(|id| {
-                let start = Instant::now();
-                let buf = if open_flags.contains(OpenFlags::READONLY) {
-                    debug_assert!(path.exists() && path.is_file());
-                    // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
-                    let text = unsafe { ReadonlyText::open(&path) }?;
-                    TextBuffer::new(id, BufferFlags::READONLY, ft, &path, text, &self.theme).boxed()
-                } else {
-                    let rope = if path.exists() {
-                        rope_from_reader(File::open(&path)?)?
-                    } else {
-                        Rope::new()
-                    };
-                    TextBuffer::new(id, BufferFlags::empty(), ft, &path, rope, &self.theme).boxed()
-                };
-
-                tracing::info!(?path, %ft, time = ?start.elapsed(), "opened buffer");
-                Ok(buf)
-            })?
+            Plan::Insert
         };
 
-        if open_flags.contains(OpenFlags::ACTIVE) {
-            self.set_buffer(Active, buf);
-        }
+        let client = self.client();
+        Ok(async move {
+            match plan {
+                Plan::Replace(_) | Plan::Insert => {}
+                Plan::Existing(id) => return Ok(id),
+            };
 
-        if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-            self.spawn_language_servers_for_ft(buf, ft).expect(
-                "todo needs to wait to go inside the async block and have the right error type",
-            );
-            // self.spawn_language_servers_for_ft(buf, ft)?;
-        }
+            async fn execute<T: Text + Clone + 'static>(
+                client: &Client,
+                plan: Plan,
+                ft: FileType,
+                path: &Path,
+                text: T,
+                theme: Theme,
+            ) -> BufferId {
+                let path = path.to_path_buf();
+                client
+                    .request(move |editor| match plan {
+                        Plan::Replace(id) => {
+                            let buf =
+                                TextBuffer::new(id, BufferFlags::empty(), ft, &path, text, &theme)
+                                    .boxed();
+                            editor.buffers[id] = buf;
+                            id
+                        }
+                        Plan::Insert => editor.buffers.insert_with_key(|id| {
+                            TextBuffer::new(id, BufferFlags::READONLY, ft, &path, text, &theme)
+                                .boxed()
+                        }),
+                        Plan::Existing(_id) => unreachable!(),
+                    })
+                    .await
+            }
 
-        Ok(async move { Ok(buf) })
+            let start = Instant::now();
+            let buf = if open_flags.contains(OpenFlags::READONLY) {
+                debug_assert!(path.exists() && path.is_file());
+                // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
+                let text = unsafe { ReadonlyText::open(&path) }?;
+                execute(&client, plan, ft, &path, text, theme).await
+            } else {
+                let rope =
+                    if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
+                execute(&client, plan, ft, &path, rope, theme).await
+            };
+
+            client
+                .request(move |editor| {
+                    if open_flags.contains(OpenFlags::ACTIVE) {
+                        editor.set_buffer(Active, buf);
+                    }
+
+                    if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+                        editor.spawn_language_servers_for_ft(buf, ft)?;
+                    }
+
+                    Ok::<_, zi_lsp::Error>(())
+                })
+                .await?;
+
+            tracing::info!(?path, %ft, time = ?start.elapsed(), "opened buffer");
+            Ok(buf)
+        })
     }
 
     pub fn register_command(&mut self, handler: Handler) {
