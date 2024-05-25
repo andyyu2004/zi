@@ -475,20 +475,18 @@ impl Editor {
                 path: &Path,
                 text: T,
                 theme: Theme,
+                flags: BufferFlags,
             ) -> BufferId {
                 let path = path.to_path_buf();
                 client
                     .request(move |editor| match plan {
                         Plan::Replace(id) => {
-                            let buf =
-                                TextBuffer::new(id, BufferFlags::empty(), ft, &path, text, &theme)
-                                    .boxed();
+                            let buf = TextBuffer::new(id, flags, ft, &path, text, &theme).boxed();
                             editor.buffers[id] = buf;
                             id
                         }
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
-                            TextBuffer::new(id, BufferFlags::READONLY, ft, &path, text, &theme)
-                                .boxed()
+                            TextBuffer::new(id, flags, ft, &path, text, &theme).boxed()
                         }),
                         Plan::Existing(_id) => unreachable!(),
                     })
@@ -500,11 +498,11 @@ impl Editor {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
-                execute(&client, plan, ft, &path, text, theme).await
+                execute(&client, plan, ft, &path, text, theme, BufferFlags::READONLY).await
             } else {
                 let rope =
                     if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
-                execute(&client, plan, ft, &path, rope, theme).await
+                execute(&client, plan, ft, &path, rope, theme, BufferFlags::empty()).await
             };
 
             client
@@ -600,6 +598,7 @@ impl Editor {
         set_error!(self, error);
     }
 
+    #[doc(hidden)]
     pub fn cursor_viewport_coords(&self) -> (u16, u16) {
         if mode!(self) == Mode::Command {
             return (1, self.tree.area().height + 1);

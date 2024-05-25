@@ -7,7 +7,7 @@ async fn setup(
     position_encoding: lsp_types::PositionEncodingKind,
     range: lsp_types::Range,
     text: &str,
-) -> zi::Result<TempPath> {
+) -> zi::Result<PathBuf> {
     let path = cx.tempfile(text)?;
     let uri = Url::from_file_path(&path).unwrap();
 
@@ -43,7 +43,7 @@ async fn setup(
 
 #[tokio::test]
 async fn lsp_definition_utf8() -> zi::Result<()> {
-    let cx = new_cx("").await;
+    let cx = new("").await;
 
     let path =
         setup(&cx, lsp_types::PositionEncodingKind::UTF8, lsp_range!(0:4..0:5), r#"ab©de"#).await?;
@@ -62,7 +62,7 @@ async fn lsp_definition_utf8() -> zi::Result<()> {
 
 #[tokio::test]
 async fn lsp_definition_utf16() -> zi::Result<()> {
-    let cx = new_cx("").await;
+    let cx = new("").await;
 
     let path = setup(&cx, lsp_types::PositionEncodingKind::UTF16, lsp_range!(0:3..0:4), r#"ab©de"#)
         .await?;

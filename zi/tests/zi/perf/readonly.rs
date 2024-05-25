@@ -5,19 +5,24 @@ use std::io;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 
+use crate::new;
+
 #[tokio::test]
 async fn perf_readonly_large_file() -> zi::Result<()> {
     let path = create_file(2000);
-    let (mut editor, ..) = zi::Editor::new(zi::Size::new(80, 24));
-    let buf = editor.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY)?.await?;
-    assert_eq!(editor.buffer(zi::Active).id(), buf);
-
-    // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.
-    // If we do then this will take seconds, but it should be instant.
-    for _ in 0..100 {
-        editor.scroll(zi::Active, zi::Direction::Down, 20);
-        editor.move_cursor(zi::Active, zi::Direction::Down, 20);
-    }
+    let cx = new("").await;
+    let buf = cx.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY).await?;
+    cx.with(move |editor| {
+        // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.
+        // If we do then this will take seconds, but it should be instant.
+        for _ in 0..100 {
+            editor.scroll(zi::Active, zi::Direction::Down, 20);
+            editor.move_cursor(zi::Active, zi::Direction::Down, 20);
+        }
+        assert_eq!(editor.buffer(zi::Active).id(), buf);
+    })
+    .await;
+    cx.cleanup().await;
 
     Ok(())
 }

@@ -1,10 +1,10 @@
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use tokio::io::AsyncReadExt;
-use tui::backend::CrosstermBackend;
-use tui::Terminal;
-use zi::{Editor, OpenFlags};
+// use tokio::io::AsyncReadExt;
+// use tui::backend::CrosstermBackend;
+// use tui::Terminal;
+use zi::OpenFlags;
 
 #[tokio::test]
 async fn it_works() -> zi::Result<()> {
@@ -86,7 +86,10 @@ async fn snapshot_path(name: &'static str, path: impl AsRef<Path>) -> anyhow::Re
     .await
 }
 
-async fn snapshot<Fut>(name: &'static str, f: impl FnOnce(zi::Client) -> Fut) -> anyhow::Result<()>
+async fn snapshot<Fut>(
+    _name: &'static str,
+    _f: impl FnOnce(zi::Client) -> Fut,
+) -> anyhow::Result<()>
 where
     Fut: Future<Output = zi::Result<()>>,
 {

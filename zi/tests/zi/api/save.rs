@@ -1,14 +1,15 @@
-use crate::new_cx;
+use crate::new;
 
 #[tokio::test]
 async fn save() -> zi::Result<()> {
-    let cx = new_cx("").await;
+    let cx = new("").await;
 
     let path = cx.tempfile("abc").unwrap();
-    let buf = cx.with(|editor| editor.open(path, zi::OpenFlags::ACTIVE)).await?.await?;
+    let buf = cx.open(&path, zi::OpenFlags::ACTIVE).await?;
 
     cx.with(move |editor| {
         assert!(!editor[buf].flags().contains(zi::BufferFlags::DIRTY));
+        assert!(!editor[buf].flags().contains(zi::BufferFlags::READONLY));
         editor.edit(buf, &zi::Deltas::insert_at(3, "def".to_string()));
         assert!(editor[buf].flags().contains(zi::BufferFlags::DIRTY));
     })

@@ -11,7 +11,6 @@ use std::path::PathBuf;
 
 use expect_test::{expect, Expect};
 use stdx::bomb::DropBomb;
-use tempfile::TempPath;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
@@ -27,6 +26,16 @@ pub struct TestContext {
 }
 
 impl TestContext {
+    /// Convenience wrapper around `Editor::open`
+    pub async fn open(
+        &self,
+        path: impl Into<PathBuf>,
+        flags: zi::OpenFlags,
+    ) -> zi_lsp::Result<zi::BufferId> {
+        let path = path.into();
+        self.with(move |editor| editor.open(path, flags)).await?.await
+    }
+
     pub async fn with<R>(&self, f: impl FnOnce(&mut zi::Editor) -> R + Send + 'static) -> R
     where
         R: Send + 'static,
@@ -59,18 +68,19 @@ impl TestContext {
         tempfile::tempdir().map(|dir| dir.into_path())
     }
 
-    pub fn tempfile(&self, content: &str) -> io::Result<TempPath> {
+    pub fn tempfile(&self, content: &str) -> io::Result<PathBuf> {
         let file = tempfile::NamedTempFile::new()?;
         std::fs::write(file.path(), content)?;
-        let path = file.into_temp_path();
+        let (_file, path) = file.keep()?;
         assert!(path.exists());
         debug_assert_eq!(std::fs::read_to_string(&path)?, content);
         Ok(path)
     }
 
-    pub async fn open(&self, content: &str, flags: zi::OpenFlags) -> zi::Result<zi::BufferId> {
+    /// Open a temporary file with the given content.
+    pub async fn open_tmp(&self, content: &str, flags: zi::OpenFlags) -> zi::Result<zi::BufferId> {
         let path = self.tempfile(content)?;
-        Ok(self.with(move |editor| editor.open(path, flags)).await?.await?)
+        Ok(self.open(&path, flags).await?)
     }
 
     pub async fn setup_lang_server<St: Send + Clone + 'static>(
@@ -112,6 +122,7 @@ impl TestContext {
     }
 }
 
+// FIXME make this a `.with_size(size)` method on `TestContext`.
 pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) -> TestContext {
     let size = size.into();
     let (mut editor, tasks) = zi::Editor::new(size);
@@ -133,7 +144,7 @@ pub async fn new_cx_with_size(size: impl Into<zi::Size>, scratch_content: &str) 
     }
 }
 
-pub async fn new_cx(scratch_content: &str) -> TestContext {
+pub async fn new(scratch_content: &str) -> TestContext {
     new_cx_with_size(zi::Size::new(80, 10), scratch_content).await
 }
 

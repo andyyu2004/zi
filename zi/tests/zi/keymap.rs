@@ -1,17 +1,21 @@
 use zi::input::KeySequence;
 
-use crate::api::new;
+use crate::new;
 
 #[tokio::test]
 async fn composite_escape() {
-    async fn check(seq: &str, expectation: &str) {
-        let mut editor = new("").await;
-        let seq = seq.parse::<KeySequence>().unwrap();
-        for key in seq {
-            editor.handle_input(key);
-        }
+    async fn check(seq: &'static str, expectation: &'static str) {
+        let cx = new("").await;
+        cx.with(move |editor| {
+            let seq = seq.parse::<KeySequence>().unwrap();
+            for key in seq {
+                editor.handle_input(key);
+            }
 
-        assert_eq!(editor.cursor_line(), expectation);
+            assert_eq!(editor.cursor_line(), expectation);
+        })
+        .await;
+        cx.cleanup().await;
     }
 
     check("ifd", "").await;
