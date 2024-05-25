@@ -10,7 +10,6 @@ mod state;
 use std::any::Any;
 use std::fs::File;
 use std::future::Future;
-use std::io::BufReader;
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
@@ -26,7 +25,7 @@ use ignore::WalkState;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::{PathExt, Relative};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
@@ -500,8 +499,11 @@ impl Editor {
                 let text = unsafe { ReadonlyText::open(&path) }?;
                 execute(&client, plan, ft, &path, text, theme, BufferFlags::READONLY).await
             } else {
-                let rope =
-                    if path.exists() { rope_from_reader(File::open(&path)?)? } else { Rope::new() };
+                let rope = if path.exists() {
+                    rope_from_reader(tokio::fs::File::open(&path).await?).await?
+                } else {
+                    Rope::new()
+                };
                 execute(&client, plan, ft, &path, rope, theme, BufferFlags::empty()).await
             };
 
@@ -2041,14 +2043,12 @@ impl Editor {
     }
 }
 
-fn rope_from_reader(reader: impl io::Read) -> io::Result<Rope> {
-    use std::io::BufRead;
-
-    let mut reader = BufReader::new(reader);
+async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Result<Rope> {
+    let mut reader = tokio::io::BufReader::new(reader);
     let mut builder = RopeBuilder::new();
 
     loop {
-        let buf = reader.fill_buf()?;
+        let buf = reader.fill_buf().await?;
         if buf.is_empty() {
             break;
         }
