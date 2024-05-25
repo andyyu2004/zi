@@ -8,7 +8,7 @@ async fn test_open() -> zi::Result<()> {
     let existing_path = tempfile::NamedTempFile::new()?.into_temp_path();
     cx.with({
         let existing_path = existing_path.to_path_buf().to_owned();
-        move |editor| editor.open_active(existing_path)
+        move |editor| editor.open(existing_path, zi::OpenFlags::empty())
     })
     .await?
     .await?;
@@ -25,7 +25,7 @@ async fn test_open() -> zi::Result<()> {
     };
 
     let buf = cx
-        .open(&non_existing_path, zi::OpenFlags::ACTIVE)
+        .open(&non_existing_path, zi::OpenFlags::empty())
         .await
         .expect("should be allowed to open new files");
 
@@ -51,6 +51,26 @@ async fn test_open_replace_readonly_with_writable() -> zi::Result<()> {
         assert!(editor.get_error().is_none());
     })
     .await;
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_open_focus() -> zi::Result<()> {
+    let cx = new("").await;
+    let a = cx.tempfile("a")?;
+    let b = cx.tempfile("b")?;
+
+    cx.open(&a, zi::OpenFlags::empty()).await.unwrap();
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &a);
+
+    cx.open(&b, zi::OpenFlags::empty()).await.unwrap();
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &b);
+
+    // Should focus `a` again even if it's already open
+    cx.open(&a, zi::OpenFlags::empty()).await.unwrap();
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &a);
+
     cx.cleanup().await;
     Ok(())
 }

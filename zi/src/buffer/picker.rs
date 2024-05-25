@@ -91,7 +91,7 @@ where
     }
 
     fn select(self, editor: &mut Editor, entry: Self::Entry) {
-        let fut = match editor.open(entry.path(), OpenFlags::READONLY) {
+        let fut = match editor.open(entry.path(), OpenFlags::READONLY | OpenFlags::BACKGROUND) {
             Ok(fut) => fut,
             Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
                 // Probably due to non-utf8 data, show an empty buffer
@@ -120,10 +120,9 @@ where
         // We can close any of the views, they are all in the same group
         editor.close_view(self.preview);
 
-        let fut = editor.open_active(path);
-        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
+        let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS);
+        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, _buf| {
             if let Some(line) = entry.line() {
-                editor.set_buffer(Active, buf);
                 editor.reveal(Active, Point::new(line, 0), VerticalAlignment::Center);
             }
             Ok(())

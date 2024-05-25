@@ -66,8 +66,8 @@ bitflags::bitflags! {
         const NONE = 0;
         const READONLY = 1 << 0;
         const SPAWN_LANGUAGE_SERVERS = 1 << 1;
-        /// Open the buffer in the active view
-        const ACTIVE = 1 << 2;
+        /// Don't open the buffer in the active view
+        const BACKGROUND = 1 << 2;
     }
 
     pub struct SaveFlags: u32 {
@@ -462,11 +462,6 @@ impl Editor {
 
         let client = self.client();
         Ok(async move {
-            match plan {
-                Plan::Replace(_) | Plan::Insert => {}
-                Plan::Existing(id) => return Ok(id),
-            };
-
             async fn execute<T: Text + Clone + 'static>(
                 client: &Client,
                 plan: Plan,
@@ -487,7 +482,7 @@ impl Editor {
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
                             TextBuffer::new(id, flags, ft, &path, text, &theme).boxed()
                         }),
-                        Plan::Existing(_id) => unreachable!(),
+                        Plan::Existing(id) => id,
                     })
                     .await
             }
@@ -509,7 +504,7 @@ impl Editor {
 
             client
                 .request(move |editor| {
-                    if open_flags.contains(OpenFlags::ACTIVE) {
+                    if !open_flags.contains(OpenFlags::BACKGROUND) {
                         editor.set_buffer(Active, buf);
                     }
 
@@ -528,13 +523,6 @@ impl Editor {
 
     pub fn register_command(&mut self, handler: Handler) {
         self.command_handlers.insert(handler.name(), handler);
-    }
-
-    pub fn open_active(
-        &mut self,
-        path: impl AsRef<Path>,
-    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
-        self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::ACTIVE)
     }
 
     pub(crate) fn empty_buffer(&self) -> BufferId {
@@ -1919,7 +1907,7 @@ impl Editor {
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
         let from = self.current_location();
-        let open_fut = self.open_active(path)?;
+        let open_fut = self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS)?;
 
         self.callback("jump to location", async { Ok(open_fut.await) }, move |editor, buf| {
             let buf = buf?;

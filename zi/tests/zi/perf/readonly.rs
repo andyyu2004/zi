@@ -11,7 +11,7 @@ use crate::new;
 async fn perf_readonly_large_file() -> zi::Result<()> {
     let path = create_file(2000);
     let cx = new("").await;
-    let buf = cx.open(path, zi::OpenFlags::ACTIVE | zi::OpenFlags::READONLY).await?;
+    let buf = cx.open(path, zi::OpenFlags::READONLY).await?;
     cx.with(move |editor| {
         // This is basically a test that we don't call `len_chars` or `len_lines` when scrolling and moving around.
         // If we do then this will take seconds, but it should be instant.

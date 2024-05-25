@@ -91,7 +91,7 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
 
     let cx = new("").await;
 
-    cx.open_tmp("test", zi::OpenFlags::ACTIVE).await?;
+    cx.open_tmp("test", zi::OpenFlags::empty()).await?;
 
     cx.with(move |editor| {
         editor.set_cursor(zi::Active, (0, 0));

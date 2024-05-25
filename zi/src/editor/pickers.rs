@@ -15,7 +15,9 @@ impl Editor {
                         let path = path.into_inner();
                         if path.is_dir() {
                             editor.open_file_explorer(path);
-                        } else if let Err(err) = editor.open_active(path) {
+                        } else if let Err(err) =
+                            editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS)
+                        {
                             editor.set_error(err);
                         }
                     },
