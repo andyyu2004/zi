@@ -6,12 +6,7 @@ use crate::new;
 async fn test_open() -> zi::Result<()> {
     let cx = new("").await;
     let existing_path = tempfile::NamedTempFile::new()?.into_temp_path();
-    cx.with({
-        let existing_path = existing_path.to_path_buf().to_owned();
-        move |editor| editor.open(existing_path, zi::OpenFlags::empty())
-    })
-    .await?
-    .await?;
+    cx.open(&existing_path, zi::OpenFlags::empty()).await?;
 
     let Err(_) = cx.open(env::temp_dir(), zi::OpenFlags::empty()).await else {
         panic!("should not be allowed to open directories")

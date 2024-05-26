@@ -167,7 +167,7 @@ async fn insert_into_readonly() -> zi::Result<()> {
     let file = tempfile::NamedTempFile::new()?;
     let path = file.path().to_path_buf();
 
-    let buf = cx.with(|editor| editor.open(path, zi::OpenFlags::READONLY)).await?.await?;
+    let buf = cx.open(&path, zi::OpenFlags::READONLY).await?;
 
     cx.with(move |editor| {
         assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));

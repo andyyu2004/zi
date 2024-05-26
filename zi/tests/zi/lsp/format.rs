@@ -31,13 +31,7 @@ async fn lsp_format() -> zi::Result<()> {
     })
     .await;
 
-    let buf = cx
-        .with({
-            let path = path.to_path_buf();
-            move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)
-        })
-        .await?
-        .await?;
+    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
 
     let save_fut = cx.with(move |editor| editor.save(buf, zi::SaveFlags::empty())).await;
 
