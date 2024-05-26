@@ -1,4 +1,4 @@
-use zi::Url;
+use zi::{BufferId, Url};
 
 use super::*;
 
@@ -6,8 +6,8 @@ async fn setup(
     cx: &TestContext,
     position_encoding: lsp_types::PositionEncodingKind,
     range: lsp_types::Range,
-    text: &str,
-) -> zi::Result<PathBuf> {
+    text: &'static str,
+) -> zi::Result<BufferId> {
     let path = cx.tempfile(text)?;
     let uri = Url::from_file_path(&path).unwrap();
 
@@ -38,17 +38,21 @@ async fn setup(
     })
     .await;
 
-    Ok(path)
+    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    cx.with(move |editor| {
+        assert_eq!(editor.buffer(zi::Active).id(), buf);
+        assert_eq!(editor[buf].text().to_string(), text);
+    })
+    .await;
+    Ok(buf)
 }
 
 #[tokio::test]
 async fn lsp_definition_utf8() -> zi::Result<()> {
     let cx = new("").await;
 
-    let path =
-        setup(&cx, lsp_types::PositionEncodingKind::UTF8, lsp_range!(0:4..0:5), r#"ab©de"#).await?;
+    setup(&cx, lsp_types::PositionEncodingKind::UTF8, lsp_range!(0:4..0:5), r#"ab©de"#).await?;
 
-    cx.with(move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)).await?.await?;
     cx.with(move |editor| editor.goto_definition(zi::Active)).await;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;
 
@@ -60,10 +64,8 @@ async fn lsp_definition_utf8() -> zi::Result<()> {
 async fn lsp_definition_utf16() -> zi::Result<()> {
     let cx = new("").await;
 
-    let path = setup(&cx, lsp_types::PositionEncodingKind::UTF16, lsp_range!(0:3..0:4), r#"ab©de"#)
-        .await?;
+    setup(&cx, lsp_types::PositionEncodingKind::UTF16, lsp_range!(0:3..0:4), r#"ab©de"#).await?;
 
-    cx.with(move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS)).await?.await?;
     cx.with(move |editor| editor.goto_definition(zi::Active)).await;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;
 

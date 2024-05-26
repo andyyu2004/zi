@@ -482,13 +482,15 @@ impl Editor {
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
                             TextBuffer::new(id, flags, ft, &path, text, &theme).boxed()
                         }),
-                        Plan::Existing(id) => id,
+                        Plan::Existing(_) => unreachable!(),
                     })
                     .await
             }
 
             let start = Instant::now();
-            let buf = if open_flags.contains(OpenFlags::READONLY) {
+            let buf = if let Plan::Existing(id) = plan {
+                id
+            } else if open_flags.contains(OpenFlags::READONLY) {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
