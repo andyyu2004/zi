@@ -148,7 +148,7 @@ impl IntoFuture for TestContextBuilder {
         Box::pin(async move {
             let (mut editor, tasks) = zi::Editor::new(self.size);
             editor.set_mode(zi::Mode::Insert);
-            editor.edit(zi::Active, &zi::Deltas::insert_at(0, &self.scratch_content));
+            editor.edit(zi::Active, &zi::Deltas::insert_at(0, &self.scratch_content)).unwrap();
             editor.set_cursor(zi::Active, self.scratch_content.len());
             editor.set_mode(zi::Mode::Normal);
 

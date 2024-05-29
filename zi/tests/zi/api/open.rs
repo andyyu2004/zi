@@ -42,7 +42,7 @@ async fn test_open_replace_readonly_with_writable() -> zi::Result<()> {
         // Should be able to replace an open readonly buffer with a writable one
         assert_eq!(buf, readonly, "the buffer should retain it's identity");
 
-        editor.insert_char(zi::Active, 'a');
+        editor.insert_char(zi::Active, 'a').unwrap();
         assert!(editor.get_error().is_none());
     })
     .await;

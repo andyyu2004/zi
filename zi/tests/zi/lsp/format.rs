@@ -43,7 +43,7 @@ async fn lsp_format() -> zi::Result<()> {
     assert_eq!(fs::read_to_string(&path).await?, "def\n");
 
     cx.with(move |editor| {
-        assert!(editor.undo(zi::Active));
+        assert!(editor.undo(zi::Active).unwrap());
         assert_eq!(editor[buf].text().to_string(), "abc");
         assert!(editor[buf].flags().contains(zi::BufferFlags::DIRTY));
     })

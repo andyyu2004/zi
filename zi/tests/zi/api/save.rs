@@ -10,7 +10,7 @@ async fn save() -> zi::Result<()> {
     cx.with(move |editor| {
         assert!(!editor[buf].flags().contains(zi::BufferFlags::DIRTY));
         assert!(!editor[buf].flags().contains(zi::BufferFlags::READONLY));
-        editor.edit(buf, &zi::Deltas::insert_at(3, "def".to_string()));
+        editor.edit(buf, &zi::Deltas::insert_at(3, "def".to_string())).unwrap();
         assert!(editor[buf].flags().contains(zi::BufferFlags::DIRTY));
     })
     .await;

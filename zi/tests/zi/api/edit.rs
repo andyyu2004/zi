@@ -10,14 +10,14 @@ async fn delete_char_backward() {
 
         // ensure that multi-byte characters are handled correctly
         let c = '\u{100000}';
-        editor.insert_char(zi::Active, c);
+        editor.insert_char(zi::Active, c).unwrap();
         assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8()));
         editor.delete_char(zi::Active);
         assert_eq!(editor.cursor_line(), "");
 
-        editor.insert_char(zi::Active, 'a');
-        editor.insert_char(zi::Active, 'b');
-        editor.insert_char(zi::Active, 'c');
+        editor.insert_char(zi::Active, 'a').unwrap();
+        editor.insert_char(zi::Active, 'b').unwrap();
+        editor.insert_char(zi::Active, 'c').unwrap();
 
         // works on single line
         assert_eq!(editor.cursor_line(), "abc");
@@ -31,7 +31,7 @@ async fn delete_char_backward() {
         assert_eq!(editor.cursor_line(), "a");
         assert_eq!(editor.cursor(zi::Active), (0, 1));
 
-        editor.insert_char(zi::Active, 'x');
+        editor.insert_char(zi::Active, 'x').unwrap();
         assert_eq!(editor.cursor_line(), "ax");
         assert_eq!(editor.cursor(zi::Active), (0, 2));
 
@@ -48,7 +48,7 @@ async fn delete_char_backward() {
         assert_eq!(editor.cursor(zi::Active), (0, 0));
 
         // works on multiple lines
-        editor.insert(zi::Active, "abc\nd");
+        editor.insert(zi::Active, "abc\nd").unwrap();
         assert_eq!(editor.cursor_line(), "d");
         editor.delete_char(zi::Active);
         assert_eq!(editor.cursor_line(), "");
@@ -139,9 +139,9 @@ async fn insert_char() {
         assert_eq!(editor.cursor(zi::Active), (0, 0));
 
         assert_eq!(editor.cursor(zi::Active), (0, 0));
-        editor.insert_char(zi::Active, 'a');
+        editor.insert_char(zi::Active, 'a').unwrap();
         assert_eq!(editor.cursor(zi::Active), (0, 1));
-        editor.insert_char(zi::Active, 'b');
+        editor.insert_char(zi::Active, 'b').unwrap();
         assert_eq!(editor.cursor(zi::Active), (0, 2));
         assert_eq!(editor.cursor_line(), "ab");
 
@@ -172,12 +172,9 @@ async fn insert_into_readonly() -> zi::Result<()> {
     cx.with(move |editor| {
         assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));
 
-        assert!(editor.get_error().is_none());
-
-        editor.insert(zi::Active, "def");
+        assert!(matches!(editor.insert(zi::Active, "def"), Err(zi::EditError::Readonly)));
 
         assert_eq!(editor.buffer(buf).text().to_string(), "");
-        assert!(editor.get_error().is_some());
     })
     .await;
     cx.cleanup().await;

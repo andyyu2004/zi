@@ -331,7 +331,7 @@ impl<P: Picker + Send + Sync> Buffer for PickerBuffer<P> {
                 writeln!(s, "{item}")?;
             }
 
-            editor.edit(display_view, &Deltas::new([Delta::new(0..text.len_bytes(), s)]));
+            editor.edit(display_view, &Deltas::new([Delta::new(0..text.len_bytes(), s)]))?;
             Ok(())
         });
     }

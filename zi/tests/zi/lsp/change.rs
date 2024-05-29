@@ -21,7 +21,7 @@ async fn lsp_change_no_sync() -> zi::Result<()> {
     .await;
 
     let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
-    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await;
+    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await.unwrap();
 
     cx.cleanup().await;
 
@@ -75,11 +75,11 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     let text = "abc";
     let deltas = zi::lsp::from_proto::deltas(zi_lsp::PositionEncoding::Utf8, text, edits);
     let buf = cx.open_tmp(text, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
-    cx.with(move |editor| editor.edit(buf, &deltas)).await;
+    cx.with(move |editor| editor.edit(buf, &deltas)).await.unwrap();
 
-    assert!(cx.with(move |editor| editor.undo(buf)).await);
+    assert!(cx.with(move |editor| editor.undo(buf)).await.unwrap());
 
-    assert!(cx.with(move |editor| editor.redo(buf)).await);
+    assert!(cx.with(move |editor| editor.redo(buf)).await.unwrap());
 
     cx.cleanup().await;
     Ok(())
@@ -121,14 +121,14 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
 
     cx.with(move |editor| {
-        editor.edit(buf, &zi::Deltas::insert_at(0, "abc"));
+        editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))?;
         editor.edit(
             buf,
             &deltas![
                 3..3 => "d",
                 4..4 => "e",
             ],
-        );
+        )?;
 
         editor.edit(
             buf,
@@ -138,7 +138,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
             ],
         )
     })
-    .await;
+    .await?;
 
     cx.cleanup().await;
 
@@ -181,10 +181,10 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
     let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
 
     cx.with(move |editor| {
-        editor.edit(buf, &deltas![0..0 => "©"]);
-        editor.edit(buf, &deltas![2..2 => "z"]);
+        editor.edit(buf, &deltas![0..0 => "©"])?;
+        editor.edit(buf, &deltas![2..2 => "z"])
     })
-    .await;
+    .await?;
 
     cx.cleanup().await;
 

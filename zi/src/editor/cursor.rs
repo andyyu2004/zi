@@ -3,7 +3,7 @@ use zi_textobject::{motion, Motion};
 
 use super::{get, mode, Selector};
 use crate::view::SetCursorFlags;
-use crate::{Direction, Editor, Point, ViewId};
+use crate::{Direction, Editor, Mode, Point, ViewId};
 
 impl Editor {
     #[inline]
@@ -48,7 +48,12 @@ impl Editor {
             Direction::Down => &motion::NextLine,
         }
         .repeat(amt);
-        self.motion(selector, motion)
+
+        if let Mode::OperatorPending(_) = self.mode() {
+            self.set_mode(Mode::Normal);
+        }
+
+        self.motion(selector, motion).expect("this only returns errors in operator-pending mode")
     }
 
     #[inline]

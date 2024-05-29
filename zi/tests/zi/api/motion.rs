@@ -8,7 +8,7 @@ async fn motion_scrolls_view() {
         for i in 0..5usize {
             assert_eq!(editor.cursor_line(), format!("{i}"));
             assert_eq!(editor.view(zi::Active).offset(), zi::Offset::new(i.saturating_sub(1), 0));
-            editor.motion(zi::Active, zi::motion::NextWord);
+            editor.motion(zi::Active, zi::motion::NextWord).unwrap();
         }
     })
     .await;

@@ -14,7 +14,7 @@ async fn insert_newline_in_blank_buffer() {
     "#]])
         .await;
 
-    cx.with(|editor| editor.insert_char(zi::Active, '\n')).await;
+    cx.with(|editor| editor.insert_char(zi::Active, '\n')).await.unwrap();
 
     cx.snapshot(expect![[r#"
         "   1      "

@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use stdx::merge::Merge;
 
-use crate::editor::{Action, SaveFlags};
+use crate::editor::{set_error_if, Action, SaveFlags};
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
 use crate::{hashmap, motion, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment};
@@ -32,7 +32,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn insert_newline(editor: &mut Editor) {
-        editor.insert_char(Active, '\n');
+        set_error_if!(editor, editor.insert_char(Active, '\n'));
     }
 
     fn normal_mode(editor: &mut Editor) {
@@ -40,19 +40,19 @@ pub(super) fn new() -> Keymap {
     }
 
     fn prev_line(editor: &mut Editor) {
-        editor.motion(Active, motion::PrevLine);
+        set_error_if!(editor, editor.motion(Active, motion::PrevLine))
     }
 
     fn next_line(editor: &mut Editor) {
-        editor.motion(Active, motion::NextLine);
+        set_error_if!(editor, editor.motion(Active, motion::NextLine))
     }
 
     fn prev_char(editor: &mut Editor) {
-        editor.motion(Active, motion::PrevChar);
+        set_error_if!(editor, editor.motion(Active, motion::PrevChar))
     }
 
     fn next_char(editor: &mut Editor) {
-        editor.motion(Active, motion::NextChar);
+        set_error_if!(editor, editor.motion(Active, motion::NextChar))
     }
 
     fn goto_definition(editor: &mut Editor) {
@@ -97,31 +97,31 @@ pub(super) fn new() -> Keymap {
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
-        editor.insert_char(Active, '\n');
+        set_error_if!(editor, editor.insert_char(Active, '\n'));
     }
 
     fn next_token(editor: &mut Editor) {
-        editor.motion(Active, motion::NextToken);
+        set_error_if!(editor, editor.motion(Active, motion::NextToken));
     }
 
     fn prev_token(editor: &mut Editor) {
-        editor.motion(Active, motion::PrevToken);
+        set_error_if!(editor, editor.motion(Active, motion::PrevToken));
     }
 
     fn next_word(editor: &mut Editor) {
-        editor.motion(Active, motion::NextWord);
+        set_error_if!(editor, editor.motion(Active, motion::NextWord))
     }
 
     fn prev_word(editor: &mut Editor) {
-        editor.motion(Active, motion::PrevWord);
+        set_error_if!(editor, editor.motion(Active, motion::PrevWord));
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        editor.text_object(Active, zi_textobject::Line::inclusive());
+        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::inclusive()));
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        editor.text_object(Active, zi_textobject::Line::exclusive());
+        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::exclusive()));
     }
 
     fn append_eol(editor: &mut Editor) {
@@ -188,15 +188,15 @@ pub(super) fn new() -> Keymap {
     }
 
     fn view_only(editor: &mut Editor) {
-        editor.view_only(editor.view(Active).id());
+        editor.view_only(editor.view(Active).id())
     }
 
     fn undo(editor: &mut Editor) {
-        editor.undo(Active);
+        set_error_if!(editor, editor.undo(Active))
     }
 
     fn redo(editor: &mut Editor) {
-        editor.redo(Active);
+        set_error_if!(editor, editor.redo(Active))
     }
 
     fn search(editor: &mut Editor) {
@@ -229,7 +229,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn tab(editor: &mut Editor) {
-        editor.tab(Active);
+        set_error_if!(editor, editor.tab(Active))
     }
 
     macro_rules! action {

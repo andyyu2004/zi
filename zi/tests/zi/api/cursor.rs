@@ -169,7 +169,7 @@ async fn cursor_newline() {
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         editor.set_mode(zi::Mode::Insert);
-        editor.insert_char(zi::Active, '\n');
+        editor.insert_char(zi::Active, '\n').unwrap();
         assert_eq!(editor.cursor(zi::Active), (1, 0));
     })
     .await;

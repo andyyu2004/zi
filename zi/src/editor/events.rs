@@ -58,7 +58,7 @@ impl Editor {
                             let deltas = lsp::from_proto::deltas(encoding, text, edits);
 
                             if buf.version() == version {
-                                editor.edit(event.buf, &deltas);
+                                editor.edit(event.buf, &deltas)?;
                                 editor[event.buf].snapshot(SnapshotFlags::empty());
                             } else {
                                 assert!(buf.version() > version, "version has gone down?");
@@ -67,8 +67,9 @@ impl Editor {
                                     buf.version(),
                                 );
                             }
+                            Ok::<_, Error>(())
                         })
-                        .await;
+                        .await?;
                 }
             }
 

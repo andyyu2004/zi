@@ -1,6 +1,7 @@
 mod config;
 pub(crate) mod cursor;
 mod default_keymap;
+mod errors;
 mod events;
 mod pickers;
 mod render;
@@ -37,6 +38,7 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
+pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -179,6 +181,18 @@ macro_rules! set_error {
         $editor.status_error = Some($error.to_string())
     };
 }
+
+use set_error;
+
+macro_rules! set_error_if {
+    ($editor:ident, $error:expr) => {
+        if let Err(err) = $error {
+            $crate::editor::set_error!($editor, err);
+        }
+    };
+}
+
+use set_error_if;
 
 /// Get a view and buffer.
 /// This needs to be a macro so rust can figure out the mutable borrows are disjoint
@@ -774,12 +788,13 @@ impl Editor {
         }
     }
 
-    fn handle_insert(&mut self, c: char) {
+    fn handle_insert(&mut self, c: char) -> Result<(), EditError> {
         match &mut self.state {
             State::Insert(..) => self.insert_char(Active, c),
             State::Command(state) => {
                 state.buffer.push(c);
                 self.update_search();
+                Ok(())
             }
             _ => unreachable!(),
         }
@@ -805,7 +820,11 @@ impl Editor {
 
                 for event in buffered {
                     match event.code() {
-                        KeyCode::Char(c) => self.handle_insert(c),
+                        KeyCode::Char(c) => {
+                            if let Err(err) = self.handle_insert(c) {
+                                set_error!(self, err);
+                            }
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -891,13 +910,13 @@ impl Editor {
                 (start != end).then(|| PointRange::new(start, end))
             }) {
                 let byte_range = self[buf].text().point_range_to_byte_range(range);
-                self.edit(Active, &Deltas::delete(byte_range));
+                let _ = self.edit(Active, &Deltas::delete(byte_range));
             }
         }
 
         self[buf].snapshot(SnapshotFlags::empty());
         // Move cursor left when exiting insert mode
-        self.motion(Active, motion::PrevChar);
+        let _ = self.motion(Active, motion::PrevChar);
     }
 
     #[inline]
@@ -1018,33 +1037,39 @@ impl Editor {
 
     // Bad API used in tests for now
     #[doc(hidden)]
-    pub fn insert_char(&mut self, selector: impl Selector<ViewId>, c: char) {
+    pub fn insert_char(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        c: char,
+    ) -> Result<(), EditError> {
         let mut cbuf = [0; 4];
         let view = self.view(selector);
         let cursor = view.cursor();
 
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
         let id = view.id();
-        self.edit(id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)));
+        self.edit(id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)))?;
 
         let (view, buf) = get!(self);
         let area = self.tree.view_area(id);
         match c {
             '\n' => {
                 let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
-                self.indent_newline(id);
+                self.indent_newline(id)?;
                 cursor
             }
-            _ => self.motion(Active, motion::NextChar),
+            _ => self.motion(Active, motion::NextChar)?,
         };
+        Ok(())
     }
 
-    pub fn tab(&mut self, selector: impl Selector<ViewId>) {
+    pub fn tab(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
         let indent = *self[buf].settings().indent.read();
         match mode!(self) {
             Mode::Normal => {
                 // TODO
+                Ok(())
             }
             Mode::Insert => match indent {
                 // Should probably align to a multiple of `n`
@@ -1052,18 +1077,18 @@ impl Editor {
                 IndentSettings::Tabs => self.insert_char(view, '\t'),
             },
             // TODO
-            Mode::Visual | Mode::Command | Mode::OperatorPending(_) => {}
+            Mode::Visual | Mode::Command | Mode::OperatorPending(_) => Ok(()),
         }
     }
 
-    fn indent_newline(&mut self, selector: impl Selector<ViewId>) {
+    fn indent_newline(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
         let text = self[buf].text();
         let cursor = self[view].cursor();
         let line = text.line(cursor.line()).unwrap();
         if cursor.col() > 0 || !line.is_empty() {
             // Simple heuristics to determine if we should indent the new line
-            return;
+            return Ok(());
         }
 
         let indent = zi_indent::indent(text, cursor.line());
@@ -1071,8 +1096,9 @@ impl Editor {
 
         let deltas = Deltas::insert_at(start_byte, " ".repeat(indent.bytes));
         drop(line);
-        self.edit(buf, &deltas);
+        self.edit(buf, &deltas)?;
         self.set_cursor(view, cursor.right(indent.bytes));
+        Ok(())
     }
 
     fn get(&self, selector: impl Selector<ViewId>) -> (ViewId, BufferId) {
@@ -1081,7 +1107,11 @@ impl Editor {
         (view, buf)
     }
 
-    pub fn edit(&mut self, selector: impl Selector<BufferId>, deltas: &Deltas<'_>) {
+    pub fn edit(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        deltas: &Deltas<'_>,
+    ) -> Result<(), EditError> {
         self.edit_flags(selector, deltas, EditFlags::empty())
     }
 
@@ -1090,15 +1120,14 @@ impl Editor {
         selector: impl Selector<BufferId>,
         deltas: &Deltas<'_>,
         flags: EditFlags,
-    ) {
+    ) -> Result<(), EditError> {
         let buf = selector.select(self);
         // // Don't care if we're actually in insert mode, that's more a key binding namespace.
         // let (view, buf) = get!(self: view_id);
         let buf = &mut self[buf];
 
         if buf.flags().contains(BufferFlags::READONLY) {
-            set_error!(self, "buffer is readonly");
-            return;
+            return Err(EditError::Readonly);
         }
 
         let old_text = dyn_clone::clone_box(buf.text());
@@ -1112,6 +1141,7 @@ impl Editor {
         }
 
         self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: deltas.to_owned() });
+        Ok(())
     }
 
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
@@ -1127,11 +1157,12 @@ impl Editor {
         event::dispatch(self, event);
     }
 
-    pub fn insert(&mut self, selector: impl Selector<ViewId>, text: &str) {
+    pub fn insert(&mut self, selector: impl Selector<ViewId>, text: &str) -> Result<(), EditError> {
         let view = selector.select(self);
         for c in text.chars() {
-            self.insert_char(view, c);
+            self.insert_char(view, c)?;
         }
+        Ok(())
     }
 
     // This and `cursor_char` won't make sense with visual mode
@@ -1160,11 +1191,15 @@ impl Editor {
     /// Applies the text object to the pending operator if there is one.
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
     /// If there a question about why it is this way, the answer is probably "because neovim does it".
-    pub(crate) fn text_object(&mut self, selector: impl Selector<ViewId>, obj: impl TextObject) {
+    pub(crate) fn text_object(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        obj: impl TextObject,
+    ) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
 
         // text objects only have meaning in operator pending mode
-        let State::OperatorPending(state) = &self.state else { return };
+        let State::OperatorPending(state) = &self.state else { return Ok(()) };
 
         let &OperatorPendingState { operator } = state;
 
@@ -1181,7 +1216,9 @@ impl Editor {
             if flags.contains(TextObjectFlags::UPDATE_TARGET_COLUMN) {
                 self.set_cursor(view, cursor);
             }
-            return self.set_mode(Mode::Normal);
+
+            self.set_mode(Mode::Normal);
+            return Ok(());
         };
 
         let start_char = text.char_at_byte(range.start);
@@ -1263,11 +1300,14 @@ impl Editor {
                 self[buf].snapshot_cursor(start_point);
                 self[buf].snapshot(SnapshotFlags::empty())
             }
-            Operator::Delete if text.is_empty() => return self.set_mode(Mode::Normal),
+            Operator::Delete if text.is_empty() => {
+                self.set_mode(Mode::Normal);
+                return Ok(());
+            }
             Operator::Yank | Operator::Delete => {}
         }
 
-        self.edit(view, &deltas);
+        self.edit(view, &deltas)?;
 
         match operator {
             Operator::Change => self.set_mode(Mode::Insert),
@@ -1318,16 +1358,22 @@ impl Editor {
                 }
             };
         }
+
+        Ok(())
     }
 
-    pub fn motion(&mut self, selector: impl Selector<ViewId>, motion: impl Motion) -> Point {
+    pub fn motion(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        motion: impl Motion,
+    ) -> Result<Point, EditError> {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let view_id = view.id();
         match mode!(self) {
             Mode::OperatorPending(_) => {
-                self.text_object(view_id, motion);
-                self[view_id].cursor()
+                self.text_object(view_id, motion)?;
+                Ok(self[view_id].cursor())
             }
             _ => {
                 self.search_state.hlsearch = false;
@@ -1345,30 +1391,35 @@ impl Editor {
                     flags |= SetCursorFlags::USE_TARGET_COLUMN;
                 }
 
-                match motion.motion(text, view.cursor().into()) {
+                let point = match motion.motion(text, view.cursor().into()) {
                     PointOrByte::Point(point) => {
                         view.set_cursor_linewise(mode!(self), area, buf, point, flags)
                     }
                     PointOrByte::Byte(byte) => {
                         view.set_cursor_bytewise(mode!(self), area, buf, byte, flags)
                     }
-                }
+                };
+                Ok(point)
             }
         }
     }
 
-    pub fn redo(&mut self, selector: impl Selector<BufferId>) -> bool {
+    pub fn redo(&mut self, selector: impl Selector<BufferId>) -> Result<bool, EditError> {
         self.undoredo(selector, false)
     }
 
-    pub fn undo(&mut self, selector: impl Selector<BufferId>) -> bool {
+    pub fn undo(&mut self, selector: impl Selector<BufferId>) -> Result<bool, EditError> {
         self.undoredo(selector, true)
     }
 
-    fn undoredo(&mut self, selector: impl Selector<BufferId>, undo: bool) -> bool {
+    fn undoredo(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        undo: bool,
+    ) -> Result<bool, EditError> {
         let buf = selector.select(self);
         let Some(entry) = (if undo { self[buf].undo() } else { self[buf].redo() }) else {
-            return false;
+            return Ok(false);
         };
 
         if undo {
@@ -1377,7 +1428,7 @@ impl Editor {
                     buf,
                     &change.inversions,
                     EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
-                );
+                )?;
             }
         } else {
             for change in &entry.changes[..] {
@@ -1385,7 +1436,7 @@ impl Editor {
                     buf,
                     &change.deltas,
                     EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
-                );
+                )?;
             }
         }
 
@@ -1393,9 +1444,9 @@ impl Editor {
             (Some(cursor), _) => cursor.into(),
             (_, Some(fst)) => match fst.deltas.iter().next() {
                 Some(delta) => delta.range().start.into(),
-                None => return false,
+                None => return Ok(false),
             },
-            _ => return false,
+            _ => return Ok(false),
         };
 
         for view in self.views_into_buf(buf) {
@@ -1411,7 +1462,7 @@ impl Editor {
             };
         }
 
-        true
+        Ok(true)
     }
 
     // Don't think we want this to be a public api, used for tests for now
