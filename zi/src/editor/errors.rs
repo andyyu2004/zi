@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum EditError {
     Readonly,
 }

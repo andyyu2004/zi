@@ -12,7 +12,7 @@ async fn delete_char_backward() {
         let c = '\u{100000}';
         editor.insert_char(zi::Active, c).unwrap();
         assert_eq!(editor.cursor(zi::Active), (0, c.len_utf8()));
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "");
 
         editor.insert_char(zi::Active, 'a').unwrap();
@@ -23,11 +23,11 @@ async fn delete_char_backward() {
         assert_eq!(editor.cursor_line(), "abc");
         assert_eq!(editor.cursor(zi::Active), (0, 3));
 
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "ab");
         assert_eq!(editor.cursor(zi::Active), (0, 2));
 
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "a");
         assert_eq!(editor.cursor(zi::Active), (0, 1));
 
@@ -35,25 +35,25 @@ async fn delete_char_backward() {
         assert_eq!(editor.cursor_line(), "ax");
         assert_eq!(editor.cursor(zi::Active), (0, 2));
 
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "a");
         assert_eq!(editor.cursor(zi::Active), (0, 1));
 
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "");
         assert_eq!(editor.cursor(zi::Active), (0, 0));
 
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "");
         assert_eq!(editor.cursor(zi::Active), (0, 0));
 
         // works on multiple lines
         editor.insert(zi::Active, "abc\nd").unwrap();
         assert_eq!(editor.cursor_line(), "d");
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "");
         assert_eq!(editor.cursor(zi::Active), (1, 0));
-        editor.delete_char(zi::Active);
+        editor.delete_char(zi::Active).unwrap();
         assert_eq!(editor.cursor_line(), "abc");
         assert_eq!(editor.cursor(zi::Active), (0, 3));
     })

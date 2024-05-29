@@ -209,7 +209,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn backspace(editor: &mut Editor) {
-        editor.delete_char(Active);
+        set_error_if!(editor, editor.delete_char(Active));
     }
 
     fn jump_forward(editor: &mut Editor) {
@@ -232,17 +232,17 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor, editor.tab(Active))
     }
 
-    macro_rules! action {
-        ($($name:ident,)*) => {
-            $(
-                fn $name(editor: &mut Editor) {
-                    editor.$name();
-                }
-            )*
-        };
+    fn execute_buffered_command(editor: &mut Editor) {
+        set_error_if!(editor, editor.execute_buffered_command());
     }
 
-    action!(goto_next_match, goto_prev_match, execute_buffered_command,);
+    fn goto_next_match(editor: &mut Editor) {
+        editor.goto_next_match();
+    }
+
+    fn goto_prev_match(editor: &mut Editor) {
+        editor.goto_prev_match();
+    }
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP

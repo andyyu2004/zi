@@ -19,7 +19,7 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, Stream, StreamExt};
 use ignore::WalkState;
@@ -59,7 +59,7 @@ use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
-    Mode, Operator, Point, Url, VerticalAlignment, View, ViewId,
+    Mode, Operator, Point, Result, Url, VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -866,28 +866,24 @@ impl Editor {
         Ok(())
     }
 
-    fn execute_buffered_command(&mut self) {
-        let State::Command(state) = &mut self.state else { return };
+    fn execute_buffered_command(&mut self) -> Result<()> {
+        let State::Command(state) = &mut self.state else { return Ok(()) };
 
         if state.buffer.starts_with('/') {
-            return self.set_mode(Mode::Normal);
+            self.set_mode(Mode::Normal);
+            return Ok(());
         }
 
         let Some(cmd) = state.buffer.strip_prefix(':') else {
-            return set_error!(self, "command must start with `:`");
+            bail!("command must start with `:`")
         };
 
-        match cmd.parse::<Command>() {
-            Ok(cmd) => {
-                state.buffer.clear();
-                if let Err(err) = self.execute(cmd) {
-                    set_error!(self, err);
-                }
-            }
-            Err(err) => set_error!(self, err),
-        };
+        let cmd = cmd.parse::<Command>()?;
+        state.buffer.clear();
+        self.execute(cmd)?;
 
         self.set_mode(Mode::Normal);
+        Ok(())
     }
 
     fn insert_to_normal(&mut self) {
@@ -997,7 +993,7 @@ impl Editor {
 
     // Bad API used in tests for now
     #[doc(hidden)]
-    pub fn delete_char(&mut self, selector: impl Selector<ViewId>) {
+    pub fn delete_char(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         match &mut self.state {
             State::Command(state) => {
                 state.buffer.pop();
@@ -1005,20 +1001,21 @@ impl Editor {
                     self.set_mode(Mode::Normal);
                 }
                 self.update_search();
+                Ok(())
             }
             _ => {
                 let view = selector.select(self);
                 let (view, buf) = get!(self: view);
                 if buf.flags().contains(BufferFlags::READONLY) {
-                    // fixme we should return a proper error
-                    set_error!(self, "buffer is readonly");
-                    return;
+                    return Err(EditError::Readonly);
                 }
 
                 let cursor = view.cursor();
                 let text = buf.text();
                 let byte_idx = text.point_to_byte(cursor);
-                let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else { return };
+                let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else {
+                    return Ok(());
+                };
                 let start_byte_idx =
                     byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
 
@@ -1031,6 +1028,7 @@ impl Editor {
                     start_byte_idx,
                     SetCursorFlags::empty(),
                 );
+                Ok(())
             }
         }
     }
