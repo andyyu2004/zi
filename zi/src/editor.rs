@@ -1966,7 +1966,7 @@ impl Editor {
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
 
         let from = self.current_location();
-        let open_fut = self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS)?;
+        let open_fut = self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::BACKGROUND)?;
 
         self.callback("jump to location", async { Ok(open_fut.await) }, move |editor, buf| {
             let buf = buf?;
