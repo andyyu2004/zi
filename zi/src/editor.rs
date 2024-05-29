@@ -1469,17 +1469,23 @@ impl Editor {
         self.buffer_mut(selector).clear_undo()
     }
 
-    pub fn goto_definition(&mut self, selector: impl Selector<ViewId>) {
+    pub fn goto_definition(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> + 'static {
         let view = selector.select(self);
         self.goto_definition_(
-            "go to defintion",
+            "go to definition",
             view,
             |cap| matches!(cap.definition_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
             |server, params| server.definition(params),
         )
     }
 
-    pub fn goto_implementation(&mut self, selector: impl Selector<ViewId>) {
+    pub fn goto_implementation(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> + 'static {
         let view = selector.select(self);
         self.goto_definition_(
             "go to implementation",
@@ -1494,7 +1500,10 @@ impl Editor {
         )
     }
 
-    pub fn goto_declaration(&mut self, selector: impl Selector<ViewId>) {
+    pub fn goto_declaration(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> + 'static {
         let view = selector.select(self);
         self.goto_definition_(
             "go to declaration",
@@ -1509,7 +1518,10 @@ impl Editor {
         )
     }
 
-    pub fn goto_type_definition(&mut self, selector: impl Selector<ViewId>) {
+    pub fn goto_type_definition(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> + 'static {
         let view = selector.select(self);
         self.goto_definition_(
             "go to type definition",
@@ -1534,19 +1546,15 @@ impl Editor {
             lsp_types::GotoDefinitionParams,
         )
             -> BoxFuture<'static, zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>>,
-    ) {
-        for server_id in active_servers_of!(self, view) {
-            let server = self.active_language_servers.get_mut(server_id).unwrap();
-
-            if !has_cap(&server.capabilities) {
-                continue;
-            }
-
-            let (view, buf) = get!(self: view);
-            let point = view.cursor();
-            let encoding = server.position_encoding();
-
-            if let Some(uri) = buf.file_url() {
+    ) -> impl Future<Output = Result<()>> + 'static {
+        let res = active_servers_of!(self, view)
+            .find(|server_id| has_cap(&self.active_language_servers[server_id].capabilities))
+            .and_then(|server_id| {
+                let (view, buf) = get!(self: view);
+                let uri = buf.file_url()?;
+                let server = self.active_language_servers.get_mut(server_id).unwrap();
+                let point = view.cursor();
+                let encoding = server.position_encoding();
                 tracing::debug!(%uri, %point, "lsp request definition");
                 let fut = f(
                     server,
@@ -1563,23 +1571,23 @@ impl Editor {
                         },
                     },
                 );
+                Some((encoding, fut))
+            });
 
-                self.callback(
-                    "go to definition request",
-                    async move { Ok(fut.await?) },
-                    move |editor, res| {
-                        tracing::debug!(?res, "lsp definition response");
-                        editor.lsp_jump_to_definition(encoding, res)?;
-                        Ok(())
-                    },
-                );
+        let client = self.client();
+        async move {
+            match res {
+                None => bail!("no language server supports {desc}"),
+                Some((encoding, fut)) => {
+                    let res = fut.await?;
+                    tracing::debug!(?res, "lsp definition response");
+                    client
+                        .request(move |editor| editor.lsp_jump_to_definition(encoding, res))
+                        .await?;
+                }
             }
-
-            // Send the request to the first server that supports it
-            return;
+            Ok(())
         }
-
-        self.set_error(format!("no active language server supports {desc}"));
     }
 
     fn spawn_language_servers_for_ft(&mut self, buf: BufferId, ft: FileType) -> zi_lsp::Result<()> {
@@ -1845,7 +1853,7 @@ impl Editor {
         }
 
         match &locations[..] {
-            [] => self.set_error("no definition found"),
+            [] => bail!("no definition found"),
             [_] => self.lsp_jump_to_location(encoding, locations.pop().unwrap())?,
             _ => {
                 self.open_static_picker::<PathPicker<_>>(
