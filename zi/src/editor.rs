@@ -422,7 +422,7 @@ impl Editor {
             // Try ensure that the file does not contains non-utf8 data.
             use std::io::Read;
             let mut buf = [0u8; 1024];
-            let n = File::open(&path)?.read(&mut buf)?;
+            let n = File::open(path.as_path())?.read(&mut buf)?;
             match content_inspector::inspect(&buf[..n]) {
                 content_inspector::ContentType::UTF_8 => {}
                 _ => {

@@ -89,7 +89,7 @@ async fn scroll() {
 
 #[tokio::test]
 async fn scroll_overflow() {
-    let cx = new(&"a\n".repeat(20)).await;
+    let cx = new("a\n".repeat(20)).await;
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         editor.move_cursor(zi::Active, Down, 1);
