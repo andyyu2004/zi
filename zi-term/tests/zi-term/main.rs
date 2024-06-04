@@ -18,12 +18,10 @@ async fn it_works() -> zi::Result<()> {
 async fn buffer_search() -> zi::Result<()> {
     snapshot("buffer search", |client| async move {
         client
-            .request(move |editor| {
-                editor.open("tests/zi-term/testdata/main.rs", OpenFlags::empty())
-            })
+            .with(move |editor| editor.open("tests/zi-term/testdata/main.rs", OpenFlags::empty()))
             .await?
             .await?;
-        client.request(|editor| editor.input("/use").unwrap()).await;
+        client.with(|editor| editor.input("/use").unwrap()).await;
 
         Ok(())
     })
@@ -45,10 +43,10 @@ async fn syntax_highlight() -> anyhow::Result<()> {
 async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |client| async move {
         client
-            .request(|editor| editor.open("tests/zi-term/testdata/numbers.txt", OpenFlags::empty()))
+            .with(|editor| editor.open("tests/zi-term/testdata/numbers.txt", OpenFlags::empty()))
             .await?
             .await?;
-        client.request(|editor| editor.scroll(zi::Active, zi::Direction::Down, 50)).await;
+        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 50)).await;
         Ok(())
     })
     .await?;
@@ -56,21 +54,21 @@ async fn scroll() -> anyhow::Result<()> {
     // The above doesn't test highlighting works with scroll
     snapshot("scroll rust minimal", |client| async move {
         client
-            .request(|editor| editor.open("tests/zi-term/testdata/minimal.rs", OpenFlags::empty()))
+            .with(|editor| editor.open("tests/zi-term/testdata/minimal.rs", OpenFlags::empty()))
             .await?
             .await?;
-        client.request(|editor| editor.scroll(zi::Active, zi::Direction::Down, 1)).await;
+        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 1)).await;
         Ok(())
     })
     .await?;
 
     snapshot("scroll go", |client| async move {
         client
-            .request(|editor| editor.open("tests/zi-term/testdata/main.go", OpenFlags::empty()))
+            .with(|editor| editor.open("tests/zi-term/testdata/main.go", OpenFlags::empty()))
             .await?
             .await?;
 
-        client.request(|editor| editor.scroll(zi::Active, zi::Direction::Down, 9)).await;
+        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 9)).await;
 
         Ok(())
     })
@@ -82,7 +80,7 @@ async fn scroll() -> anyhow::Result<()> {
 async fn snapshot_path(name: &'static str, path: impl AsRef<Path>) -> anyhow::Result<()> {
     let path = path.as_ref().to_path_buf();
     snapshot(name, |client| async move {
-        client.request(move |editor| editor.open(path, OpenFlags::empty())).await?.await?;
+        client.with(move |editor| editor.open(path, OpenFlags::empty())).await?.await?;
         Ok(())
     })
     .await

@@ -4,7 +4,7 @@ impl Editor {
     pub(super) fn will_save_buffer() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
         event::async_handler::<event::WillSaveBuffer, _>(|client, event| async move {
             let (version, format_fut) = client
-                .request(move |editor| {
+                .with(move |editor| {
                     let buffer = &editor[event.buf];
                     let buf_config = buffer.settings();
                     let tab_size = *buf_config.tab_width.read() as u32;
@@ -52,7 +52,7 @@ impl Editor {
             if let Some((encoding, fut)) = format_fut {
                 if let Some(edits) = fut.await? {
                     client
-                        .request(move |editor| {
+                        .with(move |editor| {
                             let buf = &editor[event.buf];
                             let text = buf.text();
                             let deltas = lsp::from_proto::deltas(encoding, text, edits);

@@ -17,7 +17,7 @@ impl Editor {
         let buffer_area = frame.buffer_mut().area;
         let tree_area = self.tree.area();
         assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
-        let sender = self.sender();
+        let sender = self.sync_client();
 
         tracing::debug!(%tree_area, %buffer_area, "render editor");
 

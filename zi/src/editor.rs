@@ -307,7 +307,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn request<T: Send + 'static>(
+    pub async fn with<T: Send + 'static>(
         &self,
         f: impl FnOnce(&mut Editor) -> T + Send + 'static,
     ) -> T {
@@ -487,7 +487,7 @@ impl Editor {
             ) -> BufferId {
                 let path = path.to_path_buf();
                 client
-                    .request(move |editor| match plan {
+                    .with(move |editor| match plan {
                         Plan::Replace(id) => {
                             let buf = TextBuffer::new(id, flags, ft, &path, text, &theme).boxed();
                             editor.buffers[id] = buf;
@@ -519,7 +519,7 @@ impl Editor {
             };
 
             client
-                .request(move |editor| {
+                .with(move |editor| {
                     if !open_flags.contains(OpenFlags::BACKGROUND) {
                         editor.set_buffer(Active, buf);
                     }
@@ -1582,7 +1582,7 @@ impl Editor {
                     let res = fut.await?;
                     tracing::debug!(?res, "lsp definition response");
                     client
-                        .request(move |editor| editor.lsp_jump_to_definition(encoding, res))
+                        .with(move |editor| editor.lsp_jump_to_definition(encoding, res))
                         .await?
                         .await?;
                 }
@@ -1689,7 +1689,7 @@ impl Editor {
 
             // Need to refetch flags as the hooks may have updated them
             let (flags, text) = client
-                .request(move |editor| {
+                .with(move |editor| {
                     let buf = &editor[buf];
                     (buf.flags(), dyn_clone::clone_box(buf.text()))
                 })
@@ -1708,7 +1708,7 @@ impl Editor {
             writer.flush().await?;
             file.flush().await?;
 
-            client.request(move |editor| editor[buf].flushed(Internal(()))).await;
+            client.with(move |editor| editor[buf].flushed(Internal(()))).await;
             Ok(())
         }
     }
@@ -1973,7 +1973,7 @@ impl Editor {
         Ok(async move {
             let buf = open_fut.await?;
             client
-                .request(move |editor| {
+                .with(move |editor| {
                     let text = editor[buf].text();
                     let point = from_proto::point(encoding, text, location.range.start);
                     editor.jump(from, Location::new(buf, point));
@@ -1988,7 +1988,7 @@ impl Editor {
         Location { buf: buf.id(), point: view.cursor() }
     }
 
-    fn sender(&self) -> SyncClient {
+    fn sync_client(&self) -> SyncClient {
         SyncClient(self.callbacks_tx.clone())
     }
 
@@ -2041,7 +2041,7 @@ impl Editor {
 pub struct SyncClient(CallbacksSender);
 
 impl SyncClient {
-    pub fn request(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+    pub fn with(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
         // no description needed as `ready()` will never timeout
         callback(&self.0, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }

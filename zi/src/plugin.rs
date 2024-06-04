@@ -53,7 +53,7 @@ impl editor::HostView for EditorClient {
         &mut self,
         view: Resource<editor::View>,
     ) -> wasmtime::Result<Resource<editor::Buffer>> {
-        let bufnr = self.request(move |editor| editor.view(v(view)).buffer()).await;
+        let bufnr = self.with(move |editor| editor.view(v(view)).buffer()).await;
         Ok(Resource::new_own(bufnr.data().as_ffi() as u32))
     }
 
@@ -61,7 +61,7 @@ impl editor::HostView for EditorClient {
         &mut self,
         view: Resource<editor::View>,
     ) -> wasmtime::Result<editor::Point> {
-        Ok(self.request(move |editor| editor.view(v(view)).cursor().into()).await)
+        Ok(self.with(move |editor| editor.view(v(view)).cursor().into()).await)
     }
 
     async fn set_cursor(
@@ -69,7 +69,7 @@ impl editor::HostView for EditorClient {
         view: Resource<editor::View>,
         pos: editor::Point,
     ) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.set_cursor(v(view), Point::from(pos))).await;
+        self.with(move |editor| editor.set_cursor(v(view), Point::from(pos))).await;
         Ok(())
     }
 
@@ -88,21 +88,21 @@ impl editor::HostBuffer for EditorClient {
 #[async_trait::async_trait]
 impl editor::Host for EditorClient {
     async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.insert(Active, &text)).await?;
+        self.with(move |editor| editor.insert(Active, &text)).await?;
         Ok(())
     }
 
     async fn get_mode(&mut self) -> wasmtime::Result<editor::Mode> {
-        Ok(self.request(|editor| editor.mode()).await)
+        Ok(self.with(|editor| editor.mode()).await)
     }
 
     async fn set_mode(&mut self, mode: editor::Mode) -> wasmtime::Result<()> {
-        self.request(move |editor| editor.set_mode(mode)).await;
+        self.with(move |editor| editor.set_mode(mode)).await;
         Ok(())
     }
 
     async fn get_active_view(&mut self) -> wasmtime::Result<Resource<editor::View>> {
-        let v = self.request(|editor| editor.view(Active).id().data().as_ffi() as u32).await;
+        let v = self.with(|editor| editor.view(Active).id().data().as_ffi() as u32).await;
         Ok(Resource::new_own(v))
     }
 }
@@ -309,7 +309,7 @@ impl PluginHost {
 
             self.store
                 .data()
-                .request(move |editor| {
+                .with(move |editor| {
                     editor.register_command(Handler::new(
                         name,
                         cmd.arity,

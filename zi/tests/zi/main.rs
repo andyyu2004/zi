@@ -42,7 +42,7 @@ impl TestContext {
     where
         R: Send + 'static,
     {
-        self.client.request(f).await
+        self.client.with(f).await
     }
 
     pub async fn snapshot(&self, expect: Expect) {
@@ -51,7 +51,7 @@ impl TestContext {
         self.render().await;
 
         self.client
-            .request(move |editor| {
+            .with(move |editor| {
                 let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
                 term.draw(|frame| editor.render(frame)).unwrap();
                 expect.assert_eq(&render(term.backend_mut()))
@@ -62,7 +62,7 @@ impl TestContext {
     pub async fn render(&self) {
         let size = self.size;
         self.client
-            .request(move |editor| editor.render(&mut tui::TestFrame::new(size.width, size.height)))
+            .with(move |editor| editor.render(&mut tui::TestFrame::new(size.width, size.height)))
             .await;
     }
 

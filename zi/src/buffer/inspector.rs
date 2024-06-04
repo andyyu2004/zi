@@ -72,7 +72,7 @@ impl Buffer for InspectorBuffer {
 
     fn pre_render(&mut self, _: Internal, client: &SyncClient, _view: &View, _area: tui::Rect) {
         let buf = self.id;
-        client.request(move |editor| {
+        client.with(move |editor| {
             let mut query_cursor = QueryCursor::new();
             let output = {
                 let target_view = editor.view(Active);

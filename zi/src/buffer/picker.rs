@@ -317,7 +317,7 @@ impl<P: Picker + Send + Sync> Buffer for PickerBuffer<P> {
 
         let display_view = self.display_view;
         let buf_id = self.id;
-        client.request(move |editor| {
+        client.with(move |editor| {
             // call `select` on the current line as the set of items may have changed.
             Self::select_current(buf_id, editor);
 
