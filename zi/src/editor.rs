@@ -1583,6 +1583,7 @@ impl Editor {
                     tracing::debug!(?res, "lsp definition response");
                     client
                         .request(move |editor| editor.lsp_jump_to_definition(encoding, res))
+                        .await?
                         .await?;
                 }
             }
@@ -1816,7 +1817,7 @@ impl Editor {
         &mut self,
         encoding: PositionEncoding,
         res: Option<lsp_types::GotoDefinitionResponse>,
-    ) -> Result<(), Error> {
+    ) -> Result<impl Future<Output = Result<(), Error>> + 'static> {
         let mut locations = match res {
             None => vec![],
             Some(lsp_types::GotoDefinitionResponse::Scalar(location)) => vec![location],
@@ -1854,7 +1855,8 @@ impl Editor {
 
         match &locations[..] {
             [] => bail!("no definition found"),
-            [_] => self.lsp_jump_to_location(encoding, locations.pop().unwrap())?,
+            [_] => Ok(Box::pin(self.lsp_jump_to_location(encoding, locations.pop().unwrap())?)
+                as BoxFuture<'static, _>),
             _ => {
                 self.open_static_picker::<PathPicker<_>>(
                     Url::parse("view-group://lsp/picker").unwrap(),
@@ -1869,10 +1871,9 @@ impl Editor {
                         }
                     },
                 );
+                Ok(Box::pin(async { Ok(()) }))
             }
-        };
-
-        Ok(())
+        }
     }
 
     pub fn jump_to(&mut self, loc: impl Into<Location>) {
@@ -1959,7 +1960,7 @@ impl Editor {
         &mut self,
         encoding: PositionEncoding,
         location: lsp_types::Location,
-    ) -> Result<(), Error> {
+    ) -> Result<impl Future<Output = Result<(), Error>> + 'static> {
         let path = location
             .uri
             .to_file_path()
@@ -1968,16 +1969,18 @@ impl Editor {
         let from = self.current_location();
         let open_fut =
             self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::BACKGROUND)?;
-
-        self.callback("jump to location", async { Ok(open_fut.await) }, move |editor, buf| {
-            let buf = buf?;
-            let text = editor[buf].text();
-            let point = from_proto::point(encoding, text, location.range.start);
-            editor.jump(from, Location::new(buf, point));
+        let client = self.client();
+        Ok(async move {
+            let buf = open_fut.await?;
+            client
+                .request(move |editor| {
+                    let text = editor[buf].text();
+                    let point = from_proto::point(encoding, text, location.range.start);
+                    editor.jump(from, Location::new(buf, point));
+                })
+                .await;
             Ok(())
-        });
-
-        Ok(())
+        })
     }
 
     pub fn current_location(&self) -> Location {
