@@ -93,6 +93,8 @@ async fn snapshot<Fut>(
 where
     Fut: Future<Output = zi::Result<()>>,
 {
+    let cmd = tokio::process::Command::new("asciinema").args(["rec", "--headless", "/dev/stdin"]);
+
     // We should find a better storage format than raw ansi bytes, maybe asciinema format?
     Ok(())
     // let mut bytes = vec![];

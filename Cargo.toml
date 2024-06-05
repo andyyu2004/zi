@@ -12,7 +12,7 @@ members = [
     "zi-text",
     "zi-textobject",
     "zi-core",
-    "zi-indent",
+    "zi-indent", "asciicast",
 ]
 
 [workspace.dependencies]

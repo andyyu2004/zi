@@ -109,6 +109,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "asciicast"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "async-channel"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
