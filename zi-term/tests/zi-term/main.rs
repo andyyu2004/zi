@@ -112,7 +112,7 @@ where
         .await?;
 
     let name = name.replace(|c: char| c.is_whitespace(), "-");
-    let dir = PathBuf::from("tests/zi-term/snapshots");
+    let dir = PathBuf::from("tests/zi-term/asciicasts");
 
     let cast = Asciicast::new(
         width,
