@@ -2,6 +2,7 @@
 
 use std::io::{self, Write};
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Asciicast {
     header: Header,
     events: Vec<Event>,
@@ -24,8 +25,34 @@ impl Asciicast {
         }
         Ok(())
     }
+
+    pub fn read_from(mut r: impl io::BufRead) -> io::Result<Self> {
+        let mut header = String::new();
+        r.read_line(&mut header)?;
+        let header: Header = serde_json::from_str(&header)?;
+
+        let mut events = vec![];
+        let mut line = String::new();
+        loop {
+            line.clear();
+            if r.read_line(&mut line)? == 0 {
+                break;
+            };
+
+            let (time_us, code, data): (f64, &str, String) = serde_json::from_str(&line)?;
+            let time_us = (time_us * 1_000_000.0) as u64;
+            let kind = match code {
+                "o" => EventKind::Output(data),
+                _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "unknown event code")),
+            };
+            events.push(Event { time_us, kind });
+        }
+
+        Ok(Asciicast { header, events })
+    }
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct Header {
     pub version: u8,
     pub width: u16,
@@ -34,9 +61,9 @@ pub struct Header {
 
 impl Header {
     pub fn write_to(&self, mut w: impl Write) -> io::Result<()> {
-        write!(
+        writeln!(
             w,
-            r#"{{"version":{}, "width":{}, "height":{}}}"#,
+            r#"{{"version": {}, "width": {}, "height": {}}}"#,
             self.version, self.width, self.height
         )
     }
@@ -56,14 +83,10 @@ pub enum EventKind {
 impl Event {
     fn write_to(&self, mut w: impl Write) -> io::Result<()> {
         let (code, data) = match &self.kind {
-            EventKind::Output(output) => {
-                let s = serde_json::to_string(output)
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-                ("o", s)
-            }
+            EventKind::Output(output) => ("o", output),
         };
 
-        let time = format!("{}.{:0>6}", self.time_us / 1_000_000, self.time_us % 1_000_000);
-        write!(w, "[{time}, {code}, {data}]")
+        serde_json::to_writer(&mut w, &(self.time_us as f64 / 1_000_000.0, code, data))?;
+        writeln!(w)
     }
 }

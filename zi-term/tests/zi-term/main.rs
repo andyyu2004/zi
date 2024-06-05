@@ -1,7 +1,9 @@
+use std::fs::File;
 use std::future::Future;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
-use tokio::io::AsyncReadExt;
+use asciicast::Asciicast;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use zi::OpenFlags;
@@ -111,20 +113,33 @@ where
 
     let name = name.replace(|c: char| c.is_whitespace(), "-");
     let dir = PathBuf::from("tests/zi-term/snapshots");
-    let path = dir.join(format!("{name}.ansi"));
+
+    let cast = Asciicast::new(
+        width,
+        height,
+        [
+            asciicast::Event {
+                kind: asciicast::EventKind::Output(String::from_utf8(bytes).unwrap()),
+                time_us: 0,
+            },
+            asciicast::Event { kind: asciicast::EventKind::Output(String::from("\n")), time_us: 1 },
+        ],
+    );
+
+    let path = dir.join(format!("{name}.asciicast"));
 
     let mut expected = vec![];
     if path.exists() {
-        tokio::fs::File::open(&path).await?.read_to_end(&mut expected).await?;
+        File::open(&path)?.read_to_end(&mut expected)?;
     } else {
-        tokio::fs::write(path, &bytes).await?;
-        return Ok(());
+        return Ok(cast.write_to(File::create(&path)?)?);
     }
 
     if std::env::var("UPDATE_EXPECT").is_ok() {
-        tokio::fs::write(path, &bytes).await?;
+        cast.write_to(File::create(&path)?)?;
     } else {
-        assert_eq!(bytes, expected);
+        let existing = Asciicast::read_from(BufReader::new(File::open(&path)?))?;
+        assert_eq!(existing, cast);
     }
 
     Ok(())
