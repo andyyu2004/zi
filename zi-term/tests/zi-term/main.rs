@@ -126,7 +126,7 @@ where
         ],
     );
 
-    let path = dir.join(format!("{name}.asciicast"));
+    let path = dir.join(format!("{name}.cast"));
 
     let mut expected = vec![];
     if path.exists() {
