@@ -409,6 +409,10 @@ impl Editor {
         Client { tx: self.requests_tx.clone() }
     }
 
+    pub fn size(&self) -> Size {
+        self.tree.size()
+    }
+
     fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));

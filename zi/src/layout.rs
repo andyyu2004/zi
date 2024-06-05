@@ -16,6 +16,10 @@ impl ViewTree {
         ViewTree { size, layers: vec![Layer::new(view)], last_known_area: Default::default() }
     }
 
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
     pub fn area(&self) -> Rect {
         Rect::new(0, 0, self.size.width, self.size.height)
     }

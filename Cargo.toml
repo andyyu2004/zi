@@ -16,6 +16,7 @@ members = [
 ]
 
 [workspace.dependencies]
+asciicast = { path = "asciicast" }
 zi = { path = "zi" }
 zi-core = { path = "zi-core" }
 zi-indent = { path = "zi-indent" }

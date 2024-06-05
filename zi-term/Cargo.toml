@@ -30,3 +30,4 @@ zi = { workspace = true, features = ["crossterm"] }
 tui = { path = "../zi-tui", package = "zi-tui" }
 
 [dev-dependencies]
+asciicast = { workspace = true }

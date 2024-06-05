@@ -1,9 +1,9 @@
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-// use tokio::io::AsyncReadExt;
-// use tui::backend::CrosstermBackend;
-// use tui::Terminal;
+use tokio::io::AsyncReadExt;
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 use zi::OpenFlags;
 
 #[tokio::test]
@@ -86,53 +86,46 @@ async fn snapshot_path(name: &'static str, path: impl AsRef<Path>) -> anyhow::Re
     .await
 }
 
-async fn snapshot<Fut>(
-    _name: &'static str,
-    _f: impl FnOnce(zi::Client) -> Fut,
-) -> anyhow::Result<()>
+async fn snapshot<Fut>(name: &'static str, f: impl FnOnce(zi::Client) -> Fut) -> anyhow::Result<()>
 where
     Fut: Future<Output = zi::Result<()>>,
 {
-    let cmd = tokio::process::Command::new("asciinema").args(["rec", "--headless", "/dev/stdin"]);
+    let (width, height) = (150, 32);
+    let (mut editor, tasks) = zi::Editor::new((width, height));
 
-    // We should find a better storage format than raw ansi bytes, maybe asciinema format?
+    let client = editor.client();
+    tokio::spawn(async move {
+        editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
+    });
+    f(client.clone()).await?;
+
+    let bytes = client
+        .with(move |editor| {
+            let mut bytes = vec![];
+            let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
+            term.draw(|f| editor.render(f)).unwrap();
+            drop(term);
+            Ok::<_, zi::Error>(bytes)
+        })
+        .await?;
+
+    let name = name.replace(|c: char| c.is_whitespace(), "-");
+    let dir = PathBuf::from("tests/zi-term/snapshots");
+    let path = dir.join(format!("{name}.ansi"));
+
+    let mut expected = vec![];
+    if path.exists() {
+        tokio::fs::File::open(&path).await?.read_to_end(&mut expected).await?;
+    } else {
+        tokio::fs::write(path, &bytes).await?;
+        return Ok(());
+    }
+
+    if std::env::var("UPDATE_EXPECT").is_ok() {
+        tokio::fs::write(path, &bytes).await?;
+    } else {
+        assert_eq!(bytes, expected);
+    }
+
     Ok(())
-    // let mut bytes = vec![];
-    //
-    // {
-    //     let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
-    //     let (mut editor, tasks) = Editor::new(zi::Size::new(150, 32));
-    //     let client = editor.client();
-    //     tokio::spawn(async move {
-    //         editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
-    //     });
-    //     f(client.clone()).await?;
-    //
-    //     client
-    //         .request(move |editor| {
-    //             term.draw(|f| editor.render(f)).unwrap();
-    //             term
-    //         })
-    //         .await;
-    // }
-    //
-    // let name = name.replace(|c: char| c.is_whitespace(), "-");
-    // let dir = PathBuf::from("tests/zi-term/snapshots");
-    // let path = dir.join(format!("{name}.ansi"));
-    //
-    // let mut expected = vec![];
-    // if path.exists() {
-    //     tokio::fs::File::open(&path).await?.read_to_end(&mut expected).await?;
-    // } else {
-    //     tokio::fs::write(path, &bytes).await?;
-    //     return Ok(());
-    // }
-    //
-    // if std::env::var("UPDATE_EXPECT").is_ok() {
-    //     tokio::fs::write(path, &bytes).await?;
-    // } else {
-    //     assert_eq!(bytes, expected);
-    // }
-    //
-    // Ok(())
 }

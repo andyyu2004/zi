@@ -3665,6 +3665,7 @@ name = "zi-term"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "asciicast",
  "clap",
  "crossterm",
  "futures-util",
