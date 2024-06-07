@@ -143,7 +143,7 @@ impl Editor {
 
                 let content_changes = match *kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        lsp::to_proto::deltas(encoding, buf.text(), &event.deltas)
+                        lsp::to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
                     }
                     lsp_types::TextDocumentSyncKind::FULL => {
                         vec![lsp_types::TextDocumentContentChangeEvent {

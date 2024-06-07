@@ -1,5 +1,7 @@
+use rand::Rng;
 use stdx::bomb::DropBomb;
-use zi_text::deltas;
+use tokio::sync::watch;
+use zi_text::{deltas, TextBase};
 
 use super::*;
 
@@ -99,7 +101,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
         vec![lsp_change_event!(0:2..0:2 => "z"), lsp_change_event!(0:0..0:0 => "©")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", String::new(), |builder| {
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {
@@ -154,7 +156,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
         vec![lsp_change_event!(0:1..0:1 => "z")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", String::new(), |builder| {
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {
@@ -182,6 +184,70 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
         editor.edit(buf, &deltas![2..2 => "z"])
     })
     .await?;
+
+    cx.cleanup().await;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
+    let cx = new("").await;
+
+    let (tx, rx) = watch::channel(String::new());
+
+    cx.setup_lang_server(zi::FileType::TEXT, "test-server", tx, |builder| {
+        builder
+            .request::<request::Initialize, _>(move |_, _params| async {
+                Ok(lsp_types::InitializeResult {
+                    capabilities: lsp_types::ServerCapabilities {
+                        position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
+                        text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
+                            lsp_types::TextDocumentSyncKind::INCREMENTAL,
+                        )),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+            })
+            .notification::<notification::DidChangeTextDocument>(move |tx, params| {
+                for change in params.content_changes {
+                    let lsp_range = change.range.expect("expect range for incremental change");
+                    let text = tx.borrow();
+                    let point_range = zi::lsp::from_proto::range(
+                        zi_lsp::PositionEncoding::Utf8,
+                        &*text,
+                        lsp_range,
+                    );
+                    let byte_range = text.point_range_to_byte_range(point_range);
+                    // Must drop the guard, otherwise `send` will be stuck on a lock
+                    drop(text);
+                    tx.send_modify(|text| text.replace_range(byte_range, &change.text));
+                }
+                Ok(())
+            })
+    })
+    .await;
+
+    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+
+    let mut any_non_empty = false;
+    for _ in 0..rand::thread_rng().gen_range(0..400) {
+        any_non_empty |= !cx
+            .with(move |editor| editor.apply_random_deltas(rand::thread_rng(), buf))
+            .await
+            .is_empty();
+    }
+
+    if !any_non_empty {
+        panic!("no non-empty deltas were applied");
+    }
+
+    assert_eq!(
+        *rx.borrow(),
+        cx.with(move |editor| editor.buffer(buf).text().to_string()).await,
+        "editor state and lsp state have diverged"
+    );
 
     cx.cleanup().await;
 

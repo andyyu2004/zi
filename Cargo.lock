@@ -3581,6 +3581,7 @@ dependencies = [
  "nucleo",
  "parking_lot",
  "proptest",
+ "rand 0.8.5",
  "rayon",
  "regex",
  "regex-cursor",
