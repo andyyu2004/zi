@@ -41,6 +41,7 @@ bitflags::bitflags! {
     pub struct BufferFlags: u8 {
         const READONLY = 1 << 0;
         const DIRTY = 1 << 1;
+        const ENSURE_TRAILING_NEWLINE = 1 << 2;
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -52,8 +53,7 @@ bitflags::bitflags! {
     pub struct EditFlags: u8 {
         /// Do not record this change in the undo tree.
         const NO_RECORD = 1 << 0;
-        /// Ensure the buffer ends with a newline before any insert.
-        const NO_ENSURE_NEWLINE = 1 << 1;
+        const NO_ENSURE_TRAILING_NEWLINE = 1 << 1;
     }
 }
 

@@ -1125,16 +1125,27 @@ impl Editor {
     ) -> Result<(), EditError> {
         let buf = selector.select(self);
         // // Don't care if we're actually in insert mode, that's more a key binding namespace.
-        // let (view, buf) = get!(self: view_id);
-        let buf = &mut self[buf];
 
-        if buf.flags().contains(BufferFlags::READONLY) {
+        if self[buf].flags().contains(BufferFlags::READONLY) {
             return Err(EditError::Readonly);
         }
 
-        let old_text = dyn_clone::clone_box(buf.text());
-        buf.edit_flags(Internal(()), deltas, flags);
-        let buf = buf.id();
+        // Ensure the buffer ends with a newline before performing an insert.
+        if self[buf].flags().contains(BufferFlags::ENSURE_TRAILING_NEWLINE)
+            && !flags.contains(EditFlags::NO_ENSURE_TRAILING_NEWLINE)
+            && deltas.has_inserts()
+            && self[buf].text().chars().next_back() != Some('\n')
+        {
+            // This edit won't affect the primary delta so we don't need to adjust it.
+            let len = self[buf].text().len_bytes();
+            let newline_deltas = Deltas::insert_at(len, "\n");
+            let old_text = dyn_clone::clone_box(self[buf].text());
+            self[buf].edit(Internal(()), &newline_deltas);
+            self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: newline_deltas });
+        }
+
+        let old_text = dyn_clone::clone_box(self[buf].text());
+        self[buf].edit_flags(Internal(()), deltas, flags);
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
         for view in self.views_into_buf(buf) {
@@ -1429,7 +1440,7 @@ impl Editor {
                 self.edit_flags(
                     buf,
                     &change.inversions,
-                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
+                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_TRAILING_NEWLINE,
                 )?;
             }
         } else {
@@ -1437,7 +1448,7 @@ impl Editor {
                 self.edit_flags(
                     buf,
                     &change.deltas,
-                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_NEWLINE,
+                    EditFlags::NO_RECORD | EditFlags::NO_ENSURE_TRAILING_NEWLINE,
                 )?;
             }
         }

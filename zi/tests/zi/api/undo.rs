@@ -65,7 +65,7 @@ async fn undo_dwdwdd() {
 }
 
 #[tokio::test]
-async fn undo_uncommited_changes() {
+async fn undo_uncommitted_changes() {
     let cx = new("").await;
     cx.with(|editor| {
         editor.set_mode(zi::Mode::Insert);

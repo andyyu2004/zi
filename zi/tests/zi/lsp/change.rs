@@ -34,6 +34,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     let bomb = DropBomb::new("did_change should be called");
 
     let expected_events = ExpectedSequence::new([
+        vec![lsp_change_event!("abc\n")],
         vec![lsp_change_event!("dbc\n")],
         // should probably try and merge some of these events into 1
         vec![lsp_change_event!("abc\n")],
@@ -92,8 +93,9 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     // It may look like the events are out of order, but that's due to the way zi sorts deltas.
     // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
     let expected_events = ExpectedSequence::new([
+        vec![lsp_change_event!(0:0..0:0 => "\n")],
         vec![lsp_change_event!(0:0..0:0 => "abc")],
-        vec![lsp_change_event!(0:4..0:4 => "e"), lsp_change_event!(0:3..0:3 => "d")],
+        vec![lsp_change_event!(0:3..0:3 => "de")],
         vec![lsp_change_event!(0:2..0:2 => "z"), lsp_change_event!(0:0..0:0 => "©")],
     ]);
 
@@ -122,21 +124,15 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
 
     cx.with(move |editor| {
         editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))?;
-        editor.edit(
-            buf,
-            &deltas![
-                3..3 => "d",
-                4..4 => "e",
-            ],
-        )?;
+        assert_eq!(editor.buffer(buf).text().to_string(), "abc\n");
 
-        editor.edit(
-            buf,
-            &deltas![
-                0..0 => "©",
-                2..2 => "z",
-            ],
-        )
+        editor.edit(buf, &deltas![3..3 => "de"])?;
+        assert_eq!(editor.buffer(buf).text().to_string(), "abcde\n");
+
+        editor.edit(buf, &deltas![0..0 => "©", 2..2 => "z"])?;
+        assert_eq!(editor.buffer(buf).text().to_string(), "©abzcde\n");
+
+        Ok::<_, zi::EditError>(())
     })
     .await?;
 
@@ -152,6 +148,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
     // It may look like the events are out of order, but that's due to the way zi sorts deltas.
     // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
     let expected_events = ExpectedSequence::new([
+        vec![lsp_change_event!(0:0..0:0 => "\n")],
         vec![lsp_change_event!(0:0..0:0 => "©")],
         // This would be 0:2 if utf-8
         vec![lsp_change_event!(0:1..0:1 => "z")],

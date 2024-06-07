@@ -201,6 +201,7 @@ impl<X: Text + Clone> TextBuffer<X> {
         mut text: X,
         theme: &Theme,
     ) -> Self {
+        let flags = flags | BufferFlags::ENSURE_TRAILING_NEWLINE;
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let file_url = Url::from_file_path(&path).ok();
@@ -250,25 +251,8 @@ impl<X: Text + Clone> TextBuffer<X> {
         }
     }
 
-    // Ensure the buffer still with a newline.
-    // It's fine to do this without editing the syntax as a trailing
-    // newline won't affect it.
-    fn ensure_trailing_newline(&mut self) {
-        if self.text.chars().next_back() != Some('\n') {
-            let len = self.text.len_bytes();
-            self.edit(&Deltas::insert_at(len, "\n"), EditFlags::NO_ENSURE_NEWLINE);
-        }
-    }
-
     fn edit(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
-        // Ensure the buffer ends with a newline before any insert.
-        let should_ensure_newline =
-            !flags.contains(EditFlags::NO_ENSURE_NEWLINE) && deltas.has_inserts();
-
         let deltas = deltas.to_owned();
-        if should_ensure_newline {
-            self.ensure_trailing_newline();
-        }
 
         tracing::trace!(?flags, ?deltas, "edit buffer");
 
