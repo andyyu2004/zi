@@ -265,6 +265,7 @@ impl<X: Text + Clone> TextBuffer<X> {
         let should_ensure_newline =
             !flags.contains(EditFlags::NO_ENSURE_NEWLINE) && deltas.has_inserts();
 
+        let deltas = deltas.to_owned();
         if should_ensure_newline {
             self.ensure_trailing_newline();
         }
@@ -278,24 +279,19 @@ impl<X: Text + Clone> TextBuffer<X> {
                     self.flags.insert(BufferFlags::DIRTY);
                 }
 
-                let (inversion, _prev_tree) = match self.syntax.as_mut() {
-                    Some(syntax) => syntax.edit(text, deltas),
-                    None => (text.edit(deltas), None),
+                let (inversions, _prev_tree) = match self.syntax.as_mut() {
+                    Some(syntax) => syntax.edit(text, &deltas),
+                    None => (text.edit(&deltas), None),
                 };
 
                 if !flags.contains(EditFlags::NO_RECORD) {
-                    self.changes.push(Change { deltas: deltas.to_owned(), inversions: inversion });
+                    self.changes.push(Change { deltas, inversions });
                 }
 
                 self.version.checked_add(1).unwrap();
             }
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
-        }
-
-        // If the buffer is empty then we leave it so.
-        if should_ensure_newline && self.text.is_empty() {
-            self.ensure_trailing_newline();
         }
     }
 }
