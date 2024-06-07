@@ -1117,6 +1117,54 @@ impl Editor {
         self.edit_flags(selector, deltas, EditFlags::empty())
     }
 
+    // This is a very naive implementation of a random delta generator.
+    #[doc(hidden)]
+    #[cfg(feature = "rand")]
+    pub fn apply_random_deltas<R: rand::Rng + Clone>(
+        &mut self,
+        mut rng: R,
+        selector: impl Selector<BufferId>,
+    ) -> Deltas<'static> {
+        use zi_text::Delta;
+
+        let buf = selector.select(self);
+
+        // Set the string to something random otherwise only trivial deltas can be generated.
+        let deltas = Deltas::insert_at(0, random_string(rng.clone(), 1000));
+        self.edit(buf, &deltas).expect("initial random delta was invalid");
+
+        // TODO should include some special characters like newlines and tabs
+        fn random_string(mut rng: impl rand::Rng, n: usize) -> String {
+            let len = rng.gen_range(0..=n);
+            let chars = rng.sample_iter(&rand::distributions::Alphanumeric);
+            chars.take(len).map(|u| u as char).collect()
+        }
+
+        let len = self[buf].text().len_bytes();
+
+        let n = rng.gen_range(0..=10);
+        let mut k = 0;
+        let deltas = Deltas::new((0..n).map_while(|_| {
+            if k > len {
+                return None;
+            }
+
+            let start = if k != len { rng.gen_range(k..=len) } else { k };
+            let end = if start != len { rng.gen_range(start..=len) } else { start };
+            k = end + 1;
+            let range = start..end;
+
+            if rng.gen_bool(0.1) {
+                return None;
+            }
+
+            Some(Delta::new(range, random_string(rng.clone(), 100)))
+        }));
+
+        self.edit(buf, &deltas).expect("random delta was invalid");
+        deltas
+    }
+
     fn edit_flags(
         &mut self,
         selector: impl Selector<BufferId>,

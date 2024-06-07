@@ -32,7 +32,8 @@ futures-util = { workspace = true }
 directories-next = "2.0.0"
 smol_str = "0.2.1"
 tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
-arbitrary = { version = "1.3.2", optional = true, features = ["derive"] }
+arbitrary = { workspace = true, optional = true, features = ["derive"] }
+rand = { workspace = true, optional = true }
 grep = "0.3.1"
 async-trait = { workspace = true }
 stdx = { workspace = true }
@@ -55,12 +56,13 @@ proptest = "1.4.0"
 tempfile = "3.10.0"
 test-strategy = "0.3.1"
 futures-executor = "0.3.30"
-zi = { workspace = true, features = ["arbitrary"] }
+zi = { workspace = true, features = ["arbitrary", "rand"] }
 zi-nvim = { path = "../zi-nvim" }
 regex = "1"
 
 [features]
 arbitrary = ["dep:arbitrary", "bitflags/arbitrary", "zi-core/arbitrary"]
+rand = ["dep:rand"]
 
 [[test]]
 name = "regression"

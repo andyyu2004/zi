@@ -49,12 +49,14 @@ impl<'a> Deltas<'a> {
         });
 
         deltas.iter().zip(deltas.iter().skip(1)).for_each(|(a, b)| {
+            // Edge case of intersection? Maybe it should be included in the `.intersects` method?
             assert!(
-                !a.range().intersects(&b.range()),
-                "deltas must not overlap: {:?} and {:?}",
-                a,
-                b
+                !(a.range().is_empty()
+                    && b.range().is_empty()
+                    && a.range().start == b.range().start),
+                "deltas must not be empty and have the same start point: {a:?} and {b:?}",
             );
+            assert!(!a.range().intersects(&b.range()), "deltas must not overlap: {a:?} and {b:?}",);
         });
 
         Self { deltas }
@@ -92,6 +94,10 @@ impl<'a> Deltas<'a> {
 
     pub fn has_inserts(&self) -> bool {
         self.deltas.iter().any(|d| !d.text().is_empty())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.deltas.is_empty()
     }
 
     pub fn is_identity(&self) -> bool {
