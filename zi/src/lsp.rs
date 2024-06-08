@@ -176,7 +176,6 @@ impl zi_lsp::LanguageClient for LanguageClient {
         &mut self,
         params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
     ) -> Self::NotifyResult {
-        let _ = params;
         ControlFlow::Continue(())
     }
 

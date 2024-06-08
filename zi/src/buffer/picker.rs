@@ -304,7 +304,7 @@ impl<P: Picker + Send + Sync> Buffer for PickerBuffer<P> {
         }
     }
 
-    fn pre_render(&mut self, _: Internal, client: &SyncClient, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, client: &Client, _view: &View, _area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }
@@ -317,7 +317,7 @@ impl<P: Picker + Send + Sync> Buffer for PickerBuffer<P> {
 
         let display_view = self.display_view;
         let buf_id = self.id;
-        client.with(move |editor| {
+        client.send(move |editor| {
             // call `select` on the current line as the set of items may have changed.
             Self::select_current(buf_id, editor);
 

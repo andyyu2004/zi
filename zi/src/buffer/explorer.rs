@@ -130,7 +130,7 @@ impl<T: Entry, F: Send + Sync> Buffer for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _: Internal, _client: &SyncClient, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, _client: &Client, _view: &View, area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }

@@ -303,7 +303,8 @@ struct Request {
 /// An async client to the editor.
 #[derive(Clone)]
 pub struct Client {
-    tx: Sender<Request>,
+    requests_tx: Sender<Request>,
+    callbacks_tx: CallbacksSender,
 }
 
 impl Client {
@@ -312,11 +313,18 @@ impl Client {
         f: impl FnOnce(&mut Editor) -> T + Send + 'static,
     ) -> T {
         let (tx, rx) = oneshot::channel();
-        self.tx
+        self.requests_tx
             .send(Request { tx, f: Box::new(|editor| Box::new(f(editor))) })
             .await
             .expect("request receiver should be alive");
         *rx.await.expect("server did not send response").downcast().unwrap()
+    }
+
+    /// Send a callback to the editor to be executed.
+    /// This is a sync operation with the limitation that we can't return a value.
+    pub fn send(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+        // no description needed as `ready()` will never timeout
+        callback(&self.callbacks_tx, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
 }
 
@@ -362,7 +370,10 @@ impl Editor {
         let (callbacks_tx, callbacks_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
-        let plugins = Plugins::new(Client { tx: requests_tx.clone() });
+        let plugins = Plugins::new(Client {
+            requests_tx: requests_tx.clone(),
+            callbacks_tx: callbacks_tx.clone(),
+        });
 
         static NOTIFY_IDLE: OnceLock<Notify> = OnceLock::new();
         let notify_idle = NOTIFY_IDLE.get_or_init(Default::default);
@@ -406,7 +417,7 @@ impl Editor {
     }
 
     pub fn client(&self) -> Client {
-        Client { tx: self.requests_tx.clone() }
+        Client { requests_tx: self.requests_tx.clone(), callbacks_tx: self.callbacks_tx.clone() }
     }
 
     pub fn size(&self) -> Size {
@@ -2051,10 +2062,6 @@ impl Editor {
         Location { buf: buf.id(), point: view.cursor() }
     }
 
-    fn sync_client(&self) -> SyncClient {
-        SyncClient(self.callbacks_tx.clone())
-    }
-
     pub(crate) fn schedule(
         &self,
         desc: impl fmt::Display + Send + 'static,
@@ -2097,16 +2104,6 @@ impl Editor {
 
     async fn subscribe_async_hooks() {
         event::subscribe_async(Self::will_save_buffer()).await;
-    }
-}
-
-/// A synchronous client to the editor.
-pub struct SyncClient(CallbacksSender);
-
-impl SyncClient {
-    pub fn with(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
-        // no description needed as `ready()` will never timeout
-        callback(&self.0, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
 }
 

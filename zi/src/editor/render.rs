@@ -17,7 +17,7 @@ impl Editor {
         let buffer_area = frame.buffer_mut().area;
         let tree_area = self.tree.area();
         assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
-        let sender = self.sync_client();
+        let client = self.client();
 
         tracing::debug!(%tree_area, %buffer_area, "render editor");
 
@@ -29,7 +29,7 @@ impl Editor {
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             // do not swap the order of the calls, since we need it to not short-circuit
-            buf.pre_render(Internal(()), &sender, view, area)
+            buf.pre_render(Internal(()), &client, view, area)
         });
 
         self.tree.render(self, frame.buffer_mut());
