@@ -44,20 +44,6 @@ async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
     let (mut editor, tasks) = zi::Editor::new(term.size()?);
-    if let Some(path) = opts.path {
-        if path.exists() && path.is_dir() {
-            std::env::set_current_dir(&path)?;
-            editor.open_file_explorer(".");
-        } else {
-            let mut flags = zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
-
-            if opts.readonly {
-                flags.insert(zi::OpenFlags::READONLY);
-            }
-
-            editor.open(path, flags)?.await?;
-        }
-    }
 
     let init_path = zi::dirs::config().join("init.zi");
     if init_path.exists() {
@@ -78,6 +64,27 @@ async fn main() -> anyhow::Result<()> {
 
     let events = EventStream::new()
         .filter_map(|ev| async { ev.map(|ev| Event::try_from(ev).ok()).transpose() });
+
+    let client = editor.client();
+    tokio::spawn(async move {
+        if let Some(path) = opts.path {
+            if path.exists() && path.is_dir() {
+                std::env::set_current_dir(&path)?;
+                client.with(|editor| editor.open_file_explorer(".")).await;
+            } else {
+                let mut flags = zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
+
+                if opts.readonly {
+                    flags.insert(zi::OpenFlags::READONLY);
+                }
+
+                let _ = client.with(move |editor| editor.open(path, flags)).await?.await;
+            }
+        }
+        Ok::<_, io::Error>(())
+    });
+
+    tokio::task::yield_now().await;
 
     app.run(&mut editor, events, tasks).await?;
 
