@@ -75,6 +75,11 @@ pub(super) fn new() -> Keymap {
         editor.schedule("goto type definition", fut);
     }
 
+    fn find_references(editor: &mut Editor) {
+        let fut = editor.find_references(Active);
+        editor.schedule("find references", fut);
+    }
+
     fn goto_start(editor: &mut Editor) {
         editor.scroll(Active, Direction::Up, usize::MAX);
     }
@@ -341,6 +346,7 @@ pub(super) fn new() -> Keymap {
                         "D" => goto_declaration,
                         "i" => goto_implementation,
                         "t" => goto_type_definition,
+                        "r" => find_references,
                         "g" => goto_start,
                     },
                     "t" => {

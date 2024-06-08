@@ -1742,17 +1742,38 @@ impl Editor {
         )
     }
 
-    fn goto_definition_(
+    pub fn find_references(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        let view = selector.select(self);
+        self.goto_definition_(
+            "find references",
+            view,
+            |cap| matches!(cap.references_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
+            |server, params| {
+                server
+                    .references(lsp_types::ReferenceParams {
+                        text_document_position: params.text_document_position_params,
+                        context: lsp_types::ReferenceContext { include_declaration: true },
+                        partial_result_params: Default::default(),
+                        work_done_progress_params: Default::default(),
+                    })
+                    .map(|res| res.map(|opt| opt.map(lsp_types::GotoDefinitionResponse::Array)))
+            },
+        )
+    }
+
+    fn goto_definition_<Fut>(
         &mut self,
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        f: impl FnOnce(
-            &mut LanguageServer,
-            lsp_types::GotoDefinitionParams,
-        )
-            -> BoxFuture<'static, zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>>,
-    ) -> impl Future<Output = Result<()>> + 'static {
+        f: impl FnOnce(&mut LanguageServer, lsp_types::GotoDefinitionParams) -> Fut,
+    ) -> impl Future<Output = Result<()>> + 'static
+    where
+        Fut: Future<Output = zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
+    {
         let res = active_servers_of!(self, view)
             .find(|server_id| has_cap(&self.active_language_servers[server_id].capabilities))
             .and_then(|server_id| {
