@@ -77,7 +77,6 @@ bitflags::bitflags! {
     pub struct SaveFlags: u32 {
         /// Flush the buffer to disk even if it's not dirty
         const FORCE = 1 << 0;
-
     }
 }
 
@@ -1678,23 +1677,79 @@ impl Editor {
     pub fn goto_definition(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<()>> + 'static {
+    ) -> impl Future<Output = Result<()>> {
+        self.goto_definition_(selector, |editor, view| editor.find_definitions(view))
+    }
+
+    pub fn goto_declaration(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        self.goto_definition_(selector, |editor, view| editor.find_declarations(view))
+    }
+
+    pub fn goto_type_definition(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        self.goto_definition_(selector, |editor, view| editor.find_type_definitions(view))
+    }
+
+    pub fn goto_implementation(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        self.goto_definition_(selector, |editor, view| editor.find_implementations(view))
+    }
+
+    pub fn goto_references(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        self.goto_definition_(selector, |editor, view| editor.find_references(view))
+    }
+
+    fn goto_definition_<Fut>(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        f: impl FnOnce(&mut Self, ViewId) -> Fut,
+    ) -> impl Future<Output = Result<()>>
+    where
+        Fut: Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>>
+            + 'static,
+    {
         let view = selector.select(self);
-        self.goto_definition_(
-            "go to definition",
+        let fut = f(self, view);
+        let client = self.client();
+        async move {
+            let res = fut.await?;
+            client.with(|editor| editor.lsp_jump_to_definitions(res)).await?.await?;
+            Ok(())
+        }
+    }
+
+    pub fn find_definitions(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    {
+        let view = selector.select(self);
+        self.find_definitions_(
+            "textDocument/definition",
             view,
             |cap| matches!(cap.definition_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
             |server, params| server.definition(params),
         )
     }
 
-    pub fn goto_implementation(
+    pub fn find_implementations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<()>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
-        self.goto_definition_(
-            "go to implementation",
+        self.find_definitions_(
+            "textDocument/implementation",
             view,
             |cap| {
                 !matches!(
@@ -1706,13 +1761,14 @@ impl Editor {
         )
     }
 
-    pub fn goto_declaration(
+    pub fn find_declarations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<()>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
-        self.goto_definition_(
-            "go to declaration",
+        self.find_definitions_(
+            "textDocument/declaration",
             view,
             |cap| {
                 !matches!(
@@ -1724,13 +1780,14 @@ impl Editor {
         )
     }
 
-    pub fn goto_type_definition(
+    pub fn find_type_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<()>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
-        self.goto_definition_(
-            "go to type definition",
+        self.find_definitions_(
+            "textDocument/typeDefinition",
             view,
             |cap| {
                 !matches!(
@@ -1745,10 +1802,10 @@ impl Editor {
     pub fn find_references(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<()>> {
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> {
         let view = selector.select(self);
-        self.goto_definition_(
-            "find references",
+        self.find_definitions_(
+            "textDocument/references",
             view,
             |cap| matches!(cap.references_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
             |server, params| {
@@ -1764,13 +1821,13 @@ impl Editor {
         )
     }
 
-    fn goto_definition_<Fut>(
+    fn find_definitions_<Fut>(
         &mut self,
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
         f: impl FnOnce(&mut LanguageServer, lsp_types::GotoDefinitionParams) -> Fut,
-    ) -> impl Future<Output = Result<()>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
     where
         Fut: Future<Output = zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
     {
@@ -1801,20 +1858,19 @@ impl Editor {
                 Some((encoding, fut))
             });
 
-        let client = self.client();
         async move {
             match res {
                 None => bail!("no language server supports {desc}"),
                 Some((encoding, fut)) => {
                     let res = fut.await?;
                     tracing::debug!(?res, "lsp definition response");
-                    client
-                        .with(move |editor| editor.lsp_jump_to_definition(encoding, res))
-                        .await?
-                        .await?;
+                    let res = match res {
+                        None => lsp_types::GotoDefinitionResponse::Array(Default::default()),
+                        Some(res) => res,
+                    };
+                    Ok((encoding, res))
                 }
             }
-            Ok(())
         }
     }
 
@@ -2041,16 +2097,14 @@ impl Editor {
         view.align(area, buf, alignment)
     }
 
-    fn lsp_jump_to_definition(
+    fn lsp_jump_to_definitions(
         &mut self,
-        encoding: PositionEncoding,
-        res: Option<lsp_types::GotoDefinitionResponse>,
-    ) -> Result<impl Future<Output = Result<(), Error>> + 'static> {
+        (encoding, res): (PositionEncoding, lsp_types::GotoDefinitionResponse),
+    ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let mut locations = match res {
-            None => vec![],
-            Some(lsp_types::GotoDefinitionResponse::Scalar(location)) => vec![location],
-            Some(lsp_types::GotoDefinitionResponse::Array(locations)) => locations,
-            Some(lsp_types::GotoDefinitionResponse::Link(links)) => links
+            lsp_types::GotoDefinitionResponse::Scalar(location) => vec![location],
+            lsp_types::GotoDefinitionResponse::Array(locations) => locations,
+            lsp_types::GotoDefinitionResponse::Link(links) => links
                 .into_iter()
                 .map(|link| lsp_types::Location {
                     uri: link.target_uri,

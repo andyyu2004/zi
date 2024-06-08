@@ -57,26 +57,26 @@ pub(super) fn new() -> Keymap {
 
     fn goto_definition(editor: &mut Editor) {
         let fut = editor.goto_definition(Active);
-        editor.schedule("goto definition", fut);
+        editor.schedule("go to definition", fut);
     }
 
     fn goto_declaration(editor: &mut Editor) {
-        let fut = editor.goto_definition(Active);
-        editor.schedule("goto declaration", fut);
+        let fut = editor.goto_declaration(Active);
+        editor.schedule("go to declaration", fut);
     }
 
     fn goto_implementation(editor: &mut Editor) {
         let fut = editor.goto_implementation(Active);
-        editor.schedule("goto implementation", fut);
+        editor.schedule("go to implementation", fut);
     }
 
     fn goto_type_definition(editor: &mut Editor) {
         let fut = editor.goto_type_definition(Active);
-        editor.schedule("goto type definition", fut);
+        editor.schedule("go to type definition", fut);
     }
 
     fn find_references(editor: &mut Editor) {
-        let fut = editor.find_references(Active);
+        let fut = editor.goto_references(Active);
         editor.schedule("find references", fut);
     }
 
