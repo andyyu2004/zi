@@ -100,11 +100,8 @@ impl Buffer for InspectorBuffer {
                 }
             };
 
-            let this = editor
-                .buffer_mut(buf)
-                .as_any_mut(Internal(()))
-                .downcast_mut::<InspectorBuffer>()
-                .unwrap();
+            let this =
+                editor.buffer_mut(buf).as_any_mut(Internal(())).downcast_mut::<Self>().unwrap();
             this.text = output;
 
             Ok(())
