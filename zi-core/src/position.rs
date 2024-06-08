@@ -388,6 +388,18 @@ impl From<Direction> for tui::Direction {
     }
 }
 
+pub trait IteratorRangeExt {
+    fn range_merge<J, T>(self, other: J) -> RangeMergeIter<Self, J, T>
+    where
+        Self: Iterator<Item = (PointRange, T)> + Sized,
+        J: Iterator<Item = (PointRange, T)> + Sized,
+    {
+        RangeMergeIter::new(self, other)
+    }
+}
+
+impl<I: Iterator> IteratorRangeExt for I {}
+
 /// An iterator that merges two iterators over ([`Range`], T: [`Merge`]), prioritizing the second iterator on overlap (as per [`Merge`])
 pub struct RangeMergeIter<I: Iterator, J: Iterator, T> {
     xs: Peekable<I>,

@@ -4,7 +4,7 @@ use std::fmt;
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{Rect, Widget as _};
-use zi_core::{Offset, PointRange, RangeMergeIter};
+use zi_core::{IteratorRangeExt, Offset, PointRange, RangeMergeIter};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
@@ -131,7 +131,7 @@ impl Editor {
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
         let view_highlights =
-            RangeMergeIter::new(syntax_highlights, overlay_highlights).inspect(|(range, style)| {
+            syntax_highlights.range_merge(overlay_highlights).inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });
 
