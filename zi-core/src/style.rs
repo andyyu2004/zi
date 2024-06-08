@@ -4,10 +4,11 @@ use std::str::FromStr;
 use stdx::merge::Merge;
 
 // Don't implement default to avoid misuse. Should always get the default style off the theme.
-#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
+    pub modifier: Modifier,
 }
 
 impl fmt::Display for Style {
@@ -30,13 +31,13 @@ impl FromStr for Style {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut style = Style::empty();
+        let mut style = Style::none();
         for part in s.split_whitespace() {
             let (key, value) = part
                 .split_once('=')
                 .ok_or_else(|| anyhow::anyhow!("invalid style part: {part}"))?;
 
-            match key {
+            style = match key {
                 "fg" => style.with_fg(value.parse()?),
                 "bg" => style.with_bg(value.parse()?),
                 _ => return Err(anyhow::anyhow!("invalid style field: {part}")),
@@ -48,17 +49,22 @@ impl FromStr for Style {
 }
 
 impl Style {
-    pub fn empty() -> Self {
-        Self { fg: None, bg: None }
+    pub const fn none() -> Self {
+        Self { fg: None, bg: None, modifier: Modifier::empty() }
     }
 
-    pub fn with_fg(&mut self, fg: Color) -> &mut Self {
+    pub fn with_fg(mut self, fg: Color) -> Self {
         self.fg = Some(fg);
         self
     }
 
-    pub fn with_bg(&mut self, bg: Color) -> &mut Self {
+    pub fn with_bg(mut self, bg: Color) -> Self {
         self.bg = Some(bg);
+        self
+    }
+
+    pub fn with_modifier(mut self, modifier: Modifier) -> Self {
+        self.modifier = modifier;
         self
     }
 }
@@ -67,13 +73,20 @@ impl From<Style> for tui::Style {
     #[inline]
     fn from(s: Style) -> Self {
         tui::Style { fg: s.fg.map(Into::into), bg: s.bg.map(Into::into), ..Default::default() }
+            .add_modifier(s.modifier)
     }
 }
+
+pub type Modifier = tui::Modifier;
 
 impl Merge for Style {
     #[inline]
     fn merge(self, other: Self) -> Self {
-        Self { fg: other.fg.or(self.fg), bg: other.bg.or(self.bg) }
+        Self {
+            fg: other.fg.or(self.fg),
+            bg: other.bg.or(self.bg),
+            modifier: self.modifier.union(other.modifier),
+        }
     }
 }
 
@@ -122,5 +135,95 @@ impl Color {
         let a = hex & 0xFF;
         assert_eq!(a, 0, "alpha channel not supported");
         Color::Rgb(r as u8, g as u8, b as u8)
+    }
+}
+
+#[macro_export]
+macro_rules! modifier {
+    () => {
+        $crate::style::Modifier::empty()
+    };
+    (bold $($tt:tt)*) => {
+        $crate::style::Modifier::BOLD | $crate::modifier!($($tt)*)
+    };
+    (dim $($tt:tt)*) => {
+        $crate::style::Modifier::DIM | $crate::modifier!($($tt)*)
+    };
+    (italic $($tt:tt)*) => {
+        $crate::style::Modifier::ITALIC | $crate::modifier!($($tt)*)
+    };
+    (underline $($tt:tt)*) => {
+        $crate::style::Modifier::UNDERLINED | $crate::modifier!($($tt)*)
+    };
+    (slow_blink $($tt:tt)*) => {
+        $crate::style::Modifier::SLOW_BLINK | $crate::modifier!($($tt)*)
+    };
+    (rapid_blink $($tt:tt)*) => {
+        $crate::style::Modifier::RAPID_BLINK | $crate::modifier!($($tt)*)
+    };
+    (reverse $($tt:tt)*) => {
+        $crate::style::Modifier::REVERSED | $crate::modifier!($($tt)*)
+    };
+    (hidden $($tt:tt)*) => {
+        $crate::style::Modifier::HIDDEN | $crate::modifier!($($tt)*)
+    };
+    (crossed_out $($tt:tt)*) => {
+        $crate::style::Modifier::CROSSED_OUT | $crate::modifier!($($tt)*)
+    };
+}
+
+#[macro_export]
+macro_rules! style {
+    (fg=$fg:literal bg=$bg:literal $($tt:tt)*) => {
+        $crate::style::Style::none()
+            .with_fg($crate::style::Color::rgba($fg))
+            .with_bg($crate::style::Color::rgba($bg))
+            .with_modifier($crate::modifier!($($tt)*))
+    };
+    (fg=$fg:literal $($tt:tt)*) => {
+        $crate::style::Style::none()
+            .with_fg($crate::style::Color::rgba($fg))
+            .with_modifier($crate::modifier!($($tt)*))
+    };
+    (bg=$bg:literal $($tt:tt)*) => {
+        $crate::style::Style::none()
+            .with_bg($crate::style::Color::rgba($bg))
+            .with_modifier($crate::modifier!($($tt)*))
+    };
+    ($($tt:tt)*) => {
+        $crate::style::Style::none().with_modifier($crate::modifier!($($tt)*))
+    };
+}
+
+pub use {modifier, style};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn style_macro() {
+        assert_eq!(style!(bold), Style::none().with_modifier(Modifier::BOLD));
+        assert_eq!(style!(fg = 0x11223300), Style::none().with_fg(Color::Rgb(0x11, 0x22, 0x33)));
+        assert_eq!(style!(bg = 0x11223300), Style::none().with_bg(Color::Rgb(0x11, 0x22, 0x33)));
+        assert_eq!(
+            style!(fg=0x11223300 bg=0x44556600),
+            Style::none()
+                .with_fg(Color::Rgb(0x11, 0x22, 0x33))
+                .with_bg(Color::Rgb(0x44, 0x55, 0x66))
+        );
+        assert_eq!(
+            style!(fg=0x11223300 bold),
+            Style::none().with_fg(Color::Rgb(0x11, 0x22, 0x33)).with_modifier(Modifier::BOLD)
+        );
+        assert_eq!(
+            style!(fg=0x11223300 bg=0x44556600 bold),
+            Style::none()
+                .with_fg(Color::Rgb(0x11, 0x22, 0x33))
+                .with_bg(Color::Rgb(0x44, 0x55, 0x66))
+                .with_modifier(Modifier::BOLD)
+        );
+
+        assert_eq!(style!(bold dim), Style::none().with_modifier(Modifier::BOLD | Modifier::DIM));
     }
 }

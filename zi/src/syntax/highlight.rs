@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use zi_core::style::{Color, Style};
+use zi_core::style::{style, Style};
 
 #[derive(Clone)]
 pub struct Theme {
@@ -42,55 +42,55 @@ impl Theme {
     }
 }
 
+macro_rules! hi {
+    ($name:expr => $($tt:tt)*) => {
+        (Cow::Borrowed($name), style!($($tt)*))
+    };
+}
+
 impl Default for Theme {
     // Some butchered solarized-dark ish theme.
     fn default() -> Self {
         Self {
-            default_style: Style { fg: Some(Color::rgba(0x83949600)), bg: None },
+            default_style: style!(fg = 0x83949600),
             highlights: [
-                (HighlightName::BACKGROUND, None, Some(0x002b3600)),
-                (HighlightName::CURSORLINE, None, Some(0x07364200)),
-                (HighlightName::DIRECTORY, Some(0x268bd200), None),
-                (HighlightName::SEARCH, None, Some(0x00445400)),
-                (HighlightName::CURRENT_SEARCH, Some(0xeb773400), Some(0x00445400)),
-                (HighlightName::ERROR, Some(0xdc322f00), None),
-                (HighlightName::WARNING, Some(0xcb4b1600), None),
-                (HighlightName::INFO, Some(0x268bd200), None),
-                (HighlightName::HINT, Some(0x2aa19800), None),
-                ("namespace", Some(0x39a6b900), None),
-                ("module", Some(0x39a6b900), None),
-                ("function.macro", Some(0x298cba00), None),
-                ("function", Some(0x298cba00), None),
-                ("property", Some(0x41978900), None),
-                ("field", Some(0x41978900), None),
-                ("keyword", Some(0x527bd200), None),
-                ("constructor", Some(0xbf8a4a00), None),
-                ("type", Some(0x268bd200), None),
-                ("variable.builtin", Some(0xbf693000), None),
-                ("variable", Some(0x83949600), None),
-                ("function.builtin", Some(0x298cba00), None),
-                ("parameter", Some(0x4698b100), None),
-                ("constant", Some(0xbb8b5000), None),
-                ("constant.builtin", Some(0x41978900), None),
-                ("include", Some(0x527bd200), None),
-                ("attribute", Some(0xB8986800), None),
-                ("preproc", Some(0xB8986800), None),
-                ("method", Some(0x298cba00), None),
-                ("method.call", Some(0x298cba00), None),
-                ("punctuation.bracket", Some(0x86B1A100), None),
-                ("punctuation.special", Some(0x86B1A100), None),
-                ("punctuation.delimiter", Some(0x599c9700), None),
-                ("string", Some(0x2aa19800), None),
-                ("number", Some(0xcb4b1600), None),
-                ("comment", Some(0x586e7500), None),
+                hi!(HighlightName::BACKGROUND => bg=0x002b3600),
+                hi!(HighlightName::CURSORLINE => bg=0x07364200),
+                hi!(HighlightName::DIRECTORY => fg=0x268bd200),
+                hi!(HighlightName::SEARCH => bg=0x00445400),
+                hi!(HighlightName::CURRENT_SEARCH => fg=0xeb773400 bg=0x00445400),
+                hi!(HighlightName::ERROR => underline),
+                hi!(HighlightName::WARNING => underline),
+                hi!(HighlightName::INFO => underline),
+                hi!(HighlightName::HINT => underline),
+                hi!("namespace" => fg=0x39a6b900),
+                hi!("module" => fg=0x39a6b900),
+                hi!("function.macro" => fg=0x298cba00),
+                hi!("function" => fg=0x298cba00),
+                hi!("property" => fg=0x41978900),
+                hi!("field" => fg=0x41978900),
+                hi!("keyword" => fg=0x527bd200),
+                hi!("constructor" => fg=0xbf8a4a00),
+                hi!("type" => fg=0x268bd200),
+                hi!("variable.builtin" => fg=0xbf693000),
+                hi!("variable" => fg=0x83949600),
+                hi!("function.builtin" => fg=0x298cba00),
+                hi!("parameter" => fg=0x4698b100),
+                hi!("constant" => fg=0xbb8b5000),
+                hi!("constant.builtin" => fg=0x41978900),
+                hi!("include" => fg=0x527bd200),
+                hi!("attribute" => fg=0xB8986800),
+                hi!("preproc" => fg=0xB8986800),
+                hi!("method" => fg=0x298cba00),
+                hi!("method.call" => fg=0x298cba00),
+                hi!("punctuation.bracket" => fg=0x86B1A100),
+                hi!("punctuation.special" => fg=0x86B1A100),
+                hi!("punctuation.delimiter" => fg=0x599c9700),
+                hi!("string" => fg=0x2aa19800),
+                hi!("number" => fg=0xcb4b1600),
+                hi!("comment" => fg=0x586e7500),
             ]
             .into_iter()
-            .map(|(name, fg, bg)| {
-                let mut style = Style::empty();
-                style.fg = fg.map(Color::rgba);
-                style.bg = bg.map(Color::rgba);
-                (name.into(), style)
-            })
             .collect(),
         }
     }
@@ -179,14 +179,14 @@ mod tests {
     #[test]
     fn highlight_map() {
         let theme = Theme {
-            default_style: Style::empty(),
+            default_style: Style::none(),
             highlights: [
-                ("function", Style::empty()),
-                ("function.method", Style::empty()),
-                ("function.async", Style::empty()),
-                ("variable.builtin.self.rust", Style::empty()),
-                ("variable.builtin", Style::empty()),
-                ("variable", Style::empty()),
+                ("function", Style::none()),
+                ("function.method", Style::none()),
+                ("function.async", Style::none()),
+                ("variable.builtin.self.rust", Style::none()),
+                ("variable.builtin", Style::none()),
+                ("variable", Style::none()),
             ]
             .into_iter()
             .map(|(name, color)| (name.into(), color))

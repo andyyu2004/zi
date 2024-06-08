@@ -10,7 +10,7 @@ use std::{cmp, fmt};
 pub use ratatui::backend::Backend;
 pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
-pub use ratatui::style::{Color, Style};
+pub use ratatui::style::{Color, Modifier, Style};
 pub use ratatui::text::{Line, Span, Text};
 pub use ratatui::widgets::{Clear, Widget, WidgetRef};
 pub use ratatui::{backend, Frame, Terminal};
