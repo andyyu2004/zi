@@ -191,6 +191,7 @@ impl Default for Config {
                     // },
                     ExecutableLanguageServerConfig {
                         command: "ra-multiplex".into(),
+                        // command: "rust-analyzer".into(),
                         args: Box::new([]),
                     },
                 ),

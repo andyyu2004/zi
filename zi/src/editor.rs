@@ -9,6 +9,7 @@ mod search;
 mod state;
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::fs::File;
 use std::future::Future;
 use std::ops::{self, Deref, Index, IndexMut};
@@ -568,6 +569,106 @@ impl Editor {
         self.empty_buffer
     }
 
+    /// Pull diagnostics using the `textDocument/diagnostic` request.
+    fn request_diagnostics(
+        &mut self,
+        selector: impl Selector<BufferId>,
+    ) -> impl Future<Output = ()> {
+        let buf = selector.select(self);
+        tracing::info!("requesting diagnostics for buffer {buf:?}");
+
+        async fn update_related_docs(
+            client: &Client,
+            server_id: LanguageServerId,
+            related_documents: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
+        ) {
+            for (url, related) in related_documents.into_iter().flatten() {
+                let Ok(path) = url.to_file_path() else { continue };
+                match related {
+                    lsp_types::DocumentDiagnosticReportKind::Full(report) => {
+                        client
+                            .with(move |editor| {
+                                editor.update_diagnostics(server_id, path, report.items)
+                            })
+                            .await;
+                    }
+                    lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {}
+                }
+            }
+        }
+
+        let (server_ids, futs) = active_servers_of!(self, buf)
+            .filter_map(|&server_id| {
+                let true = self.active_language_servers[&server_id]
+                    .capabilities
+                    .diagnostic_provider
+                    .is_some()
+                else {
+                    return None;
+                };
+                let uri = self.buffers[buf].file_url()?.clone();
+                let server = self.active_language_servers.get_mut(&server_id).unwrap();
+                let fut = server.document_diagnostic(lsp_types::DocumentDiagnosticParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                    identifier: None,
+                    previous_result_id: None,
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                });
+                Some((server_id, fut))
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+
+        let path = self[buf].path();
+        let client = self.client();
+        async move {
+            let Some(path) = path else { return };
+
+            if server_ids.is_empty() {
+                tracing::info!(
+                    ?path,
+                    "no active language server for buffer supports pull diagnostics"
+                );
+                return;
+            }
+            let responses = futures_util::future::join_all(futs).await;
+            for (server_id, res) in server_ids.into_iter().zip(responses) {
+                let res = match res {
+                    Ok(res) => res,
+                    Err(err) => {
+                        tracing::error!("diagnostic request failed: {err}");
+                        continue;
+                    }
+                };
+
+                tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
+
+                let path = path.clone();
+                match res {
+                    lsp_types::DocumentDiagnosticReportResult::Report(report) => match report {
+                        lsp_types::DocumentDiagnosticReport::Full(report) => {
+                            client
+                                .with(move |editor| {
+                                    editor.update_diagnostics(
+                                        server_id,
+                                        path,
+                                        report.full_document_diagnostic_report.items,
+                                    )
+                                })
+                                .await;
+
+                            update_related_docs(&client, server_id, report.related_documents).await;
+                        }
+                        lsp_types::DocumentDiagnosticReport::Unchanged(_) => {}
+                    },
+                    lsp_types::DocumentDiagnosticReportResult::Partial(report) => {
+                        update_related_docs(&client, server_id, report.related_documents).await;
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) fn update_diagnostics(
         &mut self,
         server: LanguageServerId,
@@ -948,6 +1049,10 @@ impl Editor {
         self[buf].snapshot(SnapshotFlags::empty());
         // Move cursor left when exiting insert mode
         let _ = self.motion(Active, motion::PrevChar);
+
+        // Request diagnostics using the pull model to ensure we have the latest diagnostics
+        let fut = self.request_diagnostics(Active);
+        tokio::spawn(fut);
     }
 
     #[inline]
@@ -2125,7 +2230,7 @@ impl Editor {
     }
 
     async fn subscribe_async_hooks() {
-        event::subscribe_async(Self::will_save_buffer()).await;
+        event::subscribe_async(Self::format_before_save()).await;
     }
 }
 

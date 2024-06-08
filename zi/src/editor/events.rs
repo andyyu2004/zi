@@ -1,7 +1,7 @@
 use super::*;
 
 impl Editor {
-    pub(super) fn will_save_buffer() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
+    pub(super) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
         event::async_handler::<event::WillSaveBuffer, _>(|client, event| async move {
             let (version, format_fut) = client
                 .with(move |editor| {

@@ -216,7 +216,6 @@ impl Editor {
             // We always want to render a line even if the buffer is empty.
             .default_if_empty(|| Box::new("") as Box<dyn AnyTextSlice<'_>>);
 
-        // annotation needs to be offset too
         let chunks = zi_text::annotate(lines, highlights);
 
         let lines = tui::Lines::new(

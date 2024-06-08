@@ -302,6 +302,10 @@ pub fn client_capabilities() -> ClientCapabilities {
             definition: GOTO_CAPABILITY,
             type_definition: GOTO_CAPABILITY,
             implementation: GOTO_CAPABILITY,
+            diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
+                related_document_support: Some(true),
+                ..Default::default()
+            }),
             publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
                 version_support: Some(true),
                 ..Default::default()

@@ -2,19 +2,19 @@ use std::path::Path;
 
 use arbitrary::{Arbitrary, Unstructured};
 use datatest_stable::{harness, Result};
-use futures_executor::block_on;
 use zi::input::{KeyCode, KeyEvent, KeySequence};
 
 harness!(test, "tests/regression/fuzz", r"^.*/*");
 
-fn test(path: &Path) -> Result<()> {
+#[tokio::main(flavor = "current_thread")]
+async fn test(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path)?;
     let u = Unstructured::new(&bytes);
     let seq = <KeySequence as Arbitrary>::arbitrary_take_rest(u)?;
-    run(seq)
+    run(seq).await
 }
 
-fn run(seq: KeySequence) -> Result<()> {
+async fn run(seq: KeySequence) -> Result<()> {
     eprintln!("{seq:#?}\n{seq}");
 
     let (width, height) = (24, 10);
@@ -34,11 +34,14 @@ fn run(seq: KeySequence) -> Result<()> {
     .map(KeyEvent::from);
     let inputs = seq.into_iter().chain(quit_sequence.cycle());
     let inputs = futures_util::stream::iter(inputs.into_iter().map(zi::input::Event::Key).map(Ok));
-    block_on(editor.fuzz(inputs, tasks, |editor| {
-        // don't use `term.draw()` as it's very slow
-        editor.render(&mut frame);
-        Ok(())
-    }))?;
+
+    editor
+        .fuzz(inputs, tasks, |editor| {
+            // don't use `term.draw()` as it's very slow
+            editor.render(&mut frame);
+            Ok(())
+        })
+        .await?;
 
     Ok(())
 }
