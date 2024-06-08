@@ -65,30 +65,39 @@ impl Editor {
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
+        split_ratio: (u16, u16),
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
         P: Picker,
     {
-        self.open_picker::<P>(view_group_url, path, None, f)
+        self.open_picker::<P>(view_group_url, path, split_ratio, None, f)
     }
 
     fn open_dynamic_picker<P>(
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
+        split_ratio: (u16, u16),
         dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
     ) -> ViewGroupId
     where
         P: Picker,
     {
-        self.open_picker::<P>(view_group_url, path, Some(Arc::new(dynamic_source)), |_, _| {})
+        self.open_picker::<P>(
+            view_group_url,
+            path,
+            split_ratio,
+            Some(Arc::new(dynamic_source)),
+            |_, _| {},
+        )
     }
 
     fn open_picker<P>(
         &mut self,
         view_group_url: Url,
         path: impl AsRef<Path>,
+        split_ratio: (u16, u16),
         dynamic_source: Option<DynamicHandler<P::Entry>>,
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
@@ -110,9 +119,9 @@ impl Editor {
             view
         });
 
-        let (a, b) = *self.settings.picker_split_proportion.read();
         self.tree.push(Layer::new_with_area(preview, move |area| {
-            tui::Layout::vertical(tui::Constraint::from_fills([a, b])).areas::<2>(area)[1]
+            tui::Layout::vertical(tui::Constraint::from_fills([split_ratio.0, split_ratio.1]))
+                .areas::<2>(area)[1]
         }));
 
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
@@ -190,9 +199,11 @@ impl Editor {
 
         // Save the view so the jumps we get are from the right view.
         let view = self.view(selector).id();
+        let split_ratio = *self.settings().jump_list_picker_split_ratio.read();
         self.open_static_picker::<PathPicker<_>>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
+            split_ratio,
             move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
                     let Some(path) = editor.buffer(loc.buf).path() else { continue };
@@ -206,9 +217,11 @@ impl Editor {
 
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         let path = path.as_ref();
+        let split_ratio = *self.settings().file_picker_split_ratio.read();
         self.open_static_picker::<PathPicker<stdx::path::Display>>(
             Url::parse("view-group://files").unwrap(),
             path,
+            split_ratio,
             |_editor, injector| {
                 let mut entries =
                     ignore::WalkBuilder::new(path).build().filter_map(|entry| match entry {
@@ -269,9 +282,11 @@ impl Editor {
             }
         }
 
+        let split_ratio = *self.settings().diagnostics_picker_split_ratio.read();
         self.open_static_picker::<PathPicker<DiagnosticEntry>>(
             Url::parse("view-group://diagnostics").unwrap(),
             "diagnostics",
+            split_ratio,
             |editor, injector| {
                 for (path, server_diags) in editor.lsp_diagnostics.iter() {
                     for diags in server_diags.values() {
@@ -321,9 +336,11 @@ impl Editor {
         }
 
         let path = path.as_ref().to_path_buf();
+        let split_ratio = *self.settings().global_search_split_ratio.read();
         self.open_dynamic_picker::<PathPicker<Entry>>(
             Url::parse("view-group://search").unwrap(),
             "search",
+            split_ratio,
             move |injector, query| {
                 tracing::debug!(%query, "global search update");
 

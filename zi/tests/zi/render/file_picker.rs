@@ -4,7 +4,7 @@ use crate::new;
 async fn new_() -> TestContext {
     let cx = new("").with_size((100, 8)).await;
     cx.with(|editor| {
-        editor.settings().picker_split_proportion.write((0, 100));
+        editor.settings().file_picker_split_ratio.write((0, 100));
         editor.open_file_picker("tests/zi/testdirs");
     })
     .await;

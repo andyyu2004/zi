@@ -1958,6 +1958,7 @@ impl Editor {
                 self.open_static_picker::<PathPicker<_>>(
                     Url::parse("view-group://lsp/picker").unwrap(),
                     "/",
+                    (1, 1),
                     move |_, injector| {
                         for location in locations {
                             let Ok(path) = location.uri.to_file_path() else { continue };
