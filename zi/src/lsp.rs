@@ -193,7 +193,13 @@ impl zi_lsp::LanguageClient for LanguageClient {
                 tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
                 return Ok(());
             };
-            editor.update_diagnostics(server, path, params.diagnostics);
+
+            editor.update_diagnostics(
+                server,
+                path,
+                params.version.map(|i| i as u32),
+                params.diagnostics,
+            );
             Ok(())
         });
 

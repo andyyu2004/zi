@@ -86,7 +86,7 @@ fn pool() -> &'static rayon::ThreadPool {
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
 }
 
-type LspDiagnostics = Setting<Box<[lsp_types::Diagnostic]>>;
+type LspDiagnostics = Setting<(Option<u32>, Box<[lsp_types::Diagnostic]>)>;
 
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
@@ -588,7 +588,7 @@ impl Editor {
                     lsp_types::DocumentDiagnosticReportKind::Full(report) => {
                         client
                             .with(move |editor| {
-                                editor.update_diagnostics(server_id, path, report.items)
+                                editor.update_diagnostics(server_id, path, None, report.items)
                             })
                             .await;
                     }
@@ -652,6 +652,7 @@ impl Editor {
                                     editor.update_diagnostics(
                                         server_id,
                                         path,
+                                        None,
                                         report.full_document_diagnostic_report.items,
                                     )
                                 })
@@ -673,11 +674,17 @@ impl Editor {
         &mut self,
         server: LanguageServerId,
         path: PathBuf,
+        version: Option<u32>,
         diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
     ) {
         let mut diagnostics: Box<[_]> = diagnostics.into();
         diagnostics.sort_unstable_by_key(|d| d.range.start);
-        self.lsp_diagnostics.entry(path).or_default().entry(server).or_default().write(diagnostics);
+        self.lsp_diagnostics
+            .entry(path)
+            .or_default()
+            .entry(server)
+            .or_default()
+            .write((version, diagnostics));
         request_redraw();
     }
 

@@ -137,9 +137,18 @@ impl Editor {
             .and_then(|path| self.lsp_diagnostics.get(&path))
             .into_iter()
             .flatten()
-            .flat_map(|(server, diags)| {
+            .flat_map(|(server, d)| {
+                let (version, diags) = &*d.read();
+                match version {
+                    // If the diagnostics are from a different version of the text, we clear them.
+                    Some(version) if *version != buf.version() => {
+                        d.write((None, vec![].into_boxed_slice()));
+                        return vec![];
+                    }
+                    _ => {}
+                }
+
                 diags
-                    .read()
                     .sorted_subslice_by_key(
                         line_offset..line_offset + area.height as usize,
                         |diag| diag.range.start.line as usize,
@@ -147,8 +156,6 @@ impl Editor {
                     .iter()
                     .cloned()
                     .map(|diag| {
-                        // It's possible these diagnostics are from a different version of the text.
-                        // We should perhaps just ignore them?
                         from_proto::diagnostic(
                             self.active_language_servers[server].position_encoding(),
                             buf.text(),

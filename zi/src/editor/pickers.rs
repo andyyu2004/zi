@@ -260,13 +260,24 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct DiagnosticEntry {
             path: PathBuf,
-            line: usize,
+            range: lsp_types::Range,
             message: String,
         }
 
         impl fmt::Display for DiagnosticEntry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}:{} {}", self.path.display(), self.line, self.message)
+                write!(
+                    f,
+                    "{}:{}:{}..{}:{}: {}",
+                    self.path.display(),
+                    // We're displaying the ranges in the server encoding which is wrong.
+                    // However, this is just for display purposes so it's not a big deal (and still useful)
+                    self.range.start.line,
+                    self.range.start.character,
+                    self.range.end.line,
+                    self.range.end.character,
+                    self.message
+                )
             }
         }
 
@@ -278,7 +289,7 @@ impl Editor {
 
             #[inline]
             fn line(&self) -> Option<usize> {
-                Some(self.line)
+                Some(self.range.start.line as usize)
             }
         }
 
@@ -291,10 +302,10 @@ impl Editor {
                 for (path, server_diags) in editor.lsp_diagnostics.iter() {
                     for diags in server_diags.values() {
                         // TODO could spawn a task which listens to changes in the diagnostics
-                        for diag in diags.read().iter() {
+                        for diag in diags.read().1.iter() {
                             if let Err(()) = injector.push(DiagnosticEntry {
                                 path: path.clone(),
-                                line: diag.range.start.line as usize,
+                                range: diag.range,
                                 message: diag.message.clone(),
                             }) {
                                 break;
