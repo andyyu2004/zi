@@ -203,6 +203,12 @@ fn test(s: &str) {
             assert_eq!(reference.byte_to_point(b), line_slice.byte_to_point(b), "{s:?}: byte {b}");
             assert_eq!(reference.byte_to_point(b), byte_slice.byte_to_point(b), "{s:?}: byte {b}");
 
+            assert_eq!(
+                reference.byte_to_utf16_cu(b),
+                byte_slice.byte_to_utf16_cu(b),
+                "{s:?}: byte {b}"
+            );
+
             b += c.len_utf8();
         }
 

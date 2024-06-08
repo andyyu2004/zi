@@ -136,8 +136,15 @@ impl TextBase for str {
     }
 
     #[inline]
-    fn utf16_cu_to_byte(&self, _cu_idx: usize) -> usize {
-        todo!()
+    fn utf16_cu_to_byte(&self, mut cu_idx: usize) -> usize {
+        let mut chars = self.chars();
+        let mut byte_idx = 0;
+        while cu_idx > 0 {
+            let cu = chars.next().expect("cu_idx out of bounds");
+            byte_idx += cu.len_utf8();
+            cu_idx = cu_idx.checked_sub(cu.len_utf16()).expect("cu_idx was not on a char boundary");
+        }
+        byte_idx
     }
 }
 
