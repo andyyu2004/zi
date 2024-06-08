@@ -13,7 +13,18 @@ use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, PositionEncoding, ResponseError, Result};
 
-pub(crate) struct LanguageClient;
+use crate::{Client, LanguageServerId};
+
+pub struct LanguageClient {
+    for_server: LanguageServerId,
+    client: Client,
+}
+
+impl LanguageClient {
+    pub fn new(for_server: LanguageServerId, client: Client) -> Self {
+        Self { client, for_server }
+    }
+}
 
 type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
 
@@ -176,6 +187,16 @@ impl zi_lsp::LanguageClient for LanguageClient {
         &mut self,
         params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
     ) -> Self::NotifyResult {
+        let server = self.for_server;
+        self.client.send(move |editor| {
+            let Ok(path) = params.uri.to_file_path() else {
+                tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
+                return Ok(());
+            };
+            editor.update_diagnostics(server, path, params.diagnostics);
+            Ok(())
+        });
+
         ControlFlow::Continue(())
     }
 
@@ -281,6 +302,10 @@ pub fn client_capabilities() -> ClientCapabilities {
             definition: GOTO_CAPABILITY,
             type_definition: GOTO_CAPABILITY,
             implementation: GOTO_CAPABILITY,
+            publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
+                version_support: Some(true),
+                ..Default::default()
+            }),
             ..Default::default()
         }),
         window: None,

@@ -110,6 +110,7 @@ pub trait LanguageServerConfig {
     #[allow(clippy::type_complexity)]
     fn spawn(
         &self,
+        client: LanguageClient,
     ) -> zi_lsp::Result<(
         Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
         BoxFuture<'static, zi_lsp::Result<()>>,
@@ -233,13 +234,13 @@ pub struct ExecutableLanguageServerConfig {
 impl LanguageServerConfig for ExecutableLanguageServerConfig {
     fn spawn(
         &self,
+        client: LanguageClient,
     ) -> zi_lsp::Result<(
         Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
         BoxFuture<'static, zi_lsp::Result<()>>,
     )> {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        let (server, fut) =
-            zi_lsp::Server::start(LanguageClient, ".", &self.command, &self.args[..])?;
+        let (server, fut) = zi_lsp::Server::start(client, ".", &self.command, &self.args[..])?;
         Ok((Box::new(server), Box::pin(fut)))
     }
 }

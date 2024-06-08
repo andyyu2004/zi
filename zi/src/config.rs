@@ -5,10 +5,17 @@ use tokio::sync::watch;
 
 /// A setting that can be read and written to via immutable references.
 /// This can be cloned to create multiple references to the same underlying setting.
+// TODO find a more generic name as this isn't just used for settings
 #[derive(Clone)]
 pub struct Setting<T> {
     rx: watch::Receiver<T>,
     tx: watch::Sender<T>,
+}
+
+impl<T: Default> Default for Setting<T> {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
 }
 
 impl<T: PartialEq> PartialEq<T> for Setting<T> {

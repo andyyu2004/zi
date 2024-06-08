@@ -243,6 +243,54 @@ impl Editor {
         )
     }
 
+    pub fn open_diagnostics(&mut self) {
+        #[derive(Clone, Debug)]
+        struct DiagnosticEntry {
+            path: PathBuf,
+            line: usize,
+            message: String,
+        }
+
+        impl fmt::Display for DiagnosticEntry {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}:{} {}", self.path.display(), self.line, self.message)
+            }
+        }
+
+        impl PathPickerEntry for DiagnosticEntry {
+            #[inline]
+            fn path(&self) -> &Path {
+                &self.path
+            }
+
+            #[inline]
+            fn line(&self) -> Option<usize> {
+                Some(self.line)
+            }
+        }
+
+        self.open_static_picker::<PathPicker<DiagnosticEntry>>(
+            Url::parse("view-group://diagnostics").unwrap(),
+            "diagnostics",
+            |editor, injector| {
+                for (path, server_diags) in editor.lsp_diagnostics.iter() {
+                    for diags in server_diags.values() {
+                        // TODO could spawn a task which listens to changes in the diagnostics
+                        for diag in diags.read().iter() {
+                            if let Err(()) = injector.push(DiagnosticEntry {
+                                path: path.clone(),
+                                line: diag.range.start.line as usize,
+                                message: diag.message.clone(),
+                            }) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            },
+        );
+    }
+
     pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         #[derive(Clone, Debug)]
         struct Entry {

@@ -232,6 +232,10 @@ pub(super) fn new() -> Keymap {
         editor.open_jump_list(Active);
     }
 
+    fn open_diagnostics(editor: &mut Editor) {
+        editor.open_diagnostics();
+    }
+
     fn tab(editor: &mut Editor) {
         set_error_if!(editor, editor.tab(Active))
     }
@@ -329,6 +333,7 @@ pub(super) fn new() -> Keymap {
                         "e" => open_file_explorer,
                         "o" => open_file_picker,
                         "j" => open_jump_list,
+                        "l" => open_diagnostics,
                         "/" => open_global_search,
                     },
                     "g" => {

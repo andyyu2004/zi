@@ -5,3 +5,4 @@ perf.data*
 profile.json
 mutants.out
 mutants.out.old
+rustc-ice-*

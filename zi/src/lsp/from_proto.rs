@@ -1,6 +1,6 @@
 //! Boring impls converting zi to lsp types
 
-use zi_core::PointRange;
+use zi_core::{Diagnostic, PointRange, Severity};
 use zi_lsp::{lsp_types, PositionEncoding};
 use zi_text::{Delta, Deltas, Text};
 
@@ -39,4 +39,26 @@ pub fn deltas(
         let range = text.point_range_to_byte_range(range(encoding, text, edit.range));
         Delta::new(range, edit.new_text)
     }))
+}
+
+pub fn diagnostics(
+    encoding: PositionEncoding,
+    text: &(impl Text + ?Sized),
+    diagnostics: impl IntoIterator<Item = lsp_types::Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diag| zi_core::Diagnostic {
+            range: range(encoding, text, diag.range),
+            severity: match diag.severity {
+                Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
+                Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
+                Some(lsp_types::DiagnosticSeverity::INFORMATION) => Severity::Info,
+                Some(lsp_types::DiagnosticSeverity::HINT) => Severity::Hint,
+                // Assume error if unspecified
+                _ => Severity::Error,
+            },
+            message: diag.message,
+        })
+        .collect()
 }

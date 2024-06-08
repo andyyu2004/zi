@@ -48,11 +48,12 @@ use crate::buffer::{
     PickerBuffer, SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
+use crate::config::Setting;
 use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, from_proto, to_proto, LanguageServer};
+use crate::lsp::{self, from_proto, to_proto, LanguageClient, LanguageServer};
 use crate::plugin::Plugins;
 use crate::private::{Internal, Sealed};
 use crate::syntax::{HighlightId, Theme};
@@ -75,6 +76,7 @@ bitflags::bitflags! {
     pub struct SaveFlags: u32 {
         /// Flush the buffer to disk even if it's not dirty
         const FORCE = 1 << 0;
+
     }
 }
 
@@ -83,11 +85,15 @@ fn pool() -> &'static rayon::ThreadPool {
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
 }
 
+type LspDiagnostics = Setting<Box<[lsp_types::Diagnostic]>>;
+
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
+    lsp_diagnostics: FxHashMap<PathBuf, FxHashMap<LanguageServerId, LspDiagnostics>>,
     empty_buffer: BufferId,
     settings: Settings,
     search_state: SearchState,
@@ -386,10 +392,11 @@ impl Editor {
             plugins,
             empty_buffer,
             notify_idle,
-            is_idle: Default::default(),
             keymap: default_keymap::new(),
-            command_handlers: command::builtin_handlers(),
             tree: layout::ViewTree::new(size, active_view),
+            command_handlers: command::builtin_handlers(),
+            lsp_diagnostics: Default::default(),
+            is_idle: Default::default(),
             notify_quit: Default::default(),
             settings: Default::default(),
             view_groups: Default::default(),
@@ -558,6 +565,21 @@ impl Editor {
 
     pub(crate) fn empty_buffer(&self) -> BufferId {
         self.empty_buffer
+    }
+
+    pub(crate) fn update_diagnostics(
+        &mut self,
+        server: LanguageServerId,
+        path: PathBuf,
+        diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
+    ) {
+        self.lsp_diagnostics
+            .entry(path)
+            .or_default()
+            .entry(server)
+            .or_default()
+            .write(diagnostics.into());
+        request_redraw();
     }
 
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
@@ -1673,8 +1695,9 @@ impl Editor {
                     continue;
                 }
 
+                let client = LanguageClient::new(server_id, self.client());
                 let (mut server, fut) =
-                    self.language_config.language_servers[&server_id].spawn()?;
+                    self.language_config.language_servers[&server_id].spawn(client)?;
                 let handle = tokio::spawn(fut);
 
                 callback(
