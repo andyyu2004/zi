@@ -122,6 +122,19 @@ impl PointRange {
         self.start.line == self.end.line
     }
 
+    /// Truncate the range to only keep the first line of the range.
+    /// The caller must pass in the desired end column.
+    #[inline]
+    pub fn truncate(&self, mk_end_col: impl FnOnce() -> usize) -> PointRange {
+        if self.is_single_line() {
+            return *self;
+        }
+
+        let range = Self::new(self.start, self.start.with_col(mk_end_col()));
+        debug_assert!(range.is_single_line());
+        range
+    }
+
     #[inline]
     pub fn start(&self) -> Point {
         self.start
@@ -428,7 +441,7 @@ where
 
 impl<I, J, T> Iterator for RangeMergeIter<I, J, T>
 where
-    T: Merge + Copy,
+    T: Merge + Copy + fmt::Debug,
     I: Iterator<Item = (PointRange, T)>,
     J: Iterator<Item = (PointRange, T)>,
 {
@@ -478,7 +491,7 @@ where
             // In particular, it's ambiguous where the first highlight should end for each line.
             assert!(
                 xr.is_single_line() && yr.is_single_line(),
-                "can only merge single-line ranges: {xr} {yr}"
+                "can only merge single-line ranges: {xr} {yr}; {x:?} {y:?}"
             );
 
             if xr.intersects(&yr) {

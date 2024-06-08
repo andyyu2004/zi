@@ -12,10 +12,15 @@ pub struct Theme {
 pub enum HighlightName {}
 
 impl HighlightName {
+    pub const BACKGROUND: &'static str = "background";
     pub const CURSORLINE: &'static str = "cursorline";
     pub const DIRECTORY: &'static str = "directory";
     pub const CURRENT_SEARCH: &'static str = "search.current";
     pub const SEARCH: &'static str = "search";
+    pub const ERROR: &'static str = "error";
+    pub const WARNING: &'static str = "warning";
+    pub const INFO: &'static str = "info";
+    pub const HINT: &'static str = "hint";
 }
 
 impl Theme {
@@ -38,14 +43,20 @@ impl Theme {
 }
 
 impl Default for Theme {
+    // Some butchered solarized-dark ish theme.
     fn default() -> Self {
         Self {
             default_style: Style { fg: Some(Color::rgba(0x83949600)), bg: None },
             highlights: [
+                (HighlightName::BACKGROUND, None, Some(0x002b3600)),
                 (HighlightName::CURSORLINE, None, Some(0x07364200)),
                 (HighlightName::DIRECTORY, Some(0x268bd200), None),
                 (HighlightName::SEARCH, None, Some(0x00445400)),
                 (HighlightName::CURRENT_SEARCH, Some(0xeb773400), Some(0x00445400)),
+                (HighlightName::ERROR, Some(0xdc322f00), None),
+                (HighlightName::WARNING, Some(0xcb4b1600), None),
+                (HighlightName::INFO, Some(0x268bd200), None),
+                (HighlightName::HINT, Some(0x2aa19800), None),
                 ("namespace", Some(0x39a6b900), None),
                 ("module", Some(0x39a6b900), None),
                 ("function.macro", Some(0x298cba00), None),

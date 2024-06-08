@@ -131,9 +131,8 @@ impl TextBase for str {
     }
 
     #[inline]
-    fn byte_to_utf16_cu(&self, _byte_idx: usize) -> usize {
-        // This is mostly used for LSP so probably won't need these string implementations
-        todo!()
+    fn byte_to_utf16_cu(&self, byte_idx: usize) -> usize {
+        self[..byte_idx].chars().map(char::len_utf16).sum()
     }
 
     #[inline]

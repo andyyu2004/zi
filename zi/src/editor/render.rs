@@ -3,11 +3,13 @@ use std::fmt;
 
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
+use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
-use zi_core::{IteratorRangeExt, Offset, PointRange, RangeMergeIter};
+use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
+use crate::lsp::from_proto;
 use crate::private::Internal;
 use crate::syntax::HighlightName;
 use crate::ViewId;
@@ -116,12 +118,12 @@ impl Editor {
         let theme = self.theme();
 
         let line_offset = view.offset().line;
-        let range =
+        let relevant_range =
             PointRange::new((line_offset, 0usize), (line_offset + area.height as usize, 0usize));
 
         // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
-            .syntax_highlights(self, &mut query_cursor, range)
+            .syntax_highlights(self, &mut query_cursor, relevant_range)
             .skip_while(|hl| hl.range.end().line() < line_offset)
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
@@ -130,8 +132,53 @@ impl Editor {
             .skip_while(|hl| hl.range.end().line() < line_offset)
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
-        let view_highlights =
-            syntax_highlights.range_merge(overlay_highlights).inspect(|(range, style)| {
+        let diagnostic_highlights = buf
+            .path()
+            .and_then(|path| self.lsp_diagnostics.get(&path))
+            .into_iter()
+            .flatten()
+            .flat_map(|(server, diags)| {
+                diags
+                    .read()
+                    .sorted_subslice_by_key(
+                        line_offset..line_offset + area.height as usize,
+                        |diag| diag.range.start.line as usize,
+                    )
+                    .iter()
+                    .cloned()
+                    .map(|diag| {
+                        // It's possible these diagnostics are from a different version of the text.
+                        // We should perhaps just ignore them?
+                        from_proto::diagnostic(
+                            self.active_language_servers[server].position_encoding(),
+                            buf.text(),
+                            diag,
+                        )
+                    })
+                    .filter_map(|diag| {
+                        let hl_name = match diag.severity {
+                            Severity::Error => HighlightName::ERROR,
+                            Severity::Warning => HighlightName::WARNING,
+                            Severity::Info => HighlightName::INFO,
+                            Severity::Hint => HighlightName::HINT,
+                        };
+                        let style = self.highlight_id_by_name(hl_name).style(theme)?;
+                        // Need to truncate multi-line ranges to the first line.
+                        // We extend it to the end of the line.
+                        Some((
+                            diag.range.truncate(|| {
+                                buf.text().line(diag.range.start().line()).unwrap().len_bytes()
+                            }),
+                            style,
+                        ))
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+        let view_highlights = syntax_highlights
+            .range_merge(overlay_highlights)
+            .range_merge(diagnostic_highlights)
+            .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });
 
@@ -158,7 +205,8 @@ impl Editor {
                 Some((range, style))
             });
 
-        let highlights = RangeMergeIter::new(view_highlights, search_highlights)
+        let highlights = view_highlights
+            .range_merge(search_highlights)
             .map(|(range, style)| (range - Offset::new(line_offset, 0), style));
 
         let text = buf.text();
@@ -187,7 +235,11 @@ impl Editor {
             ),
         );
 
-        surface.set_style(area, tui::Style::default().bg(tui::Color::Rgb(0x00, 0x2b, 0x36)));
+        let background = self
+            .highlight_id_by_name(HighlightName::BACKGROUND)
+            .style(theme)
+            .unwrap_or_else(|| theme.default_style());
+        surface.set_style(area, background);
         let width = lines.render_(area, surface);
         view.number_width.set(width as u16);
     }

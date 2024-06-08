@@ -41,24 +41,21 @@ pub fn deltas(
     }))
 }
 
-pub fn diagnostics(
+pub fn diagnostic(
     encoding: PositionEncoding,
     text: &(impl Text + ?Sized),
-    diagnostics: impl IntoIterator<Item = lsp_types::Diagnostic>,
-) -> Vec<Diagnostic> {
-    diagnostics
-        .into_iter()
-        .map(|diag| zi_core::Diagnostic {
-            range: range(encoding, text, diag.range),
-            severity: match diag.severity {
-                Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
-                Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
-                Some(lsp_types::DiagnosticSeverity::INFORMATION) => Severity::Info,
-                Some(lsp_types::DiagnosticSeverity::HINT) => Severity::Hint,
-                // Assume error if unspecified
-                _ => Severity::Error,
-            },
-            message: diag.message,
-        })
-        .collect()
+    diag: lsp_types::Diagnostic,
+) -> Diagnostic {
+    zi_core::Diagnostic {
+        range: range(encoding, text, diag.range),
+        severity: match diag.severity {
+            Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
+            Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
+            Some(lsp_types::DiagnosticSeverity::INFORMATION) => Severity::Info,
+            Some(lsp_types::DiagnosticSeverity::HINT) => Severity::Hint,
+            // Assume error if unspecified
+            _ => Severity::Error,
+        },
+        message: diag.message,
+    }
 }

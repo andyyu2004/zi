@@ -93,6 +93,7 @@ pub struct Editor {
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
+    // The per-server diagnostics are sorted by range.
     lsp_diagnostics: FxHashMap<PathBuf, FxHashMap<LanguageServerId, LspDiagnostics>>,
     empty_buffer: BufferId,
     settings: Settings,
@@ -573,12 +574,9 @@ impl Editor {
         path: PathBuf,
         diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
     ) {
-        self.lsp_diagnostics
-            .entry(path)
-            .or_default()
-            .entry(server)
-            .or_default()
-            .write(diagnostics.into());
+        let mut diagnostics: Box<[_]> = diagnostics.into();
+        diagnostics.sort_unstable_by_key(|d| d.range.start);
+        self.lsp_diagnostics.entry(path).or_default().entry(server).or_default().write(diagnostics);
         request_redraw();
     }
 
