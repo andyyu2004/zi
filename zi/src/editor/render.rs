@@ -138,14 +138,21 @@ impl Editor {
             .into_iter()
             .flatten()
             .flat_map(|(server, d)| {
-                let (version, diags) = &*d.read();
-                match version {
-                    // If the diagnostics are from a different version of the text, we clear them.
-                    Some(version) if *version != buf.version() => {
-                        d.write((None, vec![].into_boxed_slice()));
-                        return vec![];
-                    }
-                    _ => {}
+                let guard = d.read();
+                let (version, diags) = &*guard;
+                    tracing::info!(version, buf_version = buf.version(), "diagnostics");
+
+                // If the diagnostics are from a different version of the text, we clear them.
+                if *version != buf.version() {
+                    tracing::info!(
+                        "clearing diagnostics for `{}` because the version is outdated: {version} > {}",
+                        buf.path().expect("if we're here, the buffer has a path").display(),
+                        buf.version()
+                    );
+
+                    drop(guard);
+                    d.write((buf.version(), vec![].into_boxed_slice()));
+                    return vec![];
                 }
 
                 diags
@@ -184,7 +191,7 @@ impl Editor {
 
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
-            .range_merge(diagnostic_highlights)
+            .range_merge(diagnostic_highlights.into_iter())
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });

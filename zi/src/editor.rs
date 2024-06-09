@@ -83,7 +83,7 @@ fn pool() -> &'static rayon::ThreadPool {
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
 }
 
-type LspDiagnostics = Setting<(Option<u32>, Box<[lsp_types::Diagnostic]>)>;
+type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
 
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
@@ -457,6 +457,15 @@ impl Editor {
         Ok(())
     }
 
+    fn buffer_at_path(&self, path: &Path) -> Option<BufferId> {
+        self.buffers.values().find_map(|b| {
+            b.file_url()
+                .and_then(|url| url.to_file_path().ok())
+                .filter(|p| p == path)
+                .map(|_| b.id())
+        })
+    }
+
     pub fn open(
         &mut self,
         path: impl AsRef<Path>,
@@ -468,9 +477,7 @@ impl Editor {
 
         let ft = FileType::detect(&path);
 
-        let existing_buf = self.buffers.values().find(|b| {
-            b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(path.as_ref())
-        });
+        let existing_buf = self.buffer_at_path(&path);
 
         enum Plan {
             Replace(BufferId),
@@ -484,12 +491,12 @@ impl Editor {
             // and we want to open it as a normal buffer. In that case we drop the old buffer and
             // replace it with a writable one (with the same id). This is safe as we know we're not
             // losing any data due to it being readonly.
-            if buf.flags().contains(BufferFlags::READONLY)
+            if self[buf].flags().contains(BufferFlags::READONLY)
                 && !open_flags.contains(OpenFlags::READONLY)
             {
-                Plan::Replace(buf.id())
+                Plan::Replace(buf)
             } else {
-                Plan::Existing(buf.id())
+                Plan::Existing(buf)
             }
         } else {
             Plan::Insert
@@ -573,6 +580,17 @@ impl Editor {
         version: Option<u32>,
         diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
     ) {
+        let version = version.unwrap_or_else(|| {
+            // If there's a buffer with the same path, use its version.
+            if let Some(buf) = self.buffers.values().find(|b| {
+                b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(&path)
+            }) {
+                buf.version()
+            } else {
+                0
+            }
+        });
+
         let mut diagnostics: Box<[_]> = diagnostics.into();
         diagnostics.sort_unstable_by_key(|d| d.range.start);
         self.lsp_diagnostics

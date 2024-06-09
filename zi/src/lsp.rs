@@ -194,12 +194,21 @@ impl zi_lsp::LanguageClient for LanguageClient {
                 return Ok(());
             };
 
+            tracing::info!(
+                ?server,
+                ?path,
+                version = params.version,
+                n = params.diagnostics.len(),
+                "received push diagnostics"
+            );
+
             editor.update_diagnostics(
                 server,
                 path,
                 params.version.map(|i| i as u32),
                 params.diagnostics,
             );
+
             Ok(())
         });
 

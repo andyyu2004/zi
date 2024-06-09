@@ -562,6 +562,7 @@ where
     S: TextSlice<'a>,
     A: Copy,
 {
+    #[track_caller]
     fn slice<'a, S>(s: &S, byte_range: impl RangeBounds<usize>) -> Cow<'a, str>
     where
         S: TextSlice<'a>,

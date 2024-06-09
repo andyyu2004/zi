@@ -272,7 +272,7 @@ impl<X: Text + Clone> TextBuffer<X> {
                     self.changes.push(Change { deltas, inversions });
                 }
 
-                self.version.checked_add(1).unwrap();
+                self.version = self.version.checked_add(1).unwrap();
             }
             // FIXME need to check flags and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
