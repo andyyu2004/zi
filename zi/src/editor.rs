@@ -1863,47 +1863,6 @@ impl Editor {
     }
 }
 
-impl Editor {
-    /// Return a debug representation of the text and cursor in the active view.
-    pub fn display_view(&self, selector: impl Selector<ViewId>) -> impl fmt::Debug + '_ {
-        let (view, buf) = get_ref!(self: selector.select(self));
-
-        struct Debug<'a> {
-            view: &'a View,
-            buf: &'a dyn Buffer,
-        }
-
-        impl fmt::Debug for Debug<'_> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let cursor = self.view.cursor();
-                for (i, line) in self.buf.text().byte_slice(..).lines().enumerate() {
-                    write!(f, "{}", i + 1)?;
-                    if !line.is_empty() {
-                        write!(f, " ")?;
-                    }
-
-                    for (j, c) in line.chars().chain(Some('\n')).enumerate() {
-                        if cursor.line() == i && cursor.col() == j {
-                            write!(f, "|")?;
-                            if c == '\n' {
-                                // The cursor can be on the newline character in insert mode.
-                                // We still need to write the newline character.
-                                writeln!(f)?;
-                            }
-                        } else {
-                            write!(f, "{c}")?;
-                        }
-                    }
-                }
-
-                Ok(())
-            }
-        }
-
-        Debug { view, buf }
-    }
-}
-
 async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Result<Rope> {
     let mut reader = tokio::io::BufReader::new(reader);
     let mut builder = RopeBuilder::new();
