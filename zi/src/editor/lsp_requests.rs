@@ -370,10 +370,11 @@ impl Editor {
     }
 
     /// Pull diagnostics using the `textDocument/diagnostic` request.
-    pub(super) fn request_diagnostics(
+    /// These can be accessed via [`Editor::lsp_diagnostics`].
+    pub fn request_diagnostics(
         &mut self,
         selector: impl Selector<BufferId>,
-    ) -> impl Future<Output = ()> {
+    ) -> impl Future<Output = Result<()>> {
         let buf = selector.select(self);
         tracing::info!("requesting diagnostics for buffer {buf:?}");
 
@@ -422,25 +423,19 @@ impl Editor {
         let path = self[buf].path();
         let client = self.client();
         async move {
-            let Some(path) = path else { return };
+            let Some(path) = path else { return Ok(()) };
 
             if server_ids.is_empty() {
                 tracing::info!(
                     ?path,
                     "no active language server for buffer supports pull diagnostics"
                 );
-                return;
-            }
-            let responses = futures_util::future::join_all(futs).await;
-            for (server_id, res) in server_ids.into_iter().zip(responses) {
-                let res = match res {
-                    Ok(res) => res,
-                    Err(err) => {
-                        tracing::error!("diagnostic request failed: {err}");
-                        continue;
-                    }
-                };
 
+                return Ok(());
+            }
+
+            let responses = futures_util::future::try_join_all(futs).await?;
+            for (server_id, res) in server_ids.into_iter().zip(responses) {
                 tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
 
                 let path = path.clone();
@@ -467,6 +462,8 @@ impl Editor {
                     }
                 }
             }
+
+            Ok(())
         }
     }
 }

@@ -1,7 +1,7 @@
 use super::*;
 
 mod definition;
-mod encoding;
+mod diagnostics;
 mod fake;
 mod format;
 mod sync;

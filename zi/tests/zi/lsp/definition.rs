@@ -14,11 +14,11 @@ async fn setup(
     cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _| {
-                let value = position_encoding.clone();
+                let encoding = position_encoding.clone();
                 async move {
                     Ok(lsp_types::InitializeResult {
                         capabilities: lsp_types::ServerCapabilities {
-                            position_encoding: Some(value),
+                            position_encoding: Some(encoding),
                             definition_provider: Some(OneOf::Left(true)),
                             ..Default::default()
                         },

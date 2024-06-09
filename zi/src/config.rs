@@ -25,14 +25,21 @@ impl<T: PartialEq> PartialEq<T> for Setting<T> {
     }
 }
 
+impl<T: PartialEq> PartialEq for Setting<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        *self.read() == *other.read()
+    }
+}
+
 impl<T: fmt::Debug> fmt::Debug for Setting<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Setting({:?})", *self.rx.borrow())
+        self.rx.borrow().deref().fmt(f)
     }
 }
 
 impl<T> Setting<T> {
-    pub(crate) fn new(value: T) -> Self {
+    pub fn new(value: T) -> Self {
         let (tx, rx) = watch::channel(value);
         Self { rx, tx }
     }

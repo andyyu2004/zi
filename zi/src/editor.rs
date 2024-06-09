@@ -430,6 +430,13 @@ impl Editor {
         self.tree.size()
     }
 
+    /// Return the current state of the raw diagnostics returned by the language servers.
+    pub fn lsp_diagnostics(
+        &self,
+    ) -> &FxHashMap<PathBuf, FxHashMap<LanguageServerId, LspDiagnostics>> {
+        &self.lsp_diagnostics
+    }
+
     fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
@@ -973,7 +980,11 @@ impl Editor {
 
         // Request diagnostics using the pull model to ensure we have the latest diagnostics
         let fut = self.request_diagnostics(Active);
-        tokio::spawn(fut);
+        tokio::spawn(async move {
+            if let Err(err) = fut.await {
+                tracing::error!("failed to request diagnostics: {err}");
+            }
+        });
     }
 
     #[inline]

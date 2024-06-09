@@ -1,12 +1,12 @@
 #[macro_export]
 macro_rules! hashmap {
     (@single $($x:tt)*) => (());
-    (@count $($rest:expr),*) => (<[()]>::len(&[$(hashmap!(@single $rest)),*]));
+    (@count $($rest:expr),*) => (<[()]>::len(&[$($crate::hashmap!(@single $rest)),*]));
 
-    ($($key:expr => $value:expr,)+) => { hashmap!($($key => $value),+) };
+    ($($key:expr => $value:expr,)+) => { $crate::hashmap!($($key => $value),+) };
     ($($key:expr => $value:expr),*) => {
         {
-            let cap = hashmap!(@count $($key),*);
+            let cap = $crate::hashmap!(@count $($key),*);
             let mut map = ::std::collections::HashMap::with_capacity_and_hasher(cap, ::std::hash::BuildHasherDefault::<::rustc_hash::FxHasher>::default());
             $(
                 let _ = map.insert($key, $value);
