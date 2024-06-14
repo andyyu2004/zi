@@ -42,9 +42,9 @@ zi-indent = { workspace = true }
 zi-lsp = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }
-content_inspector = "0.2.4"
 dyn-clone = { workspace = true }
 tokio-util = { workspace = true }
+content_inspector = "0.2.4"
 cov-mark = "2.0.0-pre.1"
 
 [dev-dependencies]
@@ -58,6 +58,7 @@ test-strategy = "0.3.1"
 zi = { workspace = true, features = ["arbitrary", "rand"] }
 zi-nvim = { path = "../zi-nvim" }
 regex = "1"
+mimalloc = { workspace = true }
 
 [features]
 arbitrary = ["dep:arbitrary", "bitflags/arbitrary", "zi-core/arbitrary"]

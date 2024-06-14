@@ -3,6 +3,9 @@ use std::sync::OnceLock;
 use tokio::sync::OnceCell;
 use zi_nvim::{spawn, CompareFlags, Fixture, Nvim, TestCase};
 
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn rt() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap())

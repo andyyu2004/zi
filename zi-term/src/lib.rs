@@ -7,9 +7,13 @@ use crossterm::event::DisableMouseCapture;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{cursor, execute, terminal};
 use futures_util::Stream;
+use mimalloc::MiMalloc;
 use tui::{Backend, Terminal};
 use zi::input::Event;
 use zi::Editor;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 pub struct App<B: Backend + io::Write> {
     term: Terminal<B>,

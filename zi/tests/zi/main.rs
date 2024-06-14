@@ -20,6 +20,9 @@ use zi_lsp::lsp_types::{self, notification, request};
 
 use self::lsp::{FakeLanguageServer, FakeLanguageServerBuilder};
 
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub struct TestContext {
     size: zi::Size,
     client: zi::Client,

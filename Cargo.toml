@@ -38,6 +38,7 @@ proptest = "1.4.0"
 futures-core = "0.3.30"
 futures-executor = "0.3.30"
 futures-util = "0.3.30"
+mimalloc = "0.1.42"
 parking_lot = "0.12.2"
 regex-cursor = { version = "0.1.4", default-features = false, features = ["perf-inline"] }
 rustc-hash = "1.1.0"

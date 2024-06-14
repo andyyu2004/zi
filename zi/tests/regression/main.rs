@@ -4,6 +4,9 @@ use arbitrary::{Arbitrary, Unstructured};
 use datatest_stable::{harness, Result};
 use zi::input::{KeyCode, KeyEvent, KeySequence};
 
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 harness!(test, "tests/regression/fuzz", r"^.*/*");
 
 #[tokio::main(flavor = "current_thread")]
