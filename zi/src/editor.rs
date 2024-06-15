@@ -1632,6 +1632,9 @@ impl Editor {
                 .into());
             };
 
+            let span = tracing::info_span!("save", ?path);
+            let _guard = span.enter();
+
             event::dispatch_async(&client, event::WillSaveBuffer { buf }).await?;
 
             // Need to refetch flags as the hooks may have updated them
@@ -1643,7 +1646,7 @@ impl Editor {
                 .await;
 
             if !flags.contains(BufferFlags::DIRTY) && !save_flags.contains(SaveFlags::FORCE) {
-                tracing::info!("buffer is not dirty, skipping save");
+                tracing::info!("buffer is not dirty, skipping write");
                 return Ok(());
             }
 
@@ -1654,6 +1657,8 @@ impl Editor {
             tokio::io::copy(&mut reader, &mut writer).await?;
             writer.flush().await?;
             file.flush().await?;
+
+            tracing::info!("buffer written to disk");
 
             client.with(move |editor| editor[buf].flushed(Internal(()))).await;
             Ok(())

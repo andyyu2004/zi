@@ -209,7 +209,7 @@ impl zi_lsp::LanguageClient for LanguageClient {
             };
 
             tracing::info!(
-                ?server,
+                %server,
                 ?path,
                 version = params.version,
                 n = params.diagnostics.len(),
