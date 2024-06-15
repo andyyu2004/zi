@@ -2,6 +2,7 @@ use zi::BufferId;
 
 use super::*;
 use crate::new;
+use std::path::PathBuf;
 
 async fn setup(
     cx: &TestContext,
@@ -50,7 +51,7 @@ async fn setup(
 #[tokio::test]
 async fn lsp_pull_diagnostics() -> zi::Result<()> {
     let cx = new("").await;
-    let diagnostics = vec![
+    let main_diagnostics = vec![
         lsp_types::Diagnostic {
             range: lsp_types::Range {
                 start: lsp_types::Position { line: 0, character: 0 },
@@ -58,10 +59,13 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
             },
             ..Default::default()
         },
+    ];
+
+    let related_diagnostics = vec![
         lsp_types::Diagnostic {
             range: lsp_types::Range {
                 start: lsp_types::Position { line: 1, character: 0 },
-                end: lsp_types::Position { line: 1, character: 2 },
+                end: lsp_types::Position { line: 1, character: 0 },
             },
             ..Default::default()
         },
@@ -70,13 +74,13 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
     let res = lsp_types::DocumentDiagnosticReportResult::Report(
         lsp_types::DocumentDiagnosticReport::Full(lsp_types::RelatedFullDocumentDiagnosticReport {
             full_document_diagnostic_report: lsp_types::FullDocumentDiagnosticReport {
-                items: diagnostics.clone(),
+                items: main_diagnostics.clone(),
                 ..Default::default()
             },
             related_documents: Some(zi::hashmap! {
-                zi::Url::parse("").unwrap() => lsp_types::DocumentDiagnosticReportKind::Full(
+                zi::Url::parse("file:///related").unwrap() => lsp_types::DocumentDiagnosticReportKind::Full(
                     lsp_types::FullDocumentDiagnosticReport {
-                        items: diagnostics.clone(),
+                        items: related_diagnostics.clone(),
                         ..Default::default()
                     }
                 )
@@ -86,12 +90,16 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
 
     let (buf, path) = setup(&cx, lsp_types::PositionEncodingKind::UTF8, "", res).await?;
 
+    let server = zi::LanguageServerId::new("test-server");
     cx.with(move |editor| editor.request_diagnostics(buf)).await.await?;
     assert_eq!(
         cx.with(move |editor| editor.lsp_diagnostics().clone()).await,
         zi::hashmap! {
             path => zi::hashmap! {
-                zi::LanguageServerId::new("test-server") => zi::Setting::new((0, diagnostics.into())),
+                server => zi::Setting::new((0, main_diagnostics.into())),
+            },
+            PathBuf::from("/related") => zi::hashmap! {
+                server => zi::Setting::new((0, related_diagnostics.into())),
             }
         }
     );

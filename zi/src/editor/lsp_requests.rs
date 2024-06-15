@@ -384,7 +384,10 @@ impl Editor {
             related_documents: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
         ) {
             for (url, related) in related_documents.into_iter().flatten() {
-                let Ok(path) = url.to_file_path() else { continue };
+                let Ok(path) = url.to_file_path() else {
+                    tracing::warn!(?url, "ignoring non-file related document diagnostics");
+                    continue;
+                };
                 match related {
                     lsp_types::DocumentDiagnosticReportKind::Full(report) => {
                         client
