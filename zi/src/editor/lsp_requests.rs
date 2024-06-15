@@ -246,7 +246,7 @@ impl Editor {
                         Ok((res, server))
                     },
                     move |editor, (res, mut server)| {
-                        let span = tracing::info_span!("lsp initialized", server = %server_id);
+                        let span = tracing::info_span!("lsp initialized", %server_id);
                         let _guard = span.enter();
                         server.initialized(lsp_types::InitializedParams {})?;
 

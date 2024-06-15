@@ -185,28 +185,12 @@ impl Default for Config {
             [
                 (
                     LanguageServerId::RUST_ANALYZER,
-                    // ExecutableLanguageServerConfig {
-                    //     command: "rust-analyzer".into(),
-                    //     args: Box::new([]),
-                    // },
-                    ExecutableLanguageServerConfig {
-                        command: "ra-multiplex".into(),
-                        // command: "rust-analyzer".into(),
-                        args: Box::new([]),
-                    },
+                    // ExecutableLanguageServerConfig::new("ra-multiplex", []),
+                    ExecutableLanguageServerConfig::new("rust-analyzer", []),
                 ),
-                (
-                    LanguageServerId::GOPLS,
-                    ExecutableLanguageServerConfig { command: "gopls".into(), args: Box::new([]) },
-                ),
-                (
-                    LanguageServerId::GQLT,
-                    ExecutableLanguageServerConfig { command: "gqlt".into(), args: Box::new([]) },
-                ),
-                (
-                    LanguageServerId::CLANGD,
-                    ExecutableLanguageServerConfig { command: "clangd".into(), args: Box::new([]) },
-                ),
+                (LanguageServerId::GOPLS, ExecutableLanguageServerConfig::new("gopls", [])),
+                (LanguageServerId::GQLT, ExecutableLanguageServerConfig::new("gqlt", [])),
+                (LanguageServerId::CLANGD, ExecutableLanguageServerConfig::new("clangd", [])),
             ]
             .map(|(k, v)| (k, Box::new(v) as _)),
         );
@@ -230,6 +214,12 @@ impl LanguageConfig {
 pub struct ExecutableLanguageServerConfig {
     pub command: OsString,
     pub args: Box<[OsString]>,
+}
+
+impl ExecutableLanguageServerConfig {
+    fn new(command: impl Into<OsString>, args: impl IntoIterator<Item = OsString>) -> Self {
+        Self { command: command.into(), args: args.into_iter().collect() }
+    }
 }
 
 impl LanguageServerConfig for ExecutableLanguageServerConfig {
