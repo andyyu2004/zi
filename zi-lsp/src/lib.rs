@@ -60,6 +60,8 @@ impl Server {
                 .service(Router::from_language_client(client))
         });
 
+        let cmd = cmd.as_ref();
+        let cwd = cwd.as_ref();
         let mut child = async_process::Command::new(cmd)
             .args(args)
             .current_dir(cwd)
@@ -68,6 +70,9 @@ impl Server {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()?;
+
+        tracing::info!(?cmd, ?cwd, pid = child.id(), "spawned language server");
+
         let stdout = child.stdout.take().unwrap();
         let stdin = child.stdin.take().unwrap();
         let stderr = child.stderr.take().unwrap();

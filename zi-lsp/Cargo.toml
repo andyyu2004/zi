@@ -9,6 +9,7 @@ async-process = "2.1.0"
 futures-util = { workspace = true }
 tokio = { workspace = true, features = ["io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
+tracing = { workspace = true }
 tower = "0.4.13"
 
 [lints]
