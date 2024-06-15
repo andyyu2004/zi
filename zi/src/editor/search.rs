@@ -101,7 +101,7 @@ pub(super) fn searcher() -> Searcher {
 }
 
 #[derive(Clone, Debug)]
-pub struct Sink<F>(pub F)
+pub(crate) struct Sink<F>(pub F)
 where
     F: FnMut(u64, &str, ops::Range<usize>) -> io::Result<bool>;
 

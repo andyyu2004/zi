@@ -69,6 +69,16 @@ rust_2018_idioms = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
+complexity = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+restriction = { level = "allow", priority = -1 }
+style = { level = "warn", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+print_stdout = "warn"
+print_stderr = "warn"
+rc_buffer = "warn"
+
 
 [patch.crates-io]
 # https://github.com/ratatui-org/ratatui/pull/1001

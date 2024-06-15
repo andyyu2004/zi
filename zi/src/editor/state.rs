@@ -72,7 +72,7 @@ pub(super) struct VisualState {}
 
 #[derive(Debug)]
 pub(super) struct OperatorPendingState {
-    pub operator: Operator,
+    pub(crate) operator: Operator,
 }
 
 impl OperatorPendingState {

@@ -163,7 +163,7 @@ impl IndexMut<BufferId> for Editor {
     }
 }
 
-pub trait Resource {
+pub(crate) trait Resource {
     type Id;
 
     const URL_SCHEME: &'static str;
@@ -173,7 +173,7 @@ pub trait Resource {
     fn url(&self) -> &Url;
 }
 
-pub type Action = fn(&mut Editor);
+pub(crate) type Action = fn(&mut Editor);
 
 static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
 
@@ -266,7 +266,7 @@ macro_rules! get_ref {
 
 pub(crate) use {get, get_ref};
 
-pub type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
+pub(crate) type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
 
 type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
 type Requests = impl Stream<Item = Request> + Unpin;
