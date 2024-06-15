@@ -10,6 +10,7 @@ mod search;
 mod state;
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::fs::File;
 use std::future::Future;
 use std::ops::{self, Deref, Index, IndexMut};
@@ -23,7 +24,6 @@ use std::{cmp, fmt, io, mem};
 use anyhow::{anyhow, bail};
 use futures_util::{FutureExt, Stream, StreamExt};
 use ignore::WalkState;
-use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use stdx::path::{PathExt, Relative};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
@@ -92,22 +92,22 @@ pub struct Editor {
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
     // The per-server diagnostics are sorted by range.
-    lsp_diagnostics: FxHashMap<PathBuf, FxHashMap<LanguageServerId, LspDiagnostics>>,
+    lsp_diagnostics: HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>>,
     empty_buffer: BufferId,
     settings: Settings,
     search_state: SearchState,
     state: State,
     keymap: Keymap,
     theme: Theme,
-    active_language_servers: FxHashMap<LanguageServerId, LanguageServer>,
-    active_language_servers_for_ft: FxHashMap<FileType, Vec<LanguageServerId>>,
+    active_language_servers: HashMap<LanguageServerId, LanguageServer>,
+    active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
     tree: layout::ViewTree,
     /// error to be displayed in the status line
     status_error: Option<String>,
-    command_handlers: FxHashMap<Word, Handler>,
+    command_handlers: HashMap<Word, Handler>,
     plugins: Plugins,
     notify_quit: Notify,
     notify_idle: &'static Notify,
@@ -431,9 +431,7 @@ impl Editor {
     }
 
     /// Return the current state of the raw diagnostics returned by the language servers.
-    pub fn lsp_diagnostics(
-        &self,
-    ) -> &FxHashMap<PathBuf, FxHashMap<LanguageServerId, LspDiagnostics>> {
+    pub fn lsp_diagnostics(&self) -> &HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>> {
         &self.lsp_diagnostics
     }
 

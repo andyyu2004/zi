@@ -7,7 +7,7 @@ macro_rules! hashmap {
     ($($key:expr => $value:expr),*) => {
         {
             let cap = $crate::hashmap!(@count $($key),*);
-            let mut map = ::std::collections::HashMap::with_capacity_and_hasher(cap, ::std::hash::BuildHasherDefault::<::rustc_hash::FxHasher>::default());
+            let mut map = ::std::collections::HashMap::with_capacity(cap);
             $(
                 let _ = map.insert($key, $value);
             )*
@@ -27,7 +27,7 @@ macro_rules! trie {
     ) => {
         {
             let cap = hashmap!(@count $($($key),+),*);
-            let mut map = ::std::collections::HashMap::with_capacity_and_hasher(cap, ::std::hash::BuildHasherDefault::<rustc_hash::FxHasher>::default());
+            let mut map = ::std::collections::HashMap::with_capacity(cap);
             $(
                 $(
                     let key = $key.parse::<$crate::input::KeyEvent>().expect("failed to parse key event");

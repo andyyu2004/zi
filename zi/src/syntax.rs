@@ -1,11 +1,11 @@
 mod highlight;
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ops::Bound;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
-use rustc_hash::FxHashMap;
 use tree_sitter::{InputEdit, Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree};
 use zi_core::{Point, PointRange};
 use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
@@ -38,7 +38,7 @@ thread_local! {
 /// A cache of tree-sitter queries for each language.
 /// Creating a query and compiling a language is very expensive, so we cache them here forever.
 /// Not concerned about memory usage because these are not large, and there are not many languages.
-static QUERY_CACHE: OnceLock<RwLock<FxHashMap<FileType, (tree_sitter::Language, &'static Query)>>> =
+static QUERY_CACHE: OnceLock<RwLock<HashMap<FileType, (tree_sitter::Language, &'static Query)>>> =
     OnceLock::new();
 
 impl Syntax {

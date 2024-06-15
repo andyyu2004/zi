@@ -1,7 +1,7 @@
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::{fmt, iter};
 
-use rustc_hash::FxHashMap;
 use stdx::merge::Merge;
 
 use crate::editor::Action;
@@ -16,14 +16,14 @@ pub trait DynKeymap<M = Mode, K = KeyEvent, V = Action> {
 
 #[derive(Debug, Clone)]
 pub struct Keymap<M = Mode, K = KeyEvent, V = Action> {
-    maps: FxHashMap<M, Trie<K, V>>,
+    maps: HashMap<M, Trie<K, V>>,
     /// The keys that have been pressed so far
     buffer: Vec<K>,
     /// The last mode that was used
     last_mode: Option<M>,
 }
-impl<M, K, V> From<FxHashMap<M, Trie<K, V>>> for Keymap<M, K, V> {
-    fn from(maps: FxHashMap<M, Trie<K, V>>) -> Self {
+impl<M, K, V> From<HashMap<M, Trie<K, V>>> for Keymap<M, K, V> {
+    fn from(maps: HashMap<M, Trie<K, V>>) -> Self {
         Self { maps, buffer: Default::default(), last_mode: Default::default() }
     }
 }
@@ -120,7 +120,7 @@ impl<M, K, V> Default for Keymap<M, K, V> {
 
 #[derive(Debug, Clone)]
 pub struct Trie<K, V> {
-    children: FxHashMap<K, TrieNode<K, V>>,
+    children: HashMap<K, TrieNode<K, V>>,
 }
 
 impl<K: Eq + Hash, V> Merge for Trie<K, V> {
@@ -131,7 +131,7 @@ impl<K: Eq + Hash, V> Merge for Trie<K, V> {
 }
 
 impl<K, V> Trie<K, V> {
-    pub(crate) fn new(children: FxHashMap<K, TrieNode<K, V>>) -> Self {
+    pub(crate) fn new(children: HashMap<K, TrieNode<K, V>>) -> Self {
         Self { children }
     }
 }

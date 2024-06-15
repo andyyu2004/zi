@@ -73,7 +73,14 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
                 items: diagnostics.clone(),
                 ..Default::default()
             },
-            related_documents: Default::default(),
+            related_documents: Some(zi::hashmap! {
+                zi::Url::parse("").unwrap() => lsp_types::DocumentDiagnosticReportKind::Full(
+                    lsp_types::FullDocumentDiagnosticReport {
+                        items: diagnostics.clone(),
+                        ..Default::default()
+                    }
+                )
+            })
         }),
     );
 

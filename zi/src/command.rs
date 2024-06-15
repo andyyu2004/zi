@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
@@ -5,7 +6,6 @@ use std::str::FromStr;
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
-use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
 use crate::editor::SaveFlags;
@@ -325,7 +325,7 @@ impl Arity {
     }
 }
 
-pub(crate) fn builtin_handlers() -> FxHashMap<Word, Handler> {
+pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
     [
         Handler {
             name: "q".try_into().unwrap(),

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 
-use rustc_hash::FxHashMap;
 use tui::{Constraint, Layout, Rect, Widget as _};
 
 use crate::{Direction, Editor, Size, ViewId};
@@ -8,7 +8,7 @@ use crate::{Direction, Editor, Size, ViewId};
 pub(crate) struct ViewTree {
     size: Size,
     layers: Vec<Layer>,
-    last_known_area: RefCell<FxHashMap<ViewId, Rect>>,
+    last_known_area: RefCell<HashMap<ViewId, Rect>>,
 }
 
 impl ViewTree {

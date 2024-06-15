@@ -2,10 +2,9 @@ mod events;
 mod handler;
 
 use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::OnceLock;
-
-use rustc_hash::FxHashMap;
 
 pub use self::events::*;
 pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler, EventHandler};
@@ -14,9 +13,9 @@ use crate::{Client, Editor, Result};
 
 #[derive(Default)]
 pub struct Registry {
-    handlers: parking_lot::Mutex<FxHashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send>>>>,
+    handlers: parking_lot::Mutex<HashMap<TypeId, Vec<Box<dyn ErasedEventHandler + Send>>>>,
     async_handlers:
-        tokio::sync::Mutex<FxHashMap<TypeId, Vec<Box<dyn ErasedAsyncEventHandler + Send>>>>,
+        tokio::sync::Mutex<HashMap<TypeId, Vec<Box<dyn ErasedAsyncEventHandler + Send>>>>,
 }
 
 fn registry() -> &'static Registry {

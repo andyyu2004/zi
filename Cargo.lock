@@ -3604,7 +3604,6 @@ dependencies = [
  "rayon",
  "regex",
  "regex-cursor",
- "rustc-hash",
  "serde_json",
  "slotmap",
  "smol_str",
