@@ -1238,7 +1238,7 @@ impl Editor {
         flags: EditFlags,
     ) -> Result<(), EditError> {
         let buf = selector.select(self);
-        // // Don't care if we're actually in insert mode, that's more a key binding namespace.
+        // Don't care if we're actually in insert mode, that's more a key binding namespace.
 
         if self[buf].flags().contains(BufferFlags::READONLY) {
             return Err(EditError::Readonly);
