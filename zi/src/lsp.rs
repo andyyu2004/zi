@@ -3,6 +3,7 @@ pub mod from_proto;
 #[doc(hidden)]
 pub mod to_proto;
 
+use std::fmt;
 use std::future::ready;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::time::Duration;
@@ -23,6 +24,12 @@ pub struct LanguageClient {
 impl LanguageClient {
     pub fn new(for_server: LanguageServerId, client: Client) -> Self {
         Self { client, for_server }
+    }
+}
+
+impl fmt::Debug for LanguageClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LanguageClient").field("server", &self.for_server).finish()
     }
 }
 
@@ -165,10 +172,17 @@ impl zi_lsp::LanguageClient for LanguageClient {
     }
 
     #[must_use]
+    #[tracing::instrument]
     fn log_message(
         &mut self,
         params: <lsp_notification!("window/logMessage") as Notification>::Params,
     ) -> Self::NotifyResult {
+        self.client.send(move |editor| {
+            tracing::info!("received log message");
+            // TODO there are multiple levels of log messages
+            editor.set_error(params.message);
+            Ok(())
+        });
         let _ = params;
         ControlFlow::Continue(())
     }
