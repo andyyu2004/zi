@@ -215,13 +215,13 @@ impl Editor {
         }
     }
 
-    fn lsp_root(&self, _server: LanguageServerId) -> Url {
+    fn lsp_root_path(&self, _server: LanguageServerId) -> PathBuf {
         // TODO this should be configurable per language server
-        Url::from_file_path(std::env::current_dir().unwrap()).unwrap()
+        std::env::current_dir().unwrap()
     }
 
     fn lsp_workspace_root(&self, server: LanguageServerId) -> lsp_types::WorkspaceFolder {
-        let uri = self.lsp_root(server);
+        let uri = Url::from_file_path(self.lsp_root_path(server)).unwrap();
         lsp_types::WorkspaceFolder {
             name: uri
                 .path_segments()
@@ -244,10 +244,11 @@ impl Editor {
                 }
 
                 let client = LanguageClient::new(server_id, self.client());
-                let (mut server, fut) =
-                    self.language_config.language_servers[&server_id].spawn(client)?;
-                let handle = tokio::spawn(fut);
+                let root_path = self.lsp_root_path(server_id);
                 let workspace_root = self.lsp_workspace_root(server_id);
+                let (mut server, fut) =
+                    self.language_config.language_servers[&server_id].spawn(&root_path, client)?;
+                let handle = tokio::spawn(fut);
 
                 callback(
                     &self.callbacks_tx,

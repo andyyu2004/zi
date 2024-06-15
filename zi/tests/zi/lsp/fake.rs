@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::future::ready;
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -36,6 +37,7 @@ impl<St: Default> Default for FakeLanguageServerTemplate<St> {
 impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServerTemplate<St> {
     fn spawn(
         &self,
+        _cwd: &Path,
         _client: zi::lsp::LanguageClient,
     ) -> zi_lsp::Result<(
         Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
