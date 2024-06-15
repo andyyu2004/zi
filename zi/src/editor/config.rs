@@ -14,7 +14,7 @@ impl Default for Settings {
             file_picker_split_ratio: Setting::new((1, 2)),
             jump_list_picker_split_ratio: Setting::new((1, 1)),
             diagnostics_picker_split_ratio: Setting::new((2, 1)),
-            global_search_split_ratio: Setting::new((2, 1)),
+            global_search_split_ratio: Setting::new((1, 2)),
         }
     }
 }
