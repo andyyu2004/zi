@@ -215,6 +215,22 @@ impl Editor {
         }
     }
 
+    fn lsp_root(&self, _server: LanguageServerId) -> Url {
+        // TODO this should be configurable per language server
+        Url::from_file_path(std::env::current_dir().unwrap()).unwrap()
+    }
+
+    fn lsp_workspace_root(&self, server: LanguageServerId) -> lsp_types::WorkspaceFolder {
+        let uri = self.lsp_root(server);
+        lsp_types::WorkspaceFolder {
+            name: uri
+                .path_segments()
+                .and_then(Iterator::last)
+                .map_or("root".into(), |basename| basename.to_string()),
+            uri,
+        }
+    }
+
     pub(super) fn spawn_language_servers_for_ft(
         &mut self,
         buf: BufferId,
@@ -231,6 +247,7 @@ impl Editor {
                 let (mut server, fut) =
                     self.language_config.language_servers[&server_id].spawn(client)?;
                 let handle = tokio::spawn(fut);
+                let workspace_root = self.lsp_workspace_root(server_id);
 
                 callback(
                     &self.callbacks_tx,
@@ -238,7 +255,9 @@ impl Editor {
                     async move {
                         let res = server
                             .initialize(lsp_types::InitializeParams {
+                                process_id: Some(std::process::id()),
                                 capabilities: lsp::client_capabilities(),
+                                workspace_folders: Some(vec![workspace_root]),
                                 ..Default::default()
                             })
                             .await?;
