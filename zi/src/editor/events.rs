@@ -103,14 +103,25 @@ impl Editor {
         })
     }
 
+    pub(super) fn lsp_did_open_refresh_semantic_tokens()
+    -> impl EventHandler<Event = event::DidOpenBuffer> {
+        event::handler::<event::DidOpenBuffer>(move |editor, event| {
+            editor.schedule_semantic_tokens(event.buf)
+        })
+    }
+
     pub(super) fn lsp_did_change_refresh_semantic_tokens()
     -> impl EventHandler<Event = event::DidChangeBuffer> {
         event::handler::<event::DidChangeBuffer>(move |editor, event| {
-            if let Some(fut) = editor.request_semantic_tokens(event.buf) {
-                editor.schedule("semantic tokens", fut.map_err(Into::into));
-            };
-            event::HandlerResult::Continue
+            editor.schedule_semantic_tokens(event.buf)
         })
+    }
+
+    fn schedule_semantic_tokens(&mut self, buf: BufferId) -> event::HandlerResult {
+        if let Some(fut) = self.request_semantic_tokens(buf) {
+            self.schedule("semantic tokens", fut.map_err(Into::into));
+        };
+        event::HandlerResult::Continue
     }
 
     pub(super) fn lsp_did_change_sync(

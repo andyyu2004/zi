@@ -1903,7 +1903,8 @@ impl Editor {
     }
 
     fn subscribe_sync_hooks() {
-        event::subscribe(Self::lsp_did_change_refresh_semantic_tokens())
+        event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
+        event::subscribe(Self::lsp_did_change_refresh_semantic_tokens());
     }
 
     async fn subscribe_async_hooks() {
