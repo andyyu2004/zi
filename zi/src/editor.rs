@@ -85,6 +85,13 @@ fn pool() -> &'static rayon::ThreadPool {
 
 type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
 
+struct SemanticTokens {
+    last_request_id: Option<String>,
+    server: LanguageServerId,
+    legend: lsp_types::SemanticTokensLegend,
+    tokens: Vec<lsp_types::SemanticToken>,
+}
+
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
@@ -93,6 +100,7 @@ pub struct Editor {
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
     // The per-server diagnostics are sorted by range.
     lsp_diagnostics: HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>>,
+    semantic_tokens: HashMap<BufferId, SemanticTokens>,
     empty_buffer: BufferId,
     settings: Settings,
     search_state: SearchState,
@@ -394,6 +402,7 @@ impl Editor {
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
+            semantic_tokens: Default::default(),
             lsp_diagnostics: Default::default(),
             is_idle: Default::default(),
             notify_quit: Default::default(),
