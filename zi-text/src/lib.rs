@@ -562,12 +562,28 @@ where
     S: TextSlice<'a>,
     A: Copy,
 {
+    // Best effort slicing, will truncate any ranges that are out of bounds
     #[track_caller]
-    fn slice<'a, S>(s: &S, byte_range: impl RangeBounds<usize>) -> Cow<'a, str>
+    fn slice<'a, S>(s: &S, byte_range: impl RangeBounds<usize> + fmt::Debug) -> Cow<'a, str>
     where
         S: TextSlice<'a>,
     {
-        s.byte_slice(byte_range).to_cow()
+        let start = match byte_range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match byte_range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => s.len_bytes(),
+        };
+
+        let end = end.min(s.len_bytes());
+        let start = start.min(end);
+
+        s.byte_slice(start..end).to_cow()
     }
 
     let mut annotations = annotations.into_iter().peekable();
