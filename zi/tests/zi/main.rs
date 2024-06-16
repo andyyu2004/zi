@@ -180,6 +180,7 @@ fn render(backend: &mut TestBackend) -> String {
     for (y, cells) in buffer.content.chunks(buffer.area.width as usize).enumerate() {
         let mut overwritten = vec![];
         let mut skip: usize = 0;
+
         view.push('"');
         for (x, c) in cells.iter().enumerate() {
             if (x as u16, y as u16) == cursor {

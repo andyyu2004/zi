@@ -129,7 +129,8 @@ impl Editor {
     ) -> impl EventHandler<Event = event::DidChangeBuffer> {
         // Sync event handler
         event::handler::<event::DidChangeBuffer>(move |editor, event| {
-            tracing::debug!(?event, "buffer did change");
+            tracing::trace!(buf = ?event.buf, "buffer did change");
+
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
                 (editor.active_language_servers.get_mut(&server_id), buf.file_url().cloned())
