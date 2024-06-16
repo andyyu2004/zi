@@ -325,7 +325,12 @@ pub fn client_capabilities() -> ClientCapabilities {
     });
 
     lsp_types::ClientCapabilities {
-        workspace: None,
+        workspace: Some(lsp_types::WorkspaceClientCapabilities {
+            semantic_tokens: Some(lsp_types::SemanticTokensWorkspaceClientCapabilities {
+                refresh_support: None,
+            }),
+            ..Default::default()
+        }),
         text_document: Some(lsp_types::TextDocumentClientCapabilities {
             declaration: GOTO_CAPABILITY,
             definition: GOTO_CAPABILITY,
@@ -338,6 +343,43 @@ pub fn client_capabilities() -> ClientCapabilities {
             publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
                 version_support: Some(true),
                 ..Default::default()
+            }),
+            semantic_tokens: Some(lsp_types::SemanticTokensClientCapabilities {
+                requests: lsp_types::SemanticTokensClientCapabilitiesRequests {
+                    range: None,
+                    full: Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
+                },
+                token_modifiers: vec![],
+                token_types: vec![
+                    lsp_types::SemanticTokenType::NAMESPACE,
+                    lsp_types::SemanticTokenType::TYPE,
+                    lsp_types::SemanticTokenType::CLASS,
+                    lsp_types::SemanticTokenType::ENUM,
+                    lsp_types::SemanticTokenType::INTERFACE,
+                    lsp_types::SemanticTokenType::STRUCT,
+                    lsp_types::SemanticTokenType::TYPE_PARAMETER,
+                    lsp_types::SemanticTokenType::PARAMETER,
+                    lsp_types::SemanticTokenType::VARIABLE,
+                    lsp_types::SemanticTokenType::PROPERTY,
+                    lsp_types::SemanticTokenType::ENUM_MEMBER,
+                    lsp_types::SemanticTokenType::EVENT,
+                    lsp_types::SemanticTokenType::FUNCTION,
+                    lsp_types::SemanticTokenType::METHOD,
+                    lsp_types::SemanticTokenType::MACRO,
+                    lsp_types::SemanticTokenType::KEYWORD,
+                    lsp_types::SemanticTokenType::MODIFIER,
+                    lsp_types::SemanticTokenType::COMMENT,
+                    lsp_types::SemanticTokenType::STRING,
+                    lsp_types::SemanticTokenType::NUMBER,
+                    lsp_types::SemanticTokenType::REGEXP,
+                    lsp_types::SemanticTokenType::OPERATOR,
+                ],
+                formats: vec![lsp_types::TokenFormat::RELATIVE],
+                augments_syntax_tokens: None,
+                dynamic_registration: None,
+                overlapping_token_support: None,
+                multiline_token_support: None,
+                server_cancel_support: None,
             }),
             ..Default::default()
         }),
