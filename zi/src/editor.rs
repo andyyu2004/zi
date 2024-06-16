@@ -987,6 +987,8 @@ impl Editor {
         let _ = self.motion(Active, motion::PrevChar);
 
         // Request diagnostics using the pull model to ensure we have the latest diagnostics
+
+        // FIXME use an event rather than hardcoding this randomly here
         let fut = self.request_diagnostics(Active);
         tokio::spawn(async move {
             if let Err(err) = fut.await {

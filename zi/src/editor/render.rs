@@ -144,7 +144,7 @@ impl Editor {
 
                 // If the diagnostics are from a different version of the text, we clear them.
                 if *version != buf.version() {
-                    tracing::info!(
+                    tracing::debug!(
                         "clearing diagnostics for `{}` because the version is outdated: {version} > {}",
                         buf.path().expect("if we're here, the buffer has a path").display(),
                         buf.version()

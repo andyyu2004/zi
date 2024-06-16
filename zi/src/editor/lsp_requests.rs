@@ -485,7 +485,7 @@ impl Editor {
         Some(async move {
             match res {
                 Res::Delta(fut) => {
-                    tracing::info!(%uri, "requesting semantic tokens delta");
+                    tracing::debug!(%uri, "requesting semantic tokens delta");
                     let res = fut.await?;
                     client
                         .with(move |editor| {
@@ -517,7 +517,7 @@ impl Editor {
                         .await;
                 }
                 Res::Full(fut) => {
-                    tracing::info!(%uri, "requesting semantic tokens full");
+                    tracing::debug!(%uri, "requesting semantic tokens full");
 
                     let res = fut.await?;
                     client
