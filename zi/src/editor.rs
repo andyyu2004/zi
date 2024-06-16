@@ -419,6 +419,7 @@ impl Editor {
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
         editor.resize(size);
+        Self::subscribe_sync_hooks();
 
         (
             editor,
@@ -1897,6 +1898,10 @@ impl Editor {
     #[inline]
     pub fn language_config_mut(&mut self) -> &mut language::Config {
         &mut self.language_config
+    }
+
+    fn subscribe_sync_hooks() {
+        event::subscribe(Self::lsp_did_change_refresh_semantic_tokens())
     }
 
     async fn subscribe_async_hooks() {

@@ -1,3 +1,5 @@
+use futures_util::TryFutureExt;
+
 use super::*;
 
 impl Editor {
@@ -77,7 +79,7 @@ impl Editor {
         })
     }
 
-    pub(super) fn did_open_buffer(
+    pub(super) fn lsp_did_open(
         server_id: LanguageServerId,
     ) -> impl EventHandler<Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
@@ -101,9 +103,20 @@ impl Editor {
         })
     }
 
-    pub(super) fn did_change_buffer(
+    pub(super) fn lsp_did_change_refresh_semantic_tokens()
+    -> impl EventHandler<Event = event::DidChangeBuffer> {
+        event::handler::<event::DidChangeBuffer>(move |editor, event| {
+            if let Some(fut) = editor.request_semantic_tokens(event.buf) {
+                editor.schedule("semantic tokens", fut.map_err(Into::into));
+            };
+            event::HandlerResult::Continue
+        })
+    }
+
+    pub(super) fn lsp_did_change_sync(
         server_id: LanguageServerId,
     ) -> impl EventHandler<Event = event::DidChangeBuffer> {
+        // Sync event handler
         event::handler::<event::DidChangeBuffer>(move |editor, event| {
             tracing::debug!(?event, "buffer did change");
             let buf = &editor.buffers[event.buf];

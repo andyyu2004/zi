@@ -1,9 +1,10 @@
+use std::path::PathBuf;
+
 use zi::BufferId;
 use zi_text::deltas;
 
 use super::*;
 use crate::new;
-use std::path::PathBuf;
 
 async fn setup(
     cx: &TestContext,
@@ -52,25 +53,21 @@ async fn setup(
 #[tokio::test]
 async fn lsp_pull_diagnostics() -> zi::Result<()> {
     let cx = new("").await;
-    let main_diagnostics = vec![
-        lsp_types::Diagnostic {
-            range: lsp_types::Range {
-                start: lsp_types::Position { line: 0, character: 0 },
-                end: lsp_types::Position { line: 0, character: 0 },
-            },
-            ..Default::default()
+    let main_diagnostics = vec![lsp_types::Diagnostic {
+        range: lsp_types::Range {
+            start: lsp_types::Position { line: 0, character: 0 },
+            end: lsp_types::Position { line: 0, character: 0 },
         },
-    ];
+        ..Default::default()
+    }];
 
-    let related_diagnostics = vec![
-        lsp_types::Diagnostic {
-            range: lsp_types::Range {
-                start: lsp_types::Position { line: 1, character: 0 },
-                end: lsp_types::Position { line: 1, character: 0 },
-            },
-            ..Default::default()
+    let related_diagnostics = vec![lsp_types::Diagnostic {
+        range: lsp_types::Range {
+            start: lsp_types::Position { line: 1, character: 0 },
+            end: lsp_types::Position { line: 1, character: 0 },
         },
-    ];
+        ..Default::default()
+    }];
 
     let res = lsp_types::DocumentDiagnosticReportResult::Report(
         lsp_types::DocumentDiagnosticReport::Full(lsp_types::RelatedFullDocumentDiagnosticReport {
@@ -85,7 +82,7 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
                         ..Default::default()
                     }
                 )
-            })
+            }),
         }),
     );
 
@@ -99,7 +96,9 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
         editor.edit(buf, &deltas![ 0..0 => "text" ]).unwrap();
         assert_eq!(editor.buffer(buf).version(), 1);
         editor.request_diagnostics(buf)
-    }).await.await?;
+    })
+    .await
+    .await?;
     assert_eq!(
         cx.with(move |editor| editor.lsp_diagnostics().clone()).await,
         zi::hashmap! {

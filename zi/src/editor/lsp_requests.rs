@@ -285,7 +285,7 @@ impl Editor {
                             .or_default()
                             .push(server_id);
 
-                        subscribe_lsp_event_handlers(server_id);
+                        subscribe_per_server_lsp_event_handlers(server_id);
 
                         // Must dispatch this event after the server is inserted
                         // FIXME this is wrong to just generate an event and send it to all
@@ -392,15 +392,16 @@ impl Editor {
         })
     }
 
-    async fn request_semantic_tokens(
+    pub(crate) fn request_semantic_tokens(
         &mut self,
         selector: impl Selector<BufferId>,
-    ) -> zi_lsp::Result<()> {
+    ) -> Option<impl Future<Output = zi_lsp::Result<()>>> {
         let buf = selector.select(self);
+        let client = self.client();
 
         let Some(uri) = self.buffers[buf].file_url().cloned() else {
             tracing::warn!(?buf, "cannot request semantic tokens for non-file buffer");
-            return Ok(());
+            return None;
         };
 
         let Some((server, caps)) = active_servers_of!(self, buf).find_map(|&server| {
@@ -423,8 +424,8 @@ impl Editor {
 
             Some((server, caps))
         }) else {
-            tracing::info!(?buf, "no active language server for buffer supports semantic tokens");
-            return Ok(());
+            tracing::warn!(?buf, "no active language server for buffer supports semantic tokens");
+            return None;
         };
 
         let tokens = match self.semantic_tokens.entry(buf) {
@@ -450,87 +451,100 @@ impl Editor {
             }),
         };
 
+        enum Res {
+            Full(BoxFuture<'static, zi_lsp::Result<Option<lsp_types::SemanticTokensResult>>>),
+            Delta(
+                BoxFuture<
+                    'static,
+                    zi_lsp::Result<Option<lsp_types::SemanticTokensFullDeltaResult>>,
+                >,
+            ),
+        }
+
         let s = self.active_language_servers.get_mut(&server).unwrap();
-        match (caps.full, tokens.last_request_id.clone()) {
+        let res = match (caps.full, tokens.last_request_id.clone()) {
             (
                 Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
                 Some(previous_result_id),
                 // `if false` here to avoid taking this branch as it's incomplete since the editing is not implemented
             ) if false => {
-                tracing::info!(%uri, "requesting semantic tokens delta");
-                // Language server supports delta tokens and we have a previous result id.
-                let fut = s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
+                Res::Delta(s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
                     previous_result_id,
                     work_done_progress_params: Default::default(),
                     partial_result_params: Default::default(),
-                });
-
-                let client = self.client();
-                let res = fut.await?;
-                client
-                    .with(move |editor| {
-                        let cache = &mut editor.semantic_tokens.get_mut(&buf).unwrap();
-                        match res {
-                            Some(res) => match res {
-                                lsp_types::SemanticTokensFullDeltaResult::Tokens(tokens) => {
-                                    cache.last_request_id = tokens.result_id;
-                                    cache.tokens = tokens.data;
-                                }
-                                lsp_types::SemanticTokensFullDeltaResult::TokensDelta(delta) => {
-                                    cache.last_request_id = delta.result_id;
-                                    for edit in delta.edits {
-                                        // It's still entirely how multiple edits compose, are the "sequential" or "simultaneous"?
-                                        // https://github.com/microsoft/vscode-extension-samples/blob/5ae1f7787122812dcc84e37427ca90af5ee09f14/semantic-tokens-sample/vscode.proposed.d.ts#L131
-                                        todo!("{edit:?}");
-                                    }
-                                }
-                                lsp_types::SemanticTokensFullDeltaResult::PartialTokensDelta {
-                                    ..
-                                } => unreachable!("did not ask for partial results"),
-                            },
-                            None => {
-                                cache.last_request_id = None;
-                                cache.tokens.clear();
-                            }
-                        }
-                    })
-                    .await;
+                }))
             }
-            _ => {
-                tracing::info!(%uri, "requesting semantic tokens full");
-                let fut = s.semantic_tokens_full(lsp_types::SemanticTokensParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
-                });
-
-                let client = self.client();
-                let res = fut.await?;
-                client
-                    .with(move |editor| {
-                        let cache = &mut editor.semantic_tokens.get_mut(&buf).unwrap();
-                        match res {
-                            Some(res) => match res {
-                                lsp_types::SemanticTokensResult::Tokens(tokens) => {
-                                    cache.last_request_id = tokens.result_id;
-                                    cache.tokens = tokens.data;
-                                }
-                                lsp_types::SemanticTokensResult::Partial(_) => {
-                                    unreachable!("did not ask for partial results")
-                                }
-                            },
-                            None => {
-                                cache.last_request_id = None;
-                                cache.tokens.clear();
-                            }
-                        }
-                    })
-                    .await;
-            }
+            _ => Res::Full(s.semantic_tokens_full(lsp_types::SemanticTokensParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })),
         };
 
-        Ok(())
+        Some(async move {
+            match res {
+                Res::Delta(fut) => {
+                    tracing::info!(%uri, "requesting semantic tokens delta");
+                    let res = fut.await?;
+                    client
+                        .with(move |editor| {
+                            let cache = &mut editor.semantic_tokens.get_mut(&buf).unwrap();
+                            match res {
+                                Some(res) => match res {
+                                    lsp_types::SemanticTokensFullDeltaResult::Tokens(tokens) => {
+                                        cache.last_request_id = tokens.result_id;
+                                        cache.tokens = tokens.data;
+                                    }
+                                    lsp_types::SemanticTokensFullDeltaResult::TokensDelta(delta) => {
+                                        cache.last_request_id = delta.result_id;
+                                        for edit in delta.edits {
+                                            // It's still entirely how multiple edits compose, are the "sequential" or "simultaneous"?
+                                            // https://github.com/microsoft/vscode-extension-samples/blob/5ae1f7787122812dcc84e37427ca90af5ee09f14/semantic-tokens-sample/vscode.proposed.d.ts#L131
+                                            todo!("{edit:?}");
+                                        }
+                                    }
+                                    lsp_types::SemanticTokensFullDeltaResult::PartialTokensDelta {
+                                        ..
+                                    } => unreachable!("did not ask for partial results"),
+                                },
+                                None => {
+                                    cache.last_request_id = None;
+                                    cache.tokens.clear();
+                                }
+                            }
+                        })
+                        .await;
+                }
+                Res::Full(fut) => {
+                    tracing::info!(%uri, "requesting semantic tokens full");
+
+                    let res = fut.await?;
+                    client
+                        .with(move |editor| {
+                            let cache = &mut editor.semantic_tokens.get_mut(&buf).unwrap();
+                            match res {
+                                Some(res) => match res {
+                                    lsp_types::SemanticTokensResult::Tokens(tokens) => {
+                                        cache.last_request_id = tokens.result_id;
+                                        cache.tokens = tokens.data;
+                                    }
+                                    lsp_types::SemanticTokensResult::Partial(_) => {
+                                        unreachable!("did not ask for partial results")
+                                    }
+                                },
+                                None => {
+                                    cache.last_request_id = None;
+                                    cache.tokens.clear();
+                                }
+                            }
+                        })
+                        .await;
+                }
+            }
+
+            Ok(())
+        })
     }
 
     /// Pull diagnostics using the `textDocument/diagnostic` request.
@@ -635,8 +649,8 @@ impl Editor {
     }
 }
 
-fn subscribe_lsp_event_handlers(server_id: LanguageServerId) {
+fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServerId) {
     // TODO check capabilities
-    event::subscribe::<event::DidChangeBuffer>(Editor::did_change_buffer(server_id));
-    event::subscribe::<event::DidOpenBuffer>(Editor::did_open_buffer(server_id));
+    event::subscribe::<event::DidChangeBuffer>(Editor::lsp_did_change_sync(server_id));
+    event::subscribe::<event::DidOpenBuffer>(Editor::lsp_did_open(server_id));
 }
