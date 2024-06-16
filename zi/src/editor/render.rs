@@ -5,6 +5,7 @@ use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
+use zi_core::style::Style;
 use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
@@ -12,7 +13,7 @@ use super::{get_ref, Editor, State};
 use crate::lsp::from_proto;
 use crate::private::Internal;
 use crate::syntax::HighlightName;
-use crate::ViewId;
+use crate::{BufferId, ViewId};
 
 impl Editor {
     pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
@@ -121,7 +122,6 @@ impl Editor {
         let relevant_range =
             PointRange::new((line_offset, 0usize), (line_offset + area.height as usize, 0usize));
 
-        // FIXME compute highlights only for the necessary range
         let syntax_highlights = buf
             .syntax_highlights(self, &mut query_cursor, relevant_range)
             .skip_while(|hl| hl.range.end().line() < line_offset)
@@ -189,9 +189,27 @@ impl Editor {
                     .collect::<Vec<_>>()
             });
 
+        let buf_tokens = self.semantic_tokens.get(&buf.id());
+        let semantic_highlights = buf_tokens.iter().flat_map(|cache| {
+            let mut line = 0;
+            let mut char = 0;
+            cache.tokens.iter().map(move |token| {
+                if token.delta_line > 0 {
+                    char = 0;
+                }
+
+                line += token.delta_line as usize;
+                char += token.delta_start as usize;
+                let range = PointRange::new((line, char), (line, char + token.length as usize));
+                let style = zi_core::style::style!(fg = 00000000);
+                (range, style)
+            })
+        });
+
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
             .range_merge(diagnostic_highlights.into_iter())
+            .range_merge(semantic_highlights)
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });

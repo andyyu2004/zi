@@ -186,8 +186,8 @@ impl Default for Config {
             [
                 (
                     LanguageServerId::RUST_ANALYZER,
-                    // ExecutableLanguageServerConfig::new("ra-multiplex", []),
-                    ExecutableLanguageServerConfig::new("rust-analyzer", []),
+                    ExecutableLanguageServerConfig::new("ra-multiplex", []),
+                    // ExecutableLanguageServerConfig::new("rust-analyzer", []),
                 ),
                 (LanguageServerId::GOPLS, ExecutableLanguageServerConfig::new("gopls", [])),
                 (LanguageServerId::GQLT, ExecutableLanguageServerConfig::new("gqlt", [])),
