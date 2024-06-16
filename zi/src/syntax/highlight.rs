@@ -1,26 +1,51 @@
-use std::borrow::Cow;
 use std::sync::Arc;
 
 use zi_core::style::{style, Style};
 
 #[derive(Clone)]
 pub struct Theme {
-    highlights: Vec<(Cow<'static, str>, Style)>,
+    highlights: Vec<(HighlightName, Style)>,
     default_style: Style,
 }
 
-pub enum HighlightName {}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct HighlightName(&'static str);
+
+impl AsRef<str> for HighlightName {
+    #[inline]
+    fn as_ref(&self) -> &'static str {
+        self.0
+    }
+}
+
+impl From<&'static str> for HighlightName {
+    #[inline]
+    fn from(name: &'static str) -> Self {
+        Self(name)
+    }
+}
+
+macro_rules! declare_highlights {
+    ($($name:ident = $value:literal)*) => {
+        $( pub const $name: Self = Self($value); )*
+    };
+}
 
 impl HighlightName {
-    pub const BACKGROUND: &'static str = "background";
-    pub const CURSORLINE: &'static str = "cursorline";
-    pub const DIRECTORY: &'static str = "directory";
-    pub const CURRENT_SEARCH: &'static str = "search.current";
-    pub const SEARCH: &'static str = "search";
-    pub const ERROR: &'static str = "error";
-    pub const WARNING: &'static str = "warning";
-    pub const INFO: &'static str = "info";
-    pub const HINT: &'static str = "hint";
+    declare_highlights! {
+        BACKGROUND = "background"
+        CURSORLINE = "cursorline"
+        DIRECTORY = "directory"
+        CURRENT_SEARCH = "search.current"
+        SEARCH = "search"
+
+        ERROR = "error"
+        WARNING = "warning"
+        INFO = "info"
+        HINT = "hint"
+
+        NAMESPACE = "namespace"
+    }
 }
 
 impl Theme {
@@ -36,7 +61,7 @@ impl Theme {
         let name = name.as_ref();
         self.highlights
             .iter()
-            .position(|(key, _)| key == name)
+            .position(|(key, _)| key.as_ref() == name)
             .map(|i| HighlightId(i as u32))
             .unwrap_or_default()
     }
@@ -44,7 +69,7 @@ impl Theme {
 
 macro_rules! hi {
     ($name:expr => $($tt:tt)*) => {
-        (Cow::Borrowed($name), style!($($tt)*))
+        ($name.into(), style!($($tt)*))
     };
 }
 
@@ -63,7 +88,7 @@ impl Default for Theme {
                 hi!(HighlightName::WARNING => underline),
                 hi!(HighlightName::INFO => underline),
                 hi!(HighlightName::HINT => underline),
-                hi!("namespace" => fg=0x39a6b900),
+                hi!(HighlightName::NAMESPACE => fg=0x39a6b900),
                 hi!("module" => fg=0x39a6b900),
                 hi!("function.macro" => fg=0x298cba00),
                 hi!("function" => fg=0x298cba00),
@@ -150,7 +175,7 @@ impl HighlightMap {
                         .filter_map(|(i, (key, _))| {
                             let mut len = 0;
                             let mut capture_parts = capture_name.as_ref().split('.');
-                            for key_part in key.split('.') {
+                            for key_part in key.as_ref().split('.') {
                                 if capture_parts.any(|part| part == key_part) {
                                     len += 1;
                                 } else {

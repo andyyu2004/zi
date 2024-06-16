@@ -273,7 +273,10 @@ impl Sub<Offset> for Point {
 
     #[inline]
     fn sub(self, offset: Offset) -> Self {
-        Self::new(self.line - offset.line, self.col - offset.col)
+        Self::new(
+            self.line.checked_sub(offset.line).unwrap(),
+            self.col.checked_sub(offset.col).unwrap(),
+        )
     }
 }
 

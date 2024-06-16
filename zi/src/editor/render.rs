@@ -5,15 +5,15 @@ use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
-use zi_core::style::Style;
 use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
+use zi_lsp::lsp_types;
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
 use crate::lsp::from_proto;
 use crate::private::Internal;
 use crate::syntax::HighlightName;
-use crate::{BufferId, ViewId};
+use crate::ViewId;
 
 impl Editor {
     pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
@@ -193,16 +193,22 @@ impl Editor {
         let semantic_highlights = buf_tokens.iter().flat_map(|cache| {
             let mut line = 0;
             let mut char = 0;
-            cache.tokens.iter().map(move |token| {
+            cache.tokens.iter().filter_map(move |token| {
                 if token.delta_line > 0 {
                     char = 0;
                 }
 
                 line += token.delta_line as usize;
                 char += token.delta_start as usize;
+                if line < line_offset {
+                    return None;
+                }
+
                 let range = PointRange::new((line, char), (line, char + token.length as usize));
-                let style = zi_core::style::style!(fg = 00000000);
-                (range, style)
+                let hl =
+                    semantic_tt_to_highlight(&cache.legend.token_types[token.token_type as usize])
+                        .map(|name| self.highlight_id_by_name(name))?;
+                Some((range, hl.style(theme)?))
             })
         });
 
@@ -274,4 +280,33 @@ impl Editor {
         let width = lines.render_(area, surface);
         view.number_width.set(width as u16);
     }
+}
+
+fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
+    use lsp_types::SemanticTokenType;
+    Some(match tt {
+        tt if tt == &SemanticTokenType::NAMESPACE => HighlightName::NAMESPACE,
+        _ => return None, // SemanticTokenType::TYPE: SemanticTokenType = SemanticTokenType::new("type");
+                          // SemanticTokenType::CLASS: SemanticTokenType = SemanticTokenType::new("class");
+                          // SemanticTokenType::ENUM: SemanticTokenType = SemanticTokenType::new("enum");
+                          // SemanticTokenType::INTERFACE: SemanticTokenType = SemanticTokenType::new("interface");
+                          // SemanticTokenType::STRUCT: SemanticTokenType = SemanticTokenType::new("struct");
+                          // SemanticTokenType::TYPE_PARAMETER: SemanticTokenType = SemanticTokenType::new("typeParameter");
+                          // SemanticTokenType::PARAMETER: SemanticTokenType = SemanticTokenType::new("parameter");
+                          // SemanticTokenType::VARIABLE: SemanticTokenType = SemanticTokenType::new("variable");
+                          // SemanticTokenType::PROPERTY: SemanticTokenType = SemanticTokenType::new("property");
+                          // SemanticTokenType::ENUM_MEMBER: SemanticTokenType = SemanticTokenType::new("enumMember");
+                          // SemanticTokenType::EVENT: SemanticTokenType = SemanticTokenType::new("event");
+                          // SemanticTokenType::FUNCTION: SemanticTokenType = SemanticTokenType::new("function");
+                          // SemanticTokenType::METHOD: SemanticTokenType = SemanticTokenType::new("method");
+                          // SemanticTokenType::MACRO: SemanticTokenType = SemanticTokenType::new("macro");
+                          // SemanticTokenType::KEYWORD: SemanticTokenType = SemanticTokenType::new("keyword");
+                          // SemanticTokenType::MODIFIER: SemanticTokenType = SemanticTokenType::new("modifier");
+                          // SemanticTokenType::COMMENT: SemanticTokenType = SemanticTokenType::new("comment");
+                          // SemanticTokenType::STRING: SemanticTokenType = SemanticTokenType::new("string");
+                          // SemanticTokenType::NUMBER: SemanticTokenType = SemanticTokenType::new("number");
+                          // SemanticTokenType::REGEXP: SemanticTokenType = SemanticTokenType::new("regexp");
+                          // SemanticTokenType::OPERATOR: SemanticTokenType = SemanticTokenType::new("operator");
+                          // pub const DECORATOR: SemanticTokenType = SemanticTokenType::new("decorator");
+    })
 }
