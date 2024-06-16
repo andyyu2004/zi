@@ -26,25 +26,50 @@ impl From<&'static str> for HighlightName {
 }
 
 macro_rules! declare_highlights {
-    ($($name:ident = $value:literal)*) => {
+    ($($name:ident = $value:literal,)*) => {
         $( pub const $name: Self = Self($value); )*
     };
 }
 
 impl HighlightName {
     declare_highlights! {
-        BACKGROUND = "background"
-        CURSORLINE = "cursorline"
-        DIRECTORY = "directory"
-        CURRENT_SEARCH = "search.current"
-        SEARCH = "search"
+        BACKGROUND = "background",
+        CURSORLINE = "cursorline",
+        DIRECTORY = "directory",
+        CURRENT_SEARCH = "search.current",
+        SEARCH = "search",
 
-        ERROR = "error"
-        WARNING = "warning"
-        INFO = "info"
-        HINT = "hint"
+        ERROR = "error",
+        WARNING = "warning",
+        INFO = "info",
+        HINT = "hint",
 
-        NAMESPACE = "namespace"
+        NAMESPACE = "namespace",
+        MODULE = "module",
+        MACRO = "function.macro",
+        FUNCTION = "function",
+        PROPERTY = "property",
+        FIELD = "field",
+        KEYWORD = "keyword",
+        CONSTRUCTOR = "constructor",
+        TYPE = "type",
+        VARIABLE_BUILTIN = "variable.builtin",
+        VARIABLE = "variable",
+        FUNCTION_BUILTIN = "function.builtin",
+        PARAMETER = "parameter",
+        CONSTANT = "constant",
+        CONSTANT_BUILTIN = "constant.builtin",
+        INCLUDE = "include",
+        ATTRIBUTE = "attribute",
+        PREPROC = "preproc",
+        METHOD = "method",
+        METHOD_CALL = "method.call",
+        PUNCTUATION_BRACKET = "punctuation.bracket",
+        PUNCTUATION_SPECIAL = "punctuation.special",
+        PUNCTUATION_DELIMITER = "punctuation.delimiter",
+        STRING = "string",
+        NUMBER = "number",
+        COMMENT = "comment",
     }
 }
 
@@ -76,44 +101,45 @@ macro_rules! hi {
 impl Default for Theme {
     // Some butchered solarized-dark ish theme.
     fn default() -> Self {
+        use HighlightName as Hl;
         Self {
             default_style: style!(fg = 0x83949600),
             highlights: [
-                hi!(HighlightName::BACKGROUND => bg=0x002b3600),
-                hi!(HighlightName::CURSORLINE => bg=0x07364200),
-                hi!(HighlightName::DIRECTORY => fg=0x268bd200),
-                hi!(HighlightName::SEARCH => bg=0x00445400),
-                hi!(HighlightName::CURRENT_SEARCH => fg=0xeb773400 bg=0x00445400),
-                hi!(HighlightName::ERROR => underline),
-                hi!(HighlightName::WARNING => underline),
-                hi!(HighlightName::INFO => underline),
-                hi!(HighlightName::HINT => underline),
-                hi!(HighlightName::NAMESPACE => fg=0x39a6b900),
-                hi!("module" => fg=0x39a6b900),
-                hi!("function.macro" => fg=0x298cba00),
-                hi!("function" => fg=0x298cba00),
-                hi!("property" => fg=0x41978900),
-                hi!("field" => fg=0x41978900),
-                hi!("keyword" => fg=0x527bd200),
-                hi!("constructor" => fg=0xbf8a4a00),
-                hi!("type" => fg=0x268bd200),
-                hi!("variable.builtin" => fg=0xbf693000),
-                hi!("variable" => fg=0x83949600),
-                hi!("function.builtin" => fg=0x298cba00),
-                hi!("parameter" => fg=0x4698b100),
-                hi!("constant" => fg=0xbb8b5000),
-                hi!("constant.builtin" => fg=0x41978900),
-                hi!("include" => fg=0x527bd200),
-                hi!("attribute" => fg=0xB8986800),
-                hi!("preproc" => fg=0xB8986800),
-                hi!("method" => fg=0x298cba00),
-                hi!("method.call" => fg=0x298cba00),
-                hi!("punctuation.bracket" => fg=0x86B1A100),
-                hi!("punctuation.special" => fg=0x86B1A100),
-                hi!("punctuation.delimiter" => fg=0x599c9700),
-                hi!("string" => fg=0x2aa19800),
-                hi!("number" => fg=0xcb4b1600),
-                hi!("comment" => fg=0x586e7500),
+                hi!(Hl::BACKGROUND => bg=0x002b3600),
+                hi!(Hl::CURSORLINE => bg=0x07364200),
+                hi!(Hl::DIRECTORY => fg=0x268bd200),
+                hi!(Hl::SEARCH => bg=0x00445400),
+                hi!(Hl::CURRENT_SEARCH => fg=0xeb773400 bg=0x00445400),
+                hi!(Hl::ERROR => underline),
+                hi!(Hl::WARNING => underline),
+                hi!(Hl::INFO => underline),
+                hi!(Hl::HINT => underline),
+                hi!(Hl::NAMESPACE => fg=0x39a6b900),
+                hi!(Hl::MODULE => fg=0x39a6b900),
+                hi!(Hl::MACRO => fg=0x298cba00),
+                hi!(Hl::FUNCTION => fg=0x298cba00),
+                hi!(Hl::PROPERTY => fg=0x41978900),
+                hi!(Hl::FIELD => fg=0x41978900),
+                hi!(Hl::KEYWORD => fg=0x527bd200),
+                hi!(Hl::CONSTRUCTOR => fg=0xbf8a4a00),
+                hi!(Hl::TYPE => fg=0x268bd200),
+                hi!(Hl::VARIABLE_BUILTIN => fg=0xbf693000),
+                hi!(Hl::VARIABLE => fg=0x83949600),
+                hi!(Hl::FUNCTION_BUILTIN => fg=0x298cba00),
+                hi!(Hl::PARAMETER => fg=0x4698b100),
+                hi!(Hl::CONSTANT => fg=0xbb8b5000),
+                hi!(Hl::CONSTANT_BUILTIN => fg=0x41978900),
+                hi!(Hl::INCLUDE => fg=0x527bd200),
+                hi!(Hl::ATTRIBUTE => fg=0xB8986800),
+                hi!(Hl::PREPROC => fg=0xB8986800),
+                hi!(Hl::METHOD => fg=0x298cba00),
+                hi!(Hl::METHOD_CALL => fg=0x298cba00),
+                hi!(Hl::PUNCTUATION_BRACKET => fg=0x86B1A100),
+                hi!(Hl::PUNCTUATION_SPECIAL => fg=0x86B1A100),
+                hi!(Hl::PUNCTUATION_DELIMITER => fg=0x599c9700),
+                hi!(Hl::STRING => fg=0x2aa19800),
+                hi!(Hl::NUMBER => fg=0xcb4b1600),
+                hi!(Hl::COMMENT => fg=0x586e7500),
             ]
             .into_iter()
             .collect(),

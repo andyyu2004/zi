@@ -283,30 +283,31 @@ impl Editor {
 }
 
 fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
-    use lsp_types::SemanticTokenType;
+    use lsp_types::SemanticTokenType as Stt;
     Some(match tt {
-        tt if tt == &SemanticTokenType::NAMESPACE => HighlightName::NAMESPACE,
-        _ => return None, // SemanticTokenType::TYPE: SemanticTokenType = SemanticTokenType::new("type");
-                          // SemanticTokenType::CLASS: SemanticTokenType = SemanticTokenType::new("class");
-                          // SemanticTokenType::ENUM: SemanticTokenType = SemanticTokenType::new("enum");
-                          // SemanticTokenType::INTERFACE: SemanticTokenType = SemanticTokenType::new("interface");
-                          // SemanticTokenType::STRUCT: SemanticTokenType = SemanticTokenType::new("struct");
-                          // SemanticTokenType::TYPE_PARAMETER: SemanticTokenType = SemanticTokenType::new("typeParameter");
-                          // SemanticTokenType::PARAMETER: SemanticTokenType = SemanticTokenType::new("parameter");
-                          // SemanticTokenType::VARIABLE: SemanticTokenType = SemanticTokenType::new("variable");
-                          // SemanticTokenType::PROPERTY: SemanticTokenType = SemanticTokenType::new("property");
-                          // SemanticTokenType::ENUM_MEMBER: SemanticTokenType = SemanticTokenType::new("enumMember");
-                          // SemanticTokenType::EVENT: SemanticTokenType = SemanticTokenType::new("event");
-                          // SemanticTokenType::FUNCTION: SemanticTokenType = SemanticTokenType::new("function");
-                          // SemanticTokenType::METHOD: SemanticTokenType = SemanticTokenType::new("method");
-                          // SemanticTokenType::MACRO: SemanticTokenType = SemanticTokenType::new("macro");
-                          // SemanticTokenType::KEYWORD: SemanticTokenType = SemanticTokenType::new("keyword");
-                          // SemanticTokenType::MODIFIER: SemanticTokenType = SemanticTokenType::new("modifier");
-                          // SemanticTokenType::COMMENT: SemanticTokenType = SemanticTokenType::new("comment");
-                          // SemanticTokenType::STRING: SemanticTokenType = SemanticTokenType::new("string");
-                          // SemanticTokenType::NUMBER: SemanticTokenType = SemanticTokenType::new("number");
-                          // SemanticTokenType::REGEXP: SemanticTokenType = SemanticTokenType::new("regexp");
-                          // SemanticTokenType::OPERATOR: SemanticTokenType = SemanticTokenType::new("operator");
-                          // pub const DECORATOR: SemanticTokenType = SemanticTokenType::new("decorator");
+        t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
+        t if t == &Stt::TYPE => HighlightName::TYPE,
+        t if t == &Stt::STRUCT => HighlightName::TYPE,
+        t if t == &Stt::CLASS => HighlightName::TYPE,
+        t if t == &Stt::INTERFACE => HighlightName::TYPE,
+        t if t == &Stt::ENUM => HighlightName::TYPE,
+        t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
+        t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
+        t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
+        t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
+        // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
+        // t if t == &Stt::EVENT => HighlightName::EVENT,
+        t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
+        t if t == &Stt::METHOD => HighlightName::FUNCTION,
+        t if t == &Stt::MACRO => HighlightName::MACRO,
+        t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
+        // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
+        t if t == &Stt::COMMENT => HighlightName::COMMENT,
+        t if t == &Stt::STRING => HighlightName::STRING,
+        t if t == &Stt::NUMBER => HighlightName::NUMBER,
+        t if t == &Stt::REGEXP => HighlightName::STRING,
+        // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
+        // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
+        _ => return None,
     })
 }
