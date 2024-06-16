@@ -140,7 +140,7 @@ impl Editor {
             .flat_map(|(server, d)| {
                 let guard = d.read();
                 let (version, diags) = &*guard;
-                    tracing::info!(version, buf_version = buf.version(), "diagnostics");
+                    tracing::debug!(version, buf_version = buf.version(), "diagnostics");
 
                 // If the diagnostics are from a different version of the text, we clear them.
                 if *version != buf.version() {
