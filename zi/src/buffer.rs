@@ -1,5 +1,6 @@
 mod explorer;
 mod inspector;
+mod marks;
 pub mod picker;
 mod text;
 
@@ -14,6 +15,8 @@ use zi_text::{AnyText, Delta, Deltas};
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
+use self::marks::Marks;
+pub use self::marks::{Mark, MarkBuilder, MarkId};
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::config::Setting;
@@ -139,12 +142,13 @@ pub(crate) trait BufferHistory {
 
 // This wraps the trait to provide common functionality and to make it easier to control method privacy.
 pub struct Buffer {
+    marks: Marks,
     inner: Box<dyn BufferInternal>,
 }
 
 impl Buffer {
     pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
-        Self { inner: buffer.boxed() }
+        Self { inner: buffer.boxed(), marks: Default::default() }
     }
 
     pub fn id(&self) -> BufferId {
@@ -180,10 +184,11 @@ impl Buffer {
     }
 
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
-        self.inner.edit(Internal(()), deltas);
+        self.edit_flags(deltas, EditFlags::empty())
     }
 
     pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
+        // TODO adjust marks
         self.inner.edit_flags(Internal(()), deltas, flags);
     }
 

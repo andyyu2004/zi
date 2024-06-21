@@ -76,7 +76,6 @@ impl Text for str {
     }
 }
 
-/// Naive implementation of [`LazyText`] for `str`.
 /// Most of these methods are O(n) and large strs should be avoided.
 impl TextBase for str {
     #[inline]

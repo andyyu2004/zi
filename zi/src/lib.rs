@@ -41,7 +41,9 @@ pub use zi_lsp::PositionEncoding;
 pub use zi_text::{Delta, Deltas};
 pub use zi_textobject::motion;
 
-pub use self::buffer::{BufferFlags, BufferId, PickerBuffer, TextBuffer};
+pub use self::buffer::{
+    BufferFlags, BufferId, Mark, MarkBuilder, MarkId, PickerBuffer, TextBuffer,
+};
 pub use self::command::{Command, Commands};
 pub use self::config::Setting;
 pub use self::editor::{Active, Client, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks};

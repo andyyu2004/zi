@@ -67,6 +67,9 @@ debug = true
 [workspace.lints.rust]
 rust_2018_idioms = "deny"
 
+[workspace.lints.rustdoc] # FIXME don't think this is working
+broken_intra_doc_links = "warn"
+
 [workspace.lints.clippy]
 dbg_macro = "deny"
 complexity = { level = "warn", priority = -1 }

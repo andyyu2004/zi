@@ -1768,10 +1768,6 @@ impl Editor {
         })
     }
 
-    pub fn create_buffer(&mut self, mk: impl FnOnce(BufferId) -> Buffer) -> BufferId {
-        self.buffers.insert_with_key(mk)
-    }
-
     pub fn create_view(&mut self, buf: BufferId) -> ViewId {
         self.views.insert_with_key(|id| View::new(id, buf))
     }

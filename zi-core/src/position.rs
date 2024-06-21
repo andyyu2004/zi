@@ -416,7 +416,7 @@ pub trait IteratorRangeExt {
 
 impl<I: Iterator> IteratorRangeExt for I {}
 
-/// An iterator that merges two iterators over ([`Range`], T: [`Merge`]), prioritizing the second iterator on overlap (as per [`Merge`])
+/// An iterator that merges two iterators over ([`PointRange`], T: [`Merge`]), prioritizing the second iterator on overlap (as per [`Merge`])
 pub struct RangeMergeIter<I: Iterator, J: Iterator, T> {
     xs: Peekable<I>,
     ys: Peekable<J>,
