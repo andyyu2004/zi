@@ -1,40 +1,50 @@
 use std::fmt;
+use std::mem::MaybeUninit;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 
 use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize};
 
-const N: usize = 4;
-
-pub(super) struct MarkTree<T: Item> {
+pub(super) struct MarkTree<const N: usize, T: Item> {
     tree: crop::tree::Tree<4, Leaf<N, T>>,
 }
 
-pub trait Item: fmt::Debug {
+pub trait Item: fmt::Debug + Copy + 'static {
     fn byte(&self) -> usize;
 }
 
-impl<T> Default for MarkTree<T> {
+impl Item for usize {
+    #[inline]
+    fn byte(&self) -> usize {
+        *self
+    }
+}
+
+impl<const N: usize, T: Item> Default for MarkTree<N, T> {
     fn default() -> Self {
         Self { tree: crop::tree::Tree::default() }
     }
 }
 
-impl<T> MarkTree<T> {}
+impl<const N: usize, T: Item> MarkTree<N, T> {
+    pub fn insert(&mut self, item: T) {
+        todo!()
+    }
+}
 
 #[derive(Debug)]
 struct Leaf<const N: usize, T> {
-    data: [T; N],
+    data: [MaybeUninit<T>; N],
 }
 
 impl<const N: usize, T> Default for Leaf<N, T> {
     fn default() -> Self {
-        Self {}
+        Self { data: MaybeUninit::uninit_array() }
     }
 }
 
-impl<const N: usize, T> From<LeafSlice<'_, T>> for Leaf<N, T> {
-    fn from(_: LeafSlice<'_, T>) -> Self {
-        Self {}
+impl<const N: usize, T: Item> From<LeafSlice<'_, N, T>> for Leaf<N, T> {
+    fn from(slice: LeafSlice<'_, N, T>) -> Self {
+        Self { data: *slice.data }
     }
 }
 
@@ -81,12 +91,12 @@ impl<const N: usize, T: Item> Summarize for Leaf<N, T> {
     }
 }
 
-impl BaseMeasured for Leaf {
+impl<const N: usize, T: Item> BaseMeasured for Leaf<N, T> {
     type BaseMetric = ByteMetric;
 }
 
-impl AsSlice for Leaf {
-    type Slice<'a> = LeafSlice<'a>;
+impl<const N: usize, T: Item> AsSlice for Leaf<N, T> {
+    type Slice<'a> = LeafSlice<'a, N, T> where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
         todo!()
@@ -94,11 +104,11 @@ impl AsSlice for Leaf {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LeafSlice<'a, T> {
-    data: &'a [T],
+struct LeafSlice<'a, const N: usize, T: Item> {
+    data: &'a [MaybeUninit<T>; N],
 }
 
-impl<'a, T> Summarize for LeafSlice<'a, T> {
+impl<'a, const N: usize, T: Item> Summarize for LeafSlice<'a, N, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
