@@ -6,6 +6,7 @@
     coroutines,
     iter_from_coroutine,
     maybe_uninit_uninit_array,
+    maybe_uninit_slice
 )]
 
 pub use tui::LineNumberStyle;

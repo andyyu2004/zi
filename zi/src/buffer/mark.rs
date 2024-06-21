@@ -12,8 +12,8 @@ impl Buffer {
     pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.marks.insert_with_key(|id| builder.build(id));
-        let item = MarkItem { byte, id };
-        self.marks.tree.insert(item);
+        // let item = MarkItem { byte, id };
+        // self.marks.tree.insert(item);
         id
     }
 }

@@ -1,11 +1,13 @@
-use std::fmt;
 use std::mem::MaybeUninit;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
+use std::{fmt, ops};
 
-use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize};
+use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Leaves, Metric, ReplaceableLeaf, Summarize};
+
+const ARITY: usize = 4;
 
 pub(super) struct MarkTree<const N: usize, T: Item> {
-    tree: crop::tree::Tree<4, Leaf<N, T>>,
+    tree: crop::tree::Tree<ARITY, Leaf<N, T>>,
 }
 
 pub trait Item: fmt::Debug + Copy + 'static {
@@ -26,30 +28,37 @@ impl<const N: usize, T: Item> Default for MarkTree<N, T> {
 }
 
 impl<const N: usize, T: Item> MarkTree<N, T> {
-    pub fn insert(&mut self, item: T) {
-        todo!()
+    pub fn chunks(&self) -> impl ExactSizeIterator<Item = &[T]> {
+        Chunks { leaves: self.tree.leaves() }
+    }
+
+    pub fn replace(&mut self, range: ops::Range<usize>, item: T) {
+        self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), item)
     }
 }
 
-#[derive(Debug)]
-struct Leaf<const N: usize, T> {
+// A fixed-size sorted array of items.
+// `self.data[..self.len]` is the sorted array. The rest is uninitialized.
+#[derive(Debug, Clone)]
+struct Leaf<const N: usize, T: Item> {
     data: [MaybeUninit<T>; N],
+    len: usize,
 }
 
-impl<const N: usize, T> Default for Leaf<N, T> {
+impl<const N: usize, T: Item> Default for Leaf<N, T> {
     fn default() -> Self {
-        Self { data: MaybeUninit::uninit_array() }
+        Self { data: MaybeUninit::uninit_array(), len: 0 }
     }
 }
 
 impl<const N: usize, T: Item> From<LeafSlice<'_, N, T>> for Leaf<N, T> {
     fn from(slice: LeafSlice<'_, N, T>) -> Self {
-        Self { data: *slice.data }
+        Self { data: *slice.data, len: slice.len }
     }
 }
 
 impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
-    type Replacement<'a> = &'a [u8];
+    type Replacement<'a> = T;
 
     type ExtraLeaves = std::iter::Empty<Self>;
 
@@ -62,7 +71,9 @@ impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
     where
         R: RangeBounds<ByteMetric>,
     {
-        None
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len);
+        dbg!(start, end);
+        todo!()
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
@@ -99,13 +110,14 @@ impl<const N: usize, T: Item> AsSlice for Leaf<N, T> {
     type Slice<'a> = LeafSlice<'a, N, T> where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
-        todo!()
+        LeafSlice { data: &self.data, len: self.len }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct LeafSlice<'a, const N: usize, T: Item> {
     data: &'a [MaybeUninit<T>; N],
+    len: usize,
 }
 
 impl<'a, const N: usize, T: Item> Summarize for LeafSlice<'a, N, T> {
@@ -241,4 +253,65 @@ impl SubAssign for ByteMetric {
     fn sub_assign(&mut self, other: Self) {
         self.0 -= other.0
     }
+}
+
+impl Add<usize> for ByteMetric {
+    type Output = usize;
+
+    #[inline]
+    fn add(self, rhs: usize) -> Self::Output {
+        self.0 + rhs
+    }
+}
+
+impl From<ByteMetric> for usize {
+    #[inline]
+    fn from(metric: ByteMetric) -> Self {
+        metric.0
+    }
+}
+
+pub struct Chunks<'a, const N: usize, T: Item> {
+    leaves: Leaves<'a, ARITY, Leaf<N, T>>,
+}
+
+impl<'a, const N: usize, T: Item> Iterator for Chunks<'a, N, T> {
+    type Item = &'a [T];
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let leaf = self.leaves.next()?;
+        // SAFETY: We guarantee that the first `leaf.len` elements are initialized.
+        Some(unsafe { MaybeUninit::slice_assume_init_ref(&leaf.data[..leaf.len]) })
+    }
+}
+
+impl<'a, const N: usize, T: Item> ExactSizeIterator for Chunks<'a, N, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.leaves.len()
+    }
+}
+
+#[inline]
+pub(crate) fn range_bounds_to_start_end<T, B>(range: B, lo: usize, hi: usize) -> (usize, usize)
+where
+    B: core::ops::RangeBounds<T>,
+    T: core::ops::Add<usize, Output = usize> + Into<usize> + Copy,
+{
+    use core::ops::Bound;
+
+    let start = match range.start_bound() {
+        Bound::Included(&n) => n.into(),
+        Bound::Excluded(&n) => n + 1,
+        Bound::Unbounded => lo,
+    };
+
+    let end = match range.end_bound() {
+        Bound::Included(&n) => n + 1,
+        Bound::Excluded(&n) => n.into(),
+        Bound::Unbounded => hi,
+    };
+
+    (start, end)
 }
