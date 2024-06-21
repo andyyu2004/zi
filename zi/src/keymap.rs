@@ -45,10 +45,6 @@ where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     // This method should be useful eventually, just cfg it to hide warnings
     #[cfg(test)]
     pub fn insert(&mut self, mode: M, keys: impl IntoIterator<Item = K>, value: V) -> Option<V> {

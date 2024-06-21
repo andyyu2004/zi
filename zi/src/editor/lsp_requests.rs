@@ -418,9 +418,7 @@ impl Editor {
             };
 
             // Don't care if the server supports only range, we don't use it.
-            if caps.full.is_none() {
-                return None;
-            }
+            caps.full.as_ref()?;
 
             Some((server, caps))
         }) else {

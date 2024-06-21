@@ -10,8 +10,8 @@ use zi_lsp::lsp_types;
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
+use crate::editor::Resource;
 use crate::lsp::from_proto;
-use crate::private::Internal;
 use crate::syntax::HighlightName;
 use crate::ViewId;
 
@@ -32,7 +32,7 @@ impl Editor {
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             // do not swap the order of the calls, since we need it to not short-circuit
-            buf.pre_render(Internal(()), &client, view, area)
+            buf.pre_render(&client, view, area)
         });
 
         self.tree.render(self, frame.buffer_mut());

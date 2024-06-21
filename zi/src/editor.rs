@@ -4,6 +4,7 @@ mod default_keymap;
 mod errors;
 mod events;
 mod lsp_requests;
+mod marks;
 mod pickers;
 mod render;
 mod search;
@@ -54,7 +55,7 @@ use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::{self, LanguageServer};
 use crate::plugin::Plugins;
-use crate::private::{Internal, Sealed};
+use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
@@ -94,7 +95,7 @@ struct SemanticTokens {
 
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
-    pub(crate) buffers: SlotMap<BufferId, Box<dyn Buffer>>,
+    pub(crate) buffers: SlotMap<BufferId, Buffer>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -156,7 +157,7 @@ impl Index<ViewGroupId> for Editor {
 }
 
 impl Index<BufferId> for Editor {
-    type Output = dyn Buffer;
+    type Output = Buffer;
 
     #[inline]
     fn index(&self, index: BufferId) -> &Self::Output {
@@ -229,8 +230,7 @@ macro_rules! get {
     }};
     ($editor:ident: $view:expr) => {{
         let view = &mut $editor.views[$view];
-        // cast away the `Send` bound
-        let buf = &mut *$editor.buffers[view.buffer()] as &mut dyn $crate::buffer::Buffer;
+        let buf = &mut $editor.buffers[view.buffer()];
         (view, buf)
     }};
 }
@@ -362,21 +362,27 @@ impl Editor {
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let scratch_buffer = buffers.insert_with_key(|id| {
-            TextBuffer::new(
+            Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
                 FileType::TEXT,
                 "scratch",
                 Rope::new(),
                 &theme,
-            )
-            .boxed()
+            ))
         });
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, scratch_buffer));
 
         let empty_buffer = buffers.insert_with_key(|id| {
-            TextBuffer::new(id, BufferFlags::READONLY, FileType::TEXT, "empty", "", &theme).boxed()
+            Buffer::new(TextBuffer::new(
+                id,
+                BufferFlags::READONLY,
+                FileType::TEXT,
+                "empty",
+                "",
+                &theme,
+            ))
         });
 
         // Using an unbounded channel as we need `callbacks_tx.send()` to be sync.
@@ -532,12 +538,13 @@ impl Editor {
                 client
                     .with(move |editor| match plan {
                         Plan::Replace(id) => {
-                            let buf = TextBuffer::new(id, flags, ft, &path, text, &theme).boxed();
+                            let buf =
+                                Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme));
                             editor.buffers[id] = buf;
                             id
                         }
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
-                            TextBuffer::new(id, flags, ft, &path, text, &theme).boxed()
+                            Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme))
                         }),
                         Plan::Existing(_) => unreachable!(),
                     })
@@ -879,7 +886,7 @@ impl Editor {
 
         let mut empty = Keymap::default();
         let (_, buf) = get!(self);
-        let mut keymap = self.keymap.pair(buf.keymap(Internal(())).unwrap_or(&mut empty));
+        let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
         tracing::debug!(%key, "handling key");
         match key.code() {
@@ -1018,18 +1025,18 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &dyn Buffer {
+    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &Buffer {
         self.buffers.get(selector.select(self)).expect("bad buffer id")
     }
 
     #[inline]
-    pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut dyn Buffer {
+    pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut Buffer {
         self.buffers.get_mut(selector.select(self)).expect("bad buffer id")
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &dyn Buffer> {
-        self.buffers.values().map(|b| b.as_ref())
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer> {
+        self.buffers.values()
     }
 
     pub fn set_view_group(&mut self, selector: impl Selector<ViewId>, group: ViewGroupId) {
@@ -1101,7 +1108,7 @@ impl Editor {
                 let start_byte_idx =
                     byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
 
-                buf.edit(Internal(()), &Deltas::delete(start_byte_idx..byte_idx));
+                buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
 
                 view.set_cursor_bytewise(
                     mode!(self),
@@ -1266,12 +1273,12 @@ impl Editor {
             let len = self[buf].text().len_bytes();
             let newline_deltas = Deltas::insert_at(len, "\n");
             let old_text = dyn_clone::clone_box(self[buf].text());
-            self[buf].edit(Internal(()), &newline_deltas);
+            self[buf].edit(&newline_deltas);
             self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: newline_deltas });
         }
 
         let old_text = dyn_clone::clone_box(self[buf].text());
-        self[buf].edit_flags(Internal(()), deltas, flags);
+        self[buf].edit_flags(deltas, flags);
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
         for view in self.views_into_buf(buf) {
@@ -1612,7 +1619,7 @@ impl Editor {
 
     fn close_buffer(&mut self, buf: BufferId) {
         // can't naively remove the buffer as it might be referenced by multiple views
-        self.buffers[buf].on_leave(Internal(()));
+        self.buffers[buf].on_leave();
     }
 
     // Manual `impl Future` as we don't want to capture the `'self`
@@ -1672,7 +1679,7 @@ impl Editor {
 
             tracing::info!("buffer written to disk");
 
-            client.with(move |editor| editor[buf].flushed(Internal(()))).await;
+            client.with(move |editor| editor[buf].flushed()).await;
             Ok(())
         }
     }
@@ -1726,7 +1733,7 @@ impl Editor {
     pub(crate) fn inspect(&mut self, selector: impl Selector<ViewId>) {
         let inspector_view = self.view(selector).id();
         self.split(inspector_view, Direction::Up, tui::Constraint::Percentage(70));
-        let buf = self.buffers.insert_with_key(|id| InspectorBuffer::new(id).boxed());
+        let buf = self.buffers.insert_with_key(|id| Buffer::new(InspectorBuffer::new(id)));
         self.set_buffer(inspector_view, buf);
     }
 
@@ -1750,19 +1757,18 @@ impl Editor {
         s: impl Deref<Target = [u8]> + Send + Sync + 'static,
     ) -> BufferId {
         self.buffers.insert_with_key(|id| {
-            TextBuffer::new(
+            Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::READONLY,
                 FileType::TEXT,
                 path,
                 ReadonlyText::new(s),
                 &self.theme,
-            )
-            .boxed()
+            ))
         })
     }
 
-    pub fn create_buffer(&mut self, mk: impl FnOnce(BufferId) -> Box<dyn Buffer>) -> BufferId {
+    pub fn create_buffer(&mut self, mk: impl FnOnce(BufferId) -> Buffer) -> BufferId {
         self.buffers.insert_with_key(mk)
     }
 

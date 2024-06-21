@@ -21,7 +21,7 @@ impl InspectorBuffer {
     }
 }
 
-impl Buffer for InspectorBuffer {
+impl BufferInternal for InspectorBuffer {
     fn id(&self) -> BufferId {
         self.id
     }

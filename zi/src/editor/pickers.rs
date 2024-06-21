@@ -27,7 +27,7 @@ impl Editor {
                     },
                 );
                 injector = Some(inj);
-                explorer.boxed()
+                Buffer::new(explorer)
             });
 
             let injector = injector.unwrap();
@@ -126,15 +126,14 @@ impl Editor {
 
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
         self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
-            TextBuffer::new(
+            Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
                 FileType::TEXT,
                 path,
                 Rope::new(),
                 &self.theme,
-            )
-            .boxed()
+            ))
         }));
 
         let search_view = self.split(Active, Direction::Up, tui::Constraint::Max(1));
@@ -162,7 +161,7 @@ impl Editor {
             if let Some(source) = dynamic_source {
                 picker = picker.with_dynamic_handler(source);
             }
-            picker.boxed()
+            Buffer::new(picker)
         });
 
         f(self, injector.unwrap());

@@ -93,17 +93,17 @@ pub struct SyntaxHighlight {
     pub capture_idx: u32,
 }
 
-impl Resource for dyn Buffer {
+impl Resource for Buffer {
     type Id = BufferId;
 
     const URL_SCHEME: &'static str = "buffer";
 
     fn id(&self) -> Self::Id {
-        self.id()
+        self.inner.id()
     }
 
     fn url(&self) -> &Url {
-        let url = self.url();
+        let url = self.inner.url();
         assert_eq!(url.scheme(), Self::URL_SCHEME);
         url
     }
@@ -123,7 +123,7 @@ pub struct Change {
     pub inversions: Deltas<'static>,
 }
 
-pub trait BufferHistory {
+pub(crate) trait BufferHistory {
     /// Return the next undo entry (without applying it)
     fn undo(&mut self) -> Option<UndoEntry>;
 
@@ -137,7 +137,131 @@ pub trait BufferHistory {
     fn snapshot_cursor(&mut self, cursor: Point);
 }
 
-pub trait Buffer: Send + Sync {
+// This wraps the trait to provide common functionality and to make it easier to control method privacy.
+pub struct Buffer {
+    inner: Box<dyn BufferInternal>,
+}
+
+impl Buffer {
+    pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
+        Self { inner: buffer.boxed() }
+    }
+
+    pub fn id(&self) -> BufferId {
+        self.inner.id()
+    }
+
+    pub fn version(&self) -> u32 {
+        self.inner.version()
+    }
+
+    pub fn file_type(&self) -> FileType {
+        self.inner.file_type()
+    }
+
+    pub fn flags(&self) -> BufferFlags {
+        self.inner.flags()
+    }
+
+    pub fn text(&self) -> &(dyn AnyText + 'static) {
+        self.inner.text()
+    }
+
+    pub fn file_url(&self) -> Option<&Url> {
+        self.inner.file_url()
+    }
+
+    pub fn path(&self) -> Option<PathBuf> {
+        self.inner.path()
+    }
+
+    pub fn settings(&self) -> &Settings {
+        self.inner.settings()
+    }
+
+    pub fn edit(&mut self, deltas: &Deltas<'_>) {
+        self.inner.edit(Internal(()), deltas);
+    }
+
+    pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
+        self.inner.edit_flags(Internal(()), deltas, flags);
+    }
+
+    pub(crate) fn keymap(&mut self) -> Option<&mut Keymap> {
+        self.inner.keymap(Internal(()))
+    }
+
+    pub(crate) fn as_any(&self) -> &dyn Any {
+        self.inner.as_any()
+    }
+
+    pub(crate) fn as_any_mut(&mut self, internal: Internal) -> &mut dyn Any {
+        self.inner.as_any_mut(internal)
+    }
+
+    pub(crate) fn flushed(&mut self) {
+        self.inner.flushed(Internal(()));
+    }
+
+    pub(crate) fn on_leave(&mut self) {
+        self.inner.on_leave(Internal(()));
+    }
+
+    pub(crate) fn pre_render(&mut self, client: &Client, view: &View, area: tui::Rect) {
+        self.inner.pre_render(Internal(()), client, view, area);
+    }
+
+    pub(crate) fn snapshot(&mut self, flags: SnapshotFlags) {
+        self.inner.snapshot(flags);
+    }
+
+    pub(crate) fn snapshot_cursor(&mut self, cursor: Point) {
+        self.inner.snapshot_cursor(cursor);
+    }
+
+    pub(crate) fn undo(&mut self) -> Option<UndoEntry> {
+        self.inner.undo()
+    }
+
+    pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
+        self.inner.redo()
+    }
+
+    pub(crate) fn clear_undo(&mut self) {
+        self.inner.clear_undo();
+    }
+
+    pub(crate) fn syntax_highlights<'a>(
+        &'a self,
+        editor: &Editor,
+        cursor: &'a mut QueryCursor,
+        range: PointRange,
+    ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
+        self.inner.syntax_highlights(editor, cursor, range)
+    }
+
+    pub(crate) fn overlay_highlights<'a>(
+        &'a self,
+        editor: &'a Editor,
+        view: &View,
+        size: Size,
+    ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
+        self.inner.overlay_highlights(editor, view, size)
+    }
+
+    pub fn syntax(&self) -> Option<&Syntax> {
+        self.inner.syntax()
+    }
+
+    pub(crate) fn char_width(&self, c: char) -> usize {
+        c.width().unwrap_or(match c {
+            '\t' => *self.settings().tab_width.read() as usize,
+            _ => 0,
+        })
+    }
+}
+
+pub(crate) trait BufferInternal: Send + Sync {
     fn id(&self) -> BufferId;
 
     fn flags(&self) -> BufferFlags;
@@ -217,7 +341,7 @@ pub trait Buffer: Send + Sync {
         Box::new(std::iter::empty())
     }
 
-    fn boxed(self) -> Box<dyn Buffer>
+    fn boxed(self) -> Box<dyn BufferInternal>
     where
         Self: Sized + 'static,
     {
@@ -236,16 +360,9 @@ pub trait Buffer: Send + Sync {
 
     /// Called when a view is closed that was displaying this buffer
     fn on_leave(&mut self, _: Internal) {}
-
-    fn char_width(&self, c: char) -> usize {
-        c.width().unwrap_or(match c {
-            '\t' => *self.settings().tab_width.read() as usize,
-            _ => 0,
-        })
-    }
 }
 
-impl dyn Buffer + '_ {
+impl dyn BufferInternal + '_ {
     #[inline]
     pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
         self.history_mut(Internal(())).and_then(|h| h.redo())
@@ -279,7 +396,7 @@ impl dyn Buffer + '_ {
 }
 
 // NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
-impl Buffer for Box<dyn Buffer> {
+impl BufferInternal for Box<dyn BufferInternal> {
     #[inline]
     fn id(&self) -> BufferId {
         self.as_ref().id()
@@ -376,7 +493,7 @@ impl Buffer for Box<dyn Buffer> {
     }
 
     #[inline]
-    fn boxed(self) -> Box<dyn Buffer>
+    fn boxed(self) -> Box<dyn BufferInternal>
     where
         Self: Sized + 'static,
     {

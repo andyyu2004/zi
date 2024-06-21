@@ -218,7 +218,7 @@ impl View {
     pub(crate) fn align(
         &mut self,
         size: impl Into<Size>,
-        buf: &dyn Buffer,
+        buf: &Buffer,
         alignment: VerticalAlignment,
     ) {
         assert_eq!(buf.id(), self.buf);
@@ -239,7 +239,7 @@ impl View {
     /// Returns the cursor coordinates in the buffer in cells (not characters) relative to the viewport.
     /// For example, '\t' is one character but is 4 cells wide (by default).
     #[inline]
-    pub(crate) fn cursor_viewport_coords(&self, buf: &dyn Buffer) -> (u16, u16) {
+    pub(crate) fn cursor_viewport_coords(&self, buf: &Buffer) -> (u16, u16) {
         assert_eq!(buf.id(), self.buf);
         assert!(
             self.offset.line <= self.cursor.point.line(),
@@ -268,7 +268,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: impl Into<Size>,
-        buf: &dyn Buffer,
+        buf: &Buffer,
         direction: Direction,
         amt: usize,
     ) -> Point {
@@ -305,7 +305,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: impl Into<Size>,
-        buf: &dyn Buffer,
+        buf: &Buffer,
         mut byte: usize,
         flags: SetCursorFlags,
     ) -> Point {
@@ -365,7 +365,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: impl Into<Size>,
-        buf: &dyn Buffer,
+        buf: &Buffer,
         mut pos: Point,
         flags: SetCursorFlags,
     ) -> Point {
@@ -462,7 +462,7 @@ impl View {
         &mut self,
         mode: Mode,
         size: impl Into<Size>,
-        buf: &dyn Buffer,
+        buf: &Buffer,
         direction: Direction,
         amt: usize,
     ) {
