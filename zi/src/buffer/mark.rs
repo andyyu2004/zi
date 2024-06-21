@@ -44,3 +44,6 @@ impl Mark {
         MarkBuilder { point }
     }
 }
+
+#[cfg(test)]
+mod tests;

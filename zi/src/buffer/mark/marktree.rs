@@ -1,29 +1,44 @@
+use std::fmt;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 
 use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize};
 
-pub(super) struct MarkTree {
-    tree: crop::tree::Tree<4, Leaf>,
+const N: usize = 4;
+
+pub(super) struct MarkTree<T: Item> {
+    tree: crop::tree::Tree<4, Leaf<N, T>>,
 }
 
-impl Default for MarkTree {
+pub trait Item: fmt::Debug {
+    fn byte(&self) -> usize;
+}
+
+impl<T> Default for MarkTree<T> {
     fn default() -> Self {
         Self { tree: crop::tree::Tree::default() }
     }
 }
 
-impl MarkTree {}
+impl<T> MarkTree<T> {}
 
-#[derive(Debug, Default)]
-struct Leaf {}
+#[derive(Debug)]
+struct Leaf<const N: usize, T> {
+    data: [T; N],
+}
 
-impl From<LeafSlice<'_>> for Leaf {
-    fn from(_: LeafSlice<'_>) -> Self {
+impl<const N: usize, T> Default for Leaf<N, T> {
+    fn default() -> Self {
         Self {}
     }
 }
 
-impl ReplaceableLeaf<ByteMetric> for Leaf {
+impl<const N: usize, T> From<LeafSlice<'_, T>> for Leaf<N, T> {
+    fn from(_: LeafSlice<'_, T>) -> Self {
+        Self {}
+    }
+}
+
+impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
     type Replacement<'a> = &'a [u8];
 
     type ExtraLeaves = std::iter::Empty<Self>;
@@ -45,7 +60,7 @@ impl ReplaceableLeaf<ByteMetric> for Leaf {
     }
 }
 
-impl BalancedLeaf for Leaf {
+impl<const N: usize, T: Item> BalancedLeaf for Leaf<N, T> {
     fn is_underfilled(&self, summary: &Self::Summary) -> bool {
         todo!()
     }
@@ -58,7 +73,7 @@ impl BalancedLeaf for Leaf {
     }
 }
 
-impl Summarize for Leaf {
+impl<const N: usize, T: Item> Summarize for Leaf<N, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
@@ -79,11 +94,11 @@ impl AsSlice for Leaf {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LeafSlice<'a> {
-    _phantom: std::marker::PhantomData<&'a ()>,
+struct LeafSlice<'a, T> {
+    data: &'a [T],
 }
 
-impl<'a> Summarize for LeafSlice<'a> {
+impl<'a, T> Summarize for LeafSlice<'a, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
