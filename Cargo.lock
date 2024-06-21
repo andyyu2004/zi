@@ -3588,6 +3588,7 @@ dependencies = [
  "chumsky",
  "content_inspector",
  "cov-mark",
+ "crop",
  "crossterm",
  "datatest-stable",
  "directories-next",

@@ -1,6 +1,8 @@
+mod marktree;
 use slotmap::SlotMap;
 use zi_core::Point;
 
+use self::marktree::MarkTree;
 use super::Buffer;
 
 slotmap::new_key_type! {
@@ -9,15 +11,18 @@ slotmap::new_key_type! {
 
 impl Buffer {
     pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
-        self.marks.tree.insert_with_key(|id| builder.build(id))
+        let id = self.marks.marks.insert_with_key(|id| builder.build(id));
+        id
     }
 }
 
 #[derive(Default)]
 pub(crate) struct Marks {
-    // TODO need some smarter data structure here
-    tree: SlotMap<MarkId, Mark>,
+    marks: SlotMap<MarkId, Mark>,
+    tree: MarkTree,
 }
+
+impl Marks {}
 
 pub struct MarkBuilder {
     point: Point,

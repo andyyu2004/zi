@@ -1,6 +1,6 @@
 mod explorer;
 mod inspector;
-mod marks;
+mod mark;
 pub mod picker;
 mod text;
 
@@ -15,8 +15,8 @@ use zi_text::{AnyText, Delta, Deltas};
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
-use self::marks::Marks;
-pub use self::marks::{Mark, MarkBuilder, MarkId};
+use self::mark::Marks;
+pub use self::mark::{Mark, MarkBuilder, MarkId};
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::config::Setting;

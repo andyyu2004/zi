@@ -43,6 +43,7 @@ zi-text = { workspace = true }
 zi-textobject = { workspace = true }
 dyn-clone = { workspace = true }
 tokio-util = { workspace = true }
+crop = { workspace = true }
 content_inspector = "0.2.4"
 cov-mark = "2.0.0-pre.1"
 
