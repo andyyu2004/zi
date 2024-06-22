@@ -5,6 +5,8 @@ use arrayvec::ArrayVec;
 use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize, Tree};
 use stdx::iter::ExactChain;
 
+use crate::Deltas;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Bias {
     // Important `Left < Right`
@@ -82,13 +84,16 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     // tmp approx of Delta
-    pub fn shift(&mut self, range: Range<usize>, add: usize) {
-        let shift = add as isize - (range.end - range.start) as isize;
-        if shift < 0 {
-            todo!()
-        }
+    pub fn edit(&mut self, deltas: &Deltas<'_>) {
+        for delta in deltas.iter() {
+            let range = delta.range();
+            let shift = delta.text().len() as isize - (range.end - range.start) as isize;
+            if shift < 0 {
+                todo!()
+            }
 
-        self.replace_(range, LeafEntry::Gap(shift as usize));
+            self.replace_(range, LeafEntry::Gap(shift as usize));
+        }
     }
 }
 

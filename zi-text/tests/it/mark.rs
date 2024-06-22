@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zi_text::MarkTree;
+use zi_text::{deltas, MarkTree};
 
 #[track_caller]
 fn check<T: Copy + Eq + fmt::Debug>(
@@ -39,7 +39,7 @@ fn shift() {
     tree.insert(1);
     check(tree.iter(), [1]);
 
-    tree.shift(0..0, 2);
+    tree.edit(&deltas![0..0 => "ab"]);
     check(tree.iter(), [3]);
 }
 
