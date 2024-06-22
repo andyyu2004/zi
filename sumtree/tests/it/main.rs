@@ -1,8 +1,8 @@
 use sumtree::SumTree;
 
 #[test]
-fn marktree() {
-    let mut tree = SumTree::<2, _>::default();
+fn smoke() {
+    let mut tree = SumTree::<_, 2>::default();
     tree.replace(0..0, 1);
 
     let mut chunks = tree.chunks();

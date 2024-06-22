@@ -20,8 +20,8 @@ impl Buffer {
 #[derive(Default)]
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
-    // TODO some less random number
-    tree: SumTree<32, MarkItem>,
+    // TODO pick some less arbitrary number
+    tree: SumTree<MarkItem, 32>,
 }
 
 #[derive(Debug, Copy, Clone)]

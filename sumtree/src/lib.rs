@@ -1,22 +1,21 @@
-#![feature(maybe_uninit_uninit_array, maybe_uninit_slice)]
-
 //! A generalization of a rope.
 
 use std::mem::MaybeUninit;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, ops};
 
+use arrayvec::ArrayVec;
 use crop::tree::{
     AsSlice, BalancedLeaf, BaseMeasured, Leaves, Metric, ReplaceableLeaf, Summarize, Tree,
 };
 
 const ARITY: usize = 4;
 
-pub struct SumTree<const N: usize, T: Item> {
-    tree: Tree<ARITY, Leaf<N, T>>,
+pub struct SumTree<T: Item, const N: usize> {
+    tree: Tree<ARITY, Leaf<T, N>>,
 }
 
-pub trait Item: fmt::Debug + Copy + 'static {
+pub trait Item: fmt::Debug + Clone + 'static {
     fn byte(&self) -> usize;
 }
 
@@ -27,13 +26,13 @@ impl Item for usize {
     }
 }
 
-impl<const N: usize, T: Item> Default for SumTree<N, T> {
+impl<const N: usize, T: Item> Default for SumTree<T, N> {
     fn default() -> Self {
         Self { tree: crop::tree::Tree::default() }
     }
 }
 
-impl<const N: usize, T: Item> SumTree<N, T> {
+impl<const N: usize, T: Item> SumTree<T, N> {
     pub fn chunks(&self) -> impl ExactSizeIterator<Item = &[T]> {
         Chunks { leaves: self.tree.leaves() }
     }
@@ -46,24 +45,31 @@ impl<const N: usize, T: Item> SumTree<N, T> {
 // A fixed-size sorted array of items.
 // `self.data[..self.len]` is the sorted array. The rest is uninitialized.
 #[derive(Debug, Clone)]
-struct Leaf<const N: usize, T: Item> {
-    data: [MaybeUninit<T>; N],
-    len: usize,
+struct Leaf<T: Item, const N: usize> {
+    data: ArrayVec<T, N>,
 }
 
-impl<const N: usize, T: Item> Default for Leaf<N, T> {
+impl<T: Item, const N: usize> Leaf<T, N> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl<T: Item, const N: usize> Default for Leaf<T, N> {
     fn default() -> Self {
-        Self { data: MaybeUninit::uninit_array(), len: 0 }
+        Self { data: ArrayVec::new() }
     }
 }
 
-impl<const N: usize, T: Item> From<LeafSlice<'_, N, T>> for Leaf<N, T> {
-    fn from(slice: LeafSlice<'_, N, T>) -> Self {
-        Self { data: *slice.data, len: slice.len }
+impl<T: Item, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
+    #[inline]
+    fn from(slice: LeafSlice<'_, T>) -> Self {
+        Self { data: ArrayVec::try_from(slice.data).unwrap() }
     }
 }
 
-impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
+impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
     type Replacement<'a> = T;
 
     type ExtraLeaves = std::iter::Empty<Self>;
@@ -77,9 +83,10 @@ impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
     where
         R: RangeBounds<ByteMetric>,
     {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len);
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         dbg!(start, end);
-        todo!()
+
+        if self.len() - (end - start) + 1 <= N { todo!("1") } else { todo!() }
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
@@ -87,7 +94,7 @@ impl<const N: usize, T: Item> ReplaceableLeaf<ByteMetric> for Leaf<N, T> {
     }
 }
 
-impl<const N: usize, T: Item> BalancedLeaf for Leaf<N, T> {
+impl<T: Item, const N: usize> BalancedLeaf for Leaf<T, N> {
     fn is_underfilled(&self, summary: &Self::Summary) -> bool {
         todo!()
     }
@@ -100,7 +107,7 @@ impl<const N: usize, T: Item> BalancedLeaf for Leaf<N, T> {
     }
 }
 
-impl<const N: usize, T: Item> Summarize for Leaf<N, T> {
+impl<T: Item, const N: usize> Summarize for Leaf<T, N> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
@@ -108,25 +115,26 @@ impl<const N: usize, T: Item> Summarize for Leaf<N, T> {
     }
 }
 
-impl<const N: usize, T: Item> BaseMeasured for Leaf<N, T> {
+impl<T: Item, const N: usize> BaseMeasured for Leaf<T, N> {
     type BaseMetric = ByteMetric;
 }
 
-impl<const N: usize, T: Item> AsSlice for Leaf<N, T> {
-    type Slice<'a> = LeafSlice<'a, N, T> where Self: 'a;
+impl<T: Item, const N: usize> AsSlice for Leaf<T, N> {
+    type Slice<'a> = LeafSlice<'a,  T> where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
-        LeafSlice { data: &self.data, len: self.len }
+        LeafSlice { data: &self.data }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct LeafSlice<'a, const N: usize, T: Item> {
-    data: &'a [MaybeUninit<T>; N],
-    len: usize,
+#[derive(Debug, Clone)]
+struct LeafSlice<'a, T: Item> {
+    data: &'a [T],
 }
 
-impl<'a, const N: usize, T: Item> Summarize for LeafSlice<'a, N, T> {
+impl<'a, T: Item> Copy for LeafSlice<'a, T> {}
+
+impl<'a, T: Item> Summarize for LeafSlice<'a, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
@@ -277,22 +285,20 @@ impl From<ByteMetric> for usize {
     }
 }
 
-pub struct Chunks<'a, const N: usize, T: Item> {
-    leaves: Leaves<'a, ARITY, Leaf<N, T>>,
+pub struct Chunks<'a, T: Item, const N: usize> {
+    leaves: Leaves<'a, ARITY, Leaf<T, N>>,
 }
 
-impl<'a, const N: usize, T: Item> Iterator for Chunks<'a, N, T> {
+impl<'a, T: Item, const N: usize> Iterator for Chunks<'a, T, N> {
     type Item = &'a [T];
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let leaf = self.leaves.next()?;
-        // SAFETY: We guarantee that the first `leaf.len` elements are initialized.
-        Some(unsafe { MaybeUninit::slice_assume_init_ref(&leaf.data[..leaf.len]) })
+        self.leaves.next().map(|leaf| leaf.data)
     }
 }
 
-impl<'a, const N: usize, T: Item> ExactSizeIterator for Chunks<'a, N, T> {
+impl<'a, T: Item, const N: usize> ExactSizeIterator for Chunks<'a, T, N> {
     #[inline]
     fn len(&self) -> usize {
         self.leaves.len()
