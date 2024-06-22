@@ -4,9 +4,7 @@
     trait_upcasting,
     is_sorted,
     coroutines,
-    iter_from_coroutine,
-    maybe_uninit_uninit_array,
-    maybe_uninit_slice
+    iter_from_coroutine
 )]
 
 pub use tui::LineNumberStyle;

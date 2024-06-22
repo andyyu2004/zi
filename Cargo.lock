@@ -2395,6 +2395,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sumtree"
+version = "0.1.0"
+dependencies = [
+ "crop",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3612,6 +3619,7 @@ dependencies = [
  "slotmap",
  "smol_str",
  "stdx",
+ "sumtree",
  "tempfile",
  "test-strategy",
  "tokio",

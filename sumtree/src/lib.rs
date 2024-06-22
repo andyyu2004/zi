@@ -1,13 +1,19 @@
+#![feature(maybe_uninit_uninit_array, maybe_uninit_slice)]
+
+//! A generalization of a rope.
+
 use std::mem::MaybeUninit;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, ops};
 
-use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Leaves, Metric, ReplaceableLeaf, Summarize};
+use crop::tree::{
+    AsSlice, BalancedLeaf, BaseMeasured, Leaves, Metric, ReplaceableLeaf, Summarize, Tree,
+};
 
 const ARITY: usize = 4;
 
-pub(super) struct MarkTree<const N: usize, T: Item> {
-    tree: crop::tree::Tree<ARITY, Leaf<N, T>>,
+pub struct SumTree<const N: usize, T: Item> {
+    tree: Tree<ARITY, Leaf<N, T>>,
 }
 
 pub trait Item: fmt::Debug + Copy + 'static {
@@ -21,13 +27,13 @@ impl Item for usize {
     }
 }
 
-impl<const N: usize, T: Item> Default for MarkTree<N, T> {
+impl<const N: usize, T: Item> Default for SumTree<N, T> {
     fn default() -> Self {
         Self { tree: crop::tree::Tree::default() }
     }
 }
 
-impl<const N: usize, T: Item> MarkTree<N, T> {
+impl<const N: usize, T: Item> SumTree<N, T> {
     pub fn chunks(&self) -> impl ExactSizeIterator<Item = &[T]> {
         Chunks { leaves: self.tree.leaves() }
     }

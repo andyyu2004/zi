@@ -1,8 +1,8 @@
-use super::MarkTree;
+use sumtree::SumTree;
 
 #[test]
 fn marktree() {
-    let mut tree = MarkTree::<2, _>::default();
+    let mut tree = SumTree::<2, _>::default();
     tree.replace(0..0, 1);
 
     let mut chunks = tree.chunks();
