@@ -201,7 +201,7 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         for entry in self.entries.take() {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping) => {
-                    builder.push(dbg!(LeafEntry::Item(item)))
+                    builder.push(LeafEntry::Item(item))
                 }
                 LeafEntry::Item(_) => {}
                 LeafEntry::Gap(offset) => {
@@ -211,16 +211,22 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
                                 // We've passed the start of the replacement.
                                 // Keep the gap until the replacement starts.
                                 // Skip until the end of the replacement.
-                                if start - builder.offset > 0 {
-                                    builder.push(LeafEntry::Gap(start - builder.offset));
-                                }
+                                let start_gap = start - builder.offset;
+                                builder.push(LeafEntry::Gap(start_gap));
+
                                 state = Skipping;
 
                                 // If this entry covers the entire replacement, we're done.
                                 if builder.offset + offset >= end {
-                                    builder
-                                        .push(replace_with.take().expect("used replacement twice"));
-                                    builder.push(LeafEntry::Gap(builder.offset + offset - end));
+                                    match replace_with.take().expect("used replacement twice") {
+                                        LeafEntry::Item(item) => {
+                                            builder.push(LeafEntry::Item(item));
+                                            builder.push(LeafEntry::Gap(
+                                                builder.offset + offset - end - start_gap,
+                                            ));
+                                        }
+                                        LeafEntry::Gap(_gap) => todo!(),
+                                    }
                                     state = Copy;
                                 }
                             } else {
@@ -240,6 +246,7 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
                     }
                 }
             }
+            dbg!(&builder);
         }
 
         assert!(replace_with.is_none(), "replacement not used");

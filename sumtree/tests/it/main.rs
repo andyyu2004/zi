@@ -16,7 +16,6 @@ fn check<T: Copy + Eq + fmt::Debug>(
 fn simple_insert() {
     let mut tree = MarkTree::<_, 10>::new(2);
     tree.insert(1);
-    dbg!(&tree);
 
     check(tree.iter(), [1]);
 
@@ -56,6 +55,7 @@ fn smoke() {
     tree.insert(3);
     check(tree.iter(), [0, 3, 3]);
 
+    dbg!("start");
     tree.insert(2);
     check(tree.iter(), [0, 2, 3, 3]);
 }
