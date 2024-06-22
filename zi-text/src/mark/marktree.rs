@@ -506,10 +506,10 @@ impl From<ByteMetric> for usize {
 #[inline]
 fn range_bounds_to_start_end<T, B>(range: B, lo: usize, hi: usize) -> (usize, usize)
 where
-    B: core::ops::RangeBounds<T>,
-    T: core::ops::Add<usize, Output = usize> + Into<usize> + Copy,
+    B: RangeBounds<T>,
+    T: Add<usize, Output = usize> + Into<usize> + Copy,
 {
-    use core::ops::Bound;
+    use std::ops::Bound;
 
     let start = match range.start_bound() {
         Bound::Included(&n) => n.into(),

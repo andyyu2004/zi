@@ -34,13 +34,19 @@ fn split() {
 }
 
 #[test]
-fn shift() {
+fn edit() {
     let mut tree = MarkTree::<_, 10>::new(10);
     tree.insert(1);
     check(tree.iter(), [1]);
 
     tree.edit(&deltas![0..0 => "ab"]);
     check(tree.iter(), [3]);
+
+    tree.edit(&deltas![
+        0..1 => "",
+        1..1 => "c",
+    ]);
+    check(tree.iter(), [2]);
 }
 
 #[test]
