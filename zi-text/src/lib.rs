@@ -3,6 +3,7 @@
 mod cow_str_impl;
 mod cursor;
 mod delta;
+mod mark;
 mod readonly;
 mod rope;
 mod str_impl;
@@ -19,6 +20,7 @@ use dyn_clone::DynClone;
 use zi_core::{Line, Point, PointOrByte, PointRange};
 
 pub use self::delta::{Delta, DeltaRange, Deltas};
+pub use self::mark::MarkTree;
 pub use self::readonly::ReadonlyText;
 
 /// Text that can be modified.

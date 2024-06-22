@@ -1,8 +1,8 @@
+#![allow(warnings)]
 //! A generalization of a rope.
 
-use std::mem::MaybeUninit;
+use std::fmt;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
-use std::{fmt, ops};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
@@ -11,7 +11,7 @@ use crop::tree::{
 
 const ARITY: usize = 4;
 
-pub struct SumTree<T: Item, const N: usize> {
+pub struct MarkTree<T: Item, const N: usize> {
     tree: Tree<ARITY, Leaf<T, N>>,
 }
 
@@ -26,20 +26,26 @@ impl Item for usize {
     }
 }
 
-impl<const N: usize, T: Item> Default for SumTree<T, N> {
+impl<const N: usize, T: Item> Default for MarkTree<T, N> {
     fn default() -> Self {
         Self { tree: crop::tree::Tree::default() }
     }
 }
 
-impl<const N: usize, T: Item> SumTree<T, N> {
+impl<const N: usize, T: Item> MarkTree<T, N> {
     pub fn chunks(&self) -> impl ExactSizeIterator<Item = &[T]> {
         Chunks { leaves: self.tree.leaves() }
     }
 
-    pub fn replace(&mut self, range: ops::Range<usize>, item: T) {
-        self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), item)
+    pub fn insert(&mut self, item: T) {
+        let byte = item.byte();
+        self.tree.replace(ByteMetric(byte)..ByteMetric(byte), item)
     }
+
+    // pub fn replace(&mut self, range: ops::Range<usize>, item: T) {
+    //     assert!(range.contains(&item.byte()), "item must be in replacement range");
+    //     self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), item)
+    // }
 }
 
 // A fixed-size sorted array of items.
@@ -84,9 +90,19 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         R: RangeBounds<ByteMetric>,
     {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        dbg!(start, end);
+        dbg!((start, end));
 
-        if self.len() - (end - start) + 1 <= N { todo!("1") } else { todo!() }
+        match self.data.binary_search_by_key(&start, |item| item.byte()) {
+            Ok(index) => self.data[index] = replace_with,
+            Err(index) => {
+                if self.len() - (end - start) + 1 <= N {
+                    self.data.insert(index, replace_with)
+                } else {
+                    todo!()
+                }
+            }
+        }
+        None
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {

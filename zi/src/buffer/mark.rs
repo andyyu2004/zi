@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use sumtree::SumTree;
+use sumtree::MarkTree;
 
 use super::Buffer;
 
@@ -9,11 +9,7 @@ slotmap::new_key_type! {
 
 impl Buffer {
     pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
-        let byte = builder.byte;
-        let id = self.marks.marks.insert_with_key(|id| builder.build(id));
-        // let item = MarkItem { byte, id };
-        // self.marks.tree.insert(item);
-        id
+        self.marks.insert(builder)
     }
 }
 
@@ -21,7 +17,7 @@ impl Buffer {
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: SumTree<MarkItem, 32>,
+    tree: MarkTree<MarkItem, 32>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -37,7 +33,15 @@ impl sumtree::Item for MarkItem {
     }
 }
 
-impl Marks {}
+impl Marks {
+    pub fn insert(&mut self, builder: MarkBuilder) -> MarkId {
+        let byte = builder.byte;
+        let id = self.marks.insert_with_key(|id| builder.build(id));
+        // let item = MarkItem { byte, id };
+        // self.tree.insert(item);
+        id
+    }
+}
 
 pub struct MarkBuilder {
     byte: usize,
