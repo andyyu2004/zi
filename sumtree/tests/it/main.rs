@@ -1,33 +1,37 @@
+use std::fmt;
+
 use sumtree::MarkTree;
 
-fn check_chunks<'a, T: Copy + Eq + 'a>(
-    chunks: impl Iterator<Item = &'a [T]> + 'a,
+#[track_caller]
+fn check<'a, T: Copy + Eq + fmt::Debug + 'a>(
+    values: impl Iterator<Item = &'a T> + 'a,
     expected: impl IntoIterator<Item = T>,
 ) {
-    let values = chunks.flat_map(|chunk| chunk.iter().copied());
-    assert!(values.eq(expected));
+    let values = values.copied().collect::<Vec<_>>();
+    let expected = expected.into_iter().collect::<Vec<_>>();
+    assert_eq!(values, expected);
 }
 
 #[test]
 fn singleton() {
-    let mut tree = MarkTree::<_, 2>::default();
-    tree.insert(1);
+    let mut tree = MarkTree::<_, 10>::new(2);
+    tree.insert(0);
 
-    let mut chunks = tree.chunks();
-    assert_eq!(chunks.len(), 1);
-    assert_eq!(chunks.next().unwrap(), [1]);
-    assert_eq!(chunks.len(), 0);
-    assert_eq!(chunks.next(), None);
+    check(tree.iter(), [0]);
 }
 
 #[test]
 fn smoke() {
-    let mut tree = MarkTree::<_, 2>::default();
-    tree.insert(1);
-    tree.insert(2);
+    let mut tree = MarkTree::<_, 10>::new(10);
+    tree.insert(0);
+    tree.insert(3);
 
-    check_chunks(tree.chunks(), [1, 2]);
+    check(tree.iter(), [0, 3]);
+
+    // not sure about dups?
+    tree.insert(3);
+    check(tree.iter(), [0, 3, 3]);
 
     tree.insert(2);
-    check_chunks(tree.chunks(), [1, 2]);
+    check(tree.iter(), [0, 2, 3, 3]);
 }

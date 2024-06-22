@@ -1,8 +1,9 @@
-#![allow(warnings)]
+#![feature(iter_from_coroutine, coroutines)]
+
 //! A generalization of a rope.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
+use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
@@ -26,57 +27,79 @@ impl Item for usize {
     }
 }
 
-impl<const N: usize, T: Item> Default for MarkTree<T, N> {
-    fn default() -> Self {
-        Self { tree: crop::tree::Tree::default() }
-    }
-}
-
 impl<const N: usize, T: Item> MarkTree<T, N> {
-    pub fn chunks(&self) -> impl ExactSizeIterator<Item = &[T]> {
-        Chunks { leaves: self.tree.leaves() }
+    pub fn new(n: usize) -> Self {
+        let mut this = Self { tree: Tree::default() };
+        this.tree.replace(ByteMetric(0)..ByteMetric(0), LeafEntry::Gap(n));
+        this
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        let leaves = self.tree.leaves();
+        iter::from_coroutine(
+            #[coroutine]
+            || {
+                for leaf in leaves {
+                    for entry in leaf.data {
+                        if let LeafEntry::Item(item) = entry {
+                            yield item;
+                        }
+                    }
+                }
+            },
+        )
     }
 
     pub fn insert(&mut self, item: T) {
         let byte = item.byte();
-        self.tree.replace(ByteMetric(byte)..ByteMetric(byte), item)
+        self.tree.replace(ByteMetric(byte)..ByteMetric(byte), LeafEntry::Item(item))
     }
 
-    // pub fn replace(&mut self, range: ops::Range<usize>, item: T) {
-    //     assert!(range.contains(&item.byte()), "item must be in replacement range");
-    //     self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), item)
-    // }
+    // tmp approx of Delta
+    pub fn shift(&mut self, range: Range<usize>, shift: usize) {}
+}
+
+#[derive(Debug, Clone, Copy)]
+enum LeafEntry<T> {
+    Item(T),
+    Gap(usize),
 }
 
 // A fixed-size sorted array of items.
-// `self.data[..self.len]` is the sorted array. The rest is uninitialized.
 #[derive(Debug, Clone)]
 struct Leaf<T: Item, const N: usize> {
-    data: ArrayVec<T, N>,
+    entries: ArrayVec<LeafEntry<T>, N>,
 }
 
 impl<T: Item, const N: usize> Leaf<T, N> {
     #[inline]
     fn len(&self) -> usize {
-        self.data.len()
+        // TODO cache this computation
+        self.entries
+            .iter()
+            .map(|entry| match entry {
+                LeafEntry::Item(_) => 0,
+                LeafEntry::Gap(n) => *n,
+            })
+            .sum()
     }
 }
 
 impl<T: Item, const N: usize> Default for Leaf<T, N> {
     fn default() -> Self {
-        Self { data: ArrayVec::new() }
+        Self { entries: ArrayVec::new() }
     }
 }
 
 impl<T: Item, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
     #[inline]
     fn from(slice: LeafSlice<'_, T>) -> Self {
-        Self { data: ArrayVec::try_from(slice.data).unwrap() }
+        Self { entries: ArrayVec::try_from(slice.data).unwrap() }
     }
 }
 
 impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
-    type Replacement<'a> = T;
+    type Replacement<'a> = LeafEntry<T>;
 
     type ExtraLeaves = std::iter::Empty<Self>;
 
@@ -89,19 +112,82 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
     where
         R: RangeBounds<ByteMetric>,
     {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        dbg!((start, end));
+        let n = self.len();
+        let (start, end) = range_bounds_to_start_end(range, 0, n);
+        assert!(end <= n, "end <= n ({end} <= {n})");
 
-        match self.data.binary_search_by_key(&start, |item| item.byte()) {
-            Ok(index) => self.data[index] = replace_with,
-            Err(index) => {
-                if self.len() - (end - start) + 1 <= N {
-                    self.data.insert(index, replace_with)
-                } else {
-                    todo!()
+        if self.entries.is_empty() {
+            self.entries.push(replace_with);
+            return None;
+        }
+
+        let mut replace_with = Some(replace_with);
+
+        // naive algorithm for now
+        // rebuild `self` with the new entry
+        enum State {
+            Start,
+            Skipping,
+            Copy,
+        }
+
+        use State::*;
+
+        let mut state = State::Start;
+        let mut entries = ArrayVec::new();
+        let mut k = 0;
+
+        // TODO Need to handle splitting
+        for entry in &self.entries {
+            match entry {
+                LeafEntry::Item(item) if !matches!(state, Skipping) => {
+                    entries.push(LeafEntry::Item(item.clone()))
+                }
+                LeafEntry::Item(_) => {}
+                LeafEntry::Gap(offset) => {
+                    match state {
+                        Start => {
+                            if k + *offset > start {
+                                // We've passed the start of the replacement.
+                                // Keep the gap until the replacement starts.
+                                // Skip until the end of the replacement.
+                                if start - k > 0 {
+                                    entries.push(LeafEntry::Gap(start - k));
+                                }
+                                state = Skipping;
+
+                                // If this entry covers the entire replacement, we're done.
+                                if k + *offset >= end {
+                                    entries
+                                        .push(replace_with.take().expect("used replacement twice"));
+                                    // `- 0`` is to consider the `replacement` length which is currently always 0
+                                    entries.push(LeafEntry::Gap(k + *offset - end - 0));
+                                    state = Copy;
+                                }
+                            } else {
+                                entries.push(LeafEntry::Gap(*offset));
+                            }
+                        }
+                        Skipping => {
+                            if k + *offset >= end {
+                                // We've passed the end of the replacement.
+                                // Keep the gap until the end of the gap.
+                                entries.push(LeafEntry::Gap(*offset - (end - k)));
+                                entries.push(replace_with.take().expect("used replacement twice"));
+                                state = Copy;
+                            }
+                        }
+                        Copy => entries.push(LeafEntry::Gap(*offset)),
+                    }
+
+                    k += *offset;
                 }
             }
         }
+
+        self.entries = entries;
+        *summary = Summary { bytes: self.len() };
+
         None
     }
 
@@ -139,13 +225,13 @@ impl<T: Item, const N: usize> AsSlice for Leaf<T, N> {
     type Slice<'a> = LeafSlice<'a,  T> where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
-        LeafSlice { data: &self.data }
+        LeafSlice { data: &self.entries }
     }
 }
 
 #[derive(Debug, Clone)]
 struct LeafSlice<'a, T: Item> {
-    data: &'a [T],
+    data: &'a [LeafEntry<T>],
 }
 
 impl<'a, T: Item> Copy for LeafSlice<'a, T> {}
@@ -202,7 +288,7 @@ impl AddAssign<Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.bytes += rhs.bytes;
-        self.line_breaks += rhs.line_breaks;
+        // self.line_breaks += rhs.line_breaks;
     }
 }
 
@@ -210,7 +296,7 @@ impl SubAssign<Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         self.bytes -= rhs.bytes;
-        self.line_breaks -= rhs.line_breaks;
+        // self.line_breaks -= rhs.line_breaks;
     }
 }
 
@@ -231,7 +317,7 @@ impl SubAssign<&Self> for Summary {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct Summary {
     bytes: usize,
-    line_breaks: usize,
+    // line_breaks: usize,
 }
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -298,26 +384,6 @@ impl From<ByteMetric> for usize {
     #[inline]
     fn from(metric: ByteMetric) -> Self {
         metric.0
-    }
-}
-
-pub struct Chunks<'a, T: Item, const N: usize> {
-    leaves: Leaves<'a, ARITY, Leaf<T, N>>,
-}
-
-impl<'a, T: Item, const N: usize> Iterator for Chunks<'a, T, N> {
-    type Item = &'a [T];
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.leaves.next().map(|leaf| leaf.data)
-    }
-}
-
-impl<'a, T: Item, const N: usize> ExactSizeIterator for Chunks<'a, T, N> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.leaves.len()
     }
 }
 

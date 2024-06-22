@@ -53,6 +53,7 @@ impl MarkTree {
                 .marks
                 .binary_search_by_key(&(range.start, Bias::Left), |m| (m.offset, m.bias))
                 .unwrap_or_else(|i| i);
+
             if i + 1 < self.marks.len() {
                 self.marks[i + 1].offset += shift as usize
             }

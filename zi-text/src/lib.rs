@@ -20,7 +20,7 @@ use dyn_clone::DynClone;
 use zi_core::{Line, Point, PointOrByte, PointRange};
 
 pub use self::delta::{Delta, DeltaRange, Deltas};
-pub use self::mark::{MarkTree, Bias};
+pub use self::mark::{Bias, MarkTree};
 pub use self::readonly::ReadonlyText;
 
 /// Text that can be modified.
