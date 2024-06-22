@@ -3729,6 +3729,7 @@ dependencies = [
  "memmap2",
  "proptest",
  "regex-cursor",
+ "slotmap",
  "stdx",
  "zi-core",
 ]

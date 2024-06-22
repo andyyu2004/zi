@@ -17,13 +17,13 @@ impl Buffer {
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkItem, 32>,
+    // tree: MarkTree<MarkItem, 32>,
 }
 
 #[derive(Debug, Copy, Clone)]
 struct MarkItem {
     byte: usize,
-    id: MarkId,
+    // id: MarkId,
 }
 
 impl sumtree::Item for MarkItem {
@@ -35,8 +35,8 @@ impl sumtree::Item for MarkItem {
 
 impl Marks {
     pub fn insert(&mut self, builder: MarkBuilder) -> MarkId {
-        let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
+        // let byte = builder.byte;
         // let item = MarkItem { byte, id };
         // self.tree.insert(item);
         id

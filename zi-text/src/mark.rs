@@ -1,3 +1,3 @@
 mod marktree;
 
-pub use marktree::MarkTree;
+pub use marktree::{Bias, MarkTree};

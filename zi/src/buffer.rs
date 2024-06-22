@@ -302,10 +302,6 @@ pub(crate) trait BufferInternal: Send + Sync {
     #[doc(hidden)]
     fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, flags: EditFlags);
 
-    fn edit(&mut self, _: Internal, deltas: &Deltas<'_>) {
-        self.edit_flags(Internal(()), deltas, EditFlags::empty());
-    }
-
     /// `flushed` is called after the current text has been successfully written to disk.
     /// The implementation should update the buffer's state to reflect this.
     #[doc(hidden)]
