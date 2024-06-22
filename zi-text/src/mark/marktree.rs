@@ -52,6 +52,11 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         this
     }
 
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.tree.summary().bytes
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         let leaves = self.tree.leaves();
         let mut shift = 0;
@@ -87,12 +92,8 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
-            let shift = delta.text().len() as isize - (range.end - range.start) as isize;
-            if shift < 0 {
-                todo!()
-            }
-
-            self.replace_(range, LeafEntry::Gap(shift as usize));
+            let shift = delta.text().len().saturating_sub(range.end - range.start);
+            self.replace_(range, LeafEntry::Gap(shift));
         }
     }
 }
@@ -214,12 +215,12 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                                 // Skip until the end of the replacement.
                                 let partial_gap = start - builder.offset;
                                 builder.push(LeafEntry::Gap(partial_gap));
-                                let remaining_gap = gap - partial_gap;
 
                                 state = Skipping;
 
                                 // If this entry covers the entire replacement, we're done.
                                 if builder.offset + gap >= end {
+                                    let remaining_gap = builder.offset + gap - end - partial_gap;
                                     match replace_with.take().expect("used replacement twice") {
                                         LeafEntry::Item(item) => {
                                             builder.push(LeafEntry::Item(item));
