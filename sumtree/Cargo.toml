@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 crop = { workspace = true }
 arrayvec = { workspace = true }
+stdx = { workspace = true }
 
 [lints]
 workspace = true

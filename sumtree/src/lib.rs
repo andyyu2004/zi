@@ -1,4 +1,4 @@
-#![feature(iter_from_coroutine, coroutines)]
+#![feature(iter_from_coroutine, coroutines, array_chunks, impl_trait_in_assoc_type)]
 
 //! A generalization of a rope.
 
@@ -6,12 +6,12 @@ use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
-use crop::tree::{
-    AsSlice, BalancedLeaf, BaseMeasured, Leaves, Metric, ReplaceableLeaf, Summarize, Tree,
-};
+use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize, Tree};
+use stdx::iter::ExactChain;
 
 const ARITY: usize = 4;
 
+#[derive(Debug)]
 pub struct MarkTree<T: Item, const N: usize> {
     tree: Tree<ARITY, Leaf<T, N>>,
 }
@@ -56,10 +56,12 @@ impl<const N: usize, T: Item> MarkTree<T, N> {
     }
 
     // tmp approx of Delta
-    pub fn shift(&mut self, range: Range<usize>, shift: usize) {}
+    pub fn shift(&mut self, range: Range<usize>, shift: usize) {
+        todo!("{range:?} {shift}")
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum LeafEntry<T> {
     Item(T),
     Gap(usize),
@@ -101,7 +103,7 @@ impl<T: Item, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
 impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
     type Replacement<'a> = LeafEntry<T>;
 
-    type ExtraLeaves = std::iter::Empty<Self>;
+    type ExtraLeaves = impl ExactSizeIterator<Item = Self>;
 
     fn replace<R>(
         &mut self,
@@ -124,7 +126,8 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         let mut replace_with = Some(replace_with);
 
         // naive algorithm for now
-        // rebuild `self` with the new entry
+        // rebuild `self` with the new entry spliced in appropriately
+        // Splitting is also done naively by collecting into a vec and then splitting into arrays
         enum State {
             Start,
             Skipping,
@@ -134,7 +137,7 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         use State::*;
 
         let mut state = State::Start;
-        let mut entries = ArrayVec::new();
+        let mut entries = Vec::new();
         let mut k = 0;
 
         // TODO Need to handle splitting
@@ -185,10 +188,35 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
             }
         }
 
-        self.entries = entries;
-        *summary = Summary { bytes: self.len() };
+        let mut chunks = entries.array_chunks::<N>();
+        let n = chunks.len();
+        self.entries = match chunks.next() {
+            Some(chunk) => ArrayVec::from(chunk.clone()),
+            None => ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+        };
 
-        None
+        *summary = self.summarize();
+
+        if n <= 1 {
+            None
+        } else {
+            let rem = if chunks.remainder().is_empty() {
+                None
+            } else {
+                Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+            };
+
+            Some(
+                chunks
+                    .cloned()
+                    .map(ArrayVec::from)
+                    .exact_chain(rem)
+                    .map(|entries| Leaf { entries })
+                    // TODO maybe can avoid the collect here
+                    .collect::<Vec<_>>()
+                    .into_iter(),
+            )
+        }
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
@@ -213,7 +241,7 @@ impl<T: Item, const N: usize> Summarize for Leaf<T, N> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
-        todo!()
+        Summary { bytes: self.len() }
     }
 }
 
@@ -387,8 +415,9 @@ impl From<ByteMetric> for usize {
     }
 }
 
+// Below copied from `crop`
 #[inline]
-pub(crate) fn range_bounds_to_start_end<T, B>(range: B, lo: usize, hi: usize) -> (usize, usize)
+fn range_bounds_to_start_end<T, B>(range: B, lo: usize, hi: usize) -> (usize, usize)
 where
     B: core::ops::RangeBounds<T>,
     T: core::ops::Add<usize, Output = usize> + Into<usize> + Copy,
@@ -409,3 +438,5 @@ where
 
     (start, end)
 }
+
+mod iter_chain {}

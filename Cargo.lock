@@ -2406,6 +2406,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "crop",
+ "stdx",
 ]
 
 [[package]]

@@ -21,6 +21,16 @@ fn singleton() {
 }
 
 #[test]
+fn split() {
+    let mut tree = MarkTree::<_, 2>::new(100);
+    for i in 0..100 {
+        tree.insert(i);
+    }
+
+    check(tree.iter(), 0..100);
+}
+
+#[test]
 fn smoke() {
     let mut tree = MarkTree::<_, 10>::new(10);
     tree.insert(0);
