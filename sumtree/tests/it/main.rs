@@ -13,21 +13,33 @@ fn check<'a, T: Copy + Eq + fmt::Debug + 'a>(
 }
 
 #[test]
-fn singleton() {
+fn simple_insert() {
     let mut tree = MarkTree::<_, 10>::new(2);
-    tree.insert(0);
+    tree.insert(1);
 
-    check(tree.iter(), [0]);
+    check(tree.iter(), [1]);
+
+    tree.insert(1);
+    check(tree.iter(), [1, 1]);
+
+    tree.insert(0);
+    check(tree.iter(), [0, 1, 1]);
 }
 
 #[test]
 fn split() {
     let mut tree = MarkTree::<_, 2>::new(100);
-    for i in 0..100 {
-        tree.insert(i);
-    }
-
+    (0..100).for_each(|i| tree.insert(i));
     check(tree.iter(), 0..100);
+}
+
+#[test]
+fn shift() {
+    let mut tree = MarkTree::<_, 2>::new(100);
+    tree.insert(1);
+    check(tree.iter(), [1]);
+    tree.shift(0..0, 2);
+    check(tree.iter(), [3]);
 }
 
 #[test]

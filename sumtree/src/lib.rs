@@ -55,9 +55,22 @@ impl<const N: usize, T: Item> MarkTree<T, N> {
         self.tree.replace(ByteMetric(byte)..ByteMetric(byte), LeafEntry::Item(item))
     }
 
+    pub fn replace(&mut self, range: Range<usize>, replace_with: T) {
+        self.replace_(range, LeafEntry::Item(replace_with));
+    }
+
+    fn replace_(&mut self, range: Range<usize>, replace_with: LeafEntry<T>) {
+        self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), replace_with);
+    }
+
     // tmp approx of Delta
-    pub fn shift(&mut self, range: Range<usize>, shift: usize) {
-        todo!("{range:?} {shift}")
+    pub fn shift(&mut self, range: Range<usize>, add: usize) {
+        let shift = add as isize - (range.end - range.start) as isize;
+        if shift < 0 {
+            todo!()
+        }
+
+        self.replace_(range, LeafEntry::Gap(shift as usize));
     }
 }
 
@@ -140,17 +153,16 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         let mut entries = Vec::new();
         let mut k = 0;
 
-        // TODO Need to handle splitting
-        for entry in &self.entries {
+        for entry in self.entries.take() {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping) => {
-                    entries.push(LeafEntry::Item(item.clone()))
+                    entries.push(dbg!(LeafEntry::Item(item)))
                 }
                 LeafEntry::Item(_) => {}
                 LeafEntry::Gap(offset) => {
                     match state {
                         Start => {
-                            if k + *offset > start {
+                            if k + offset > start {
                                 // We've passed the start of the replacement.
                                 // Keep the gap until the replacement starts.
                                 // Skip until the end of the replacement.
@@ -160,36 +172,37 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
                                 state = Skipping;
 
                                 // If this entry covers the entire replacement, we're done.
-                                if k + *offset >= end {
+                                if k + offset >= end {
                                     entries
                                         .push(replace_with.take().expect("used replacement twice"));
-                                    // `- 0`` is to consider the `replacement` length which is currently always 0
-                                    entries.push(LeafEntry::Gap(k + *offset - end - 0));
+                                    entries.push(LeafEntry::Gap(k + offset - end));
                                     state = Copy;
                                 }
                             } else {
-                                entries.push(LeafEntry::Gap(*offset));
+                                entries.push(LeafEntry::Gap(offset));
                             }
                         }
                         Skipping => {
-                            if k + *offset >= end {
+                            if k + offset >= end {
                                 // We've passed the end of the replacement.
                                 // Keep the gap until the end of the gap.
-                                entries.push(LeafEntry::Gap(*offset - (end - k)));
+                                entries.push(LeafEntry::Gap(offset - (end - k)));
                                 entries.push(replace_with.take().expect("used replacement twice"));
                                 state = Copy;
                             }
                         }
-                        Copy => entries.push(LeafEntry::Gap(*offset)),
+                        Copy => entries.push(LeafEntry::Gap(offset)),
                     }
 
-                    k += *offset;
+                    k += offset;
                 }
             }
         }
 
+        assert!(replace_with.is_none(), "replacement not used");
+
+        dbg!(&entries);
         let mut chunks = entries.array_chunks::<N>();
-        let n = chunks.len();
         self.entries = match chunks.next() {
             Some(chunk) => ArrayVec::from(chunk.clone()),
             None => ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
@@ -197,7 +210,7 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
 
         *summary = self.summarize();
 
-        if n <= 1 {
+        if chunks.len() == 0 {
             None
         } else {
             let rem = if chunks.remainder().is_empty() {
@@ -225,13 +238,14 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
 }
 
 impl<T: Item, const N: usize> BalancedLeaf for Leaf<T, N> {
-    fn is_underfilled(&self, summary: &Self::Summary) -> bool {
-        todo!()
+    // TODO implement
+    fn is_underfilled(&self, _summary: &Self::Summary) -> bool {
+        false
     }
 
     fn balance_leaves(
-        left: (&mut Self, &mut Self::Summary),
-        right: (&mut Self, &mut Self::Summary),
+        _left: (&mut Self, &mut Self::Summary),
+        _right: (&mut Self, &mut Self::Summary),
     ) {
         todo!()
     }
