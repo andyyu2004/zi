@@ -48,7 +48,7 @@ impl MarkTreeItem for usize {
 impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     pub fn new(n: usize) -> Self {
         let mut this = Self { tree: Tree::default() };
-        this.tree.replace(ByteMetric(0)..ByteMetric(0), LeafEntry::Gap(n));
+        this.replace_(0..0, LeafEntry::Gap(n));
         this
     }
 
@@ -59,7 +59,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
             #[coroutine]
             move || {
                 for leaf in leaves {
-                    for entry in leaf.data {
+                    for entry in leaf.entries {
                         match entry {
                             LeafEntry::Gap(n) => shift += n,
                             LeafEntry::Item(item) => yield item.at(shift),
@@ -109,20 +109,6 @@ struct Leaf<T: MarkTreeItem, const N: usize> {
     entries: ArrayVec<LeafEntry<T>, N>,
 }
 
-impl<T: MarkTreeItem, const N: usize> Leaf<T, N> {
-    #[inline]
-    fn len(&self) -> usize {
-        // TODO cache this computation
-        self.entries
-            .iter()
-            .map(|entry| match entry {
-                LeafEntry::Item(_) => 0,
-                LeafEntry::Gap(n) => *n,
-            })
-            .sum()
-    }
-}
-
 impl<T: MarkTreeItem, const N: usize> Default for Leaf<T, N> {
     fn default() -> Self {
         Self { entries: ArrayVec::new() }
@@ -132,7 +118,7 @@ impl<T: MarkTreeItem, const N: usize> Default for Leaf<T, N> {
 impl<T: MarkTreeItem, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
     #[inline]
     fn from(slice: LeafSlice<'_, T>) -> Self {
-        Self { entries: ArrayVec::try_from(slice.data).unwrap() }
+        Self { entries: ArrayVec::try_from(slice.entries).unwrap() }
     }
 }
 
@@ -150,12 +136,14 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
     where
         R: RangeBounds<ByteMetric>,
     {
-        let n = self.len();
+        debug_assert_eq!(*summary, self.summarize());
+        let n = summary.bytes;
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
         if self.entries.is_empty() {
             self.entries.push(replace_with);
+            *summary = self.summarize();
             return None;
         }
 
@@ -328,7 +316,7 @@ impl<T: MarkTreeItem, const N: usize> Summarize for Leaf<T, N> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
-        Summary { bytes: self.len() }
+        self.as_slice().summarize()
     }
 }
 
@@ -340,13 +328,13 @@ impl<T: MarkTreeItem, const N: usize> AsSlice for Leaf<T, N> {
     type Slice<'a> = LeafSlice<'a,  T> where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
-        LeafSlice { data: &self.entries }
+        LeafSlice { entries: &self.entries }
     }
 }
 
 #[derive(Debug, Clone)]
 struct LeafSlice<'a, T: MarkTreeItem> {
-    data: &'a [LeafEntry<T>],
+    entries: &'a [LeafEntry<T>],
 }
 
 impl<'a, T: MarkTreeItem> Copy for LeafSlice<'a, T> {}
@@ -355,7 +343,15 @@ impl<'a, T: MarkTreeItem> Summarize for LeafSlice<'a, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
-        todo!()
+        let bytes = self
+            .entries
+            .iter()
+            .map(|entry| match entry {
+                LeafEntry::Item(_) => 0,
+                LeafEntry::Gap(n) => *n,
+            })
+            .sum();
+        Summary { bytes }
     }
 }
 
