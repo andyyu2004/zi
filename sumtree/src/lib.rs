@@ -204,54 +204,64 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
                     builder.push(LeafEntry::Item(item))
                 }
                 LeafEntry::Item(_) => {}
-                LeafEntry::Gap(offset) => {
+                LeafEntry::Gap(gap) => {
                     match state {
                         Start => {
-                            if builder.offset + offset > start {
+                            if builder.offset + gap > start {
                                 // We've passed the start of the replacement.
                                 // Keep the gap until the replacement starts.
                                 // Skip until the end of the replacement.
-                                let start_gap = start - builder.offset;
-                                builder.push(LeafEntry::Gap(start_gap));
+                                let partial_gap = start - builder.offset;
+                                builder.push(LeafEntry::Gap(partial_gap));
+                                let remaining_gap = gap - partial_gap;
 
                                 state = Skipping;
 
                                 // If this entry covers the entire replacement, we're done.
-                                if builder.offset + offset >= end {
+                                if builder.offset + gap >= end {
                                     match replace_with.take().expect("used replacement twice") {
                                         LeafEntry::Item(item) => {
                                             builder.push(LeafEntry::Item(item));
-                                            builder.push(LeafEntry::Gap(
-                                                builder.offset + offset - end - start_gap,
-                                            ));
+                                            builder.push(LeafEntry::Gap(remaining_gap));
                                         }
-                                        LeafEntry::Gap(_gap) => todo!(),
+                                        LeafEntry::Gap(gap) => {
+                                            builder.push(LeafEntry::Gap(gap + remaining_gap))
+                                        }
                                     }
                                     state = Copy;
                                 }
                             } else {
-                                builder.push(LeafEntry::Gap(offset));
+                                builder.push(LeafEntry::Gap(gap));
                             }
                         }
                         Skipping => {
-                            if builder.offset + offset >= end {
+                            if builder.offset + gap >= end {
                                 // We've passed the end of the replacement.
                                 // Keep the gap until the end of the gap.
-                                builder.push(LeafEntry::Gap(offset - (end - builder.offset)));
-                                builder.push(replace_with.take().expect("used replacement twice"));
+                                builder.push(LeafEntry::Gap(gap - (end - builder.offset)));
+                                let replacement =
+                                    replace_with.take().expect("used replacement twice");
+                                match replacement {
+                                    LeafEntry::Item(item) => {
+                                        builder.push(LeafEntry::Item(item));
+                                    }
+                                    LeafEntry::Gap(_gap) => {
+                                        todo!();
+                                        // builder.push(LeafEntry::Gap(gap));
+                                    }
+                                }
+
                                 state = Copy;
                             }
                         }
-                        Copy => builder.push(LeafEntry::Gap(offset)),
+                        Copy => builder.push(LeafEntry::Gap(gap)),
                     }
                 }
             }
-            dbg!(&builder);
         }
 
         assert!(replace_with.is_none(), "replacement not used");
 
-        dbg!(&builder);
         let mut chunks = builder.entries.array_chunks::<N>();
         self.entries = match chunks.next() {
             Some(chunk) => ArrayVec::from(chunk.clone()),

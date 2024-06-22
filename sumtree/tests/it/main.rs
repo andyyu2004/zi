@@ -35,7 +35,7 @@ fn split() {
 
 #[test]
 fn shift() {
-    let mut tree = MarkTree::<_, 10>::new(100);
+    let mut tree = MarkTree::<_, 10>::new(10);
     tree.insert(1);
     check(tree.iter(), [1]);
 
@@ -51,11 +51,9 @@ fn smoke() {
 
     check(tree.iter(), [0, 3]);
 
-    // not sure about dups?
     tree.insert(3);
     check(tree.iter(), [0, 3, 3]);
 
-    dbg!("start");
     tree.insert(2);
     check(tree.iter(), [0, 2, 3, 3]);
 }
