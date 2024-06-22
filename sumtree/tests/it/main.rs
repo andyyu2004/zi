@@ -3,11 +3,11 @@ use std::fmt;
 use sumtree::MarkTree;
 
 #[track_caller]
-fn check<'a, T: Copy + Eq + fmt::Debug + 'a>(
-    values: impl Iterator<Item = &'a T> + 'a,
+fn check<T: Copy + Eq + fmt::Debug>(
+    values: impl Iterator<Item = T>,
     expected: impl IntoIterator<Item = T>,
 ) {
-    let values = values.copied().collect::<Vec<_>>();
+    let values = values.collect::<Vec<_>>();
     let expected = expected.into_iter().collect::<Vec<_>>();
     assert_eq!(values, expected);
 }
@@ -16,6 +16,7 @@ fn check<'a, T: Copy + Eq + fmt::Debug + 'a>(
 fn simple_insert() {
     let mut tree = MarkTree::<_, 10>::new(2);
     tree.insert(1);
+    dbg!(&tree);
 
     check(tree.iter(), [1]);
 
@@ -35,9 +36,10 @@ fn split() {
 
 #[test]
 fn shift() {
-    let mut tree = MarkTree::<_, 2>::new(100);
+    let mut tree = MarkTree::<_, 10>::new(100);
     tree.insert(1);
     check(tree.iter(), [1]);
+
     tree.shift(0..0, 2);
     check(tree.iter(), [3]);
 }

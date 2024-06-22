@@ -31,6 +31,11 @@ impl sumtree::Item for MarkItem {
     fn byte(&self) -> usize {
         self.byte
     }
+
+    #[inline]
+    fn at(&self, byte: usize) -> Self {
+        MarkItem { byte }
+    }
 }
 
 impl Marks {

@@ -18,12 +18,20 @@ pub struct MarkTree<T: Item, const N: usize> {
 
 pub trait Item: fmt::Debug + Clone + 'static {
     fn byte(&self) -> usize;
+
+    fn at(&self, byte: usize) -> Self;
 }
 
 impl Item for usize {
     #[inline]
     fn byte(&self) -> usize {
         *self
+    }
+
+    #[inline]
+    #[track_caller]
+    fn at(&self, byte: usize) -> Self {
+        byte
     }
 }
 
@@ -34,15 +42,17 @@ impl<const N: usize, T: Item> MarkTree<T, N> {
         this
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
+    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         let leaves = self.tree.leaves();
+        let mut shift = 0;
         iter::from_coroutine(
             #[coroutine]
-            || {
+            move || {
                 for leaf in leaves {
                     for entry in leaf.data {
-                        if let LeafEntry::Item(item) = entry {
-                            yield item;
+                        match entry {
+                            LeafEntry::Gap(n) => shift += n,
+                            LeafEntry::Item(item) => yield item.at(shift),
                         }
                     }
                 }
@@ -147,62 +157,95 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
             Copy,
         }
 
+        #[derive(Debug)]
+        struct EntryBuilder<T> {
+            offset: usize,
+            entries: Vec<LeafEntry<T>>,
+        }
+
+        impl<T> Default for EntryBuilder<T> {
+            fn default() -> Self {
+                Self { offset: 0, entries: Vec::new() }
+            }
+        }
+
+        impl<T: Item> EntryBuilder<T> {
+            fn push(&mut self, entry: LeafEntry<T>) {
+                let entry = match entry {
+                    LeafEntry::Item(item) => LeafEntry::Item(item.at(self.offset)),
+                    LeafEntry::Gap(gap) => {
+                        if gap == 0 {
+                            return;
+                        }
+
+                        self.offset += gap;
+
+                        if let Some(LeafEntry::Gap(last_gap)) = self.entries.last_mut() {
+                            *last_gap += gap;
+                            return;
+                        }
+
+                        LeafEntry::Gap(gap)
+                    }
+                };
+
+                self.entries.push(entry);
+            }
+        }
+
         use State::*;
 
         let mut state = State::Start;
-        let mut entries = Vec::new();
-        let mut k = 0;
+        let mut builder = EntryBuilder::default();
 
         for entry in self.entries.take() {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping) => {
-                    entries.push(dbg!(LeafEntry::Item(item)))
+                    builder.push(dbg!(LeafEntry::Item(item)))
                 }
                 LeafEntry::Item(_) => {}
                 LeafEntry::Gap(offset) => {
                     match state {
                         Start => {
-                            if k + offset > start {
+                            if builder.offset + offset > start {
                                 // We've passed the start of the replacement.
                                 // Keep the gap until the replacement starts.
                                 // Skip until the end of the replacement.
-                                if start - k > 0 {
-                                    entries.push(LeafEntry::Gap(start - k));
+                                if start - builder.offset > 0 {
+                                    builder.push(LeafEntry::Gap(start - builder.offset));
                                 }
                                 state = Skipping;
 
                                 // If this entry covers the entire replacement, we're done.
-                                if k + offset >= end {
-                                    entries
+                                if builder.offset + offset >= end {
+                                    builder
                                         .push(replace_with.take().expect("used replacement twice"));
-                                    entries.push(LeafEntry::Gap(k + offset - end));
+                                    builder.push(LeafEntry::Gap(builder.offset + offset - end));
                                     state = Copy;
                                 }
                             } else {
-                                entries.push(LeafEntry::Gap(offset));
+                                builder.push(LeafEntry::Gap(offset));
                             }
                         }
                         Skipping => {
-                            if k + offset >= end {
+                            if builder.offset + offset >= end {
                                 // We've passed the end of the replacement.
                                 // Keep the gap until the end of the gap.
-                                entries.push(LeafEntry::Gap(offset - (end - k)));
-                                entries.push(replace_with.take().expect("used replacement twice"));
+                                builder.push(LeafEntry::Gap(offset - (end - builder.offset)));
+                                builder.push(replace_with.take().expect("used replacement twice"));
                                 state = Copy;
                             }
                         }
-                        Copy => entries.push(LeafEntry::Gap(offset)),
+                        Copy => builder.push(LeafEntry::Gap(offset)),
                     }
-
-                    k += offset;
                 }
             }
         }
 
         assert!(replace_with.is_none(), "replacement not used");
 
-        dbg!(&entries);
-        let mut chunks = entries.array_chunks::<N>();
+        dbg!(&builder);
+        let mut chunks = builder.entries.array_chunks::<N>();
         self.entries = match chunks.next() {
             Some(chunk) => ArrayVec::from(chunk.clone()),
             None => ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
@@ -232,7 +275,7 @@ impl<T: Item, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
         }
     }
 
-    fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
+    fn remove_up_to(&mut self, _summary: &mut Self::Summary, _up_to: ByteMetric) {
         todo!()
     }
 }
@@ -452,5 +495,3 @@ where
 
     (start, end)
 }
-
-mod iter_chain {}
