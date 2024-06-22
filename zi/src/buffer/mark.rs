@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use sumtree::MarkTree;
+use zi_text::MarkTreeItem;
 
 use super::Buffer;
 
@@ -26,7 +26,7 @@ struct MarkItem {
     // id: MarkId,
 }
 
-impl sumtree::Item for MarkItem {
+impl MarkTreeItem for MarkItem {
     #[inline]
     fn byte(&self) -> usize {
         self.byte

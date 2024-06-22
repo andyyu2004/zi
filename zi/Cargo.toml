@@ -13,7 +13,6 @@ futures-core = { workspace = true }
 parking_lot = { workspace = true }
 regex-cursor = { workspace = true }
 mutants = { workspace = true }
-sumtree = { workspace = true }
 slotmap = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = { workspace = true }

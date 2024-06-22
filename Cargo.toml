@@ -13,7 +13,6 @@ members = [
     "zi-textobject",
     "zi-core",
     "zi-indent",
-    "sumtree",
     "asciicast",
 ]
 
@@ -26,7 +25,6 @@ zi-lsp = { path = "zi-lsp" }
 zi-text = { path = "zi-text" }
 zi-textobject = { path = "zi-textobject" }
 zi-tui = { path = "zi-tui" }
-sumtree = { path = "sumtree" }
 bitflags = "2.5.0"
 crop = { version = "0.4.2", features = ["graphemes", "utf16-metric"] }
 stdx = { path = "stdx" }
