@@ -9,51 +9,52 @@ use crate::Deltas;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Bias {
-    // Important `Left < Right`
+    // Important that `Self::Left < Self::Right`
     #[default]
     Left,
     Right,
 }
 
-slotmap::new_key_type! {
-    pub struct MarkId;
-}
-
 const ARITY: usize = 4;
 
+/// A tree of ordered items that each have a byte position.
+/// This can be edited efficiently (logarithmic time) with `Deltas`.
 #[derive(Debug)]
 pub struct MarkTree<T: MarkTreeItem, const N: usize> {
     tree: Tree<ARITY, Leaf<T, N>>,
 }
 
 pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
+    type Id: Eq;
+
+    /// The `id` of the item.
+    fn id(&self) -> Self::Id;
+
+    /// The byte position of the item.
     fn byte(&self) -> usize;
 
+    /// Returns a new item with the same data at the given byte position.
     fn at(&self, byte: usize) -> Self;
 }
 
-impl MarkTreeItem for usize {
-    #[inline]
-    fn byte(&self) -> usize {
-        *self
-    }
+// (byte, id)
+// Makes sense for the `byte` to come first as it determines the order.
+impl<I: Eq + Copy + fmt::Debug + 'static> MarkTreeItem for (usize, I) {
+    type Id = I;
 
-    #[inline]
-    #[track_caller]
-    fn at(&self, byte: usize) -> Self {
-        byte
-    }
-}
-
-impl<T: Clone + fmt::Debug + 'static> MarkTreeItem for (usize, T) {
     #[inline]
     fn byte(&self) -> usize {
         self.0
     }
 
     #[inline]
+    fn id(&self) -> Self::Id {
+        self.1
+    }
+
+    #[inline]
     fn at(&self, byte: usize) -> Self {
-        (byte, self.1.clone())
+        (byte, self.1)
     }
 }
 
@@ -608,27 +609,32 @@ mod tests {
     fn remove_up_to() {
         #[track_caller]
         fn check<const N: usize>(
-            iter: impl IntoIterator<Item = LeafEntry<usize>>,
+            iter: impl IntoIterator<Item = LeafEntry<(usize, usize)>>,
             up_to: usize,
-            expected: impl IntoIterator<Item = LeafEntry<usize>>,
+            expected: impl IntoIterator<Item = LeafEntry<(usize, usize)>>,
             expected_summary: Summary,
         ) {
-            let mut leaf = Leaf::<usize, N>::from(ArrayVec::from_iter(iter));
+            let mut leaf = Leaf::<(usize, usize), N>::from(ArrayVec::from_iter(iter));
             let mut summary = leaf.summarize();
             leaf.remove_up_to(&mut summary, ByteMetric(up_to));
             assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
             assert_eq!(summary, expected_summary);
         }
 
-        check::<4>([Item(0), Gap(1), Item(1)], 1, [], Summary { bytes: 0 });
+        check::<4>([Item((0, 0)), Gap(1), Item((1, 1))], 1, [], Summary { bytes: 0 });
 
         check::<10>(
-            [Item(0), Gap(1), Item(1), Gap(1), Item(2)],
+            [Item((0, 0)), Gap(1), Item((1, 1)), Gap(1), Item((2, 2))],
             1,
-            [Gap(1), Item(1)],
+            [Gap(1), Item((1, 2))],
             Summary { bytes: 1 },
         );
 
-        check::<10>([Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(1)], Summary { bytes: 1 });
+        check::<10>(
+            [Gap(1), Item((1, 0)), Gap(1), Item((2, 1))],
+            1,
+            [Gap(1), Item((1, 1))],
+            Summary { bytes: 1 },
+        );
     }
 }

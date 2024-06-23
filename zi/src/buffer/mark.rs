@@ -34,6 +34,13 @@ struct MarkItem {
 }
 
 impl MarkTreeItem for MarkItem {
+    type Id = MarkId;
+
+    #[inline]
+    fn id(&self) -> MarkId {
+        self.id
+    }
+
     #[inline]
     fn byte(&self) -> usize {
         self.byte
