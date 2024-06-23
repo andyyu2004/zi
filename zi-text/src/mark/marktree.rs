@@ -3,7 +3,7 @@ use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
-    AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
+    AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
 use stdx::iter::ExactChain;
@@ -83,6 +83,12 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn get(&self, id: T::Id) -> Option<T> {
+        let (offset, leaf) = self.find(id)?;
+        let item = leaf.as_slice().get(id)?;
+        Some(item.at(offset + item.byte()))
+    }
+
+    fn find(&self, id: T::Id) -> Option<(usize, &Lnode<Leaf<T, N>>)> {
         let raw_id = id.into();
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
@@ -110,11 +116,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                         })?
                         .as_ref();
                 }
-                Node::Leaf(leaf) => {
-                    let item = leaf.as_slice().get(id)?;
-                    let item = item.at(offset + item.byte());
-                    return Some(item);
-                }
+                Node::Leaf(leaf) => return Some((offset, leaf)),
             }
         }
     }
@@ -151,6 +153,14 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
             self.len()
         );
         self.replace(byte..byte, LeafEntry::Item(item))
+    }
+
+    pub fn delete(&mut self, id: T::Id) -> Option<T> {
+        if !self.tree.summary().ids.contains(id.into()) {
+            return None;
+        }
+
+        todo!()
     }
 
     /// Clear the marks in the given range.

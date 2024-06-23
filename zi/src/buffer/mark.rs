@@ -11,7 +11,11 @@ slotmap::new_key_type! {
 
 impl Buffer {
     pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
-        self.marks.insert(builder)
+        self.marks.create(builder)
+    }
+
+    pub(crate) fn delete_mark(&mut self, mark_id: MarkId) {
+        self.marks.remove(mark_id);
     }
 
     pub(crate) fn marks(&self) -> impl Iterator<Item = &Mark> + '_ {
@@ -71,12 +75,17 @@ impl Marks {
         self.tree.len()
     }
 
-    pub fn insert(&mut self, builder: MarkBuilder) -> MarkId {
+    pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
         let item = MarkItem { byte, id };
         self.tree.insert(item);
         id
+    }
+
+    pub fn delete(&mut self, mark_id: MarkId) {
+        let mark = self.marks.remove(mark_id);
+        self.tree.delete(MarkIdWrapper(mark_id));
     }
 
     #[inline]
