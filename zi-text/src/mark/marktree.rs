@@ -163,7 +163,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         // Splitting is also done naively by collecting into a vec and then splitting into arrays
         enum State {
             Start,
-            Skipping,
+            Skipping { skipped: usize },
             Copy,
         }
 
@@ -210,7 +210,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
 
         for entry in self.entries.take() {
             match entry {
-                LeafEntry::Item(item) if !matches!(state, Skipping) => {
+                LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     builder.push(LeafEntry::Item(item))
                 }
                 LeafEntry::Item(_) => {}
@@ -224,7 +224,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                                 let partial_gap = start - builder.offset;
                                 builder.push(LeafEntry::Gap(partial_gap));
 
-                                state = Skipping;
+                                state = Skipping { skipped: gap - partial_gap };
 
                                 // If this entry covers the entire replacement, we're done.
                                 if builder.offset + gap >= end {
@@ -244,22 +244,22 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                                 builder.push(LeafEntry::Gap(gap));
                             }
                         }
-                        Skipping => {
+                        Skipping { skipped } => {
                             if builder.offset + gap >= end {
                                 // We've passed the end of the replacement.
-                                // Keep the gap until the end of the gap.
-                                builder.push(LeafEntry::Gap(gap - (end - builder.offset)));
+                                // Keep the rest of the gap until the end of the skip.
+                                builder
+                                    .push(LeafEntry::Gap(skipped + gap - (end - builder.offset)));
                                 let replacement =
                                     replace_with.take().expect("used replacement twice");
                                 match replacement {
                                     LeafEntry::Item(item) => builder.push(LeafEntry::Item(item)),
-                                    LeafEntry::Gap(gap) => {
-                                        dbg!(&builder);
-                                        builder.push(LeafEntry::Gap(dbg!(gap)))
-                                    }
+                                    LeafEntry::Gap(gap) => builder.push(LeafEntry::Gap(gap)),
                                 }
 
                                 state = Copy;
+                            } else {
+                                state = Skipping { skipped: skipped + gap };
                             }
                         }
                         Copy => builder.push(LeafEntry::Gap(gap)),

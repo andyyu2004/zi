@@ -24,9 +24,7 @@ fn marktree_remove_range() {
     check(tree.iter(), [1]);
     assert_eq!(tree.len(), 10);
 
-    dbg!(&tree);
     tree.remove_range(0..2);
-    dbg!(&tree);
     check(tree.iter(), []);
     assert_eq!(tree.len(), 10);
 }
