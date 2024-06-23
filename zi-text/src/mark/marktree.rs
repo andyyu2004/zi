@@ -156,7 +156,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn delete(&mut self, id: T::Id) -> Option<T> {
-        let item = self.get(id)?;
+        let _item = self.get(id)?;
         // Delete item by range somehow
 
         todo!()
@@ -556,14 +556,16 @@ impl Sub<&Self> for Summary {
 impl AddAssign<Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        *self += &rhs;
+        self.bytes += rhs.bytes;
+        self.ids |= rhs.ids;
     }
 }
 
 impl SubAssign<Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
-        *self -= &rhs;
+        self.bytes -= rhs.bytes;
+        self.ids -= rhs.ids;
     }
 }
 

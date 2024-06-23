@@ -83,9 +83,15 @@ impl Marks {
         id
     }
 
-    pub fn delete(&mut self, mark_id: MarkId) {
-        let mark = self.marks.remove(mark_id);
-        self.tree.delete(MarkIdWrapper(mark_id));
+    pub fn delete(&mut self, mark_id: MarkId) -> Option<Mark> {
+        let mark = self.marks.remove(mark_id)?;
+        let item = self
+            .tree
+            .delete(MarkIdWrapper(mark_id))
+            .expect("if map contains mark, tree should too");
+        debug_assert_eq!(item.id, mark_id);
+        mark.byte.set(item.byte);
+        Some(mark)
     }
 
     #[inline]
