@@ -3723,6 +3723,7 @@ dependencies = [
  "regex-cursor",
  "slotmap",
  "stdx",
+ "test-strategy",
  "zi-core",
 ]
 
