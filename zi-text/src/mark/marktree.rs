@@ -93,8 +93,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
-            let shift = delta.text().len().saturating_sub(range.end - range.start);
-            self.replace_(range, LeafEntry::Gap(shift));
+            self.replace_(range, LeafEntry::Gap(delta.text().len()));
         }
     }
 }

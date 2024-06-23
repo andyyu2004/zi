@@ -43,6 +43,11 @@ impl Marks {
         Marks { marks: SlotMap::default(), tree: MarkTree::new(n) }
     }
 
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.tree.len()
+    }
+
     pub fn insert(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
