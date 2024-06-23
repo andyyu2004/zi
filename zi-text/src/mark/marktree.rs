@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
+use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
@@ -82,12 +82,13 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         self.tree.replace(ByteMetric(byte)..ByteMetric(byte), LeafEntry::Item(item))
     }
 
-    pub fn replace(&mut self, range: Range<usize>, replace_with: T) {
+    pub fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: T) {
         self.replace_(range, LeafEntry::Item(replace_with));
     }
 
-    fn replace_(&mut self, range: Range<usize>, replace_with: LeafEntry<T>) {
-        self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), replace_with);
+    fn replace_(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry<T>) {
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
 
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
