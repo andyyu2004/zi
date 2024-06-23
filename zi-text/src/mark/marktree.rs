@@ -106,7 +106,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum LeafEntry<T> {
     Item(T),
     Gap(usize),
@@ -118,16 +118,23 @@ struct Leaf<T: MarkTreeItem, const N: usize> {
     entries: ArrayVec<LeafEntry<T>, N>,
 }
 
+impl<T: MarkTreeItem, const N: usize> From<ArrayVec<LeafEntry<T>, N>> for Leaf<T, N> {
+    #[inline]
+    fn from(entries: ArrayVec<LeafEntry<T>, N>) -> Self {
+        Self { entries }
+    }
+}
+
 impl<T: MarkTreeItem, const N: usize> Default for Leaf<T, N> {
     fn default() -> Self {
-        Self { entries: ArrayVec::new() }
+        Self::from(ArrayVec::new())
     }
 }
 
 impl<T: MarkTreeItem, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
     #[inline]
     fn from(slice: LeafSlice<'_, T>) -> Self {
-        Self { entries: ArrayVec::try_from(slice.entries).unwrap() }
+        Self::from(ArrayVec::try_from(slice.entries).unwrap())
     }
 }
 
@@ -294,7 +301,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                     .cloned()
                     .map(ArrayVec::from)
                     .exact_chain(rem)
-                    .map(|entries| Leaf { entries })
+                    .map(Leaf::from)
                     // TODO maybe can avoid the collect here
                     .collect::<Vec<_>>()
                     .into_iter(),
@@ -302,8 +309,42 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         }
     }
 
-    fn remove_up_to(&mut self, _summary: &mut Self::Summary, _up_to: ByteMetric) {
-        todo!()
+    fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
+        let ByteMetric(up_to) = up_to;
+
+        assert!(up_to <= summary.bytes);
+        let mut offset = 0;
+
+        *self = Self {
+            entries: self
+                .entries
+                .take()
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    LeafEntry::Item(item) => {
+                        (offset > up_to).then(|| LeafEntry::Item(item.at(item.byte() - up_to)))
+                    }
+                    LeafEntry::Gap(gap) if offset + gap <= up_to => {
+                        offset += gap;
+                        None
+                    }
+                    LeafEntry::Gap(gap) if offset < up_to && offset + gap > up_to => {
+                        todo!();
+                        // We know that `summary.bytes + gap >= up_to`.
+                        let remaining_gap = offset + gap - up_to;
+                        offset = up_to;
+
+                        if remaining_gap > 0 { Some(LeafEntry::Gap(remaining_gap)) } else { None }
+                    }
+                    LeafEntry::Gap(gap) => {
+                        offset += gap;
+                        Some(entry)
+                    }
+                })
+                .collect(),
+        };
+
+        *summary = self.summarize();
     }
 }
 
@@ -529,4 +570,37 @@ where
     };
 
     (start, end)
+}
+
+#[cfg(test)]
+mod tests {
+    use LeafEntry::*;
+
+    use super::*;
+
+    #[test]
+    fn remove_up_to() {
+        #[track_caller]
+        fn check<const N: usize>(
+            iter: impl IntoIterator<Item = LeafEntry<usize>>,
+            up_to: usize,
+            expected: impl IntoIterator<Item = LeafEntry<usize>>,
+            expected_summary: Summary,
+        ) {
+            let mut leaf = Leaf::<usize, N>::from(ArrayVec::from_iter(iter));
+            let mut summary = leaf.summarize();
+            leaf.remove_up_to(&mut summary, ByteMetric(up_to));
+            assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
+            assert_eq!(summary, expected_summary);
+        }
+
+        check::<4>([Item(0), Gap(1), Item(1)], 1, [], Summary { bytes: 0 });
+
+        check::<10>(
+            [Item(0), Gap(1), Item(1), Gap(1), Item(2)],
+            1,
+            [Gap(1), Item(1)],
+            Summary { bytes: 1 },
+        );
+    }
 }
