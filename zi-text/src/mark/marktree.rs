@@ -19,6 +19,10 @@ const ARITY: usize = 4;
 
 /// A tree of ordered items that each have a byte position.
 /// This can be edited efficiently (logarithmic time) with `Deltas`.
+//
+// This is implemented in a way that is basically a rope but instead of actually representing
+// string data it's compressed into `Gap`s with `Item`s in between.
+// The `Item` are always zero-width and are used to represent the byte positions of the items.
 #[derive(Debug)]
 pub struct MarkTree<T: MarkTreeItem, const N: usize> {
     tree: Tree<ARITY, Leaf<T, N>>,
