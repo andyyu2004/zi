@@ -50,7 +50,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     /// This should be equal to the length of the text in bytes.
     pub fn new(n: usize) -> Self {
         let mut this = Self { tree: Tree::default() };
-        this.replace_(0..0, LeafEntry::Gap(n));
+        this.replace(0..0, LeafEntry::Gap(n));
         this
     }
 
@@ -79,23 +79,19 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
 
     pub fn insert(&mut self, item: T) {
         let byte = item.byte();
-        self.tree.replace(ByteMetric(byte)..ByteMetric(byte), LeafEntry::Item(item))
-    }
-
-    pub fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: T) {
-        self.replace_(range, LeafEntry::Item(replace_with));
-    }
-
-    fn replace_(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry<T>) {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
+        self.replace(byte..byte, LeafEntry::Item(item))
     }
 
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
-            self.replace_(range, LeafEntry::Gap(delta.text().len()));
+            self.replace(range, LeafEntry::Gap(delta.text().len()));
         }
+    }
+
+    fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry<T>) {
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
 }
 

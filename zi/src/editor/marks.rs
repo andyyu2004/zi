@@ -1,13 +1,18 @@
 use super::{Editor, Selector};
-use crate::{BufferId, MarkBuilder, MarkId};
+use crate::{BufferId, Mark, MarkBuilder, MarkId};
 
 impl Editor {
+    #[inline]
+    pub fn marks(&self, selector: impl Selector<BufferId>) -> impl Iterator<Item = &Mark> {
+        self.buffer(selector).marks()
+    }
+
+    #[inline]
     pub fn create_mark(
         &mut self,
         selector: impl Selector<BufferId>,
         builder: MarkBuilder,
     ) -> MarkId {
-        let buf = selector.select(self);
-        self[buf].create_mark(builder)
+        self.buffer_mut(selector).create_mark(builder)
     }
 }

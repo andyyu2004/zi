@@ -8,6 +8,7 @@
 )]
 
 pub use tui::LineNumberStyle;
+pub use zi_text::deltas;
 mod boring_impls;
 pub mod buffer;
 mod command;

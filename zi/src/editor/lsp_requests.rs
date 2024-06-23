@@ -497,7 +497,7 @@ impl Editor {
                                     lsp_types::SemanticTokensFullDeltaResult::TokensDelta(delta) => {
                                         cache.last_request_id = delta.result_id;
                                         for edit in delta.edits {
-                                            // It's still entirely how multiple edits compose, are the "sequential" or "simultaneous"?
+                                            // It's still not entirely clear how multiple edits compose, are the "sequential" or "simultaneous"?
                                             // https://github.com/microsoft/vscode-extension-samples/blob/5ae1f7787122812dcc84e37427ca90af5ee09f14/semantic-tokens-sample/vscode.proposed.d.ts#L131
                                             todo!("{edit:?}");
                                         }
