@@ -18,6 +18,13 @@ memmap2 = "0.9.4"
 expect-test = { workspace = true }
 proptest = { workspace = true }
 test-strategy = { workspace = true }
+divan = { workspace = true }
 
 [lints]
 workspace = true
+
+[[bench]]
+name = "marktree"
+harness = false
+
+

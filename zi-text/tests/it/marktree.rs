@@ -177,3 +177,14 @@ fn marktree_get() {
     assert_eq!(tree.get(3), None);
     assert_eq!(tree.get(4), Some((2, 4)));
 }
+
+#[test]
+fn marktree_bulk_get() {
+    let mut tree = MarkTree::<_, 8>::new(10000);
+    let k = 4000;
+    (0..k).for_each(|i| tree.insert((i, i as u64)));
+    (0..k).for_each(|i| {
+        let item = tree.get(i as u64);
+        assert_eq!(item, Some((i, i as u64)));
+    });
+}

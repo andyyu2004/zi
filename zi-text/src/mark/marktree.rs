@@ -90,6 +90,8 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
             return None;
         }
 
+        let mut offset = 0;
+
         loop {
             debug_assert!(node.summary().ids.contains(raw_id));
             match node {
@@ -97,11 +99,21 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                     node = inode
                         .children()
                         .iter()
-                        .find(|child| child.summary().ids.contains(raw_id))?
+                        .find(|child| {
+                            let summary = child.summary();
+                            if summary.ids.contains(raw_id) {
+                                true
+                            } else {
+                                offset += summary.bytes;
+                                false
+                            }
+                        })?
                         .as_ref();
                 }
                 Node::Leaf(leaf) => {
-                    return Some(leaf.as_slice().get(id).expect("bitmap said it's here").clone());
+                    let item = leaf.as_slice().get(id)?;
+                    let item = item.at(offset + item.byte());
+                    return Some(item);
                 }
             }
         }
@@ -450,10 +462,17 @@ struct LeafSlice<'a, T: MarkTreeItem> {
 }
 
 impl<'a, T: MarkTreeItem> LeafSlice<'a, T> {
-    fn get(&self, id: T::Id) -> Option<&T> {
+    /// Return the item with the given `id` if it exists.
+    /// The item `byte` is relative to the start of the leaf node.
+    fn get(&self, id: T::Id) -> Option<T> {
+        let mut offset = 0;
         self.entries.iter().find_map(|entry| match entry {
-            LeafEntry::Item(item) if item.id() == id => Some(item),
-            _ => None,
+            LeafEntry::Item(item) if item.id() == id => Some(item.at(offset)),
+            LeafEntry::Item(_) => None,
+            LeafEntry::Gap(gap) => {
+                offset += *gap;
+                None
+            }
         })
     }
 }
