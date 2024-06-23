@@ -20,7 +20,7 @@ fn marktree_remove_range() {
     assert_iter_eq(tree.iter(), [(0, 0)]);
     assert_eq!(tree.len(), 10);
 
-    tree.remove_range(0..1);
+    tree.clear_range(0..1);
     assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 10);
 
@@ -28,11 +28,11 @@ fn marktree_remove_range() {
     assert_iter_eq(tree.iter(), [(1, 1)]);
     assert_eq!(tree.len(), 10);
 
-    tree.remove_range(0..1);
+    tree.clear_range(0..1);
     assert_iter_eq(tree.iter(), [(1, 1)]);
     assert_eq!(tree.len(), 10);
 
-    tree.remove_range(0..2);
+    tree.clear_range(0..2);
     assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 10);
 }
@@ -46,11 +46,11 @@ fn marktree_bulk_remove_range() {
     assert_iter_eq(tree.iter(), (0..100).map(|i| (i, i)));
     assert_eq!(tree.len(), LEN);
 
-    tree.remove_range(0..20);
+    tree.clear_range(0..20);
     assert_iter_eq(tree.iter(), (20..100).map(|i| (i, i)));
     assert_eq!(tree.len(), LEN);
 
-    tree.remove_range(80..100);
+    tree.clear_range(80..100);
     assert_iter_eq(tree.iter(), (20..80).map(|i| (i, i)));
     assert_eq!(tree.len(), LEN);
 }

@@ -102,9 +102,9 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         self.replace(byte..byte, LeafEntry::Item(item))
     }
 
-    /// Removes the marks in the given range.
+    /// Clear the marks in the given range.
     /// This does not affect `self.len()`;
-    pub fn remove_range(&mut self, range: impl RangeBounds<usize>) {
+    pub fn clear_range(&mut self, range: impl RangeBounds<usize>) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.replace(start..end, LeafEntry::Gap(end - start));
     }
