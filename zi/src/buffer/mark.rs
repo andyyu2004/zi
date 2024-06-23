@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use slotmap::SlotMap;
+use slotmap::{Key, SlotMap};
 use zi_text::{Deltas, MarkTree, MarkTreeItem};
 
 use super::Buffer;
@@ -33,12 +33,21 @@ struct MarkItem {
     id: MarkId,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct MarkIdWrapper(MarkId);
+
+impl From<MarkIdWrapper> for u64 {
+    fn from(wrapper: MarkIdWrapper) -> u64 {
+        wrapper.0.data().as_ffi()
+    }
+}
+
 impl MarkTreeItem for MarkItem {
-    type Id = MarkId;
+    type Id = MarkIdWrapper;
 
     #[inline]
-    fn id(&self) -> MarkId {
-        self.id
+    fn id(&self) -> Self::Id {
+        MarkIdWrapper(self.id)
     }
 
     #[inline]

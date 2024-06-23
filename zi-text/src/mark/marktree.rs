@@ -29,7 +29,7 @@ pub struct MarkTree<T: MarkTreeItem, const N: usize> {
 }
 
 pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
-    type Id: Eq;
+    type Id: Eq + Copy + Into<u64>;
 
     /// The `id` of the item.
     fn id(&self) -> Self::Id;
@@ -43,7 +43,7 @@ pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
 
 // (byte, id)
 // Makes sense for the `byte` to come first as it determines the order.
-impl<I: Eq + Copy + fmt::Debug + 'static> MarkTreeItem for (usize, I) {
+impl<I: Eq + Copy + Into<u64> + fmt::Debug + 'static> MarkTreeItem for (usize, I) {
     type Id = I;
 
     #[inline]
@@ -74,6 +74,11 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     #[inline]
     pub fn len(&self) -> usize {
         self.tree.summary().bytes
+    }
+
+    pub fn get(&self, id: T::Id) -> Option<T> {
+        // FIXME slow
+        self.iter().find(|item| item.id() == id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
@@ -613,12 +618,12 @@ mod tests {
     fn remove_up_to() {
         #[track_caller]
         fn check<const N: usize>(
-            iter: impl IntoIterator<Item = LeafEntry<(usize, usize)>>,
+            iter: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
             up_to: usize,
-            expected: impl IntoIterator<Item = LeafEntry<(usize, usize)>>,
+            expected: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
             expected_summary: Summary,
         ) {
-            let mut leaf = Leaf::<(usize, usize), N>::from(ArrayVec::from_iter(iter));
+            let mut leaf = Leaf::<(usize, u64), N>::from(ArrayVec::from_iter(iter));
             let mut summary = leaf.summarize();
             leaf.remove_up_to(&mut summary, ByteMetric(up_to));
             assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
