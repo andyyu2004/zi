@@ -168,6 +168,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         // naive algorithm for now
         // rebuild `self` with the new entry spliced in appropriately
         // Splitting is also done naively by collecting into a vec and then splitting into arrays
+        #[derive(Debug, PartialEq, Eq)]
         enum State {
             Start,
             Skipping { skipped: usize },
@@ -212,13 +213,17 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
 
         use State::*;
 
-        let mut state = State::Start;
+        // let mut state = if start == 0 { Skipping { skipped: 0 } } else { Start };
+        let mut state = Start;
         let mut builder = EntryBuilder::default();
 
         for entry in self.entries.take() {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
-                    builder.push(LeafEntry::Item(item))
+                    let byte = builder.offset;
+                    if byte < start || byte >= end {
+                        builder.push(LeafEntry::Item(item))
+                    }
                 }
                 LeafEntry::Item(_) => {}
                 LeafEntry::Gap(gap) => {
@@ -602,5 +607,7 @@ mod tests {
             [Gap(1), Item(1)],
             Summary { bytes: 1 },
         );
+
+        check::<10>([Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(1)], Summary { bytes: 1 });
     }
 }

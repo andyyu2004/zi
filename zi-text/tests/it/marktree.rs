@@ -16,6 +16,14 @@ fn check<T: Copy + Eq + fmt::Debug>(
 fn marktree_remove_range() {
     let mut tree = MarkTree::<_, 10>::new(10);
 
+    tree.insert(0);
+    check(tree.iter(), [0]);
+    assert_eq!(tree.len(), 10);
+
+    tree.remove_range(0..1);
+    check(tree.iter(), []);
+    assert_eq!(tree.len(), 10);
+
     tree.insert(1);
     check(tree.iter(), [1]);
     assert_eq!(tree.len(), 10);
@@ -27,6 +35,24 @@ fn marktree_remove_range() {
     tree.remove_range(0..2);
     check(tree.iter(), []);
     assert_eq!(tree.len(), 10);
+}
+
+#[test]
+fn marktree_bulk_remove_range_tmp() {
+    const LEN: usize = 100;
+    let mut tree = MarkTree::<_, 2>::new(LEN);
+
+    (0..3).for_each(|i| tree.insert(i));
+
+    check(tree.iter(), 0..3);
+    assert_eq!(tree.len(), LEN);
+
+    dbg!(&tree);
+    tree.remove_range(0..2);
+    dbg!(&tree);
+
+    check(tree.iter(), 2..3);
+    assert_eq!(tree.len(), LEN);
 }
 
 #[test]
