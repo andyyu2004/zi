@@ -45,6 +45,18 @@ impl MarkTreeItem for usize {
     }
 }
 
+impl<T: Clone + fmt::Debug + 'static> MarkTreeItem for (usize, T) {
+    #[inline]
+    fn byte(&self) -> usize {
+        self.0
+    }
+
+    #[inline]
+    fn at(&self, byte: usize) -> Self {
+        (byte, self.1.clone())
+    }
+}
+
 impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     /// Creates a new `MarkTree` with a single gap of `n` bytes.
     /// This should be equal to the length of the text in bytes.
@@ -81,6 +93,11 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     /// This does not affect `self.len()`.
     pub fn insert(&mut self, item: T) {
         let byte = item.byte();
+        assert!(
+            byte < self.len(),
+            "byte {byte} out of bounds of marktree of length {}",
+            self.len()
+        );
         self.replace(byte..byte, LeafEntry::Item(item))
     }
 
@@ -286,33 +303,37 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         }
 
         let mut chunks = builder.entries.array_chunks::<N>();
-        self.entries = match chunks.next() {
-            Some(chunk) => ArrayVec::from(chunk.clone()),
-            None => ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+        let (chunk, used_remainder) = match chunks.next() {
+            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
+            None => (
+                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+                true,
+            ),
         };
+        self.entries = chunk;
 
         *summary = self.summarize();
 
-        if chunks.len() == 0 {
+        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+            return None;
+        }
+
+        let rem = if chunks.remainder().is_empty() {
             None
         } else {
-            let rem = if chunks.remainder().is_empty() {
-                None
-            } else {
-                Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
-            };
+            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+        };
 
-            Some(
-                chunks
-                    .cloned()
-                    .map(ArrayVec::from)
-                    .exact_chain(rem)
-                    .map(Leaf::from)
-                    // TODO maybe can avoid the collect here
-                    .collect::<Vec<_>>()
-                    .into_iter(),
-            )
-        }
+        Some(
+            chunks
+                .cloned()
+                .map(ArrayVec::from)
+                .exact_chain(rem)
+                .map(Leaf::from)
+                // TODO maybe can avoid the collect here
+                .collect::<Vec<_>>()
+                .into_iter(),
+        )
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {

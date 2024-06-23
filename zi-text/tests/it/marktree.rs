@@ -3,7 +3,7 @@ use std::fmt;
 use zi_text::{deltas, MarkTree};
 
 #[track_caller]
-fn check<T: Copy + Eq + fmt::Debug>(
+fn assert_iter_eq<T: Copy + Eq + fmt::Debug>(
     values: impl Iterator<Item = T>,
     expected: impl IntoIterator<Item = T>,
 ) {
@@ -17,23 +17,23 @@ fn marktree_remove_range() {
     let mut tree = MarkTree::<_, 10>::new(10);
 
     tree.insert(0);
-    check(tree.iter(), [0]);
+    assert_iter_eq(tree.iter(), [0]);
     assert_eq!(tree.len(), 10);
 
     tree.remove_range(0..1);
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 10);
 
     tree.insert(1);
-    check(tree.iter(), [1]);
+    assert_iter_eq(tree.iter(), [1]);
     assert_eq!(tree.len(), 10);
 
     tree.remove_range(0..1);
-    check(tree.iter(), [1]);
+    assert_iter_eq(tree.iter(), [1]);
     assert_eq!(tree.len(), 10);
 
     tree.remove_range(0..2);
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 10);
 }
 
@@ -43,15 +43,15 @@ fn marktree_bulk_remove_range() {
     let mut tree = MarkTree::<_, 2>::new(LEN);
 
     (0..100).for_each(|i| tree.insert(i));
-    check(tree.iter(), 0..100);
+    assert_iter_eq(tree.iter(), 0..100);
     assert_eq!(tree.len(), LEN);
 
     tree.remove_range(0..20);
-    check(tree.iter(), 20..100);
+    assert_iter_eq(tree.iter(), 20..100);
     assert_eq!(tree.len(), LEN);
 
     tree.remove_range(80..100);
-    check(tree.iter(), 20..80);
+    assert_iter_eq(tree.iter(), 20..80);
     assert_eq!(tree.len(), LEN);
 }
 
@@ -60,27 +60,50 @@ fn marktree_simple_insert() {
     let mut tree = MarkTree::<_, 10>::new(2);
     tree.insert(1);
 
-    check(tree.iter(), [1]);
+    assert_iter_eq(tree.iter(), [1]);
 
     tree.insert(1);
-    check(tree.iter(), [1, 1]);
+    assert_iter_eq(tree.iter(), [1, 1]);
 
     tree.insert(0);
-    check(tree.iter(), [0, 1, 1]);
+    assert_iter_eq(tree.iter(), [0, 1, 1]);
 }
 
 #[test]
 fn marktree_split() {
     let mut tree = MarkTree::<_, 2>::new(100);
     (0..100).for_each(|i| tree.insert(i));
-    check(tree.iter(), 0..100);
+    assert_iter_eq(tree.iter(), 0..100);
+}
+
+#[test]
+fn marktree_bulk_insert() {
+    #[track_caller]
+    fn check<const N: usize>() {
+        const LEN: usize = 1000;
+        let mut tree = MarkTree::<_, N>::new(LEN);
+        let k = 500;
+        let values = (0..k).map(|i| (i, i)).collect::<Vec<_>>();
+        values.iter().for_each(|&i| {
+            tree.insert(i);
+            assert_eq!(tree.len(), LEN);
+            assert_iter_eq(tree.iter().map(|(a, _)| a), 0..=i.0);
+        });
+    }
+
+    check::<2>();
+    check::<3>();
+    check::<4>();
+    check::<5>();
+    check::<6>();
+    check::<7>();
 }
 
 #[test]
 fn marktree_append() {
     let mut tree = MarkTree::<usize, 32>::new(0);
     tree.edit(&deltas![0..0 => "a"]);
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 1);
 }
 
@@ -89,11 +112,11 @@ fn marktree_append_delete() {
     let mut tree = MarkTree::<usize, 32>::new(0);
 
     tree.edit(&deltas![0..0 => "a"]);
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 1);
 
     tree.edit(&deltas![0..1 => ""]);
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 0);
 }
 
@@ -103,7 +126,7 @@ fn marktree_delete() {
     assert_eq!(tree.len(), 3);
     tree.edit(&deltas![0..3 => "a"]);
 
-    check(tree.iter(), []);
+    assert_iter_eq(tree.iter(), []);
     assert_eq!(tree.len(), 1);
 }
 
@@ -112,15 +135,15 @@ fn marktree_edit() {
     let mut tree = MarkTree::<_, 10>::new(10);
 
     tree.insert(1);
-    check(tree.iter(), [1]);
+    assert_iter_eq(tree.iter(), [1]);
 
     tree.edit(&deltas![0..0 => "ab"]);
-    check(tree.iter(), [3]);
+    assert_iter_eq(tree.iter(), [3]);
     assert_eq!(tree.len(), 12);
 
     tree.edit(&deltas![0..1 => ""]);
     assert_eq!(tree.len(), 11);
-    check(tree.iter(), [2]);
+    assert_iter_eq(tree.iter(), [2]);
 }
 
 #[test]
@@ -130,12 +153,12 @@ fn marktree_smoke() {
     tree.insert(0);
     tree.insert(3);
 
-    check(tree.iter(), [0, 3]);
+    assert_iter_eq(tree.iter(), [0, 3]);
 
     tree.insert(3);
-    check(tree.iter(), [0, 3, 3]);
+    assert_iter_eq(tree.iter(), [0, 3, 3]);
 
     tree.insert(2);
-    check(tree.iter(), [0, 2, 3, 3]);
+    assert_iter_eq(tree.iter(), [0, 2, 3, 3]);
     assert_eq!(tree.len(), 10);
 }
