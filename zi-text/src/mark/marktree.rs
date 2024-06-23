@@ -140,6 +140,10 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
     pub fn insert(&mut self, item: T) {
+        if self.tree.summary().ids.contains(item.id().into()) {
+            todo!("MarkTree insertion of existing id")
+        }
+
         let byte = item.byte();
         assert!(
             byte < self.len(),
