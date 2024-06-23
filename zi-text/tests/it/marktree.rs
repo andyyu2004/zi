@@ -38,24 +38,6 @@ fn marktree_remove_range() {
 }
 
 #[test]
-fn marktree_bulk_remove_range_tmp() {
-    const LEN: usize = 100;
-    let mut tree = MarkTree::<_, 2>::new(LEN);
-
-    (0..3).for_each(|i| tree.insert(i));
-
-    check(tree.iter(), 0..3);
-    assert_eq!(tree.len(), LEN);
-
-    dbg!(&tree);
-    tree.remove_range(0..2);
-    dbg!(&tree);
-
-    check(tree.iter(), 2..3);
-    assert_eq!(tree.len(), LEN);
-}
-
-#[test]
 fn marktree_bulk_remove_range() {
     const LEN: usize = 200;
     let mut tree = MarkTree::<_, 2>::new(LEN);

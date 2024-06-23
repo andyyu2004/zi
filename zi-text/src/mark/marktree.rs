@@ -222,6 +222,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     let byte = builder.offset;
                     if byte < start || byte >= end {
+                        // This condition can be false if the first entry is an item and the start is 0.
                         builder.push(LeafEntry::Item(item))
                     }
                 }
@@ -334,7 +335,6 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                         None
                     }
                     LeafEntry::Gap(gap) if offset < up_to && offset + gap > up_to => {
-                        todo!();
                         // We know that `summary.bytes + gap >= up_to`.
                         let remaining_gap = offset + gap - up_to;
                         offset = up_to;
