@@ -78,10 +78,10 @@ async fn main() -> anyhow::Result<()> {
                     flags.insert(zi::OpenFlags::READONLY);
                 }
 
-                let _ = client.with(move |editor| editor.open(path, flags)).await?.await;
+                client.with(move |editor| editor.open(path, flags)).await?.await?;
             }
         }
-        Ok::<_, io::Error>(())
+        Ok::<_, zi::Error>(())
     });
 
     tokio::task::yield_now().await;
