@@ -3,6 +3,7 @@ use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
 use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize, Tree};
+use roaring::RoaringTreemap;
 use stdx::iter::ExactChain;
 
 use crate::Deltas;
@@ -23,6 +24,9 @@ const ARITY: usize = 4;
 // This is implemented in a way that is basically a rope but instead of actually representing
 // string data it's compressed into `Gap`s with `Item`s in between.
 // The `Item` are always zero-width and are used to represent the byte positions of the items.
+//
+// Plenty of optimizations available. The implementation is fairly naive.
+//  - avoid recreating bitmaps and arrays from scratch all the time
 #[derive(Debug)]
 pub struct MarkTree<T: MarkTreeItem, const N: usize> {
     tree: Tree<ARITY, Leaf<T, N>>,
@@ -429,15 +433,20 @@ impl<'a, T: MarkTreeItem> Summarize for LeafSlice<'a, T> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
+        let mut ids = RoaringTreemap::new();
         let bytes = self
             .entries
             .iter()
             .map(|entry| match entry {
-                LeafEntry::Item(_) => 0,
+                LeafEntry::Item(item) => {
+                    ids.insert(item.id().into());
+                    0
+                }
                 LeafEntry::Gap(n) => *n,
             })
             .sum();
-        Summary { bytes }
+
+        Summary { bytes, ids }
     }
 }
 
@@ -484,37 +493,37 @@ impl Sub<&Self> for Summary {
 impl AddAssign<Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
-        self.bytes += rhs.bytes;
-        // self.line_breaks += rhs.line_breaks;
+        *self += &rhs;
     }
 }
 
 impl SubAssign<Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
-        self.bytes -= rhs.bytes;
-        // self.line_breaks -= rhs.line_breaks;
+        *self -= &rhs;
     }
 }
 
 impl AddAssign<&Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        *self += *rhs;
+        self.bytes += rhs.bytes;
+        self.ids |= &rhs.ids;
     }
 }
 
 impl SubAssign<&Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
-        *self -= *rhs;
+        self.bytes -= rhs.bytes;
+        self.ids -= &rhs.ids;
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct Summary {
+    ids: RoaringTreemap,
     bytes: usize,
-    // line_breaks: usize,
 }
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -621,29 +630,33 @@ mod tests {
             iter: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
             up_to: usize,
             expected: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
-            expected_summary: Summary,
+            expected_summary: (usize, impl IntoIterator<Item = u64>),
         ) {
             let mut leaf = Leaf::<(usize, u64), N>::from(ArrayVec::from_iter(iter));
             let mut summary = leaf.summarize();
             leaf.remove_up_to(&mut summary, ByteMetric(up_to));
             assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
+            let expected_summary = Summary {
+                bytes: expected_summary.0,
+                ids: RoaringTreemap::from_iter(expected_summary.1),
+            };
             assert_eq!(summary, expected_summary);
         }
 
-        check::<4>([Item((0, 0)), Gap(1), Item((1, 1))], 1, [], Summary { bytes: 0 });
+        check::<4>([Item((0, 0)), Gap(1), Item((1, 1))], 1, [], (0, []));
 
         check::<10>(
             [Item((0, 0)), Gap(1), Item((1, 1)), Gap(1), Item((2, 2))],
             1,
             [Gap(1), Item((1, 2))],
-            Summary { bytes: 1 },
+            (1, [2]),
         );
 
         check::<10>(
             [Gap(1), Item((1, 0)), Gap(1), Item((2, 1))],
             1,
             [Gap(1), Item((1, 1))],
-            Summary { bytes: 1 },
+            (1, [1]),
         );
     }
 }
