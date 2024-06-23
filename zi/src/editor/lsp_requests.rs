@@ -397,6 +397,9 @@ impl Editor {
         selector: impl Selector<BufferId>,
     ) -> Option<impl Future<Output = zi_lsp::Result<()>>> {
         let buf = selector.select(self);
+
+        tracing::info!(?buf, "requesting semantic tokens");
+
         let client = self.client();
 
         let Some(uri) = self.buffers[buf].file_url().cloned() else {
@@ -552,7 +555,7 @@ impl Editor {
         selector: impl Selector<BufferId>,
     ) -> impl Future<Output = Result<()>> {
         let buf = selector.select(self);
-        tracing::info!("requesting diagnostics for buffer {buf:?}");
+        tracing::info!(?buf, "requesting diagnostics");
 
         async fn update_related_docs(
             client: &Client,
