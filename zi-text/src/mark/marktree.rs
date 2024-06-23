@@ -77,11 +77,22 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         )
     }
 
+    /// Inserts an item based on its byte position.
+    /// This does not affect `self.len()`.
     pub fn insert(&mut self, item: T) {
         let byte = item.byte();
         self.replace(byte..byte, LeafEntry::Item(item))
     }
 
+    /// Removes the marks in the given range.
+    /// This does not affect `self.len()`;
+    pub fn remove_range(&mut self, range: impl RangeBounds<usize>) {
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.replace(start..end, LeafEntry::Gap(end - start));
+    }
+
+    /// Applies the given `deltas` to the tree.
+    /// This will update the byte positions of the items.
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
@@ -241,12 +252,10 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                                 let replacement =
                                     replace_with.take().expect("used replacement twice");
                                 match replacement {
-                                    LeafEntry::Item(item) => {
-                                        builder.push(LeafEntry::Item(item));
-                                    }
-                                    LeafEntry::Gap(_gap) => {
-                                        todo!();
-                                        // builder.push(LeafEntry::Gap(gap));
+                                    LeafEntry::Item(item) => builder.push(LeafEntry::Item(item)),
+                                    LeafEntry::Gap(gap) => {
+                                        dbg!(&builder);
+                                        builder.push(LeafEntry::Gap(dbg!(gap)))
                                     }
                                 }
 

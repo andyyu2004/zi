@@ -13,6 +13,25 @@ fn check<T: Copy + Eq + fmt::Debug>(
 }
 
 #[test]
+fn marktree_remove_range() {
+    let mut tree = MarkTree::<_, 10>::new(10);
+
+    tree.insert(1);
+    check(tree.iter(), [1]);
+    assert_eq!(tree.len(), 10);
+
+    tree.remove_range(0..1);
+    check(tree.iter(), [1]);
+    assert_eq!(tree.len(), 10);
+
+    dbg!(&tree);
+    tree.remove_range(0..2);
+    dbg!(&tree);
+    check(tree.iter(), []);
+    assert_eq!(tree.len(), 10);
+}
+
+#[test]
 fn marktree_simple_insert() {
     let mut tree = MarkTree::<_, 10>::new(2);
     tree.insert(1);
