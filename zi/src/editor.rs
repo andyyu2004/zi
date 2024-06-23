@@ -276,9 +276,6 @@ pub(crate) use {get, get_ref};
 
 pub(crate) type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
 
-type Callbacks = impl Stream<Item = CallbackFuture> + Unpin;
-type Requests = impl Stream<Item = Request> + Unpin;
-
 type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
 
 type CallbacksSender = UnboundedSender<CallbackFuture>;
@@ -342,8 +339,8 @@ impl Client {
 }
 
 pub struct Tasks {
-    requests: Requests,
-    callbacks: Callbacks,
+    requests: ChannelStream<Request>,
+    callbacks: UnboundedChannelStream<CallbackFuture>,
     notify_redraw: &'static Notify,
     notify_idle: &'static Notify,
 }

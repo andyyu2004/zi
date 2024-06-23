@@ -156,9 +156,8 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn delete(&mut self, id: T::Id) -> Option<T> {
-        if !self.tree.summary().ids.contains(id.into()) {
-            return None;
-        }
+        let item = self.get(id)?;
+        // Delete item by range somehow
 
         todo!()
     }

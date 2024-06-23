@@ -15,7 +15,7 @@ impl Buffer {
     }
 
     pub(crate) fn delete_mark(&mut self, mark_id: MarkId) {
-        self.marks.remove(mark_id);
+        self.marks.delete(mark_id);
     }
 
     pub(crate) fn marks(&self) -> impl Iterator<Item = &Mark> + '_ {
