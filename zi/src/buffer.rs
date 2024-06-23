@@ -148,7 +148,8 @@ pub struct Buffer {
 
 impl Buffer {
     pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
-        Self { inner: buffer.boxed(), marks: Default::default() }
+        let n = buffer.text().len_bytes();
+        Self { inner: buffer.boxed(), marks: Marks::new(n) }
     }
 
     pub fn id(&self) -> BufferId {
@@ -188,8 +189,8 @@ impl Buffer {
     }
 
     pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
-        // TODO adjust marks
         self.inner.edit_flags(Internal(()), deltas, flags);
+        self.marks.edit(deltas);
     }
 
     pub(crate) fn keymap(&mut self) -> Option<&mut Keymap> {

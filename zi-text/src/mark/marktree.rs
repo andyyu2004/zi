@@ -46,6 +46,8 @@ impl MarkTreeItem for usize {
 }
 
 impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
+    /// Creates a new `MarkTree` with a single gap of `n` bytes.
+    /// This should be equal to the length of the text in bytes.
     pub fn new(n: usize) -> Self {
         let mut this = Self { tree: Tree::default() };
         this.replace_(0..0, LeafEntry::Gap(n));
@@ -88,7 +90,6 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         self.tree.replace(ByteMetric(range.start)..ByteMetric(range.end), replace_with);
     }
 
-    // tmp approx of Delta
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
@@ -262,7 +263,9 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
             }
         }
 
-        assert!(replace_with.is_none(), "replacement not used");
+        if let Some(replace_with) = replace_with {
+            builder.push(replace_with);
+        }
 
         let mut chunks = builder.entries.array_chunks::<N>();
         self.entries = match chunks.next() {

@@ -34,8 +34,17 @@ fn marktree_split() {
 }
 
 #[test]
+fn marktree_append() {
+    let mut tree = MarkTree::<usize, 32>::new(0);
+    tree.edit(&deltas![0..0 => "a"]);
+    check(tree.iter(), []);
+    assert_eq!(tree.len(), 1);
+}
+
+#[test]
 fn marktree_edit() {
     let mut tree = MarkTree::<_, 10>::new(10);
+
     tree.insert(1);
     check(tree.iter(), [1]);
 

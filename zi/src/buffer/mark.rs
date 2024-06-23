@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use zi_text::MarkTreeItem;
+use zi_text::{Deltas, MarkTree, MarkTreeItem};
 
 use super::Buffer;
 
@@ -13,17 +13,17 @@ impl Buffer {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    // tree: MarkTree<MarkItem, 32>,
+    tree: MarkTree<MarkItem, 32>,
 }
 
 #[derive(Debug, Copy, Clone)]
 struct MarkItem {
     byte: usize,
-    // id: MarkId,
+    id: MarkId,
 }
 
 impl MarkTreeItem for MarkItem {
@@ -34,17 +34,26 @@ impl MarkTreeItem for MarkItem {
 
     #[inline]
     fn at(&self, byte: usize) -> Self {
-        MarkItem { byte }
+        MarkItem { byte, ..*self }
     }
 }
 
 impl Marks {
+    pub(crate) fn new(n: usize) -> Self {
+        Marks { marks: SlotMap::default(), tree: MarkTree::new(n) }
+    }
+
     pub fn insert(&mut self, builder: MarkBuilder) -> MarkId {
+        let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        // let byte = builder.byte;
-        // let item = MarkItem { byte, id };
-        // self.tree.insert(item);
+        let item = MarkItem { byte, id };
+        self.tree.insert(item);
         id
+    }
+
+    #[inline]
+    pub fn edit(&mut self, deltas: &Deltas<'_>) {
+        self.tree.edit(deltas);
     }
 }
 
