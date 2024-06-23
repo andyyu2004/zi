@@ -2,7 +2,9 @@ use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
-use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, Metric, ReplaceableLeaf, Summarize, Tree};
+use crop::tree::{
+    AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
+};
 use roaring::RoaringTreemap;
 use stdx::iter::ExactChain;
 
@@ -81,8 +83,28 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn get(&self, id: T::Id) -> Option<T> {
-        // FIXME slow
-        self.iter().find(|item| item.id() == id)
+        let raw_id = id.into();
+        // Need to do a manual traversal to make use of the bitmaps.
+        let mut node = self.tree.root().as_ref();
+        if !node.summary().ids.contains(raw_id) {
+            return None;
+        }
+
+        loop {
+            debug_assert!(node.summary().ids.contains(raw_id));
+            match node {
+                Node::Internal(inode) => {
+                    node = inode
+                        .children()
+                        .iter()
+                        .find(|child| child.summary().ids.contains(raw_id))?
+                        .as_ref();
+                }
+                Node::Leaf(leaf) => {
+                    return Some(leaf.as_slice().get(id).expect("bitmap said it's here").clone());
+                }
+            }
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
@@ -425,6 +447,15 @@ impl<T: MarkTreeItem, const N: usize> AsSlice for Leaf<T, N> {
 #[derive(Debug, Clone)]
 struct LeafSlice<'a, T: MarkTreeItem> {
     entries: &'a [LeafEntry<T>],
+}
+
+impl<'a, T: MarkTreeItem> LeafSlice<'a, T> {
+    fn get(&self, id: T::Id) -> Option<&T> {
+        self.entries.iter().find_map(|entry| match entry {
+            LeafEntry::Item(item) if item.id() == id => Some(item),
+            _ => None,
+        })
+    }
 }
 
 impl<'a, T: MarkTreeItem> Copy for LeafSlice<'a, T> {}
