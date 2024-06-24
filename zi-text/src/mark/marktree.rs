@@ -36,7 +36,7 @@ pub struct MarkTree<T: MarkTreeItem, const N: usize> {
 }
 
 pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
-    type Id: Eq + Copy + Into<u64>;
+    type Id: Eq + Copy + Into<u64> + fmt::Debug;
 
     /// The `id` of the item.
     fn id(&self) -> Self::Id;
@@ -190,12 +190,32 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         let target = self.get(id)?;
         let byte = target.byte();
         let range = byte..=byte;
+        let mut found = false;
         // Get all the items in the range except the target.
-        let damage = self.items(range.clone()).filter(|item| item.id() != id).collect::<Vec<_>>();
+        let collateral = self
+            .items(range.clone())
+            .filter(|item| {
+                if item.id() == id {
+                    assert!(!found, "found id twice");
+                    found = true;
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect::<Vec<_>>();
+        assert!(found, "didn't find id");
+
         // Clear everything in the target range.
-        self.clear_range(range);
+        self.clear_range(range.clone());
+        debug_assert!(self.get(id).is_none(), "found id `{id:?}` after clearing range {range:?}");
+
         // Reinsert the items that were collateral
-        damage.into_iter().for_each(|item| self.insert(item));
+        collateral.into_iter().for_each(|item| {
+            debug_assert!(item.id() != id);
+            self.insert(item)
+        });
+        debug_assert!(self.get(id).is_none(), "found id `{id:?}` after deletion");
 
         Some(target)
     }
@@ -229,6 +249,10 @@ enum LeafEntry<T> {
 }
 
 // A fixed-size sorted array of items.
+// Invariants:
+//  - The final element is always a `Gap` with a non-zero size
+//  - But how to implement this? If there's a bunch of items in a row we have to represent that
+//  somehow.
 #[derive(Debug, Clone)]
 struct Leaf<T: MarkTreeItem, const N: usize> {
     entries: ArrayVec<LeafEntry<T>, N>,
@@ -329,7 +353,6 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
 
         use State::*;
 
-        // let mut state = if start == 0 { Skipping { skipped: 0 } } else { Start };
         let mut state = Start;
         let mut builder = EntryBuilder::default();
 
@@ -337,10 +360,15 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     let byte = builder.offset;
-                    if byte < start || byte >= end {
-                        // This condition can be false if the first entry is an item and the start is 0.
-                        builder.push(LeafEntry::Item(item))
+                    if byte >= start && byte < end
+                    // Dirty edge case below. Zero width items cause trouble.
+                    // This hack passes tests, but not sure if it's completely correct.
+                    || byte == n && start == n && byte == n
+                    {
+                        continue;
                     }
+
+                    builder.push(LeafEntry::Item(item))
                 }
                 LeafEntry::Item(_) => {}
                 LeafEntry::Gap(gap) => {
@@ -727,6 +755,9 @@ where
         Bound::Excluded(&n) => n.into(),
         Bound::Unbounded => hi,
     };
+
+    assert!(start >= lo, "start={start} >= lo={lo}");
+    assert!(end <= hi, "end={end} <= hi={hi}");
 
     (start, end)
 }

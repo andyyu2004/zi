@@ -50,6 +50,49 @@ fn marktree_delete() {
 
     tree.delete(0);
     assert_iter_eq(tree.items(..), [(0, 1)]);
+
+    tree.delete(1);
+    assert_iter_eq(tree.items(..), []);
+}
+
+#[test]
+fn marktree_bulk_delete() {
+    let mut tree = MarkTree::<_, 7>::new(1000);
+    let k = 4u64;
+    (0..k).for_each(|i| tree.insert((i as usize, i)));
+    (0..k).for_each(|i| {
+        dbg!(i);
+        assert_eq!(tree.delete(i), Some((i as usize, i)));
+        assert_iter_eq(tree.items(..), (i + 1..k).map(|j| (j as usize, j)));
+    });
+}
+
+#[test]
+fn marktree_clear_range_2() {
+    let mut tree = MarkTree::<_, 7>::new(10);
+    (0..4).for_each(|i| tree.insert((i, i as u64)));
+
+    tree.clear_range(0..=0);
+    assert_iter_eq(tree.items(..), [(1, 1), (2, 2), (3, 3)]);
+
+    tree.clear_range(1..=1);
+    assert_iter_eq(tree.items(..), [(2, 2), (3, 3)]);
+
+    tree.clear_range(2..=2);
+    assert_iter_eq(tree.items(..), [(3, 3)]);
+
+    tree.clear_range(3..=3);
+    assert_iter_eq(tree.items(..), []);
+
+    tree.insert((0, 0));
+    tree.insert((0, 1));
+    assert_iter_eq(tree.items(..), [(0, 0), (0, 1)]);
+
+    tree.clear_range(0..0);
+    assert_iter_eq(tree.items(..), [(0, 0), (0, 1)]);
+
+    tree.clear_range(0..1);
+    assert_iter_eq(tree.items(..), []);
 }
 
 #[test]
