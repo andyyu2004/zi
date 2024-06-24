@@ -277,12 +277,6 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        if self.entries.is_empty() {
-            self.entries.push(replace_with);
-            *summary = self.summarize();
-            return None;
-        }
-
         let mut replace_with = Some(replace_with);
 
         // naive algorithm for now
@@ -336,14 +330,14 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         let mut state = Start;
         let mut builder = EntryBuilder::default();
 
-        for entry in self.entries.take() {
+        for entry in dbg!(self.entries.take()) {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     let byte = builder.offset;
                     if byte >= start && byte < end
                     // Dirty edge case below. Zero width items cause trouble.
                     // This hack passes tests, but not sure if it's completely correct.
-                    || byte == n && start == n && byte == n
+                    || byte == n && start == n && end == n
                     {
                         continue;
                     }
