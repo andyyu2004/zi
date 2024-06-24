@@ -1,12 +1,9 @@
 use divan::Bencher;
 use zi_text::MarkTree;
 
-// #[global_allocator]
-// static GLOBAL: divan::AllocProfiler<mimalloc::MiMalloc> =
-//     divan::AllocProfiler::new(mimalloc::MiMalloc);
-//
-// thread 'rustc' panicked at /rustc/3cb521a4344f0b556b81c55eec8facddeb1ead83/compiler/rustc_data_structures/src/sync.rs:338:42:
-// assertion failed: *old == value
+#[global_allocator]
+static GLOBAL: divan::AllocProfiler<mimalloc::MiMalloc> =
+    divan::AllocProfiler::new(mimalloc::MiMalloc);
 
 fn main() {
     divan::main();
