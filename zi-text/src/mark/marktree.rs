@@ -4,7 +4,7 @@ use std::{fmt, iter};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
-    AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
+    Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
 use stdx::iter::ExactChain;
@@ -161,43 +161,37 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
-        // This algorithm for deletion by id is a bit roundabout.
-        // We don't have a good way to remove the item by id directly.
-        // Instead we find the item by id and then remove the smallest range that contains it.
-        // However, we can't guarantee that we don't remove other items in the same range, so we need to
-        // reinsert them.
-
-        let (byte, target) = self.get(id)?;
-        let range = byte..=byte;
-        let mut found = false;
-        // Get all the items in the range except the target.
-        let collateral = self
-            .items(range.clone())
-            .filter(|(_, item)| {
-                if item.id() == id {
-                    assert!(!found, "found id twice");
-                    found = true;
-                    false
-                } else {
-                    true
+        fn del<T: MarkTreeItem, const N: usize>(
+            node: &mut Arc<Node<ARITY, Leaf<T, N>>>,
+            mut offset: usize,
+            id: T::Id,
+        ) -> (usize, T) {
+            match Arc::make_mut(node) {
+                Node::Internal(inode) => {
+                    for i in 0..inode.children().len() {
+                        let summary = inode.child(i).summary();
+                        if summary.ids.contains(id.into()) {
+                            return inode.with_child_mut(i, |child| del(child, offset, id));
+                        }
+                        offset += summary.bytes;
+                    }
+                    unreachable!("bitmaps said it's here")
                 }
-            })
-            .map(|(byte, item)| (byte, item.clone()))
-            .collect::<Vec<_>>();
-        assert!(found, "didn't find id");
+                Node::Leaf(leaf) => {
+                    debug_assert!(leaf.summary().ids.contains(id.into()));
+                    let (leaf_offset, item) =
+                        leaf.value_mut().delete(id).expect("bitmap said it's here");
+                    (offset + leaf_offset, item)
+                }
+            }
+        }
 
-        // Clear everything in the target range.
-        self.clear_range(range.clone());
-        debug_assert!(self.get(id).is_none(), "found id `{id:?}` after clearing range {range:?}");
+        let root = self.tree.root_mut();
+        if !root.summary().ids.contains(id.into()) {
+            return None;
+        }
 
-        // Reinsert the items that were collateral
-        collateral.into_iter().for_each(|(at, item)| {
-            debug_assert!(item.id() != id);
-            self.insert(at, item)
-        });
-        debug_assert!(self.get(id).is_none(), "found id `{id:?}` after deletion");
-
-        Some((byte, target))
+        Some(del(root, 0, id))
     }
 
     /// Clear the marks in the given range.
@@ -236,6 +230,31 @@ enum LeafEntry<T> {
 #[derive(Debug, Clone)]
 struct Leaf<T: MarkTreeItem, const N: usize> {
     entries: ArrayVec<LeafEntry<T>, N>,
+}
+
+impl<T: MarkTreeItem, const N: usize> Leaf<T, N> {
+    fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
+        let mut offset = 0;
+        let mut deleted_item = None;
+
+        self.entries = self
+            .entries
+            .drain(..)
+            .filter_map(|entry| match entry {
+                LeafEntry::Item(item) if item.id() == id => {
+                    deleted_item = Some((offset, item));
+                    None
+                }
+                LeafEntry::Item(_) => Some(entry),
+                LeafEntry::Gap(gap) => {
+                    offset += gap;
+                    Some(entry)
+                }
+            })
+            .collect();
+
+        deleted_item
+    }
 }
 
 impl<T: MarkTreeItem, const N: usize> From<ArrayVec<LeafEntry<T>, N>> for Leaf<T, N> {
@@ -330,7 +349,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         let mut state = Start;
         let mut builder = EntryBuilder::default();
 
-        for entry in dbg!(self.entries.take()) {
+        for entry in self.entries.take() {
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     let byte = builder.offset;
