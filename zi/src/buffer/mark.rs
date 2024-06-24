@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::ops::RangeBounds;
 
 use slotmap::{Key, SlotMap};
 use zi_text::{Deltas, MarkTree, MarkTreeItem};
@@ -18,8 +19,8 @@ impl Buffer {
         self.marks.delete(mark_id);
     }
 
-    pub(crate) fn marks(&self) -> impl Iterator<Item = &Mark> + '_ {
-        self.marks.iter()
+    pub(crate) fn marks(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
+        self.marks.iter(range)
     }
 }
 
@@ -99,8 +100,8 @@ impl Marks {
         self.tree.edit(deltas);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Mark> + '_ {
-        self.tree.iter().map(move |item| {
+    pub fn iter(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
+        self.tree.items(range).map(move |item| {
             let mark = &self.marks[item.id];
             mark.byte.set(item.byte);
             mark

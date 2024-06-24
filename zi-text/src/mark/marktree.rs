@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter};
 
@@ -121,17 +122,41 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
-        let leaves = self.tree.leaves();
-        let mut shift = 0;
+    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = T> + '_ {
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
+
         iter::from_coroutine(
             #[coroutine]
             move || {
-                for leaf in leaves {
-                    for entry in leaf.entries {
-                        match entry {
-                            LeafEntry::Gap(n) => shift += n,
-                            LeafEntry::Item(item) => yield item.at(shift),
+                while let Some((mut offset, node)) = q.pop_front() {
+                    match node {
+                        Node::Internal(inode) => {
+                            if offset + inode.summary().bytes < start {
+                                // We haven't reached a node that intersects the range yet.
+                                continue;
+                            }
+
+                            for child in inode.children().iter() {
+                                q.push_back((offset, child.as_ref()));
+                                offset += child.summary().bytes;
+                            }
+                        }
+                        Node::Leaf(leaf) => {
+                            for entry in leaf.as_slice().entries {
+                                if offset >= end {
+                                    break;
+                                }
+
+                                match entry {
+                                    LeafEntry::Item(item) => {
+                                        if start <= offset {
+                                            yield item.at(offset)
+                                        }
+                                    }
+                                    LeafEntry::Gap(gap) => offset += gap,
+                                }
+                            }
                         }
                     }
                 }
@@ -156,10 +181,23 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn delete(&mut self, id: T::Id) -> Option<T> {
-        let _item = self.get(id)?;
-        // Delete item by range somehow
+        // This algorithm for deletion by id is a bit roundabout.
+        // We don't have a good way to remove the item by id directly.
+        // Instead we find the item by id and then remove the smallest range that contains it.
+        // However, we can't guarantee that we don't remove other items in the same range, so we need to
+        // reinsert them.
 
-        todo!()
+        let target = self.get(id)?;
+        let byte = target.byte();
+        let range = byte..=byte;
+        // Get all the items in the range except the target.
+        let damage = self.items(range.clone()).filter(|item| item.id() != id).collect::<Vec<_>>();
+        // Clear everything in the target range.
+        self.clear_range(range);
+        // Reinsert the items that were collateral
+        damage.into_iter().for_each(|item| self.insert(item));
+
+        Some(target)
     }
 
     /// Clear the marks in the given range.
@@ -474,6 +512,13 @@ struct LeafSlice<'a, T: MarkTreeItem> {
     entries: &'a [LeafEntry<T>],
 }
 
+impl<'a, T: MarkTreeItem> Default for LeafSlice<'a, T> {
+    #[inline]
+    fn default() -> Self {
+        Self { entries: &[] }
+    }
+}
+
 impl<'a, T: MarkTreeItem> LeafSlice<'a, T> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
@@ -593,6 +638,10 @@ struct Summary {
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct ByteMetric(usize);
+
+// NOTE: It would be nice to have the following impl but I don't think it's possible to implement.
+// We would need to be able to make arbitrary slices into the `Leaf` which is not possible due to having `Gap`s.
+// impl<T: MarkTreeItem, const N: usize> SlicingMetric<Leaf<T, N>> for ByteMetric {}
 
 impl Metric<Summary> for ByteMetric {
     #[inline]

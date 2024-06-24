@@ -4,7 +4,7 @@ use crate::{BufferId, Mark, MarkBuilder, MarkId};
 impl Editor {
     #[inline]
     pub fn marks(&self, selector: impl Selector<BufferId>) -> impl Iterator<Item = &Mark> {
-        self.buffer(selector).marks()
+        self.buffer(selector).marks(..)
     }
 
     #[inline]
