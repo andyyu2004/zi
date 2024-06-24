@@ -40,32 +40,16 @@ pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
 
     /// The `id` of the item.
     fn id(&self) -> Self::Id;
-
-    /// The byte position of the item.
-    fn byte(&self) -> usize;
-
-    /// Returns a new item with the same data at the given byte position.
-    fn at(&self, byte: usize) -> Self;
 }
 
 // (byte, id)
 // Makes sense for the `byte` to come first as it determines the order.
-impl<I: Eq + Copy + Into<u64> + fmt::Debug + 'static> MarkTreeItem for (usize, I) {
+impl<I: Eq + Copy + Into<u64> + fmt::Debug + 'static> MarkTreeItem for I {
     type Id = I;
 
     #[inline]
-    fn byte(&self) -> usize {
-        self.0
-    }
-
-    #[inline]
     fn id(&self) -> Self::Id {
-        self.1
-    }
-
-    #[inline]
-    fn at(&self, byte: usize) -> Self {
-        (byte, self.1)
+        *self
     }
 }
 
@@ -83,10 +67,11 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         self.tree.summary().bytes
     }
 
-    pub fn get(&self, id: T::Id) -> Option<T> {
-        let (offset, leaf) = self.find(id)?;
-        let item = leaf.as_slice().get(id)?;
-        Some(item.at(offset + item.byte()))
+    pub fn get(&self, id: T::Id) -> Option<(usize, T)> {
+        let (leaf_offset, leaf) = self.find(id)?;
+        let slice = leaf.as_slice();
+        let (offset, item) = slice.get(id)?;
+        Some((leaf_offset + offset, item.clone()))
     }
 
     fn find(&self, id: T::Id) -> Option<(usize, &Lnode<Leaf<T, N>>)> {
@@ -122,7 +107,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         }
     }
 
-    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = T> + '_ {
+    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)> + '_ {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
@@ -151,7 +136,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                                 match entry {
                                     LeafEntry::Item(item) => {
                                         if start <= offset {
-                                            yield item.at(offset)
+                                            yield (offset, item)
                                         }
                                     }
                                     LeafEntry::Gap(gap) => offset += gap,
@@ -166,35 +151,29 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
 
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
-    pub fn insert(&mut self, item: T) {
+    pub fn insert(&mut self, at: usize, item: T) {
         if self.tree.summary().ids.contains(item.id().into()) {
             todo!("MarkTree insertion of existing id")
         }
 
-        let byte = item.byte();
-        assert!(
-            byte < self.len(),
-            "byte {byte} out of bounds of marktree of length {}",
-            self.len()
-        );
-        self.replace(byte..byte, LeafEntry::Item(item))
+        assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
+        self.replace(at..at, LeafEntry::Item(item))
     }
 
-    pub fn delete(&mut self, id: T::Id) -> Option<T> {
+    pub fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
         // This algorithm for deletion by id is a bit roundabout.
         // We don't have a good way to remove the item by id directly.
         // Instead we find the item by id and then remove the smallest range that contains it.
         // However, we can't guarantee that we don't remove other items in the same range, so we need to
         // reinsert them.
 
-        let target = self.get(id)?;
-        let byte = target.byte();
+        let (byte, target) = self.get(id)?;
         let range = byte..=byte;
         let mut found = false;
         // Get all the items in the range except the target.
         let collateral = self
             .items(range.clone())
-            .filter(|item| {
+            .filter(|(_, item)| {
                 if item.id() == id {
                     assert!(!found, "found id twice");
                     found = true;
@@ -203,6 +182,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                     true
                 }
             })
+            .map(|(byte, item)| (byte, item.clone()))
             .collect::<Vec<_>>();
         assert!(found, "didn't find id");
 
@@ -211,13 +191,13 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         debug_assert!(self.get(id).is_none(), "found id `{id:?}` after clearing range {range:?}");
 
         // Reinsert the items that were collateral
-        collateral.into_iter().for_each(|item| {
+        collateral.into_iter().for_each(|(at, item)| {
             debug_assert!(item.id() != id);
-            self.insert(item)
+            self.insert(at, item)
         });
         debug_assert!(self.get(id).is_none(), "found id `{id:?}` after deletion");
 
-        Some(target)
+        Some((byte, target))
     }
 
     /// Clear the marks in the given range.
@@ -330,7 +310,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         impl<T: MarkTreeItem> EntryBuilder<T> {
             fn push(&mut self, entry: LeafEntry<T>) {
                 let entry = match entry {
-                    LeafEntry::Item(item) => LeafEntry::Item(item.at(self.offset)),
+                    LeafEntry::Item(item) => LeafEntry::Item(item),
                     LeafEntry::Gap(gap) => {
                         if gap == 0 {
                             return;
@@ -475,9 +455,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
                 .take()
                 .into_iter()
                 .filter_map(|entry| match entry {
-                    LeafEntry::Item(item) => {
-                        (offset > up_to).then(|| LeafEntry::Item(item.at(item.byte() - up_to)))
-                    }
+                    LeafEntry::Item(item) => (offset > up_to).then(|| LeafEntry::Item(item)),
                     LeafEntry::Gap(gap) if offset + gap <= up_to => {
                         offset += gap;
                         None
@@ -550,10 +528,10 @@ impl<'a, T: MarkTreeItem> Default for LeafSlice<'a, T> {
 impl<'a, T: MarkTreeItem> LeafSlice<'a, T> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
-    fn get(&self, id: T::Id) -> Option<T> {
+    fn get(&self, id: T::Id) -> Option<(usize, &T)> {
         let mut offset = 0;
         self.entries.iter().find_map(|entry| match entry {
-            LeafEntry::Item(item) if item.id() == id => Some(item.at(offset)),
+            LeafEntry::Item(item) if item.id() == id => Some((offset, item)),
             LeafEntry::Item(_) => None,
             LeafEntry::Gap(gap) => {
                 offset += *gap;
@@ -772,12 +750,12 @@ mod tests {
     fn remove_up_to() {
         #[track_caller]
         fn check<const N: usize>(
-            iter: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
+            iter: impl IntoIterator<Item = LeafEntry<u64>>,
             up_to: usize,
-            expected: impl IntoIterator<Item = LeafEntry<(usize, u64)>>,
+            expected: impl IntoIterator<Item = LeafEntry<u64>>,
             expected_summary: (usize, impl IntoIterator<Item = u64>),
         ) {
-            let mut leaf = Leaf::<(usize, u64), N>::from(ArrayVec::from_iter(iter));
+            let mut leaf = Leaf::<u64, N>::from(ArrayVec::from_iter(iter));
             let mut summary = leaf.summarize();
             leaf.remove_up_to(&mut summary, ByteMetric(up_to));
             assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
@@ -788,20 +766,8 @@ mod tests {
             assert_eq!(summary, expected_summary);
         }
 
-        check::<4>([Item((0, 0)), Gap(1), Item((1, 1))], 1, [], (0, []));
-
-        check::<10>(
-            [Item((0, 0)), Gap(1), Item((1, 1)), Gap(1), Item((2, 2))],
-            1,
-            [Gap(1), Item((1, 2))],
-            (1, [2]),
-        );
-
-        check::<10>(
-            [Gap(1), Item((1, 0)), Gap(1), Item((2, 1))],
-            1,
-            [Gap(1), Item((1, 1))],
-            (1, [1]),
-        );
+        check::<4>([Item(0), Gap(1), Item(1)], 1, [], (0, []));
+        check::<10>([Item(0), Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(2)], (1, [2]));
+        check::<10>([Gap(1), Item(0), Gap(1), Item(1)], 1, [Gap(1), Item(1)], (1, [1]));
     }
 }

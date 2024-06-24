@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::ops::RangeBounds;
 
 use slotmap::{Key, SlotMap};
-use zi_text::{Deltas, MarkTree, MarkTreeItem};
+use zi_text::{Deltas, MarkTree};
 
 use super::Buffer;
 
@@ -28,14 +28,7 @@ impl Buffer {
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkItem, 32>,
-}
-
-/// An entry in the mark tree. Only contains position information and a id reference to the mark data.
-#[derive(Debug, Copy, Clone)]
-struct MarkItem {
-    byte: usize,
-    id: MarkId,
+    tree: MarkTree<MarkIdWrapper, 32>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -44,25 +37,6 @@ struct MarkIdWrapper(MarkId);
 impl From<MarkIdWrapper> for u64 {
     fn from(wrapper: MarkIdWrapper) -> u64 {
         wrapper.0.data().as_ffi()
-    }
-}
-
-impl MarkTreeItem for MarkItem {
-    type Id = MarkIdWrapper;
-
-    #[inline]
-    fn id(&self) -> Self::Id {
-        MarkIdWrapper(self.id)
-    }
-
-    #[inline]
-    fn byte(&self) -> usize {
-        self.byte
-    }
-
-    #[inline]
-    fn at(&self, byte: usize) -> Self {
-        MarkItem { byte, ..*self }
     }
 }
 
@@ -79,19 +53,18 @@ impl Marks {
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        let item = MarkItem { byte, id };
-        self.tree.insert(item);
+        self.tree.insert(byte, MarkIdWrapper(id));
         id
     }
 
     pub fn delete(&mut self, mark_id: MarkId) -> Option<Mark> {
         let mark = self.marks.remove(mark_id)?;
-        let item = self
+        let (byte, MarkIdWrapper(id)) = self
             .tree
             .delete(MarkIdWrapper(mark_id))
             .expect("if map contains mark, tree should too");
-        debug_assert_eq!(item.id, mark_id);
-        mark.byte.set(item.byte);
+        debug_assert_eq!(id, mark_id);
+        mark.byte.set(byte);
         Some(mark)
     }
 
@@ -101,9 +74,9 @@ impl Marks {
     }
 
     pub fn iter(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
-        self.tree.items(range).map(move |item| {
-            let mark = &self.marks[item.id];
-            mark.byte.set(item.byte);
+        self.tree.items(range).map(move |(byte, MarkIdWrapper(id))| {
+            let mark = &self.marks[*id];
+            mark.byte.set(byte);
             mark
         })
     }
