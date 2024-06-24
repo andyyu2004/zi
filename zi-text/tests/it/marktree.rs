@@ -77,42 +77,42 @@ fn marktree_bulk_delete() {
 }
 
 #[test]
-fn marktree_clear_range_2() {
+fn marktree_drain_2() {
     let mut tree = MarkTree::<_, 7>::new(10);
     (0..4).for_each(|i| tree.insert(i, i as u64));
 
-    tree.clear_range(0..=0);
+    tree.drain(0..=0);
     assert_offset_iter_eq(tree.items(..), [(1, 1), (2, 2), (3, 3)]);
 
-    tree.clear_range(1..=1);
+    tree.drain(1..=1);
     assert_offset_iter_eq(tree.items(..), [(2, 2), (3, 3)]);
 
-    tree.clear_range(2..=2);
+    tree.drain(2..=2);
     assert_offset_iter_eq(tree.items(..), [(3, 3)]);
 
-    tree.clear_range(3..=3);
+    tree.drain(3..=3);
     assert_offset_iter_eq(tree.items(..), []);
 
     tree.insert(0, 0);
     tree.insert(0, 1);
     assert_offset_iter_eq(tree.items(..), [(0, 0), (0, 1)]);
 
-    tree.clear_range(0..0);
+    tree.drain(0..0);
     assert_offset_iter_eq(tree.items(..), [(0, 0), (0, 1)]);
 
-    tree.clear_range(0..1);
+    tree.drain(0..1);
     assert_offset_iter_eq(tree.items(..), []);
 }
 
 #[test]
-fn marktree_clear_range() {
+fn marktree_drain() {
     let mut tree = MarkTree::<_, 10>::new(10);
 
     tree.insert(0, 0u64);
     assert_offset_iter_eq(tree.items(..), [(0, 0)]);
     assert_eq!(tree.len(), 10);
 
-    tree.clear_range(0..1);
+    assert_iter_eq(tree.drain(0..1), [(0, 0)]);
     assert_offset_iter_eq(tree.items(..), []);
     assert_eq!(tree.len(), 10);
 
@@ -120,11 +120,11 @@ fn marktree_clear_range() {
     assert_offset_iter_eq(tree.items(..), [(1, 1)]);
     assert_eq!(tree.len(), 10);
 
-    tree.clear_range(0..1);
+    assert_iter_eq(tree.drain(0..1), []);
     assert_offset_iter_eq(tree.items(..), [(1, 1)]);
     assert_eq!(tree.len(), 10);
 
-    tree.clear_range(0..2);
+    assert_iter_eq(tree.drain(0..2), [(1, 1)]);
     assert_offset_iter_eq(tree.items(..), []);
     assert_eq!(tree.len(), 10);
 }
@@ -138,11 +138,11 @@ fn marktree_bulk_remove_range() {
     assert_offset_iter_eq(tree.items(..), (0..100).map(|i| (i, i as u64)));
     assert_eq!(tree.len(), LEN);
 
-    tree.clear_range(0..20);
+    tree.drain(0..20);
     assert_offset_iter_eq(tree.items(..), (20..100).map(|i| (i, i as u64)));
     assert_eq!(tree.len(), LEN);
 
-    tree.clear_range(80..100);
+    tree.drain(80..100);
     assert_offset_iter_eq(tree.items(..), (20..80).map(|i| (i, i as u64)));
     assert_eq!(tree.len(), LEN);
 }

@@ -179,6 +179,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                 }
                 Node::Leaf(leaf) => {
                     debug_assert!(leaf.summary().ids.contains(id.into()));
+                    leaf.summary_mut().ids.remove(id.into());
                     let (leaf_offset, item) =
                         leaf.value_mut().delete(id).expect("bitmap said it's here");
                     (offset + leaf_offset, item)
@@ -194,11 +195,11 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         Some(del(root, 0, id))
     }
 
-    /// Clear the marks in the given range.
+    /// Drains the items in the given range.
     /// This does not affect `self.len()`;
-    pub fn clear_range(&mut self, range: impl RangeBounds<usize>) {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.replace(start..end, LeafEntry::Gap(end - start));
+    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, T, N> {
+        let ids = self.items(range).map(|(_, item)| (item.id())).collect::<Vec<_>>().into_iter();
+        Drain { tree: self, ids }
     }
 
     /// Applies the given `deltas` to the tree.
@@ -213,6 +214,30 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry<T>) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
+    }
+}
+
+pub struct Drain<'a, T: MarkTreeItem, const N: usize> {
+    tree: &'a mut MarkTree<T, N>,
+    ids: std::vec::IntoIter<T::Id>,
+}
+
+impl<'a, T: MarkTreeItem, const N: usize> Drop for Drain<'a, T, N> {
+    fn drop(&mut self) {
+        for id in self.ids.by_ref() {
+            self.tree.delete(id).unwrap();
+        }
+    }
+}
+
+impl<'a, T: MarkTreeItem, const N: usize> Iterator for Drain<'a, T, N> {
+    type Item = (usize, T);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.ids.next().map(|id| {
+            self.tree.delete(id).expect("id was in the tree, and we're still holding &mut Tree")
+        })
     }
 }
 
