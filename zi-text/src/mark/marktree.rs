@@ -235,25 +235,21 @@ struct Leaf<T: MarkTreeItem, const N: usize> {
 impl<T: MarkTreeItem, const N: usize> Leaf<T, N> {
     fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
         let mut offset = 0;
-        let mut deleted_item = None;
 
-        self.entries = self
-            .entries
-            .drain(..)
-            .filter_map(|entry| match entry {
+        let mut i = 0;
+        while i < self.entries.len() {
+            match &self.entries[i] {
                 LeafEntry::Item(item) if item.id() == id => {
-                    deleted_item = Some((offset, item));
-                    None
+                    let LeafEntry::Item(item) = self.entries.remove(i) else { unreachable!() };
+                    return Some((offset, item));
                 }
-                LeafEntry::Item(_) => Some(entry),
-                LeafEntry::Gap(gap) => {
-                    offset += gap;
-                    Some(entry)
-                }
-            })
-            .collect();
+                LeafEntry::Item(_) => (),
+                LeafEntry::Gap(gap) => offset += *gap,
+            }
+            i += 1
+        }
 
-        deleted_item
+        None
     }
 }
 
