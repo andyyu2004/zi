@@ -1,4 +1,6 @@
 use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter};
 
@@ -8,33 +10,33 @@ use crop::tree::{
 };
 use roaring::RoaringTreemap;
 use stdx::bound::BoundExt;
-use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
-#[allow(unused)]
-pub trait MTree<T: MarkTreeItem> {
+pub trait MTreeId: Copy + Eq + Into<u64> + fmt::Debug + 'static {}
+
+impl<Id: Copy + Eq + fmt::Debug + Into<u64> + 'static> MTreeId for Id {}
+
+pub trait MTree<Id: MTreeId> {
     fn new(n: usize) -> Self;
 
     fn len(&self) -> usize;
 
-    fn get(&self, id: T::Id) -> Option<(usize, T)>;
+    fn get(&self, id: Id) -> Option<usize>;
 
-    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)>;
+    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)>;
 
-    fn insert(&mut self, at: usize, item: T);
+    fn insert(&mut self, at: usize, id: Id);
 
-    fn delete(&mut self, id: T::Id) -> Option<(usize, T)>;
+    fn delete(&mut self, id: Id) -> Option<usize>;
 
     fn shift(&mut self, range: impl RangeBounds<usize>, by: usize);
 
-    /// Drains the items in the given range.
-    /// This does not affect `self.len()`;
-    fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, T, Self>
+    fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, Self>
     where
         Self: Sized,
     {
-        let ids = self.range(range).map(|(_, item)| (item.id())).collect::<Vec<_>>().into_iter();
+        let ids = self.range(range).map(|(_, id)| id).collect::<Vec<_>>().into_iter();
         Drain { tree: self, ids }
     }
 }
@@ -65,29 +67,12 @@ const ARITY: usize = 7;
 // Plenty of optimizations available. The implementation is fairly naive.
 //  - avoid recreating bitmaps and arrays from scratch all the time
 #[derive(Debug)]
-pub struct MarkTree<T: MarkTreeItem, const N: usize> {
-    tree: Tree<ARITY, Leaf<T, N>>,
+pub struct MarkTree<Id: MTreeId, const N: usize> {
+    tree: Tree<ARITY, Leaf<N>>,
+    _id: PhantomData<Id>,
 }
 
-pub trait MarkTreeItem: fmt::Debug + Clone + 'static {
-    type Id: Eq + Copy + Into<u64> + fmt::Debug;
-
-    /// The `id` of the item.
-    fn id(&self) -> Self::Id;
-}
-
-// (byte, id)
-// Makes sense for the `byte` to come first as it determines the order.
-impl<I: Eq + Copy + Into<u64> + fmt::Debug + 'static> MarkTreeItem for I {
-    type Id = I;
-
-    #[inline]
-    fn id(&self) -> Self::Id {
-        *self
-    }
-}
-
-impl<const N: usize, T: MarkTreeItem> MTree<T> for MarkTree<T, N> {
+impl<const N: usize, Id: MTreeId> MTree<Id> for MarkTree<Id, N> {
     fn new(n: usize) -> Self {
         Self::new(n)
     }
@@ -96,33 +81,33 @@ impl<const N: usize, T: MarkTreeItem> MTree<T> for MarkTree<T, N> {
         self.len()
     }
 
-    fn get(&self, id: <T as MarkTreeItem>::Id) -> Option<(usize, T)> {
+    fn get(&self, id: Id) -> Option<usize> {
         self.get(id)
     }
 
-    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)> {
+    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> {
         self.items(range)
     }
 
-    fn insert(&mut self, at: usize, item: T) {
-        self.insert(at, item)
+    fn insert(&mut self, at: usize, id: Id) {
+        self.insert(at, id)
     }
 
-    fn delete(&mut self, id: <T as MarkTreeItem>::Id) -> Option<(usize, T)> {
+    fn delete(&mut self, id: Id) -> Option<usize> {
         self.delete(id)
     }
 
     fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
-        self.replace(range, LeafEntry::Gap(by));
+        todo!()
     }
 }
 
-impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
+impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
     /// Creates a new `MarkTree` with a single gap of `n` bytes.
     /// This should be equal to the length of the text in bytes.
     pub fn new(n: usize) -> Self {
-        let mut this = Self { tree: Tree::default() };
-        this.replace(0..0, LeafEntry::Gap(n));
+        let mut this = Self { tree: Tree::default(), _id: PhantomData };
+        this.replace(.., LeafEntry::new(n, []));
         this
     }
 
@@ -131,47 +116,49 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         self.tree.summary().bytes
     }
 
-    pub fn get(&self, id: T::Id) -> Option<(usize, T)> {
+    pub fn get(&self, id: Id) -> Option<usize> {
+        let id = id.into();
         let (leaf_offset, leaf) = self.find(id)?;
         let slice = leaf.as_slice();
-        let (offset, item) = slice.get(id)?;
-        Some((leaf_offset + offset, item.clone()))
+        let offset = slice.get(id)?;
+        Some(leaf_offset + offset)
     }
 
-    fn find(&self, id: T::Id) -> Option<(usize, &Lnode<Leaf<T, N>>)> {
-        let raw_id = id.into();
+    fn find(&self, id: u64) -> Option<(usize, &Lnode<Leaf<N>>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
-        if !node.summary().ids.contains(raw_id) {
+        if !node.summary().ids.contains(id) {
             return None;
         }
+        return None;
 
         let mut offset = 0;
 
         loop {
-            debug_assert!(node.summary().ids.contains(raw_id));
-            match node {
-                Node::Internal(inode) => {
-                    node = inode
-                        .children()
-                        .iter()
-                        .find(|child| {
-                            let summary = child.summary();
-                            if summary.ids.contains(raw_id) {
-                                true
-                            } else {
-                                offset += summary.bytes;
-                                false
-                            }
-                        })?
-                        .as_ref();
-                }
-                Node::Leaf(leaf) => return Some((offset, leaf)),
-            }
+            debug_assert!(node.summary().ids.contains(id));
+            todo!();
+            // match node {
+            //     Node::Internal(inode) => {
+            //         node = inode
+            //             .children()
+            //             .iter()
+            //             .find(|child| {
+            //                 let summary = child.summary();
+            //                 if summary.ids.contains(raw_id) {
+            //                     true
+            //                 } else {
+            //                     offset += summary.bytes;
+            //                     false
+            //                 }
+            //             })?
+            //             .as_ref();
+            //     }
+            //     Node::Leaf(leaf) => return Some((offset, leaf)),
+            // }
         }
     }
 
-    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)> + '_ {
+    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
         let (start, end) = (range.start_bound().cloned(), range.end_bound().cloned());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
@@ -203,14 +190,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                                     break;
                                 }
 
-                                match entry {
-                                    LeafEntry::Item(item) => {
-                                        if start.lt(&offset) {
-                                            yield (offset, item)
-                                        }
-                                    }
-                                    LeafEntry::Gap(gap) => offset += gap,
-                                }
+                                todo!()
                             }
                         }
                     }
@@ -221,21 +201,22 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
 
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
-    pub fn insert(&mut self, at: usize, item: T) {
-        if self.tree.summary().ids.contains(item.id().into()) {
+    pub fn insert(&mut self, at: usize, id: Id) {
+        if self.tree.summary().ids.contains(id.into()) {
             todo!("MarkTree insertion of existing id")
         }
 
         assert!(at <= self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..at, LeafEntry::Item(item))
+        todo!();
+        // self.replace(at..at, LeafEntry::Item(id))
     }
 
-    pub fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
-        fn del<T: MarkTreeItem, const N: usize>(
-            node: &mut Arc<Node<ARITY, Leaf<T, N>>>,
+    pub fn delete(&mut self, id: Id) -> Option<usize> {
+        fn del<const N: usize>(
+            node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
-            id: T::Id,
-        ) -> (usize, T) {
+            id: u64,
+        ) -> usize {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
@@ -250,9 +231,8 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                 Node::Leaf(leaf) => {
                     debug_assert!(leaf.summary().ids.contains(id.into()));
                     leaf.summary_mut().ids.remove(id.into());
-                    let (leaf_offset, item) =
-                        leaf.value_mut().delete(id).expect("bitmap said it's here");
-                    (offset + leaf_offset, item)
+                    let leaf_offset = leaf.value_mut().delete(id).expect("bitmap said it's here");
+                    offset + leaf_offset
                 }
             }
         }
@@ -262,7 +242,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
             return None;
         }
 
-        Some(del(root, 0, id))
+        Some(del(root, 0, id.into()))
     }
 
     /// Applies the given `deltas` to the tree.
@@ -274,18 +254,18 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         }
     }
 
-    fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry<T>) {
+    fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
 }
 
-pub struct Drain<'a, T: MarkTreeItem, M: MTree<T>> {
+pub struct Drain<'a, Id: MTreeId, M: MTree<Id>> {
     tree: &'a mut M,
-    ids: std::vec::IntoIter<T::Id>,
+    ids: std::vec::IntoIter<Id>,
 }
 
-impl<'a, T: MarkTreeItem, M: MTree<T>> Drop for Drain<'a, T, M> {
+impl<'a, Id: MTreeId, M: MTree<Id>> Drop for Drain<'a, Id, M> {
     fn drop(&mut self) {
         for id in self.ids.by_ref() {
             self.tree.delete(id).unwrap();
@@ -293,21 +273,39 @@ impl<'a, T: MarkTreeItem, M: MTree<T>> Drop for Drain<'a, T, M> {
     }
 }
 
-impl<'a, T: MarkTreeItem, M: MTree<T>> Iterator for Drain<'a, T, M> {
-    type Item = (usize, T);
+impl<'a, Id: MTreeId, M: MTree<Id>> Iterator for Drain<'a, Id, M> {
+    type Item = (usize, Id);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.ids.next().map(|id| {
-            self.tree.delete(id).expect("id was in the tree, and we're still holding &mut Tree")
+            let offset = self
+                .tree
+                .delete(id)
+                .expect("id was in the tree, and we're still holding &mut Tree");
+            (offset, id)
         })
     }
 }
 
+// NOTE: It's important to have a structure such that every leaf entry has a non-zero length.
+// Otherwise, a zero-length entry could take up arbitrarily many slots in the tree which breaks assumptions by the tree impl.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum LeafEntry<T> {
-    Item(T),
-    Gap(usize),
+struct LeafEntry {
+    /// The length of the entry.
+    length: NonZeroUsize,
+    /// The ids contained within this range.
+    /// All their positions is considered to be the start of the entry.
+    ids: tinyset::SetU64,
+}
+
+impl LeafEntry {
+    fn new(length: usize, ids: impl IntoIterator<Item = u64>) -> Self {
+        Self {
+            length: NonZeroUsize::new(length).expect("leaf entry length must be non-zero"),
+            ids: tinyset::SetU64::from_iter(ids),
+        }
+    }
 }
 
 // A fixed-size sorted array of items.
@@ -316,53 +314,38 @@ enum LeafEntry<T> {
 //  - But how to implement this? If there's a bunch of items in a row we have to represent that
 //  somehow.
 #[derive(Debug, Clone)]
-struct Leaf<T: MarkTreeItem, const N: usize> {
-    entries: ArrayVec<LeafEntry<T>, N>,
+struct Leaf<const N: usize> {
+    entries: ArrayVec<LeafEntry, N>,
 }
 
-impl<T: MarkTreeItem, const N: usize> Leaf<T, N> {
-    fn delete(&mut self, id: T::Id) -> Option<(usize, T)> {
-        let mut offset = 0;
-
-        let mut i = 0;
-        while i < self.entries.len() {
-            match &self.entries[i] {
-                LeafEntry::Item(item) if item.id() == id => {
-                    let LeafEntry::Item(item) = self.entries.remove(i) else { unreachable!() };
-                    return Some((offset, item));
-                }
-                LeafEntry::Item(_) => (),
-                LeafEntry::Gap(gap) => offset += *gap,
-            }
-            i += 1
-        }
-
-        None
+impl<const N: usize> Leaf<N> {
+    fn delete(&mut self, id: u64) -> Option<usize> {
+        todo!();
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> From<ArrayVec<LeafEntry<T>, N>> for Leaf<T, N> {
+impl<const N: usize> From<ArrayVec<LeafEntry, N>> for Leaf<N> {
     #[inline]
-    fn from(entries: ArrayVec<LeafEntry<T>, N>) -> Self {
+    fn from(entries: ArrayVec<LeafEntry, N>) -> Self {
         Self { entries }
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> Default for Leaf<T, N> {
+impl<const N: usize> Default for Leaf<N> {
     fn default() -> Self {
         Self::from(ArrayVec::new())
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> From<LeafSlice<'_, T>> for Leaf<T, N> {
+impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     #[inline]
-    fn from(slice: LeafSlice<'_, T>) -> Self {
+    fn from(slice: LeafSlice<'_>) -> Self {
         Self::from(ArrayVec::try_from(slice.entries).unwrap())
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N> {
-    type Replacement<'a> = LeafEntry<T>;
+impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
+    type Replacement<'a> = LeafEntry;
 
     type ExtraLeaves = impl ExactSizeIterator<Item = Self>;
 
@@ -381,198 +364,19 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
         assert!(end <= n, "end <= n ({end} <= {n})");
 
         let mut replace_with = Some(replace_with);
+        // TODO
 
-        // naive algorithm for now
-        // rebuild `self` with the new entry spliced in appropriately
-        // Splitting is also done naively by collecting into a vec and then splitting into arrays
-        #[derive(Debug, PartialEq, Eq)]
-        enum State {
-            Start,
-            Skipping { skipped: usize },
-            Copy,
-        }
-
-        #[derive(Debug)]
-        struct EntryBuilder<T> {
-            offset: usize,
-            entries: Vec<LeafEntry<T>>,
-        }
-
-        impl<T> Default for EntryBuilder<T> {
-            fn default() -> Self {
-                Self { offset: 0, entries: Vec::new() }
-            }
-        }
-
-        impl<T: MarkTreeItem> EntryBuilder<T> {
-            fn push(&mut self, entry: LeafEntry<T>) {
-                let entry = match entry {
-                    LeafEntry::Item(item) => LeafEntry::Item(item),
-                    LeafEntry::Gap(gap) => {
-                        if gap == 0 {
-                            return;
-                        }
-
-                        self.offset += gap;
-
-                        if let Some(LeafEntry::Gap(last_gap)) = self.entries.last_mut() {
-                            *last_gap += gap;
-                            return;
-                        }
-
-                        LeafEntry::Gap(gap)
-                    }
-                };
-
-                self.entries.push(entry);
-            }
-        }
-
-        use State::*;
-
-        let mut state = Start;
-        let mut builder = EntryBuilder::default();
-
-        for entry in self.entries.take() {
-            match entry {
-                LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
-                    let byte = builder.offset;
-                    if byte >= start && byte < end {
-                        continue;
-                    }
-
-                    builder.push(LeafEntry::Item(item))
-                }
-                LeafEntry::Item(_) => {}
-                LeafEntry::Gap(gap) => {
-                    match state {
-                        Start => {
-                            if builder.offset + gap > start {
-                                // We've passed the start of the replacement.
-                                // Keep the gap until the replacement starts.
-                                // Skip until the end of the replacement.
-                                let partial_gap = start - builder.offset;
-                                builder.push(LeafEntry::Gap(partial_gap));
-
-                                state = Skipping { skipped: gap - partial_gap };
-
-                                // If this entry covers the entire replacement, we're done.
-                                if builder.offset + gap >= end {
-                                    let remaining_gap = builder.offset + gap - end - partial_gap;
-                                    match replace_with.take().expect("used replacement twice") {
-                                        LeafEntry::Item(item) => {
-                                            builder.push(LeafEntry::Item(item));
-                                            builder.push(LeafEntry::Gap(remaining_gap));
-                                        }
-                                        LeafEntry::Gap(gap) => {
-                                            builder.push(LeafEntry::Gap(gap + remaining_gap))
-                                        }
-                                    }
-                                    state = Copy;
-                                }
-                            } else {
-                                builder.push(LeafEntry::Gap(gap));
-                            }
-                        }
-                        Skipping { skipped } => {
-                            if builder.offset + gap >= end {
-                                // We've passed the end of the replacement.
-                                // Keep the rest of the gap until the end of the skip.
-                                builder
-                                    .push(LeafEntry::Gap(skipped + gap - (end - builder.offset)));
-                                let replacement =
-                                    replace_with.take().expect("used replacement twice");
-                                match replacement {
-                                    LeafEntry::Item(item) => builder.push(LeafEntry::Item(item)),
-                                    LeafEntry::Gap(gap) => builder.push(LeafEntry::Gap(gap)),
-                                }
-
-                                state = Copy;
-                            } else {
-                                state = Skipping { skipped: skipped + gap };
-                            }
-                        }
-                        Copy => builder.push(LeafEntry::Gap(gap)),
-                    }
-                }
-            }
-        }
-
-        if let Some(replace_with) = replace_with {
-            builder.push(replace_with);
-        }
-
-        let mut chunks = builder.entries.array_chunks::<N>();
-        let (chunk, used_remainder) = match chunks.next() {
-            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-            None => (
-                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
-                true,
-            ),
-        };
-        self.entries = chunk;
-
-        *summary = self.summarize();
-
-        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
-            return None;
-        }
-
-        let rem = if chunks.remainder().is_empty() {
-            None
-        } else {
-            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
-        };
-
-        Some(
-            chunks
-                .cloned()
-                .map(ArrayVec::from)
-                .exact_chain(rem)
-                .map(Leaf::from)
-                // TODO maybe can avoid the collect here
-                .collect::<Vec<_>>()
-                .into_iter(),
-        )
+        Some(std::iter::empty())
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
-        let ByteMetric(up_to) = up_to;
-
-        assert!(up_to <= summary.bytes);
-        let mut offset = 0;
-
-        *self = Self {
-            entries: self
-                .entries
-                .take()
-                .into_iter()
-                .filter_map(|entry| match entry {
-                    LeafEntry::Item(item) => (offset > up_to).then(|| LeafEntry::Item(item)),
-                    LeafEntry::Gap(gap) if offset + gap <= up_to => {
-                        offset += gap;
-                        None
-                    }
-                    LeafEntry::Gap(gap) if offset < up_to && offset + gap > up_to => {
-                        // We know that `summary.bytes + gap >= up_to`.
-                        let remaining_gap = offset + gap - up_to;
-                        offset = up_to;
-
-                        if remaining_gap > 0 { Some(LeafEntry::Gap(remaining_gap)) } else { None }
-                    }
-                    LeafEntry::Gap(gap) => {
-                        offset += gap;
-                        Some(entry)
-                    }
-                })
-                .collect(),
-        };
+        todo!();
 
         *summary = self.summarize();
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> BalancedLeaf for Leaf<T, N> {
+impl<const N: usize> BalancedLeaf for Leaf<N> {
     // TODO implement
     fn is_underfilled(&self, _summary: &Self::Summary) -> bool {
         false
@@ -586,7 +390,7 @@ impl<T: MarkTreeItem, const N: usize> BalancedLeaf for Leaf<T, N> {
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> Summarize for Leaf<T, N> {
+impl<const N: usize> Summarize for Leaf<N> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
@@ -594,66 +398,46 @@ impl<T: MarkTreeItem, const N: usize> Summarize for Leaf<T, N> {
     }
 }
 
-impl<T: MarkTreeItem, const N: usize> BaseMeasured for Leaf<T, N> {
+impl<const N: usize> BaseMeasured for Leaf<N> {
     type BaseMetric = ByteMetric;
 }
 
-impl<T: MarkTreeItem, const N: usize> AsSlice for Leaf<T, N> {
-    type Slice<'a> = LeafSlice<'a,  T> where Self: 'a;
+impl<const N: usize> AsSlice for Leaf<N> {
+    type Slice<'a> = LeafSlice<'a > where Self: 'a;
 
     fn as_slice(&self) -> Self::Slice<'_> {
         LeafSlice { entries: &self.entries }
     }
 }
 
-#[derive(Debug, Clone)]
-struct LeafSlice<'a, T: MarkTreeItem> {
-    entries: &'a [LeafEntry<T>],
+#[derive(Debug, Clone, Copy)]
+struct LeafSlice<'a> {
+    entries: &'a [LeafEntry],
 }
 
-impl<'a, T: MarkTreeItem> Default for LeafSlice<'a, T> {
+impl<'a> Default for LeafSlice<'a> {
     #[inline]
     fn default() -> Self {
         Self { entries: &[] }
     }
 }
 
-impl<'a, T: MarkTreeItem> LeafSlice<'a, T> {
+impl<'a> LeafSlice<'a> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
-    fn get(&self, id: T::Id) -> Option<(usize, &T)> {
-        let mut offset = 0;
-        self.entries.iter().find_map(|entry| match entry {
-            LeafEntry::Item(item) if item.id() == id => Some((offset, item)),
-            LeafEntry::Item(_) => None,
-            LeafEntry::Gap(gap) => {
-                offset += *gap;
-                None
-            }
-        })
+    fn get(&self, id: u64) -> Option<usize> {
+        todo!()
     }
 }
 
-impl<'a, T: MarkTreeItem> Copy for LeafSlice<'a, T> {}
-
-impl<'a, T: MarkTreeItem> Summarize for LeafSlice<'a, T> {
+impl<'a> Summarize for LeafSlice<'a> {
     type Summary = Summary;
 
     fn summarize(&self) -> Self::Summary {
-        let mut ids = RoaringTreemap::new();
-        let bytes = self
-            .entries
-            .iter()
-            .map(|entry| match entry {
-                LeafEntry::Item(item) => {
-                    ids.insert(item.id().into());
-                    0
-                }
-                LeafEntry::Gap(n) => *n,
-            })
-            .sum();
-
-        Summary { bytes, ids }
+        Summary {
+            bytes: self.entries.iter().map(|entry| entry.length.get()).sum(),
+            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.iter())),
+        }
     }
 }
 
@@ -740,7 +524,7 @@ struct ByteMetric(usize);
 
 // NOTE: It would be nice to have the following impl but I don't think it's possible to implement.
 // We would need to be able to make arbitrary slices into the `Leaf` which is not possible due to having `Gap`s.
-// impl<T: MarkTreeItem, const N: usize> SlicingMetric<Leaf<T, N>> for ByteMetric {}
+// impl<Id: MTreeId, const N: usize> SlicingMetric<Leaf<T, N>> for ByteMetric {}
 
 impl Metric<Summary> for ByteMetric {
     #[inline]
@@ -835,32 +619,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use LeafEntry::*;
-
-    use super::*;
-
-    #[test]
-    fn remove_up_to() {
-        #[track_caller]
-        fn check<const N: usize>(
-            iter: impl IntoIterator<Item = LeafEntry<u64>>,
-            up_to: usize,
-            expected: impl IntoIterator<Item = LeafEntry<u64>>,
-            expected_summary: (usize, impl IntoIterator<Item = u64>),
-        ) {
-            let mut leaf = Leaf::<u64, N>::from(ArrayVec::from_iter(iter));
-            let mut summary = leaf.summarize();
-            leaf.remove_up_to(&mut summary, ByteMetric(up_to));
-            assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
-            let expected_summary = Summary {
-                bytes: expected_summary.0,
-                ids: RoaringTreemap::from_iter(expected_summary.1),
-            };
-            assert_eq!(summary, expected_summary);
-        }
-
-        check::<4>([Item(0), Gap(1), Item(1)], 1, [], (0, []));
-        check::<10>([Item(0), Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(2)], (1, [2]));
-        check::<10>([Gap(1), Item(0), Gap(1), Item(1)], 1, [Gap(1), Item(1)], (1, [1]));
-    }
+    // use LeafEntry::*;
+    //
+    // use super::*;
+    //
+    // #[test]
+    // fn remove_up_to() {
+    //     #[track_caller]
+    //     fn check<const N: usize>(
+    //         iter: impl IntoIterator<Item = LeafEntry<u64>>,
+    //         up_to: usize,
+    //         expected: impl IntoIterator<Item = LeafEntry<u64>>,
+    //         expected_summary: (usize, impl IntoIterator<Item = u64>),
+    //     ) {
+    //         let mut leaf = Leaf::<u64, N>::from(ArrayVec::from_iter(iter));
+    //         let mut summary = leaf.summarize();
+    //         leaf.remove_up_to(&mut summary, ByteMetric(up_to));
+    //         assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
+    //         let expected_summary = Summary {
+    //             bytes: expected_summary.0,
+    //             ids: RoaringTreemap::from_iter(expected_summary.1),
+    //         };
+    //         assert_eq!(summary, expected_summary);
+    //     }
+    //
+    //     check::<4>([Item(0), Gap(1), Item(1)], 1, [], (0, []));
+    //     check::<10>([Item(0), Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(2)], (1, [2]));
+    //     check::<10>([Gap(1), Item(0), Gap(1), Item(1)], 1, [Gap(1), Item(1)], (1, [1]));
+    // }
 }

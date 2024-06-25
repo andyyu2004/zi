@@ -29,21 +29,21 @@ impl Buffer {
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkIdWrapper, 32>,
+    tree: MarkTree<IdWrapper, 32>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-struct MarkIdWrapper(MarkId);
+struct IdWrapper(MarkId);
 
-impl fmt::Debug for MarkIdWrapper {
+impl fmt::Debug for IdWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl From<MarkIdWrapper> for u64 {
+impl From<IdWrapper> for u64 {
     #[inline]
-    fn from(wrapper: MarkIdWrapper) -> u64 {
+    fn from(wrapper: IdWrapper) -> u64 {
         wrapper.0.data().as_ffi()
     }
 }
@@ -61,17 +61,13 @@ impl Marks {
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, MarkIdWrapper(id));
+        self.tree.insert(byte, IdWrapper(id));
         id
     }
 
-    pub fn delete(&mut self, mark_id: MarkId) -> Option<Mark> {
-        let mark = self.marks.remove(mark_id)?;
-        let (byte, MarkIdWrapper(id)) = self
-            .tree
-            .delete(MarkIdWrapper(mark_id))
-            .expect("if map contains mark, tree should too");
-        debug_assert_eq!(id, mark_id);
+    pub fn delete(&mut self, id: MarkId) -> Option<Mark> {
+        let mark = self.marks.remove(id)?;
+        let byte = self.tree.delete(IdWrapper(id)).expect("if map contains mark, tree should too");
         mark.byte.set(byte);
         Some(mark)
     }
@@ -82,8 +78,8 @@ impl Marks {
     }
 
     pub fn iter(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
-        self.tree.items(range).map(move |(byte, MarkIdWrapper(id))| {
-            let mark = &self.marks[*id];
+        self.tree.items(range).map(move |(byte, IdWrapper(id))| {
+            let mark = &self.marks[id];
             mark.byte.set(byte);
             mark
         })

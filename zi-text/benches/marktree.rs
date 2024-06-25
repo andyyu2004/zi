@@ -26,7 +26,7 @@ fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
             tree
         })
         .bench_local_values(|mut tree| {
-            (0..1_000).for_each(|i| assert_eq!(tree.delete(i as u64), Some((i, i as u64))))
+            (0..1_000).for_each(|i| assert_eq!(tree.delete(i as u64), Some(i)))
         })
 }
 
@@ -38,7 +38,8 @@ fn bench_marktree_get(bencher: Bencher<'_, '_>) {
     bencher.bench_local(move || {
         (0..10000).for_each(|i| {
             let item = tree.get(i as u64);
-            assert_eq!(item, Some((i, i as u64)));
+            assert_eq!(item, Some(i));
         });
     });
 }
+
