@@ -29,6 +29,8 @@ impl fmt::Debug for FileType {
 impl FileType {
     pub const TEXT: Self = Self(Symbol::const_new("text"));
     pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
+    pub const JAVASCRIPT: Self = Self(Symbol::const_new("javascript"));
+    pub const TYPESCRIPT: Self = Self(Symbol::const_new("typescript"));
     pub const C: Self = Self(Symbol::const_new("c"));
     pub const RUST: Self = Self(Symbol::const_new("rust"));
     pub const GO: Self = Self(Symbol::const_new("go"));
@@ -50,6 +52,8 @@ impl FileType {
                 Some("toml") => Self::TOML,
                 Some("json") => Self::JSON,
                 Some("gqlt") => Self::GQLT,
+                Some("js") => Self::JAVASCRIPT,
+                Some("ts") => Self::TYPESCRIPT,
                 Some("txt") | Some("text") => Self::TEXT,
                 // Some(ext) => Self(Symbol::const_new(ext)),
                 // TODO need some string interning mechanism to get &'static str without repeated allocations
@@ -93,6 +97,8 @@ impl fmt::Display for LanguageServerId {
 
 impl LanguageServerId {
     pub const RUST_ANALYZER: Self = Self(Symbol::const_new("rust-analyzer"));
+    // I know, tsserver != typescript-language-server, but the name is too long :)
+    pub const TSSERVER: Self = Self(Symbol::const_new("tsserver"));
     pub const GOPLS: Self = Self(Symbol::const_new("gopls"));
     pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
     pub const CLANGD: Self = Self(Symbol::const_new("clangd"));
@@ -177,6 +183,14 @@ impl Default for Config {
                 FileType::C,
                 LanguageConfig { language_servers: Box::new([LanguageServerId::CLANGD]) },
             ),
+            (
+                FileType::JAVASCRIPT,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::TSSERVER]) },
+            ),
+            (
+                FileType::TYPESCRIPT,
+                LanguageConfig { language_servers: Box::new([LanguageServerId::TSSERVER]) },
+            ),
             (FileType::TEXT, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::TOML, LanguageConfig { language_servers: Box::new([]) }),
             (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),
@@ -188,6 +202,13 @@ impl Default for Config {
                     LanguageServerId::RUST_ANALYZER,
                     ExecutableLanguageServerConfig::new("ra-multiplex", []),
                     // ExecutableLanguageServerConfig::new("rust-analyzer", []),
+                ),
+                (
+                    LanguageServerId::TSSERVER,
+                    ExecutableLanguageServerConfig::new(
+                        "typescript-language-server",
+                        ["--stdio".into()],
+                    ),
                 ),
                 (LanguageServerId::GOPLS, ExecutableLanguageServerConfig::new("gopls", [])),
                 (LanguageServerId::GQLT, ExecutableLanguageServerConfig::new("gqlt", [])),
