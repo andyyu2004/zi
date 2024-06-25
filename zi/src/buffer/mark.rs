@@ -42,6 +42,7 @@ impl fmt::Debug for MarkIdWrapper {
 }
 
 impl From<MarkIdWrapper> for u64 {
+    #[inline]
     fn from(wrapper: MarkIdWrapper) -> u64 {
         wrapper.0.data().as_ffi()
     }

@@ -19,7 +19,13 @@ pub enum Bias {
     Right,
 }
 
+// Small to make it easier to debug tests.
+#[cfg(debug_assertions)]
 const ARITY: usize = 4;
+
+// FIXME: currently completely arbitrary number
+#[cfg(not(debug_assertions))]
+const ARITY: usize = 7;
 
 /// A tree of ordered items that each have a byte position.
 /// This can be edited efficiently (logarithmic time) with `Deltas`.
@@ -125,6 +131,9 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                             for child in inode.children().iter() {
                                 q.push_back((offset, child.as_ref()));
                                 offset += child.summary().bytes;
+                                if offset >= end {
+                                    break;
+                                }
                             }
                         }
                         Node::Leaf(leaf) => {
@@ -132,14 +141,15 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                                 if offset >= end {
                                     break;
                                 }
-
                                 match entry {
                                     LeafEntry::Item(item) => {
                                         if start <= offset {
                                             yield (offset, item)
                                         }
                                     }
-                                    LeafEntry::Gap(gap) => offset += gap,
+                                    LeafEntry::Gap(gap) => {
+                                        offset += gap;
+                                    }
                                 }
                             }
                         }
@@ -156,7 +166,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
             todo!("MarkTree insertion of existing id")
         }
 
-        assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
+        assert!(at <= self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
         self.replace(at..at, LeafEntry::Item(item))
     }
 
@@ -374,11 +384,7 @@ impl<T: MarkTreeItem, const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<T, N>
             match entry {
                 LeafEntry::Item(item) if !matches!(state, Skipping { .. }) => {
                     let byte = builder.offset;
-                    if byte >= start && byte < end
-                    // Dirty edge case below. Zero width items cause trouble.
-                    // This hack passes tests, but not sure if it's completely correct.
-                    || byte == n && start == n && end == n
-                    {
+                    if byte >= start && byte < end {
                         continue;
                     }
 

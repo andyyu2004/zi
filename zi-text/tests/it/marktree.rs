@@ -23,6 +23,20 @@ fn assert_iter_eq<T: Copy + Eq + fmt::Debug + 'static>(
 }
 
 #[test]
+fn marktree_empty() {
+    let mut tree = MarkTree::<u64, 10>::new(0);
+    // It should be fine to insert at index == tree.len()
+    tree.insert(0, 0u64);
+    dbg!(&tree);
+    assert_offset_iter_eq(tree.items(..), [(0, 0)]);
+    assert_offset_iter_eq(tree.items(..0), []);
+    assert_offset_iter_eq(tree.items(..=0), [(0, 0)]);
+
+    assert_eq!(tree.delete(0), Some((0, 0)));
+    assert_offset_iter_eq(tree.items(..), []);
+}
+
+#[test]
 fn marktree_range_iter() {
     let mut tree = MarkTree::<_, 10>::new(1000);
     tree.insert(0, 0u64);
