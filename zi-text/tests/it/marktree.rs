@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zi_text::{deltas, MarkTree};
+use zi_text::{deltas, MTree, MarkTree};
 
 #[track_caller]
 fn assert_offset_iter_eq<T: Copy + Eq + fmt::Debug + 'static>(
@@ -30,6 +30,9 @@ fn marktree_empty() {
     assert_offset_iter_eq(tree.items(..), [(0, 0)]);
     assert_offset_iter_eq(tree.items(..0), []);
     assert_offset_iter_eq(tree.items(..=0), [(0, 0)]);
+
+    tree.edit(&deltas![0..0 => "a"]);
+    assert_offset_iter_eq(tree.items(..), [(1, 0)]);
 
     assert_eq!(tree.delete(0), Some((0, 0)));
     assert_offset_iter_eq(tree.items(..), []);

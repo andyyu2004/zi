@@ -12,6 +12,33 @@ use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
+#[allow(unused)]
+pub trait MTree<T: MarkTreeItem> {
+    fn new(n: usize) -> Self;
+
+    fn len(&self) -> usize;
+
+    fn get(&self, id: T::Id) -> Option<(usize, T)>;
+
+    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)>;
+
+    fn insert(&mut self, at: usize, item: T);
+
+    fn delete(&mut self, id: T::Id) -> Option<(usize, T)>;
+
+    fn shift(&mut self, range: impl RangeBounds<usize>, by: usize);
+
+    /// Drains the items in the given range.
+    /// This does not affect `self.len()`;
+    fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, T, Self>
+    where
+        Self: Sized,
+    {
+        let ids = self.range(range).map(|(_, item)| (item.id())).collect::<Vec<_>>().into_iter();
+        Drain { tree: self, ids }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Bias {
     // Important that `Self::Left < Self::Right`
@@ -57,6 +84,36 @@ impl<I: Eq + Copy + Into<u64> + fmt::Debug + 'static> MarkTreeItem for I {
     #[inline]
     fn id(&self) -> Self::Id {
         *self
+    }
+}
+
+impl<const N: usize, T: MarkTreeItem> MTree<T> for MarkTree<T, N> {
+    fn new(n: usize) -> Self {
+        Self::new(n)
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn get(&self, id: <T as MarkTreeItem>::Id) -> Option<(usize, T)> {
+        self.get(id)
+    }
+
+    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)> {
+        self.items(range)
+    }
+
+    fn insert(&mut self, at: usize, item: T) {
+        self.insert(at, item)
+    }
+
+    fn delete(&mut self, id: <T as MarkTreeItem>::Id) -> Option<(usize, T)> {
+        self.delete(id)
+    }
+
+    fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
+        self.replace(range, LeafEntry::Gap(by));
     }
 }
 
@@ -208,19 +265,12 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
         Some(del(root, 0, id))
     }
 
-    /// Drains the items in the given range.
-    /// This does not affect `self.len()`;
-    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, T, N> {
-        let ids = self.items(range).map(|(_, item)| (item.id())).collect::<Vec<_>>().into_iter();
-        Drain { tree: self, ids }
-    }
-
     /// Applies the given `deltas` to the tree.
     /// This will update the byte positions of the items.
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
             let range = delta.range();
-            self.replace(range, LeafEntry::Gap(delta.text().len()));
+            self.shift(range, delta.text().len());
         }
     }
 
@@ -230,12 +280,12 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 }
 
-pub struct Drain<'a, T: MarkTreeItem, const N: usize> {
-    tree: &'a mut MarkTree<T, N>,
+pub struct Drain<'a, T: MarkTreeItem, M: MTree<T>> {
+    tree: &'a mut M,
     ids: std::vec::IntoIter<T::Id>,
 }
 
-impl<'a, T: MarkTreeItem, const N: usize> Drop for Drain<'a, T, N> {
+impl<'a, T: MarkTreeItem, M: MTree<T>> Drop for Drain<'a, T, M> {
     fn drop(&mut self) {
         for id in self.ids.by_ref() {
             self.tree.delete(id).unwrap();
@@ -243,7 +293,7 @@ impl<'a, T: MarkTreeItem, const N: usize> Drop for Drain<'a, T, N> {
     }
 }
 
-impl<'a, T: MarkTreeItem, const N: usize> Iterator for Drain<'a, T, N> {
+impl<'a, T: MarkTreeItem, M: MTree<T>> Iterator for Drain<'a, T, M> {
     type Item = (usize, T);
 
     #[inline]
