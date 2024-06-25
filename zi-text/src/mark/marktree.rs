@@ -7,6 +7,7 @@ use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
+use stdx::bound::BoundExt;
 use stdx::iter::ExactChain;
 
 use crate::Deltas;
@@ -114,7 +115,7 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
     }
 
     pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, &T)> + '_ {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        let (start, end) = (range.start_bound().cloned(), range.end_bound().cloned());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
         iter::from_coroutine(
@@ -123,33 +124,35 @@ impl<const N: usize, T: MarkTreeItem> MarkTree<T, N> {
                 while let Some((mut offset, node)) = q.pop_front() {
                     match node {
                         Node::Internal(inode) => {
-                            if offset + inode.summary().bytes < start {
-                                // We haven't reached a node that intersects the range yet.
-                                continue;
-                            }
-
                             for child in inode.children().iter() {
+                                let summary = child.summary();
+                                // TODO something like the following logic to avoid adding
+                                // unnecessary nodes to the queue
+                                // let child_range = (offset..offset + summary.bytes);
+                                // if !child_range.contains(start..end) {
+                                //     continue;
+                                // }
+
                                 q.push_back((offset, child.as_ref()));
-                                offset += child.summary().bytes;
-                                if offset >= end {
+                                offset += summary.bytes;
+                                if end.gt(&offset) {
                                     break;
                                 }
                             }
                         }
                         Node::Leaf(leaf) => {
                             for entry in leaf.as_slice().entries {
-                                if offset >= end {
+                                if end.gt(&offset) {
                                     break;
                                 }
+
                                 match entry {
                                     LeafEntry::Item(item) => {
-                                        if start <= offset {
+                                        if start.lt(&offset) {
                                             yield (offset, item)
                                         }
                                     }
-                                    LeafEntry::Gap(gap) => {
-                                        offset += gap;
-                                    }
+                                    LeafEntry::Gap(gap) => offset += gap,
                                 }
                             }
                         }

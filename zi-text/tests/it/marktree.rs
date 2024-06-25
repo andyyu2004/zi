@@ -27,7 +27,6 @@ fn marktree_empty() {
     let mut tree = MarkTree::<u64, 10>::new(0);
     // It should be fine to insert at index == tree.len()
     tree.insert(0, 0u64);
-    dbg!(&tree);
     assert_offset_iter_eq(tree.items(..), [(0, 0)]);
     assert_offset_iter_eq(tree.items(..0), []);
     assert_offset_iter_eq(tree.items(..=0), [(0, 0)]);
@@ -95,10 +94,10 @@ fn marktree_drain_2() {
     let mut tree = MarkTree::<_, 7>::new(10);
     (0..4).for_each(|i| tree.insert(i, i as u64));
 
-    tree.drain(0..=0);
+    assert_iter_eq(tree.drain(0..=0), [(0, 0)]);
     assert_offset_iter_eq(tree.items(..), [(1, 1), (2, 2), (3, 3)]);
 
-    tree.drain(1..=1);
+    assert_iter_eq(tree.drain(1..=1), [(1, 1)]);
     assert_offset_iter_eq(tree.items(..), [(2, 2), (3, 3)]);
 
     tree.drain(2..=2);
@@ -144,7 +143,7 @@ fn marktree_drain() {
 }
 
 #[test]
-fn marktree_bulk_remove_range() {
+fn marktree_bulk_drain() {
     const LEN: usize = 200;
     let mut tree = MarkTree::<_, 2>::new(LEN);
 
