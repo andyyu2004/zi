@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::fmt;
 use std::ops::RangeBounds;
 
 use slotmap::{Key, SlotMap};
@@ -31,8 +32,14 @@ pub(crate) struct Marks {
     tree: MarkTree<MarkIdWrapper, 32>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 struct MarkIdWrapper(MarkId);
+
+impl fmt::Debug for MarkIdWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl From<MarkIdWrapper> for u64 {
     fn from(wrapper: MarkIdWrapper) -> u64 {

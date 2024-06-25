@@ -5,7 +5,9 @@ use stdx::merge::Merge;
 use crate::editor::{set_error_if, Action, SaveFlags};
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
-use crate::{hashmap, motion, trie, Active, Direction, Editor, Mode, Operator, VerticalAlignment};
+use crate::{
+    hashmap, motion, trie, Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment,
+};
 
 pub(super) fn new() -> Keymap {
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
@@ -257,6 +259,12 @@ pub(super) fn new() -> Keymap {
         editor.goto_prev_match();
     }
 
+    fn tmp_create_mark_test(editor: &mut Editor) {
+        let cursor = editor.cursor(Active);
+        let byte = editor.buffer(Active).text().point_to_byte(cursor);
+        editor.create_mark(Active, Mark::builder(byte));
+    }
+
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP
         .get_or_init(|| {
@@ -305,6 +313,7 @@ pub(super) fn new() -> Keymap {
                     "<C-e>" => scroll_line_down,
                     "<C-y>" => scroll_line_up,
                     "<Tab>" => tab,
+                    "m" => tmp_create_mark_test,
                     "d" => delete_operator,
                     "c" => change_operator_pending,
                     "y" => yank_operator_pending,
