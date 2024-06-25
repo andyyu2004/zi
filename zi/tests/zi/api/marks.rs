@@ -15,13 +15,13 @@ async fn marks() {
 
     cx.with(|editor| {
         let a = editor.create_mark(zi::Active, zi::Mark::builder(2));
-        check_marks_eq(editor.marks(zi::Active), [(2, a)]);
+        check_marks_eq(editor.marks(zi::Active, ..), [(2, a)]);
 
         let b = editor.create_mark(zi::Active, zi::Mark::builder(4));
-        check_marks_eq(editor.marks(zi::Active), [(2, a), (4, b)]);
+        check_marks_eq(editor.marks(zi::Active, ..), [(2, a), (4, b)]);
 
         editor.edit(zi::Active, &zi::deltas![0..1 => ""]).unwrap();
-        check_marks_eq(editor.marks(zi::Active), [(1, a), (3, b)]);
+        check_marks_eq(editor.marks(zi::Active, ..), [(1, a), (3, b)]);
     })
     .await;
 
