@@ -85,7 +85,7 @@ impl Marks {
     }
 
     pub fn iter(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
-        self.tree.items(range).map(move |(byte, IdWrapper(id))| {
+        self.tree.range(range).map(move |(byte, IdWrapper(id))| {
             let mark = &self.marks[id];
             mark.byte.set(byte);
             mark

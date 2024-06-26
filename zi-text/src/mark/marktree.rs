@@ -12,33 +12,9 @@ use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
-pub trait MTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
+pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
-impl<Id: Copy + Eq + fmt::Debug + From<u64> + Into<u64> + 'static> MTreeId for Id {}
-
-pub trait MTree<Id: MTreeId> {
-    fn new(n: usize) -> Self;
-
-    fn len(&self) -> usize;
-
-    fn get(&self, id: Id) -> Option<usize>;
-
-    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)>;
-
-    fn insert(&mut self, at: usize, id: Id);
-
-    fn delete(&mut self, id: Id) -> Option<usize>;
-
-    fn shift(&mut self, range: impl RangeBounds<usize>, by: usize);
-
-    fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, Self>
-    where
-        Self: Sized,
-    {
-        let ids = self.range(range).map(|(_, id)| id).collect::<Vec<_>>().into_iter();
-        Drain { tree: self, ids }
-    }
-}
+impl<Id: Copy + Eq + fmt::Debug + From<u64> + Into<u64> + 'static> MarkTreeId for Id {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Bias {
@@ -66,46 +42,12 @@ const ARITY: usize = 7;
 // Plenty of optimizations available. The implementation is fairly naive.
 //  - avoid recreating bitmaps and arrays from scratch all the time
 #[derive(Debug)]
-pub struct MarkTree<Id: MTreeId, const N: usize> {
+pub struct MarkTree<Id: MarkTreeId, const N: usize> {
     tree: Tree<ARITY, Leaf<N>>,
     _id: PhantomData<Id>,
 }
 
-impl<const N: usize, Id: MTreeId> MTree<Id> for MarkTree<Id, N> {
-    fn new(n: usize) -> Self {
-        Self::new(n)
-    }
-
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    fn get(&self, id: Id) -> Option<usize> {
-        self.get(id)
-    }
-
-    fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> {
-        self.items(range)
-    }
-
-    fn insert(&mut self, at: usize, id: Id) {
-        self.insert(at, id)
-    }
-
-    fn delete(&mut self, id: Id) -> Option<usize> {
-        self.delete(id)
-    }
-
-    fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.tree.replace(
-            ByteMetric(start)..ByteMetric(end),
-            Replacement::Entries((0..by).map(|_| LeafEntry::new([])).collect()),
-        );
-    }
-}
-
-impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
+impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Creates a new `MarkTree` appropriate for a text of length `n`.
     pub fn new(n: usize) -> Self {
         assert!(n > 0, "MarkTree must have a non-zero length");
@@ -159,7 +101,15 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         }
     }
 
-    pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
+    pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.tree.replace(
+            ByteMetric(start)..ByteMetric(end),
+            Replacement::Entries((0..by).map(|_| LeafEntry::new([])).collect()),
+        );
+    }
+
+    pub fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
@@ -220,6 +170,14 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         self.replace(at..=at, Replacement::Item(id.into()))
     }
 
+    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
+    where
+        Self: Sized,
+    {
+        let ids = self.range(range).map(|(_, id)| id).collect::<Vec<_>>().into_iter();
+        Drain { tree: self, ids }
+    }
+
     pub fn delete(&mut self, id: Id) -> Option<usize> {
         fn del<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
@@ -276,12 +234,12 @@ enum Replacement {
     Item(u64),
 }
 
-pub struct Drain<'a, Id: MTreeId, M: MTree<Id>> {
-    tree: &'a mut M,
+pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
+    tree: &'a mut MarkTree<Id, N>,
     ids: std::vec::IntoIter<Id>,
 }
 
-impl<'a, Id: MTreeId, M: MTree<Id>> Drop for Drain<'a, Id, M> {
+impl<'a, Id: MarkTreeId, const N: usize> Drop for Drain<'a, Id, N> {
     fn drop(&mut self) {
         for id in self.ids.by_ref() {
             self.tree.delete(id).unwrap();
@@ -289,7 +247,7 @@ impl<'a, Id: MTreeId, M: MTree<Id>> Drop for Drain<'a, Id, M> {
     }
 }
 
-impl<'a, Id: MTreeId, M: MTree<Id>> Iterator for Drain<'a, Id, M> {
+impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
     type Item = (usize, Id);
 
     #[inline]

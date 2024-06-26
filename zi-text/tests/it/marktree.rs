@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zi_text::{MTree, MarkTree};
+use zi_text::MarkTree;
 
 #[track_caller]
 fn assert_offset_iter_eq<T: Copy + Eq + fmt::Debug + 'static>(
