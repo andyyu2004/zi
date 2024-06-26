@@ -52,7 +52,6 @@ fn marktree_range_iter() {
     assert_offset_iter_eq(tree.range(0..=0), [(0, 0)]);
     assert_offset_iter_eq(tree.range(0..1), [(0, 0)]);
     assert_offset_iter_eq(tree.range(0..2), [(0, 0), (1, 1)]);
-    dbg!(&tree);
     assert_offset_iter_eq(tree.range(1..2), [(1, 1)]);
     assert_offset_iter_eq(tree.range(2..2), []);
 
@@ -105,7 +104,6 @@ fn marktree_drain_2() {
     assert_iter_eq(tree.drain(0..=0), [(0, 0)]);
     assert_offset_iter_eq(tree.range(..), [(1, 1), (2, 2), (3, 3)]);
 
-    dbg!(&tree);
     assert_iter_eq(tree.drain(1..=1), [(1, 1)]);
     assert_offset_iter_eq(tree.range(..), [(2, 2), (3, 3)]);
 
@@ -184,9 +182,12 @@ fn marktree_simple_insert() {
 }
 
 #[test]
-fn tmp() {
+fn marktree_small_insert() {
     let mut tree = new(5);
-    (0..10).for_each(|i| dbg!(&mut tree).insert(i, i as u64));
+    (0..5).for_each(|i| {
+        tree.insert(i, i as u64);
+        assert_iter_eq(tree.range(..), (0..=i).map(|j| (j, j as u64)));
+    });
 }
 
 #[test]

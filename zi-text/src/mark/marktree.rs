@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
-use std::{fmt, iter};
+use std::{fmt, iter, vec};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
@@ -218,7 +218,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         }
 
         assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..at, Replacement::Item(id.into()))
+        self.replace(at..=at, Replacement::Item(id.into()))
     }
 
     pub fn delete(&mut self, id: Id) -> Option<usize> {
@@ -273,7 +273,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
 enum Replacement {
     Entries(Vec<LeafEntry>),
     // Invariant, `Item` can only be used as a replacement if the range is empty. The replacement
-    // range is `byte..byte`
+    // range is `byte..=byte`
     Item(u64),
 }
 
@@ -372,7 +372,7 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
 impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     type Replacement<'a> = Replacement;
 
-    type ExtraLeaves = impl ExactSizeIterator<Item = Self>;
+    type ExtraLeaves = vec::IntoIter<Leaf<N>>;
 
     fn replace<R>(
         &mut self,
@@ -389,17 +389,24 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         assert!(end <= n, "end <= n ({end} <= {n})");
 
         debug_assert_eq!(self.entries.len(), n, "one entry per byte for now");
-        let mut new_entries = Vec::from_iter(self.entries.take());
-        match replace_with {
-            Replacement::Entries(entries) => drop(new_entries.splice(start..end, entries)),
+        let new_entries = match replace_with {
+            Replacement::Entries(entries) => {
+                let mut new_entries = Vec::from_iter(self.entries.take());
+                new_entries.splice(start..end, entries);
+                new_entries
+            }
             Replacement::Item(id) => {
-                assert_eq!(start, end);
-
-                if start == n {
-                    new_entries.push(LeafEntry::new([id]));
-                } else {
-                    assert!(new_entries[start].ids.insert(id))
+                // We usually expect `start + 1 = end`.
+                // However, if `start == end` then we're inserting at the end of the leaf.
+                if start == end {
+                    return Some(
+                        vec![Leaf::from(ArrayVec::from_iter([LeafEntry::new([id])]))].into_iter(),
+                    );
                 }
+                assert_eq!(start + 1, end);
+                let mut new_entries = self.entries.take();
+                assert!(new_entries[start].ids.insert(id));
+                new_entries.to_vec()
             }
         };
 
@@ -437,9 +444,9 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         )
     }
 
-    fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
-        todo!();
-
+    #[inline]
+    fn remove_up_to(&mut self, summary: &mut Self::Summary, ByteMetric(up_to): ByteMetric) {
+        self.entries.drain(..up_to);
         *summary = self.summarize();
     }
 }
@@ -689,36 +696,4 @@ where
     assert!(end <= hi, "end={end} <= hi={hi}");
 
     (start, end)
-}
-
-#[cfg(test)]
-mod tests {
-    // use LeafEntry::*;
-    //
-    // use super::*;
-    //
-    // #[test]
-    // fn remove_up_to() {
-    //     #[track_caller]
-    //     fn check<const N: usize>(
-    //         iter: impl IntoIterator<Item = LeafEntry<u64>>,
-    //         up_to: usize,
-    //         expected: impl IntoIterator<Item = LeafEntry<u64>>,
-    //         expected_summary: (usize, impl IntoIterator<Item = u64>),
-    //     ) {
-    //         let mut leaf = Leaf::<u64, N>::from(ArrayVec::from_iter(iter));
-    //         let mut summary = leaf.summarize();
-    //         leaf.remove_up_to(&mut summary, ByteMetric(up_to));
-    //         assert_eq!(leaf.entries, ArrayVec::from_iter(expected));
-    //         let expected_summary = Summary {
-    //             bytes: expected_summary.0,
-    //             ids: RoaringTreemap::from_iter(expected_summary.1),
-    //         };
-    //         assert_eq!(summary, expected_summary);
-    //     }
-    //
-    //     check::<4>([Item(0), Gap(1), Item(1)], 1, [], (0, []));
-    //     check::<10>([Item(0), Gap(1), Item(1), Gap(1), Item(2)], 1, [Gap(1), Item(2)], (1, [2]));
-    //     check::<10>([Gap(1), Item(0), Gap(1), Item(1)], 1, [Gap(1), Item(1)], (1, [1]));
-    // }
 }
