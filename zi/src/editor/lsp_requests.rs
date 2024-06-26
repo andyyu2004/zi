@@ -12,7 +12,7 @@ use zi_lsp::lsp_types::{self, OneOf, Url};
 use zi_lsp::PositionEncoding;
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
-use crate::buffer::picker::{PathPicker, PathPickerEntry};
+use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::lsp::{self, from_proto, to_proto, LanguageClient, LanguageServer};
 use crate::{BufferId, Editor, FileType, LanguageServerId, Location, OpenFlags, ViewId};
 
@@ -326,9 +326,9 @@ impl Editor {
             line: usize,
         }
 
-        impl PathPickerEntry for Entry {
-            fn path(&self) -> &Path {
-                &self.path
+        impl BufferPickerEntry for Entry {
+            fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+                Err(&self.path)
             }
 
             fn point(&self) -> Option<Point> {
@@ -347,7 +347,7 @@ impl Editor {
             [_] => Ok(Box::pin(self.lsp_jump_to_location(encoding, locations.pop().unwrap())?)
                 as BoxFuture<'static, _>),
             _ => {
-                self.open_static_picker::<PathPicker<_>>(
+                self.open_static_picker::<BufferPicker<_>>(
                     Url::parse("view-group://lsp/picker").unwrap(),
                     "/",
                     (1, 1),

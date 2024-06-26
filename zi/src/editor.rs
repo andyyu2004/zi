@@ -42,7 +42,7 @@ pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
-use crate::buffer::picker::{DynamicHandler, PathPicker, PathPickerEntry, Picker};
+use crate::buffer::picker::{BufferPicker, BufferPickerEntry, DynamicHandler, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector, InspectorBuffer,
     PickerBuffer, SnapshotFlags, TextBuffer,

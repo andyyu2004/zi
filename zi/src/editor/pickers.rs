@@ -185,10 +185,10 @@ impl Editor {
             }
         }
 
-        impl PathPickerEntry for Jump {
+        impl BufferPickerEntry for Jump {
             #[inline]
-            fn path(&self) -> &Path {
-                &self.path
+            fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+                Err(&self.path)
             }
 
             #[inline]
@@ -200,7 +200,7 @@ impl Editor {
         // Save the view so the jumps we get are from the right view.
         let view = self.view(selector).id();
         let split_ratio = *self.settings().generic_picker_split_ratio.read();
-        self.open_static_picker::<PathPicker<_>>(
+        self.open_static_picker::<BufferPicker<_>>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
             split_ratio,
@@ -218,7 +218,7 @@ impl Editor {
     pub fn open_file_picker(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         let path = path.as_ref();
         let split_ratio = *self.settings().file_picker_split_ratio.read();
-        self.open_static_picker::<PathPicker<stdx::path::Display>>(
+        self.open_static_picker::<BufferPicker<stdx::path::Display>>(
             Url::parse("view-group://files").unwrap(),
             path,
             split_ratio,
@@ -259,7 +259,7 @@ impl Editor {
     pub fn open_marks(&mut self, selector: impl Selector<BufferId>) -> Option<ViewGroupId> {
         #[derive(Clone, Debug)]
         struct MarkEntry {
-            path: PathBuf,
+            buf: BufferId,
             point: Point,
             // TODO show something once there's more mark metadata
             #[allow(unused)]
@@ -272,10 +272,10 @@ impl Editor {
             }
         }
 
-        impl PathPickerEntry for MarkEntry {
+        impl BufferPickerEntry for MarkEntry {
             #[inline]
-            fn path(&self) -> &Path {
-                &self.path
+            fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+                Ok(self.buf)
             }
 
             #[inline]
@@ -285,18 +285,17 @@ impl Editor {
         }
 
         let buf = selector.select(self);
-        let Some(path) = self[buf].path() else { return None };
 
         let ratio = *self.settings().generic_picker_split_ratio.read();
 
-        let vg_id = self.open_static_picker::<PathPicker<MarkEntry>>(
+        let vg_id = self.open_static_picker::<BufferPicker<MarkEntry>>(
             Url::parse("view-group://marks").unwrap(),
             "marks",
             ratio,
             |editor, injector| {
                 for (byte, mark) in editor.buffer(buf).marks(..) {
                     if let Err(()) = injector.push(MarkEntry {
-                        path: path.clone(),
+                        buf,
                         point: editor[buf].text().byte_to_point(byte),
                         mark: mark.clone(),
                     }) {
@@ -334,10 +333,10 @@ impl Editor {
             }
         }
 
-        impl PathPickerEntry for DiagnosticEntry {
+        impl BufferPickerEntry for DiagnosticEntry {
             #[inline]
-            fn path(&self) -> &Path {
-                &self.path
+            fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+                Err(&self.path)
             }
 
             #[inline]
@@ -350,7 +349,7 @@ impl Editor {
         }
 
         let split_ratio = *self.settings().diagnostics_picker_split_ratio.read();
-        self.open_static_picker::<PathPicker<DiagnosticEntry>>(
+        self.open_static_picker::<BufferPicker<DiagnosticEntry>>(
             Url::parse("view-group://diagnostics").unwrap(),
             "diagnostics",
             split_ratio,
@@ -384,10 +383,10 @@ impl Editor {
             content: String,
         }
 
-        impl PathPickerEntry for Entry {
+        impl BufferPickerEntry for Entry {
             #[inline]
-            fn path(&self) -> &Path {
-                &self.path
+            fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+                Err(&self.path)
             }
 
             #[inline]
@@ -404,7 +403,7 @@ impl Editor {
 
         let path = path.as_ref().to_path_buf();
         let split_ratio = *self.settings().global_search_split_ratio.read();
-        self.open_dynamic_picker::<PathPicker<Entry>>(
+        self.open_dynamic_picker::<BufferPicker<Entry>>(
             Url::parse("view-group://search").unwrap(),
             "search",
             split_ratio,

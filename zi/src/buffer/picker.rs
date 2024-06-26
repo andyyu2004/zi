@@ -40,19 +40,20 @@ pub trait Picker: Send + Sync + Copy + 'static {
     }
 }
 
-pub trait PathPickerEntry: Entry {
-    fn path(&self) -> &Path;
+pub trait BufferPickerEntry: Entry {
+    /// Return an open buffer id or a path to open
+    fn buffer_or_path(&self) -> Result<BufferId, &Path>;
 
     fn point(&self) -> Option<Point>;
 }
 
-impl<P> PathPickerEntry for P
+impl<P> BufferPickerEntry for P
 where
     P: AsRef<Path> + Entry,
 {
     #[inline]
-    fn path(&self) -> &Path {
-        self.as_ref()
+    fn buffer_or_path(&self) -> Result<BufferId, &Path> {
+        Err(self.as_ref())
     }
 
     #[inline]
@@ -61,23 +62,23 @@ where
     }
 }
 
-pub struct PathPicker<P> {
+pub struct BufferPicker<P> {
     preview: ViewId,
     marker: PhantomData<P>,
 }
 
-impl<P> Clone for PathPicker<P> {
+impl<P> Clone for BufferPicker<P> {
     #[inline]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<P> Copy for PathPicker<P> {}
+impl<P> Copy for BufferPicker<P> {}
 
-impl<P> Picker for PathPicker<P>
+impl<P> Picker for BufferPicker<P>
 where
-    P: PathPickerEntry,
+    P: BufferPickerEntry,
 {
     type Entry = P;
 
@@ -90,7 +91,21 @@ where
     }
 
     fn select(self, editor: &mut Editor, entry: Self::Entry) {
-        let fut = match editor.open(entry.path(), OpenFlags::READONLY | OpenFlags::BACKGROUND) {
+        let point = entry.point();
+
+        let preview = move |editor: &mut Editor, buf: BufferId| {
+            editor.set_buffer(self.preview, buf);
+            if let Some(point) = point {
+                editor.reveal(self.preview, point, VerticalAlignment::Center)
+            }
+        };
+
+        let path = match entry.buffer_or_path() {
+            Ok(buffer) => return preview(editor, buffer),
+            Err(path) => path,
+        };
+
+        let fut = match editor.open(path, OpenFlags::READONLY | OpenFlags::BACKGROUND) {
             Ok(fut) => fut,
             Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
                 // Probably due to non-utf8 data, show an empty buffer
@@ -104,18 +119,28 @@ where
         };
 
         editor.callback("open preview", async move { Ok(fut.await?) }, move |editor, buf| {
-            editor.set_buffer(self.preview, buf);
-            if let Some(point) = entry.point() {
-                editor.reveal(self.preview, point, VerticalAlignment::Center)
-            }
-
+            preview(editor, buf);
             Ok(())
         });
     }
 
     fn confirm(self, editor: &mut Editor, entry: Self::Entry) {
-        let path = entry.path();
+        let point = entry.point();
+
+        let path = match entry.buffer_or_path() {
+            Ok(buffer) => {
+                editor.close_view(self.preview);
+                editor.set_buffer(Active, buffer);
+                if let Some(point) = point {
+                    editor.reveal(Active, point, VerticalAlignment::Center);
+                }
+                return;
+            }
+            Err(path) => path,
+        };
+
         assert!(path.is_file(), "directories should not be in the selection");
+
         // We can close any of the views, they are all in the same group
         editor.close_view(self.preview);
 
