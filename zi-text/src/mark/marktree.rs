@@ -107,8 +107,7 @@ impl<const N: usize, Id: MTreeId> MTree<Id> for MarkTree<Id, N> {
 }
 
 impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
-    /// Creates a new `MarkTree` with a single gap of `n` bytes.
-    /// This should be equal to the length of the text in bytes.
+    /// Creates a new `MarkTree` appropriate for a text of length `n`.
     pub fn new(n: usize) -> Self {
         assert!(n > 0, "MarkTree must have a non-zero length");
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
@@ -135,31 +134,29 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         if !node.summary().ids.contains(id) {
             return None;
         }
-        return None;
 
         let mut offset = 0;
 
         loop {
             debug_assert!(node.summary().ids.contains(id));
-            todo!();
-            // match node {
-            //     Node::Internal(inode) => {
-            //         node = inode
-            //             .children()
-            //             .iter()
-            //             .find(|child| {
-            //                 let summary = child.summary();
-            //                 if summary.ids.contains(raw_id) {
-            //                     true
-            //                 } else {
-            //                     offset += summary.bytes;
-            //                     false
-            //                 }
-            //             })?
-            //             .as_ref();
-            //     }
-            //     Node::Leaf(leaf) => return Some((offset, leaf)),
-            // }
+            match node {
+                Node::Internal(inode) => {
+                    node = inode
+                        .children()
+                        .iter()
+                        .find(|child| {
+                            let summary = child.summary();
+                            if summary.ids.contains(id) {
+                                true
+                            } else {
+                                offset += summary.bytes;
+                                false
+                            }
+                        })?
+                        .as_ref();
+                }
+                Node::Leaf(leaf) => return Some((offset, leaf)),
+            }
         }
     }
 
@@ -190,10 +187,14 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                             }
                         }
                         Node::Leaf(leaf) => {
-                            assert!(start <= offset);
-                            for entry in leaf.as_slice().entries {
+                            for entry in dbg!(leaf.as_slice().entries) {
                                 if offset >= end {
                                     break;
+                                }
+
+                                if offset < start {
+                                    offset += entry.length.get();
+                                    continue;
                                 }
 
                                 for id in entry.ids.iter() {
@@ -483,7 +484,13 @@ impl<'a> LeafSlice<'a> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
     fn get(&self, id: u64) -> Option<usize> {
-        todo!()
+        for (i, entry) in self.entries.iter().enumerate() {
+            if entry.ids.contains(id) {
+                return Some(i);
+            }
+        }
+
+        None
     }
 }
 
