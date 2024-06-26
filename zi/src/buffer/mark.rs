@@ -1,8 +1,7 @@
-use std::fmt;
 use std::ops::RangeBounds;
 
 use slotmap::{Key, KeyData, SlotMap};
-use zi_text::{Deltas, MarkTree};
+use zi_text::{Deltas, MarkTree, MarkTreeId};
 
 use super::Buffer;
 
@@ -31,31 +30,26 @@ impl Buffer {
 pub(crate) struct Marks {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<IdWrapper, 128>,
+    tree: MarkTree<MarkId, 128>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-struct IdWrapper(MarkId);
-
-impl fmt::Debug for IdWrapper {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl From<IdWrapper> for u64 {
+impl From<u64> for MarkId {
     #[inline]
-    fn from(wrapper: IdWrapper) -> u64 {
-        wrapper.0.data().as_ffi()
+    fn from(id: u64) -> MarkId {
+        MarkId::from(KeyData::from_ffi(id))
     }
 }
 
-impl From<u64> for IdWrapper {
+impl From<MarkId> for u64 {
     #[inline]
-    fn from(id: u64) -> IdWrapper {
-        IdWrapper(MarkId::from(KeyData::from_ffi(id)))
+    fn from(id: MarkId) -> u64 {
+        id.data().as_ffi()
     }
 }
+
+// This is ok in practice since the upper 32 bits are used to store versions which is
+// never going to be that high.
+impl MarkTreeId for MarkId {}
 
 impl Marks {
     pub(crate) fn new(n: usize) -> Self {
@@ -70,13 +64,13 @@ impl Marks {
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, IdWrapper(id));
+        self.tree.insert(byte, id);
         id
     }
 
     pub fn delete(&mut self, id: MarkId) -> Option<(usize, Mark)> {
         let mark = self.marks.remove(id)?;
-        let byte = self.tree.delete(IdWrapper(id)).expect("if map contains mark, tree should too");
+        let byte = self.tree.delete(id).expect("if map contains mark, tree should too");
         Some((byte, mark))
     }
 
@@ -90,7 +84,7 @@ impl Marks {
         &self,
         range: impl RangeBounds<usize>,
     ) -> impl Iterator<Item = (usize, &Mark)> + '_ {
-        self.tree.range(range).map(move |(byte, IdWrapper(id))| (byte, &self.marks[id]))
+        self.tree.range(range).map(move |(byte, id)| (byte, &self.marks[id]))
     }
 }
 

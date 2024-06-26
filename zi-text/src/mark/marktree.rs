@@ -14,9 +14,10 @@ use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
+/// The upper 16 bits of the `u64` must be unused and 0.
+/// The `From<u64>` and `Into<u64>` implementations must each be their own inverse.
+// Avoid providing a blanket impl so the user is aware of the requirement.
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
-
-impl<Id: Copy + Eq + fmt::Debug + From<u64> + Into<u64> + 'static> MarkTreeId for Id {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Bias {
@@ -64,17 +65,18 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     #[inline]
-    pub fn get(&self, id: Id) -> Option<usize> {
-        let id = id.into();
+    pub fn get(&self, id: impl Into<Id>) -> Option<usize> {
+        let id = id.into().into();
         let (leaf_offset, leaf) = self.find(id)?;
         let slice = leaf.as_slice();
         let offset = slice.get(id)?;
         Some(leaf_offset + offset)
     }
 
-    fn find(&self, id: u64) -> Option<(usize, &Lnode<Leaf<N>>)> {
+    fn find(&self, id: impl Into<Id>) -> Option<(usize, &Lnode<Leaf<N>>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
+        let id = id.into().into();
         if !node.summary().ids.contains(id) {
             return None;
         }
@@ -163,13 +165,18 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
-    pub fn insert(&mut self, at: usize, id: Id) {
-        if self.tree.summary().ids.contains(id.into()) {
+    pub fn insert(&mut self, at: usize, id: impl Into<Id>) {
+        let id = id.into().into();
+
+        // Check upper 16 bits are clear
+        assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
+
+        if self.tree.summary().ids.contains(id) {
             todo!("MarkTree insertion of existing id")
         }
 
         assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..=at, Replacement::Item(id.into()))
+        self.replace(at..=at, Replacement::Item(id))
     }
 
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
@@ -180,7 +187,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Drain { tree: self, ids }
     }
 
-    pub fn delete(&mut self, id: Id) -> Option<usize> {
+    pub fn delete(&mut self, id: impl Into<Id>) -> Option<usize> {
         fn del<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
@@ -206,12 +213,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             }
         }
 
+        let id = id.into().into();
         let root = self.tree.root_mut();
-        if !root.summary().ids.contains(id.into()) {
+        if !root.summary().ids.contains(id) {
             return None;
         }
 
-        Some(del(root, 0, id.into()))
+        Some(del(root, 0, id))
     }
 
     /// Applies the given `deltas` to the tree.
