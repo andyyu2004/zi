@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
-use std::{fmt, iter, vec};
+use std::{cmp, fmt, iter, mem, vec};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
@@ -104,8 +104,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
+        let initial_len = self.len();
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), Replacement::Gap(by));
+        debug_assert_eq!(self.len() + end, initial_len + by + start);
     }
 
     pub fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
@@ -215,8 +217,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// This will update the byte positions of the items.
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for delta in deltas.iter() {
-            let range = delta.range();
-            self.shift(range, delta.text().len());
+            self.shift(delta.range(), delta.text().len());
         }
     }
 
@@ -329,6 +330,35 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
+#[derive(Default)]
+struct EntryBuilder {
+    entries: Vec<LeafEntry>,
+}
+
+impl EntryBuilder {
+    #[track_caller]
+    fn push(&mut self, length: usize, ids: impl IntoIterator<Item = u64>) {
+        self.push_entry(LeafEntry::new(length, ids));
+    }
+
+    fn push_gap(&mut self, gap: usize) {
+        if gap > 0 {
+            self.push(gap, []);
+        }
+    }
+
+    #[track_caller]
+    fn push_entry(&mut self, entry: LeafEntry) {
+        match self.entries.last_mut() {
+            Some(last) if entry.ids.is_empty() => {
+                // Merge entries if possible.
+                last.length = last.length.checked_add(entry.length.get()).unwrap();
+            }
+            _ => self.entries.push(entry),
+        }
+    }
+}
+
 impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     type Replacement<'a> = Replacement;
 
@@ -348,43 +378,45 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let new_entries = match replace_with {
+        let mut builder = EntryBuilder::default();
+        match replace_with {
             Replacement::Gap(gap) => {
-                let mut new_entries = vec![];
+                let mut gap = Some(gap);
 
                 let mut offset = 0;
-                for entry in self.entries.take() {
-                    let entry_start = offset;
+                for mut entry in self.entries.take() {
                     let entry_end = offset + entry.len();
                     let k = entry.len();
 
-                    if entry_end <= start || entry_start >= end {
+                    if entry_end <= start || offset > end {
                         // If the entry range does not intersect the replacement range just copy
-                        new_entries.push(entry);
+                        builder.push_entry(entry);
                         offset += k;
+
                         continue;
                     }
 
-                    // Therefore: entry_start < end && start < entry_end
+                    // Therefore: offset <= end && start < entry_end
 
-                    // The current entry extends beyond the start of the replacement range.
-                    // Add the chunk of the entry that precedes the replacement range.
-                    if start - offset + gap > 0 {
-                        new_entries.push(LeafEntry::new(start - offset + gap, entry.ids));
+                    match start.cmp(&offset) {
+                        cmp::Ordering::Greater => {
+                            builder.push(start - offset, mem::take(&mut entry.ids))
+                        }
+                        // The interval starts exactly, move it to the right by pushing the gap first.
+                        cmp::Ordering::Equal => builder.push_gap(gap.take().unwrap()),
+                        _ => (),
                     }
 
                     if entry_end > end {
-                        new_entries.push(LeafEntry::new(entry_end - end, []));
+                        builder.push(entry_end - end, mem::take(&mut entry.ids));
                     }
 
                     offset += k;
                 }
 
-                if new_entries.is_empty() {
-                    new_entries.push(LeafEntry::new(gap, []));
-                }
-
-                new_entries
+                if let Some(gap) = gap {
+                    builder.push_gap(gap)
+                };
             }
             Replacement::Item(id) => {
                 // We usually expect `start + 1 = end`.
@@ -398,54 +430,49 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
                 assert_eq!(start + 1, end);
 
-                let mut new_entries = vec![];
-
                 let mut offset = 0;
                 for entry in self.entries.take() {
-                    let entry_start = offset;
                     let entry_end = offset + entry.len();
                     let k = entry.len();
 
-                    if entry_end <= start || entry_start >= end {
+                    if entry_end <= start || offset >= end {
                         // If the entry range does not intersect the replacement range just copy
-                        new_entries.push(entry);
+                        builder.push_entry(entry);
                         offset += k;
                         continue;
                     }
 
-                    // Therefore: entry_start < end && start < entry_end
+                    // Therefore: offset < end && start < entry_end
 
                     // The current entry extends beyond the start of the replacement range.
                     // Add the chunk of the entry that precedes the replacement range.
                     if start - offset > 0 {
-                        new_entries.push(LeafEntry::new(start - offset, entry.ids));
+                        builder.push(start - offset, entry.ids);
                         // Create a new segment for the id to add
-                        new_entries.push(LeafEntry::new(1, [id]));
+                        builder.push(1, [id]);
                     } else {
                         // Otherwise, they can be merged
                         let mut ids = entry.ids;
                         ids.insert(id);
-                        new_entries.push(LeafEntry::new(start - offset + 1, ids));
+                        builder.push(start - offset + 1, ids);
                     }
 
                     if entry_end > end {
-                        new_entries.push(LeafEntry::new(entry_end - end, []));
+                        builder.push(entry_end - end, []);
                     }
 
                     offset += k;
                 }
 
                 debug_assert_eq!(
-                    new_entries.iter().map(|entry| entry.len()).sum::<usize>(),
+                    builder.entries.iter().map(|entry| entry.len()).sum::<usize>(),
                     n,
                     "adding an item should not change the total length of the leaf"
                 );
-
-                new_entries
             }
         };
 
-        let mut chunks = new_entries.array_chunks::<N>();
+        let mut chunks = builder.entries.array_chunks::<N>();
         let (chunk, used_remainder) = match chunks.next() {
             Some(chunk) => (ArrayVec::from(chunk.clone()), false),
             None => (
@@ -481,8 +508,22 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
     #[inline]
     fn remove_up_to(&mut self, summary: &mut Self::Summary, ByteMetric(up_to): ByteMetric) {
-        todo!();
-        // self.entries.drain(..up_to);
+        assert!(up_to <= summary.bytes);
+        let mut offset = 0;
+
+        let mut new_entries = ArrayVec::new();
+
+        for entry in self.entries.take() {
+            if offset < up_to && offset + entry.len() > up_to {
+                let remaining_gap = offset + entry.len() - up_to;
+                new_entries.push(LeafEntry::new(remaining_gap, entry.ids));
+                break;
+            }
+            offset += entry.len();
+        }
+
+        self.entries = new_entries;
+
         *summary = self.summarize();
     }
 }

@@ -149,7 +149,9 @@ pub struct Buffer {
 impl Buffer {
     pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
         let n = buffer.text().len_bytes();
-        Self { inner: buffer.boxed(), marks: Marks::new(n) }
+        let this = Self { inner: buffer.boxed(), marks: Marks::new(n + 1) };
+        debug_assert_eq!(this.inner.text().len_bytes() + 1, this.marks.len());
+        this
     }
 
     pub fn id(&self) -> BufferId {

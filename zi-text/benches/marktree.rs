@@ -42,4 +42,3 @@ fn bench_marktree_get(bencher: Bencher<'_, '_>) {
         });
     });
 }
-

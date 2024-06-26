@@ -59,8 +59,7 @@ impl From<u64> for IdWrapper {
 
 impl Marks {
     pub(crate) fn new(n: usize) -> Self {
-        if n > 1024 * 1024 {}
-        Marks { marks: SlotMap::default(), tree: MarkTree::new(n + 1) }
+        Marks { marks: SlotMap::default(), tree: MarkTree::new(n) }
     }
 
     #[inline]
