@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter, vec};
 
@@ -193,7 +192,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                                 }
 
                                 if offset < start {
-                                    offset += entry.length.get();
+                                    offset += entry.len();
                                     continue;
                                 }
 
@@ -201,7 +200,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                                     yield (offset, id.into());
                                 }
 
-                                offset += entry.length.get();
+                                offset += entry.len();
                             }
                         }
                     }
@@ -307,11 +306,11 @@ impl<'a, Id: MTreeId, M: MTree<Id>> Iterator for Drain<'a, Id, M> {
 
 // NOTE: It's important to have a structure such that every leaf entry has a non-zero length.
 // Otherwise, a zero-length entry could take up arbitrarily many slots in the tree which breaks assumptions by the tree impl.
+//
+// The current implementation naive and each entry represents a single byte.
+// It would be better to have a more sophisticated implementation that can represent multiple bytes in a single entry (i.e. extents/ranges).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LeafEntry {
-    // FIXME do a naive impl for now where length is always 1 per entry
-    /// The length of the entry.
-    length: NonZeroUsize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     ids: tinyset::SetU64,
@@ -319,19 +318,15 @@ struct LeafEntry {
 
 impl LeafEntry {
     fn new(ids: impl IntoIterator<Item = u64>) -> Self {
-        Self {
-            // length: NonZeroUsize::new(length).expect("leaf entry length must be non-zero"),
-            length: NonZeroUsize::new(1).expect("leaf entry length must be non-zero"),
-            ids: tinyset::SetU64::from_iter(ids),
-        }
+        Self { ids: tinyset::SetU64::from_iter(ids) }
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        1
     }
 }
 
-// A fixed-size sorted array of items.
-// Invariants:
-//  - The final element is always a `Gap` with a non-zero size
-//  - But how to implement this? If there's a bunch of items in a row we have to represent that
-//  somehow.
 #[derive(Debug, Clone)]
 struct Leaf<const N: usize> {
     entries: ArrayVec<LeafEntry, N>,
@@ -461,13 +456,14 @@ impl<const N: usize> BalancedLeaf for Leaf<N> {
         _left: (&mut Self, &mut Self::Summary),
         _right: (&mut Self, &mut Self::Summary),
     ) {
-        todo!()
+        unimplemented!()
     }
 }
 
 impl<const N: usize> Summarize for Leaf<N> {
     type Summary = Summary;
 
+    #[inline]
     fn summarize(&self) -> Self::Summary {
         self.as_slice().summarize()
     }
@@ -480,6 +476,7 @@ impl<const N: usize> BaseMeasured for Leaf<N> {
 impl<const N: usize> AsSlice for Leaf<N> {
     type Slice<'a> = LeafSlice<'a > where Self: 'a;
 
+    #[inline]
     fn as_slice(&self) -> Self::Slice<'_> {
         LeafSlice { entries: &self.entries }
     }
@@ -514,9 +511,11 @@ impl<'a> LeafSlice<'a> {
 impl<'a> Summarize for LeafSlice<'a> {
     type Summary = Summary;
 
+    #[inline]
     fn summarize(&self) -> Self::Summary {
         Summary {
-            bytes: self.entries.iter().map(|entry| entry.length.get()).sum(),
+            // bytes: self.entries.iter().map(|entry| entry.len()).sum(),
+            bytes: self.entries.len(),
             ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.iter())),
         }
     }

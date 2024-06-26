@@ -300,6 +300,15 @@ fn marktree_get() {
 }
 
 #[test]
+fn marktree_duplicate_offsets() {
+    let mut tree = new(10);
+    (0..1000).for_each(|i| tree.insert(0, i));
+    assert_offset_iter_eq(tree.range(..), (0..1000).map(|i| (0, i)));
+    assert_offset_iter_eq(tree.drain(0..=0), (0..1000).map(|i| (0, i)));
+    assert_offset_iter_eq(tree.range(..), []);
+}
+
+#[test]
 fn marktree_bulk_get() {
     let mut tree = new(10000);
     let k = 4000;
