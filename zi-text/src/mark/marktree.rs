@@ -10,12 +10,13 @@ use crop::tree::{
 };
 use roaring::RoaringTreemap;
 use stdx::bound::BoundExt;
+use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
-pub trait MTreeId: Copy + Eq + Into<u64> + fmt::Debug + 'static {}
+pub trait MTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
-impl<Id: Copy + Eq + fmt::Debug + Into<u64> + 'static> MTreeId for Id {}
+impl<Id: Copy + Eq + fmt::Debug + From<u64> + Into<u64> + 'static> MTreeId for Id {}
 
 pub trait MTree<Id: MTreeId> {
     fn new(n: usize) -> Self;
@@ -98,7 +99,8 @@ impl<const N: usize, Id: MTreeId> MTree<Id> for MarkTree<Id, N> {
     }
 
     fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
-        todo!()
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.tree.replace(ByteMetric(start)..ByteMetric(end), Replacement::Shift(by));
     }
 }
 
@@ -107,7 +109,9 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
     /// This should be equal to the length of the text in bytes.
     pub fn new(n: usize) -> Self {
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
-        this.replace(.., LeafEntry::new(n, []));
+        if let Some(n) = NonZeroUsize::new(n) {
+            this.replace(.., Replacement::Gap(n));
+        }
         this
     }
 
@@ -190,7 +194,15 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                                     break;
                                 }
 
-                                todo!()
+                                for id in entry.ids.iter() {
+                                    yield (offset, id.into());
+                                }
+
+                                offset += entry.length.get();
+
+                                if end.lt(&offset) {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -207,8 +219,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         }
 
         assert!(at <= self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        todo!();
-        // self.replace(at..at, LeafEntry::Item(id))
+        self.replace(at..at, Replacement::Id(id.into()))
     }
 
     pub fn delete(&mut self, id: Id) -> Option<usize> {
@@ -254,7 +265,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         }
     }
 
-    fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: LeafEntry) {
+    fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
@@ -344,8 +355,14 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
+enum Replacement {
+    Id(u64),
+    Gap(NonZeroUsize),
+    Shift(usize),
+}
+
 impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
-    type Replacement<'a> = LeafEntry;
+    type Replacement<'a> = Replacement;
 
     type ExtraLeaves = impl ExactSizeIterator<Item = Self>;
 
@@ -363,10 +380,62 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let mut replace_with = Some(replace_with);
-        // TODO
+        if self.entries.is_empty() {
+            debug_assert_eq!(n, 0);
+            match replace_with {
+                Replacement::Id(id) => {
+                    self.entries.push(LeafEntry::new(1, iter::once(id)));
+                }
+                Replacement::Gap(gap) => {
+                    self.entries.push(LeafEntry::new(gap.get(), iter::empty()));
+                }
+                Replacement::Shift(_) => {}
+            }
 
-        Some(std::iter::empty())
+            *summary = self.summarize();
+            return None;
+        }
+
+        let mut replace_with = Some(replace_with);
+        let mut offset = 0;
+        let mut new_entries = vec![];
+
+        for entry in self.entries.take() {
+            new_entries.push(entry);
+        }
+
+        let mut chunks = new_entries.array_chunks::<N>();
+        let (chunk, used_remainder) = match chunks.next() {
+            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
+            None => (
+                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+                true,
+            ),
+        };
+        self.entries = chunk;
+
+        *summary = self.summarize();
+
+        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+            return None;
+        }
+
+        let rem = if chunks.remainder().is_empty() {
+            None
+        } else {
+            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+        };
+
+        Some(
+            chunks
+                .cloned()
+                .map(ArrayVec::from)
+                .exact_chain(rem)
+                .map(Leaf::from)
+                // TODO maybe can avoid the collect here
+                .collect::<Vec<_>>()
+                .into_iter(),
+        )
     }
 
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
