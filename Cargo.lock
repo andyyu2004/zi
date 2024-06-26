@@ -569,7 +569,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "log",
  "regalloc2",
- "smallvec",
+ "smallvec 1.13.2",
  "target-lexicon",
 ]
 
@@ -615,7 +615,7 @@ checksum = "5482a5fcdf98f2f31b21093643bdcfe9030866b8be6481117022e7f52baa0f2b"
 dependencies = [
  "cranelift-codegen",
  "log",
- "smallvec",
+ "smallvec 1.13.2",
  "target-lexicon",
 ]
 
@@ -647,7 +647,7 @@ dependencies = [
  "cranelift-frontend",
  "itertools",
  "log",
- "smallvec",
+ "smallvec 1.13.2",
  "wasmparser 0.201.0",
  "wasmtime-types",
 ]
@@ -1733,7 +1733,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
- "smallvec",
+ "smallvec 1.13.2",
  "windows-targets 0.52.5",
 ]
 
@@ -2017,7 +2017,7 @@ dependencies = [
  "log",
  "rustc-hash",
  "slice-group-by",
- "smallvec",
+ "smallvec 1.13.2",
 ]
 
 [[package]]
@@ -2325,6 +2325,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
+name = "smallvec"
+version = "2.0.0-alpha.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66778689f64ae4f4e9365890e55048783afc0bb07a8e214b0bcfe7b88e6bb2bf"
+
+[[package]]
 name = "smol_str"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2349,7 +2355,7 @@ version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47317bbaf63785b53861e1ae2d11b80d6b624211d42cb20efcd210ee6f8a14bc"
 dependencies = [
- "smallvec",
+ "smallvec 1.13.2",
 ]
 
 [[package]]
@@ -2763,7 +2769,7 @@ dependencies = [
  "once_cell",
  "regex",
  "sharded-slab",
- "smallvec",
+ "smallvec 1.13.2",
  "thread_local",
  "tracing",
  "tracing-core",
@@ -3367,7 +3373,7 @@ dependencies = [
  "cranelift-codegen",
  "gimli 0.28.1",
  "regalloc2",
- "smallvec",
+ "smallvec 1.13.2",
  "target-lexicon",
  "wasmparser 0.201.0",
  "wasmtime-environ",
@@ -3795,6 +3801,7 @@ dependencies = [
  "regex-cursor",
  "roaring",
  "slotmap",
+ "smallvec 2.0.0-alpha.6",
  "stdx",
  "test-strategy",
  "tinyset",

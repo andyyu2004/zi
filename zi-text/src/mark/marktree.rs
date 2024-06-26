@@ -2,13 +2,14 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
-use std::{cmp, fmt, iter, mem, vec};
+use std::{cmp, fmt, iter, mem};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
+use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 
 use crate::Deltas;
@@ -330,12 +331,17 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
-#[derive(Default)]
-struct EntryBuilder {
-    entries: Vec<LeafEntry>,
+struct EntryBuilder<const N: usize> {
+    entries: SmallVec<LeafEntry, N>,
 }
 
-impl EntryBuilder {
+impl<const N: usize> Default for EntryBuilder<N> {
+    fn default() -> Self {
+        Self { entries: SmallVec::new() }
+    }
+}
+
+impl<const N: usize> EntryBuilder<N> {
     #[track_caller]
     fn push(&mut self, length: usize, ids: impl IntoIterator<Item = u64>) {
         self.push_entry(LeafEntry::new(length, ids));
@@ -362,7 +368,7 @@ impl EntryBuilder {
 impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     type Replacement<'a> = Replacement;
 
-    type ExtraLeaves = vec::IntoIter<Leaf<N>>;
+    type ExtraLeaves = smallvec::IntoIter<Leaf<N>, 1>;
 
     fn replace<R>(
         &mut self,
@@ -378,7 +384,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let mut builder = EntryBuilder::default();
+        let mut builder = EntryBuilder::<N>::default();
         match replace_with {
             Replacement::Gap(gap) => {
                 let mut gap = Some(gap);
@@ -423,7 +429,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 // However, if `start == end` then we're inserting at the end of the leaf.
                 if start == end {
                     return Some(
-                        vec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [id])]))]
+                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [id])]))]
                             .into_iter(),
                     );
                 }
@@ -501,7 +507,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 .exact_chain(rem)
                 .map(Leaf::from)
                 // TODO maybe can avoid the collect here
-                .collect::<Vec<_>>()
+                .collect::<SmallVec<_, 1>>()
                 .into_iter(),
         )
     }
@@ -529,11 +535,12 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 }
 
 impl<const N: usize> BalancedLeaf for Leaf<N> {
-    // TODO implement
+    #[inline]
     fn is_underfilled(&self, _summary: &Self::Summary) -> bool {
         false
     }
 
+    #[inline]
     fn balance_leaves(
         _left: (&mut Self, &mut Self::Summary),
         _right: (&mut Self, &mut Self::Summary),
