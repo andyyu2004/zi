@@ -28,7 +28,7 @@ fn new(n: usize) -> MarkTree<u64, 4> {
 
 #[test]
 fn marktree_empty() {
-    let mut tree = new(0);
+    let mut tree = new(1);
     // It should be fine to insert at index == tree.len()
     tree.insert(0, 0u64);
     assert_offset_iter_eq(tree.range(..), [(0, 0)]);
@@ -38,7 +38,7 @@ fn marktree_empty() {
     tree.shift(0..0, 1);
     assert_offset_iter_eq(tree.range(..), [(1, 0)]);
 
-    assert_eq!(tree.delete(0), Some(0));
+    assert_eq!(tree.delete(0), Some(1));
     assert_offset_iter_eq(tree.range(..), []);
 }
 

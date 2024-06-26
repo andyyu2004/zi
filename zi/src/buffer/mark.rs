@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::ops::RangeBounds;
 
-use slotmap::{Key, SlotMap};
+use slotmap::{Key, KeyData, SlotMap};
 use zi_text::{Deltas, MarkTree};
 
 use super::Buffer;
@@ -45,6 +45,13 @@ impl From<IdWrapper> for u64 {
     #[inline]
     fn from(wrapper: IdWrapper) -> u64 {
         wrapper.0.data().as_ffi()
+    }
+}
+
+impl From<u64> for IdWrapper {
+    #[inline]
+    fn from(id: u64) -> IdWrapper {
+        IdWrapper(MarkId::from(KeyData::from_ffi(id)))
     }
 }
 

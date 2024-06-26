@@ -9,7 +9,6 @@ use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
-use stdx::bound::BoundExt;
 use stdx::iter::ExactChain;
 
 use crate::Deltas;
@@ -100,7 +99,10 @@ impl<const N: usize, Id: MTreeId> MTree<Id> for MarkTree<Id, N> {
 
     fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.tree.replace(ByteMetric(start)..ByteMetric(end), Replacement::Shift(by));
+        self.tree.replace(
+            ByteMetric(start)..ByteMetric(end),
+            Replacement::Entries((0..by).map(|_| LeafEntry::new([])).collect()),
+        );
     }
 }
 
@@ -108,10 +110,9 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
     /// Creates a new `MarkTree` with a single gap of `n` bytes.
     /// This should be equal to the length of the text in bytes.
     pub fn new(n: usize) -> Self {
+        assert!(n > 0, "MarkTree must have a non-zero length");
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
-        if let Some(n) = NonZeroUsize::new(n) {
-            this.replace(.., Replacement::Gap(n));
-        }
+        this.replace(0..0, Replacement::Entries((0..n).map(|_| LeafEntry::new([])).collect()));
         this
     }
 
@@ -163,7 +164,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
     }
 
     pub fn items(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
-        let (start, end) = (range.start_bound().cloned(), range.end_bound().cloned());
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
         iter::from_coroutine(
@@ -183,14 +184,15 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
 
                                 q.push_back((offset, child.as_ref()));
                                 offset += summary.bytes;
-                                if end.gt(&offset) {
+                                if offset >= end {
                                     break;
                                 }
                             }
                         }
                         Node::Leaf(leaf) => {
+                            assert!(start <= offset);
                             for entry in leaf.as_slice().entries {
-                                if end.gt(&offset) {
+                                if offset >= end {
                                     break;
                                 }
 
@@ -199,10 +201,6 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                                 }
 
                                 offset += entry.length.get();
-
-                                if end.lt(&offset) {
-                                    break;
-                                }
                             }
                         }
                     }
@@ -219,7 +217,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
         }
 
         assert!(at <= self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..at, Replacement::Id(id.into()))
+        self.replace(at..at, Replacement::Item(at, id.into()))
     }
 
     pub fn delete(&mut self, id: Id) -> Option<usize> {
@@ -271,6 +269,11 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
     }
 }
 
+enum Replacement {
+    Entries(Vec<LeafEntry>),
+    Item(usize, u64),
+}
+
 pub struct Drain<'a, Id: MTreeId, M: MTree<Id>> {
     tree: &'a mut M,
     ids: std::vec::IntoIter<Id>,
@@ -303,6 +306,7 @@ impl<'a, Id: MTreeId, M: MTree<Id>> Iterator for Drain<'a, Id, M> {
 // Otherwise, a zero-length entry could take up arbitrarily many slots in the tree which breaks assumptions by the tree impl.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LeafEntry {
+    // FIXME do a naive impl for now where length is always 1 per entry
     /// The length of the entry.
     length: NonZeroUsize,
     /// The ids contained within this range.
@@ -311,9 +315,10 @@ struct LeafEntry {
 }
 
 impl LeafEntry {
-    fn new(length: usize, ids: impl IntoIterator<Item = u64>) -> Self {
+    fn new(ids: impl IntoIterator<Item = u64>) -> Self {
         Self {
-            length: NonZeroUsize::new(length).expect("leaf entry length must be non-zero"),
+            // length: NonZeroUsize::new(length).expect("leaf entry length must be non-zero"),
+            length: NonZeroUsize::new(1).expect("leaf entry length must be non-zero"),
             ids: tinyset::SetU64::from_iter(ids),
         }
     }
@@ -331,7 +336,13 @@ struct Leaf<const N: usize> {
 
 impl<const N: usize> Leaf<N> {
     fn delete(&mut self, id: u64) -> Option<usize> {
-        todo!();
+        for (i, entry) in self.entries.iter_mut().enumerate() {
+            if entry.ids.remove(id) {
+                return Some(i);
+            }
+        }
+
+        None
     }
 }
 
@@ -355,12 +366,6 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
-enum Replacement {
-    Id(u64),
-    Gap(NonZeroUsize),
-    Shift(usize),
-}
-
 impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     type Replacement<'a> = Replacement;
 
@@ -380,29 +385,12 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        if self.entries.is_empty() {
-            debug_assert_eq!(n, 0);
-            match replace_with {
-                Replacement::Id(id) => {
-                    self.entries.push(LeafEntry::new(1, iter::once(id)));
-                }
-                Replacement::Gap(gap) => {
-                    self.entries.push(LeafEntry::new(gap.get(), iter::empty()));
-                }
-                Replacement::Shift(_) => {}
-            }
-
-            *summary = self.summarize();
-            return None;
-        }
-
-        let mut replace_with = Some(replace_with);
-        let mut offset = 0;
-        let mut new_entries = vec![];
-
-        for entry in self.entries.take() {
-            new_entries.push(entry);
-        }
+        debug_assert_eq!(self.entries.len(), n, "one entry per byte for now");
+        let mut new_entries = Vec::from_iter(self.entries.take());
+        match replace_with {
+            Replacement::Entries(entries) => drop(new_entries.splice(start..end, entries)),
+            Replacement::Item(at, id) => assert!(new_entries[at].ids.insert(id)),
+        };
 
         let mut chunks = new_entries.array_chunks::<N>();
         let (chunk, used_remainder) = match chunks.next() {
