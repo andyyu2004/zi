@@ -287,10 +287,19 @@ fn marktree_smoke() {
 #[test]
 fn marktree_get() {
     let mut tree = new(10);
+    assert_eq!(tree.len(), 10);
+
     tree.insert(0, 0u64);
+    assert_eq!(tree.get(0), Some(0));
+
     tree.insert(3, 1);
+    assert_eq!(tree.get(1), Some(3));
+
     tree.insert(3, 2);
+    assert_eq!(tree.get(2), Some(3));
+
     tree.insert(2, 4);
+    assert_eq!(tree.get(4), Some(2));
 
     assert_eq!(tree.get(0), Some(0));
     assert_eq!(tree.get(1), Some(3));

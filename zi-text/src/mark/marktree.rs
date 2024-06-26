@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
 use std::{fmt, iter, vec};
 
@@ -52,7 +53,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     pub fn new(n: usize) -> Self {
         assert!(n > 0, "MarkTree must have a non-zero length");
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
-        this.replace(0..0, Replacement::Entries((0..n).map(|_| LeafEntry::new([])).collect()));
+        this.replace(0..0, Replacement::Gap(n));
         this
     }
 
@@ -61,6 +62,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         self.tree.summary().bytes
     }
 
+    #[inline]
     pub fn get(&self, id: Id) -> Option<usize> {
         let id = id.into();
         let (leaf_offset, leaf) = self.find(id)?;
@@ -103,10 +105,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.tree.replace(
-            ByteMetric(start)..ByteMetric(end),
-            Replacement::Entries((0..by).map(|_| LeafEntry::new([])).collect()),
-        );
+        self.tree.replace(ByteMetric(start)..ByteMetric(end), Replacement::Gap(by));
     }
 
     pub fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
@@ -228,7 +227,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 }
 
 enum Replacement {
-    Entries(Vec<LeafEntry>),
+    Gap(usize),
     // Invariant, `Item` can only be used as a replacement if the range is empty. The replacement
     // range is `byte..=byte`
     Item(u64),
@@ -269,19 +268,24 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
 // It would be better to have a more sophisticated implementation that can represent multiple bytes in a single entry (i.e. extents/ranges).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LeafEntry {
+    length: NonZeroUsize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     ids: tinyset::SetU64,
 }
 
 impl LeafEntry {
-    fn new(ids: impl IntoIterator<Item = u64>) -> Self {
-        Self { ids: tinyset::SetU64::from_iter(ids) }
+    #[track_caller]
+    fn new(length: usize, ids: impl IntoIterator<Item = u64>) -> Self {
+        Self {
+            length: NonZeroUsize::new(length).expect("leaf entry length must be > 0"),
+            ids: tinyset::SetU64::from_iter(ids),
+        }
     }
 
     #[inline]
     fn len(&self) -> usize {
-        1
+        self.length.get()
     }
 }
 
@@ -292,10 +296,13 @@ struct Leaf<const N: usize> {
 
 impl<const N: usize> Leaf<N> {
     fn delete(&mut self, id: u64) -> Option<usize> {
-        for (i, entry) in self.entries.iter_mut().enumerate() {
+        let mut offset = 0;
+        for entry in &mut self.entries {
             if entry.ids.remove(id) {
-                return Some(i);
+                return Some(offset);
             }
+
+            offset += entry.len();
         }
 
         None
@@ -341,11 +348,42 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        debug_assert_eq!(self.entries.len(), n, "one entry per byte for now");
         let new_entries = match replace_with {
-            Replacement::Entries(entries) => {
-                let mut new_entries = Vec::from_iter(self.entries.take());
-                new_entries.splice(start..end, entries);
+            Replacement::Gap(gap) => {
+                let mut new_entries = vec![];
+
+                let mut offset = 0;
+                for entry in self.entries.take() {
+                    let entry_start = offset;
+                    let entry_end = offset + entry.len();
+                    let k = entry.len();
+
+                    if entry_end <= start || entry_start >= end {
+                        // If the entry range does not intersect the replacement range just copy
+                        new_entries.push(entry);
+                        offset += k;
+                        continue;
+                    }
+
+                    // Therefore: entry_start < end && start < entry_end
+
+                    // The current entry extends beyond the start of the replacement range.
+                    // Add the chunk of the entry that precedes the replacement range.
+                    if start - offset + gap > 0 {
+                        new_entries.push(LeafEntry::new(start - offset + gap, entry.ids));
+                    }
+
+                    if entry_end > end {
+                        new_entries.push(LeafEntry::new(entry_end - end, []));
+                    }
+
+                    offset += k;
+                }
+
+                if new_entries.is_empty() {
+                    new_entries.push(LeafEntry::new(gap, []));
+                }
+
                 new_entries
             }
             Replacement::Item(id) => {
@@ -353,13 +391,57 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 // However, if `start == end` then we're inserting at the end of the leaf.
                 if start == end {
                     return Some(
-                        vec![Leaf::from(ArrayVec::from_iter([LeafEntry::new([id])]))].into_iter(),
+                        vec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [id])]))]
+                            .into_iter(),
                     );
                 }
+
                 assert_eq!(start + 1, end);
-                let mut new_entries = self.entries.take();
-                assert!(new_entries[start].ids.insert(id));
-                new_entries.to_vec()
+
+                let mut new_entries = vec![];
+
+                let mut offset = 0;
+                for entry in self.entries.take() {
+                    let entry_start = offset;
+                    let entry_end = offset + entry.len();
+                    let k = entry.len();
+
+                    if entry_end <= start || entry_start >= end {
+                        // If the entry range does not intersect the replacement range just copy
+                        new_entries.push(entry);
+                        offset += k;
+                        continue;
+                    }
+
+                    // Therefore: entry_start < end && start < entry_end
+
+                    // The current entry extends beyond the start of the replacement range.
+                    // Add the chunk of the entry that precedes the replacement range.
+                    if start - offset > 0 {
+                        new_entries.push(LeafEntry::new(start - offset, entry.ids));
+                        // Create a new segment for the id to add
+                        new_entries.push(LeafEntry::new(1, [id]));
+                    } else {
+                        // Otherwise, they can be merged
+                        let mut ids = entry.ids;
+                        ids.insert(id);
+                        new_entries.push(LeafEntry::new(start - offset + 1, ids));
+                    }
+
+                    if entry_end > end {
+                        new_entries.push(LeafEntry::new(entry_end - end, []));
+                    }
+
+                    offset += k;
+                }
+
+                debug_assert_eq!(
+                    new_entries.iter().map(|entry| entry.len()).sum::<usize>(),
+                    n,
+                    "adding an item should not change the total length of the leaf"
+                );
+
+                new_entries
             }
         };
 
@@ -399,7 +481,8 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
     #[inline]
     fn remove_up_to(&mut self, summary: &mut Self::Summary, ByteMetric(up_to): ByteMetric) {
-        self.entries.drain(..up_to);
+        todo!();
+        // self.entries.drain(..up_to);
         *summary = self.summarize();
     }
 }
@@ -455,10 +538,13 @@ impl<'a> LeafSlice<'a> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
     fn get(&self, id: u64) -> Option<usize> {
-        for (i, entry) in self.entries.iter().enumerate() {
+        let mut offset = 0;
+        for entry in self.entries {
             if entry.ids.contains(id) {
-                return Some(i);
+                return Some(offset);
             }
+
+            offset += entry.len();
         }
 
         None
@@ -471,8 +557,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     #[inline]
     fn summarize(&self) -> Self::Summary {
         Summary {
-            // bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            bytes: self.entries.len(),
+            bytes: self.entries.iter().map(|entry| entry.len()).sum(),
             ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.iter())),
         }
     }
