@@ -1,10 +1,10 @@
 use crate::new;
 
 fn check_marks_eq<'a>(
-    marks: impl IntoIterator<Item = &'a zi::Mark>,
+    marks: impl IntoIterator<Item = (usize, &'a zi::Mark)>,
     expected: impl IntoIterator<Item = (usize, zi::MarkId)>,
 ) {
-    let marks = marks.into_iter().map(|m| (m.byte(), m.id())).collect::<Vec<_>>();
+    let marks = marks.into_iter().map(|(byte, mark)| (byte, mark.id())).collect::<Vec<_>>();
     let expected = expected.into_iter().collect::<Vec<_>>();
     assert_eq!(marks, expected);
 }

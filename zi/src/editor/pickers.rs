@@ -1,4 +1,5 @@
 use super::*;
+use crate::Mark;
 
 impl Editor {
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
@@ -191,14 +192,14 @@ impl Editor {
             }
 
             #[inline]
-            fn line(&self) -> Option<usize> {
-                Some(self.point.line())
+            fn point(&self) -> Option<Point> {
+                Some(self.point)
             }
         }
 
         // Save the view so the jumps we get are from the right view.
         let view = self.view(selector).id();
-        let split_ratio = *self.settings().jump_list_picker_split_ratio.read();
+        let split_ratio = *self.settings().generic_picker_split_ratio.read();
         self.open_static_picker::<PathPicker<_>>(
             Url::parse("view-group://jumps").unwrap(),
             "jumps",
@@ -255,7 +256,60 @@ impl Editor {
         )
     }
 
-    pub fn open_diagnostics(&mut self) {
+    pub fn open_marks(&mut self, selector: impl Selector<BufferId>) -> Option<ViewGroupId> {
+        #[derive(Clone, Debug)]
+        struct MarkEntry {
+            path: PathBuf,
+            point: Point,
+            // TODO show something once there's more mark metadata
+            #[allow(unused)]
+            mark: Mark,
+        }
+
+        impl fmt::Display for MarkEntry {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.point)
+            }
+        }
+
+        impl PathPickerEntry for MarkEntry {
+            #[inline]
+            fn path(&self) -> &Path {
+                &self.path
+            }
+
+            #[inline]
+            fn point(&self) -> Option<Point> {
+                Some(self.point)
+            }
+        }
+
+        let buf = selector.select(self);
+        let Some(path) = self[buf].path() else { return None };
+
+        let ratio = *self.settings().generic_picker_split_ratio.read();
+
+        let vg_id = self.open_static_picker::<PathPicker<MarkEntry>>(
+            Url::parse("view-group://marks").unwrap(),
+            "marks",
+            ratio,
+            |editor, injector| {
+                for (byte, mark) in editor.buffer(buf).marks(..) {
+                    if let Err(()) = injector.push(MarkEntry {
+                        path: path.clone(),
+                        point: editor[buf].text().byte_to_point(byte),
+                        mark: mark.clone(),
+                    }) {
+                        break;
+                    }
+                }
+            },
+        );
+
+        Some(vg_id)
+    }
+
+    pub fn open_diagnostics(&mut self) -> ViewGroupId {
         #[derive(Clone, Debug)]
         struct DiagnosticEntry {
             path: PathBuf,
@@ -287,8 +341,11 @@ impl Editor {
             }
 
             #[inline]
-            fn line(&self) -> Option<usize> {
-                Some(self.range.start.line as usize)
+            fn point(&self) -> Option<Point> {
+                Some(Point::new(
+                    self.range.start.line as usize,
+                    self.range.start.character as usize,
+                ))
             }
         }
 
@@ -313,7 +370,7 @@ impl Editor {
                     }
                 }
             },
-        );
+        )
     }
 
     pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
@@ -334,8 +391,8 @@ impl Editor {
             }
 
             #[inline]
-            fn line(&self) -> Option<usize> {
-                Some(self.line)
+            fn point(&self) -> Option<Point> {
+                Some(Point::new(self.line, 0))
             }
         }
 

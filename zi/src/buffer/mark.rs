@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::fmt;
 use std::ops::RangeBounds;
 
@@ -20,7 +19,10 @@ impl Buffer {
         self.marks.delete(mark_id);
     }
 
-    pub(crate) fn marks(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
+    pub(crate) fn marks(
+        &self,
+        range: impl RangeBounds<usize>,
+    ) -> impl Iterator<Item = (usize, &Mark)> + '_ {
         self.marks.iter(range)
     }
 }
@@ -72,11 +74,10 @@ impl Marks {
         id
     }
 
-    pub fn delete(&mut self, id: MarkId) -> Option<Mark> {
+    pub fn delete(&mut self, id: MarkId) -> Option<(usize, Mark)> {
         let mark = self.marks.remove(id)?;
         let byte = self.tree.delete(IdWrapper(id)).expect("if map contains mark, tree should too");
-        mark.byte.set(byte);
-        Some(mark)
+        Some((byte, mark))
     }
 
     #[inline]
@@ -84,12 +85,12 @@ impl Marks {
         self.tree.edit(deltas);
     }
 
-    pub fn iter(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = &Mark> + '_ {
-        self.tree.range(range).map(move |(byte, IdWrapper(id))| {
-            let mark = &self.marks[id];
-            mark.byte.set(byte);
-            mark
-        })
+    #[inline]
+    pub fn iter(
+        &self,
+        range: impl RangeBounds<usize>,
+    ) -> impl Iterator<Item = (usize, &Mark)> + '_ {
+        self.tree.range(range).map(move |(byte, IdWrapper(id))| (byte, &self.marks[id]))
     }
 }
 
@@ -100,13 +101,12 @@ pub struct MarkBuilder {
 impl MarkBuilder {
     #[inline]
     fn build(self, id: MarkId) -> Mark {
-        Mark { id, byte: Cell::new(self.byte) }
+        Mark { id }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Mark {
-    byte: Cell<usize>,
     id: MarkId,
 }
 
@@ -119,10 +119,5 @@ impl Mark {
     #[inline]
     pub fn id(&self) -> MarkId {
         self.id
-    }
-
-    #[inline]
-    pub fn byte(&self) -> usize {
-        self.byte.get()
     }
 }

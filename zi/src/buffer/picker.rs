@@ -40,11 +40,10 @@ pub trait Picker: Send + Sync + Copy + 'static {
     }
 }
 
-// We should support exact columns too
 pub trait PathPickerEntry: Entry {
     fn path(&self) -> &Path;
 
-    fn line(&self) -> Option<usize>;
+    fn point(&self) -> Option<Point>;
 }
 
 impl<P> PathPickerEntry for P
@@ -57,7 +56,7 @@ where
     }
 
     #[inline]
-    fn line(&self) -> Option<usize> {
+    fn point(&self) -> Option<Point> {
         None
     }
 }
@@ -106,8 +105,8 @@ where
 
         editor.callback("open preview", async move { Ok(fut.await?) }, move |editor, buf| {
             editor.set_buffer(self.preview, buf);
-            if let Some(line) = entry.line() {
-                editor.reveal(self.preview, Point::new(line, 0), VerticalAlignment::Center)
+            if let Some(point) = entry.point() {
+                editor.reveal(self.preview, point, VerticalAlignment::Center)
             }
 
             Ok(())
@@ -122,8 +121,8 @@ where
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS);
         editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, _buf| {
-            if let Some(line) = entry.line() {
-                editor.reveal(Active, Point::new(line, 0), VerticalAlignment::Center);
+            if let Some(point) = entry.point() {
+                editor.reveal(Active, point, VerticalAlignment::Center);
             }
             Ok(())
         })

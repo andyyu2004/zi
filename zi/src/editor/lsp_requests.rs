@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
+use zi_core::Point;
 use zi_lsp::lsp_types::{self, OneOf, Url};
 use zi_lsp::PositionEncoding;
 
@@ -330,8 +331,8 @@ impl Editor {
                 &self.path
             }
 
-            fn line(&self) -> Option<usize> {
-                Some(self.line)
+            fn point(&self) -> Option<Point> {
+                Some(Point::new(self.line, 0))
             }
         }
 
