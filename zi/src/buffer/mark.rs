@@ -57,7 +57,7 @@ impl From<u64> for IdWrapper {
 
 impl Marks {
     pub(crate) fn new(n: usize) -> Self {
-        Marks { marks: SlotMap::default(), tree: MarkTree::new(n) }
+        Marks { marks: SlotMap::default(), tree: MarkTree::new(n + 1) }
     }
 
     #[inline]

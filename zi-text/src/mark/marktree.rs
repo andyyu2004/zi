@@ -414,7 +414,6 @@ impl<const N: usize> BalancedLeaf for Leaf<N> {
         _left: (&mut Self, &mut Self::Summary),
         _right: (&mut Self, &mut Self::Summary),
     ) {
-        unimplemented!()
     }
 }
 

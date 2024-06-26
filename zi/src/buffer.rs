@@ -189,10 +189,10 @@ impl Buffer {
     }
 
     pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
-        debug_assert_eq!(self.inner.text().len_bytes(), self.marks.len());
+        debug_assert_eq!(self.inner.text().len_bytes() + 1, self.marks.len());
         self.inner.edit_flags(Internal(()), deltas, flags);
         self.marks.edit(deltas);
-        debug_assert_eq!(self.inner.text().len_bytes(), self.marks.len());
+        debug_assert_eq!(self.inner.text().len_bytes() + 1, self.marks.len());
     }
 
     pub(crate) fn keymap(&mut self) -> Option<&mut Keymap> {
