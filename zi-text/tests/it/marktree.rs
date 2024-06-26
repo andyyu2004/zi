@@ -184,6 +184,12 @@ fn marktree_simple_insert() {
 }
 
 #[test]
+fn tmp() {
+    let mut tree = new(5);
+    (0..10).for_each(|i| dbg!(&mut tree).insert(i, i as u64));
+}
+
+#[test]
 fn marktree_split() {
     let mut tree = new(100);
     (0..100).for_each(|i| tree.insert(i, i as u64));

@@ -187,7 +187,7 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
                             }
                         }
                         Node::Leaf(leaf) => {
-                            for entry in dbg!(leaf.as_slice().entries) {
+                            for entry in leaf.as_slice().entries {
                                 if offset >= end {
                                     break;
                                 }
@@ -217,8 +217,8 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
             todo!("MarkTree insertion of existing id")
         }
 
-        assert!(at <= self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..at, Replacement::Item(at, id.into()))
+        assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
+        self.replace(at..at, Replacement::Item(id.into()))
     }
 
     pub fn delete(&mut self, id: Id) -> Option<usize> {
@@ -272,7 +272,9 @@ impl<const N: usize, Id: MTreeId> MarkTree<Id, N> {
 
 enum Replacement {
     Entries(Vec<LeafEntry>),
-    Item(usize, u64),
+    // Invariant, `Item` can only be used as a replacement if the range is empty. The replacement
+    // range is `byte..byte`
+    Item(u64),
 }
 
 pub struct Drain<'a, Id: MTreeId, M: MTree<Id>> {
@@ -390,7 +392,15 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let mut new_entries = Vec::from_iter(self.entries.take());
         match replace_with {
             Replacement::Entries(entries) => drop(new_entries.splice(start..end, entries)),
-            Replacement::Item(at, id) => assert!(new_entries[at].ids.insert(id)),
+            Replacement::Item(id) => {
+                assert_eq!(start, end);
+
+                if start == n {
+                    new_entries.push(LeafEntry::new([id]));
+                } else {
+                    assert!(new_entries[start].ids.insert(id))
+                }
+            }
         };
 
         let mut chunks = new_entries.array_chunks::<N>();
