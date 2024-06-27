@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zi_text::{MarkTree, MarkTreeId};
+use zi_text::{Bias, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Id(usize);
@@ -48,20 +48,17 @@ fn new(n: usize) -> MarkTree<Id, 4> {
 #[test]
 fn marktree_empty() {
     let mut tree = new(1);
-    // It should be fine to insert at index == tree.len()
     tree.insert(0, Id(0));
     assert_offset_iter_eq(tree.range(..), [(0, Id(0))]);
     assert_offset_iter_eq(tree.range(..0), []);
     assert_offset_iter_eq(tree.range(..=0), [(0, Id(0))]);
 
-    // TODO depends on bias
-    // dbg!(&tree);
-    // tree.shift(0..0, 1);
-    // dbg!(&tree);
-    // assert_offset_iter_eq(tree.range(..), [(1, 0)]);
+    // Should shift to the right as right-biased by default.
+    tree.shift(0..0, 1);
+    assert_offset_iter_eq(tree.range(..), [(1, Id(0))]);
 
-    // assert_eq!(tree.delete(0), Some(1));
-    // assert_offset_iter_eq(tree.range(..), []);
+    assert_eq!(tree.delete(0), Some(1));
+    assert_offset_iter_eq(tree.range(..), []);
 }
 
 #[test]
@@ -382,4 +379,13 @@ fn marktree_bulk_get() {
         let offset = tree.get(Id(i));
         assert_eq!(offset, Some(i));
     });
+}
+
+#[test]
+fn marktree_left_bias() {
+    let mut tree = new(10);
+    let k = 5;
+    (0..k).for_each(|i| drop(tree.insert(i, Id(i)).bias(Bias::Left)));
+
+    assert_offset_iter_eq(tree.range(..), (0..k).map(|i| (i, Id(i))));
 }
