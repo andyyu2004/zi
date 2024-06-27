@@ -268,9 +268,7 @@ fn marktree_shift_append_delete() {
     assert_offset_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 2);
 
-    dbg!(&tree);
     tree.shift(0..1, 0);
-    dbg!(&tree);
     assert_offset_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 1);
 }
@@ -295,9 +293,7 @@ fn marktree_shift_empty() {
     tree.shift(0..1, 0);
     assert_eq!(tree.len(), 4);
 
-    dbg!(&tree);
     tree.shift(1..1, 1);
-    dbg!(&tree);
     assert_eq!(tree.len(), 5);
 }
 
@@ -308,10 +304,8 @@ fn marktree_shift() {
     tree.insert(1, Id(0));
     assert_offset_iter_eq(tree.range(..), [(1, Id(0))]);
 
-    dbg!(&tree);
     tree.shift(0..0, 2);
 
-    dbg!(&tree);
     assert_offset_iter_eq(tree.range(..), [(3, Id(0))]);
     assert_eq!(tree.len(), 12);
 
@@ -383,9 +377,18 @@ fn marktree_bulk_get() {
 
 #[test]
 fn marktree_left_bias() {
-    let mut tree = new(10);
-    let k = 5;
-    (0..k).for_each(|i| drop(tree.insert(i, Id(i)).bias(Bias::Left)));
+    let mut tree = new(1);
+    tree.insert(0, Id(0)).bias(Bias::Left);
+    tree.shift(0..0, 1);
+    // Should not shift due to bias.
+    assert_offset_iter_eq(tree.range(..), [(0, Id(0))]);
+}
 
-    assert_offset_iter_eq(tree.range(..), (0..k).map(|i| (i, Id(i))));
+#[test]
+fn marktree_bias() {
+    let mut tree = new(5);
+    tree.insert(0, Id(0)).bias(Bias::Left);
+    tree.insert(0, Id(1)).bias(Bias::Right);
+    tree.shift(0..0, 1);
+    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (1, Id(1))]);
 }

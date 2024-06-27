@@ -9,8 +9,9 @@ use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 use stdx::iter::ExactChain;
+use tinyset::SetU64;
 
 use self::key::{Flags, Key};
 use crate::Deltas;
@@ -307,7 +308,7 @@ struct LeafEntry {
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     // TODO there is probably a smallmap and intmap optimization here
-    keys: tinyset::SetU64,
+    keys: SetU64,
 }
 
 impl LeafEntry {
@@ -505,7 +506,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     let entry_end = offset + entry.len();
                     let k = entry.len();
 
-                    if entry_end <= start || offset > end {
+                    if entry_end < start || offset > end {
                         // If the entry range does not intersect the replacement range just copy
                         builder.push_entry(entry);
                         offset += k;
@@ -513,21 +514,35 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                         continue;
                     }
 
-                    // Therefore: offset <= end && start < entry_end
-
                     match start.cmp(&offset) {
-                        cmp::Ordering::Greater => builder.push(
-                            start - offset,
-                            mem::take(&mut entry.keys).iter().map(Key::from_raw),
-                        ),
-                        // The interval starts exactly, move it to the right by pushing the gap first.
-                        cmp::Ordering::Equal => builder.push_gap(gap.take().unwrap()),
-                        _ => (),
+                        cmp::Ordering::Greater => {
+                            // The offset is before the start of the replacement range.
+                            // Copy the chunk of the entry that precedes the replacement range.
+                            builder.push_raw(start - offset, mem::take(&mut entry.keys))
+                        }
+                        // The interval starts exactly at offset, move it to the right by pushing the gap first.
+                        cmp::Ordering::Equal => {
+                            let gap = gap.take().unwrap();
+                            if gap > 0 {
+                                let (left_biased, right_biased) = mem::take(&mut entry.keys)
+                                    .iter()
+                                    .partition::<SetU64, _>(|&key| {
+                                        Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
+                                    });
+
+                                entry.keys = right_biased;
+
+                                builder.push_raw(gap, left_biased);
+                            }
+                        }
+                        _ => {}
                     }
 
                     if entry_end > end {
                         builder.push_raw(entry_end - end, mem::take(&mut entry.keys));
                     }
+
+                    debug_assert!(entry.keys.is_empty(), "didn't consume all keys");
 
                     offset += k;
                 }
@@ -537,15 +552,6 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 };
             }
             Replacement::Key(key) => {
-                // We usually expect `start + 1 = end`.
-                // However, if `start == end` then we're inserting at the end of the leaf.
-                if start == end {
-                    return Some(
-                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [key])]))]
-                            .into_iter(),
-                    );
-                }
-
                 assert_eq!(start + 1, end);
 
                 let mut offset = 0;
