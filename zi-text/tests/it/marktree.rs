@@ -77,7 +77,7 @@ fn marktree_range_iter() {
     assert_offset_iter_eq(tree.range(1..2), [(1, Id(1))]);
     assert_offset_iter_eq(tree.range(2..2), []);
 
-    (2..100).for_each(|i| tree.insert(i, Id(i)));
+    (2..100).for_each(|i| drop(tree.insert(i, Id(i))));
 
     assert_offset_iter_eq(tree.range(0..0), []);
     assert_offset_iter_eq(tree.range(0..1), [(0, Id(0))]);
@@ -124,7 +124,7 @@ fn marktree_delete() {
 fn marktree_bulk_delete() {
     let mut tree = new(10000);
     let k = 2000;
-    (0..k).for_each(|i| tree.insert(i, Id(i)));
+    (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
         assert_eq!(tree.delete(Id(i)), Some(i));
         assert_offset_iter_eq(tree.range(..), (i + 1..k).map(|j| (j, Id(j))));
@@ -134,7 +134,7 @@ fn marktree_bulk_delete() {
 #[test]
 fn marktree_drain_2() {
     let mut tree = new(10);
-    (0..4).for_each(|i| tree.insert(i, Id(i)));
+    (0..4).for_each(|i| drop(tree.insert(i, Id(i))));
 
     assert_iter_eq(tree.drain(0..=0), [(0, Id(0))]);
     assert_offset_iter_eq(tree.range(..), [(1, Id(1)), (2, Id(2)), (3, Id(3))]);
@@ -189,7 +189,7 @@ fn marktree_bulk_drain() {
     const LEN: usize = 200;
     let mut tree = new(LEN);
 
-    (0..100).for_each(|i| tree.insert(i, Id(i)));
+    (0..100).for_each(|i| drop(tree.insert(i, Id(i))));
     assert_offset_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
     assert_eq!(tree.len(), LEN);
 
@@ -228,7 +228,7 @@ fn marktree_small_insert() {
 #[test]
 fn marktree_split() {
     let mut tree = new(100);
-    (0..100).for_each(|i| tree.insert(i, Id(i)));
+    (0..100).for_each(|i| drop(tree.insert(i, Id(i))));
     assert_offset_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
 }
 
@@ -367,7 +367,7 @@ fn marktree_get() {
 #[test]
 fn marktree_duplicate_offsets() {
     let mut tree = new(10);
-    (0..1000).for_each(|i| tree.insert(0, i));
+    (0..1000).for_each(|i| drop(tree.insert(0, i)));
     assert_offset_iter_eq(tree.range(..), (0..1000).map(|i| (0, Id(i))));
     assert_offset_iter_eq(tree.drain(0..=0), (0..1000).map(|i| (0, Id(i))));
     assert_offset_iter_eq(tree.range(..), []);
@@ -377,7 +377,7 @@ fn marktree_duplicate_offsets() {
 fn marktree_bulk_get() {
     let mut tree = new(10000);
     let k = 4000;
-    (0..k).for_each(|i| tree.insert(i, Id(i)));
+    (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
         let offset = tree.get(Id(i));
         assert_eq!(offset, Some(i));

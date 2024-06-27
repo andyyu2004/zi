@@ -20,10 +20,8 @@ use crate::Deltas;
 // Avoid providing a blanket impl so the user is aware of the requirement.
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Bias {
-    // Important that `Self::Left < Self::Right`
-    #[default]
     Left,
     Right,
 }
@@ -68,13 +66,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     #[inline]
     pub fn get(&self, id: impl Into<Id>) -> Option<usize> {
         let id = id.into().into();
-        let (leaf_offset, leaf) = self.find(id)?;
+        let (leaf_offset, leaf) = self.find_leaf(id)?;
         let slice = leaf.as_slice();
         let offset = slice.get(id)?;
         Some(leaf_offset + offset)
     }
 
-    fn find(&self, id: impl Into<Id>) -> Option<(usize, &Lnode<Leaf<N>>)> {
+    fn find_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Lnode<Leaf<N>>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
@@ -166,18 +164,8 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
-    pub fn insert(&mut self, at: usize, id: impl Into<Id>) {
-        let id = id.into().into();
-
-        // Check upper 16 bits are clear
-        assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
-
-        if self.tree.summary().ids.contains(id) {
-            todo!("MarkTree insertion of existing id")
-        }
-
-        assert!(at < self.len(), "byte {at} out of bounds of marktree of length {}", self.len());
-        self.replace(at..=at, Replacement::Key(Key::new(id, key::Flags::empty())))
+    pub fn insert(&mut self, at: usize, id: impl Into<Id>) -> Inserter<'_, Id, N> {
+        Inserter { tree: self, id: id.into(), at, flags: key::Flags::empty() }
     }
 
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
@@ -237,11 +225,53 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 }
 
+pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
+    tree: &'a mut MarkTree<Id, N>,
+    id: Id,
+    at: usize,
+    flags: key::Flags,
+}
+
+impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
+    pub fn bias(mut self, bias: Bias) -> Self {
+        match bias {
+            Bias::Left => self.flags.insert(key::Flags::BIAS_LEFT),
+            Bias::Right => self.flags.remove(key::Flags::BIAS_LEFT),
+        }
+        self
+    }
+}
+
+impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
+    fn drop(&mut self) {
+        let id = self.id.into();
+        let at = self.at;
+
+        // Check upper 16 bits are clear
+        assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
+
+        if self.tree.tree.summary().ids.contains(id) {
+            todo!("MarkTree insertion of existing id")
+        }
+
+        assert!(
+            at < self.tree.len(),
+            "byte {at} out of bounds of marktree of length {}",
+            self.tree.len(),
+        );
+
+        let flags = key::Flags::empty();
+        self.tree.replace(at..=at, Replacement::Key(Key::new(id, flags)))
+    }
+}
+
 mod key {
     use std::mem;
 
     bitflags::bitflags! {
+        #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct Flags: u16 {
+            const BIAS_LEFT = 1 << 0;
         }
     }
 
@@ -251,20 +281,19 @@ mod key {
     impl Key {
         const FLAG_BITS: usize = 16;
         const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
-        const ID_MASK: u64 = !((1 << Self::FLAG_BITS + 1) - 1);
 
         pub fn new(id: u64, flag: Flags) -> Self {
-            Self(id | ((flag.bits() as u64) << 48))
+            Self(id | ((flag.bits() as u64) << Self::ID_BITS))
         }
 
         #[inline]
         pub fn id(self) -> u64 {
-            self.0 & Self::ID_MASK
+            (self.0 << Self::FLAG_BITS) >> Self::FLAG_BITS
         }
 
         #[inline]
         pub fn flag(self) -> Flags {
-            Flags::from_bits((self.0 >> 48) as u16).unwrap()
+            Flags::from_bits((self.0 >> Self::ID_BITS) as u16).unwrap()
         }
 
         #[inline]
@@ -658,7 +687,10 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.keys.iter())),
+            ids: RoaringTreemap::from_iter(
+                // We want to store the raw `u48` ids in the bitmap without the flags.
+                self.entries.iter().flat_map(|entry| entry.keys.iter().map(Key::from).map(Key::id)),
+            ),
         }
     }
 }
