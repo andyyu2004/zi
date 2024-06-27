@@ -9,14 +9,12 @@ use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
+use rustc_hash::FxHashMap;
 use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 
 use crate::Deltas;
 
-/// The upper 16 bits of the `u64` must be unused and 0.
-/// The `From<u64>` and `Into<u64>` implementations must each be their own inverse.
-// Avoid providing a blanket impl so the user is aware of the requirement.
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -148,7 +146,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                                     continue;
                                 }
 
-                                for id in entry.ids.iter() {
+                                for &id in entry.ids.keys() {
                                     yield (offset, id.into());
                                 }
 
@@ -225,12 +223,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 }
 
 bitflags::bitflags! {
-    #[derive(Default, Clone, Copy, PartialEq, Eq)]
+    #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
     struct Flags: u8 {
         const BIAS_LEFT = 0b0000_0001;
     }
 }
 
+/// A builder for inserting an item into a `MarkTree`, inserts on drop.
 pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
     id: Id,
@@ -266,14 +265,14 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
             self.tree.len(),
         );
 
-        self.tree.replace(at..=at, Replacement::Id(id))
+        self.tree.replace(at..=at, Replacement::Id(id, self.flags))
     }
 }
 
 enum Replacement {
     Gap(usize),
     // Invariant, `Id` can only be used as a replacement if the range is empty. The replacement range is `byte..=byte`
-    Id(u64),
+    Id(u64, Flags),
 }
 
 pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
@@ -314,15 +313,16 @@ struct LeafEntry {
     length: NonZeroUsize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
-    ids: tinyset::SetU64,
+    // TODO there is probably a smallmap and intmap optimization here
+    ids: FxHashMap<u64, Flags>,
 }
 
 impl LeafEntry {
     #[track_caller]
-    fn new(length: usize, ids: impl IntoIterator<Item = u64>) -> Self {
+    fn new(length: usize, ids: impl IntoIterator<Item = (u64, Flags)>) -> Self {
         Self {
             length: NonZeroUsize::new(length).expect("leaf entry length must be > 0"),
-            ids: tinyset::SetU64::from_iter(ids),
+            ids: ids.into_iter().collect(),
         }
     }
 
@@ -341,7 +341,7 @@ impl<const N: usize> Leaf<N> {
     fn delete(&mut self, id: u64) -> Option<usize> {
         let mut offset = 0;
         for entry in &mut self.entries {
-            if entry.ids.remove(id) {
+            if entry.ids.remove(&id).is_some() {
                 return Some(offset);
             }
 
@@ -372,36 +372,48 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
-struct EntryBuilder<const N: usize> {
-    entries: SmallVec<LeafEntry, N>,
-}
+mod builder {
+    use super::*;
 
-impl<const N: usize> Default for EntryBuilder<N> {
-    fn default() -> Self {
-        Self { entries: SmallVec::new() }
-    }
-}
-
-impl<const N: usize> EntryBuilder<N> {
-    #[track_caller]
-    fn push(&mut self, length: usize, keys: impl IntoIterator<Item = u64>) {
-        self.push_entry(LeafEntry::new(length, keys));
+    pub(super) struct EntryBuilder<const N: usize> {
+        entries: SmallVec<LeafEntry, N>,
     }
 
-    fn push_gap(&mut self, gap: usize) {
-        if gap > 0 {
-            self.push(gap, []);
+    impl<const N: usize> Default for EntryBuilder<N> {
+        fn default() -> Self {
+            Self { entries: SmallVec::new() }
         }
     }
 
-    #[track_caller]
-    fn push_entry(&mut self, entry: LeafEntry) {
-        match self.entries.last_mut() {
-            Some(last) if entry.ids.is_empty() => {
-                // Merge entries if possible.
-                last.length = last.length.checked_add(entry.length.get()).unwrap();
+    impl<const N: usize> EntryBuilder<N> {
+        pub fn entries(&self) -> &[LeafEntry] {
+            &self.entries
+        }
+
+        pub fn finish(self) -> SmallVec<LeafEntry, N> {
+            self.entries
+        }
+
+        #[track_caller]
+        pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = (u64, Flags)>) {
+            self.push_entry(LeafEntry::new(length, keys));
+        }
+
+        pub fn push_gap(&mut self, gap: usize) {
+            if gap > 0 {
+                self.push(gap, []);
             }
-            _ => self.entries.push(entry),
+        }
+
+        #[track_caller]
+        pub fn push_entry(&mut self, entry: LeafEntry) {
+            match self.entries.last_mut() {
+                Some(last) if entry.ids.is_empty() => {
+                    // Merge entries if possible.
+                    last.length = last.length.checked_add(entry.length.get()).unwrap();
+                }
+                _ => self.entries.push(entry),
+            }
         }
     }
 }
@@ -425,7 +437,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let mut builder = EntryBuilder::<N>::default();
+        let mut builder = builder::EntryBuilder::<N>::default();
         match replace_with {
             Replacement::Gap(gap) => {
                 let mut gap = Some(gap);
@@ -465,13 +477,16 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     builder.push_gap(gap)
                 };
             }
-            Replacement::Id(id) => {
+            Replacement::Id(id, flags) => {
                 // We usually expect `start + 1 = end`.
                 // However, if `start == end` then we're inserting at the end of the leaf.
                 if start == end {
                     return Some(
-                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [id])]))]
-                            .into_iter(),
+                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(
+                            1,
+                            [(id, flags)]
+                        )]))]
+                        .into_iter(),
                     );
                 }
 
@@ -496,11 +511,11 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     if start - offset > 0 {
                         builder.push(start - offset, entry.ids);
                         // Create a new segment for the id to add
-                        builder.push(1, [id]);
+                        builder.push(1, [(id, flags)]);
                     } else {
                         // Otherwise, they can be merged
                         let mut ids = entry.ids;
-                        ids.insert(id);
+                        assert!(ids.insert(id, flags).is_none());
                         builder.push(start - offset + 1, ids);
                     }
 
@@ -512,14 +527,15 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 }
 
                 debug_assert_eq!(
-                    builder.entries.iter().map(|entry| entry.len()).sum::<usize>(),
+                    builder.entries().iter().map(|entry| entry.len()).sum::<usize>(),
                     n,
                     "adding an item should not change the total length of the leaf"
                 );
             }
         };
 
-        let mut chunks = builder.entries.array_chunks::<N>();
+        let entries = builder.finish();
+        let mut chunks = entries.array_chunks::<N>();
         let (chunk, used_remainder) = match chunks.next() {
             Some(chunk) => (ArrayVec::from(chunk.clone()), false),
             None => (
@@ -629,7 +645,7 @@ impl<'a> LeafSlice<'a> {
     fn get(&self, id: u64) -> Option<usize> {
         let mut offset = 0;
         for entry in self.entries {
-            if entry.ids.contains(id) {
+            if entry.ids.contains_key(&id) {
                 return Some(offset);
             }
 
@@ -647,7 +663,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.iter())),
+            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.keys())),
         }
     }
 }
