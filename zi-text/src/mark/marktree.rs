@@ -9,10 +9,10 @@ use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
-use rustc_hash::FxHashMap;
 use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 
+use self::key::{Flags, Key};
 use crate::Deltas;
 
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
@@ -146,7 +146,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                                     continue;
                                 }
 
-                                for &id in entry.ids.keys() {
+                                for id in entry.ids() {
                                     yield (offset, id.into());
                                 }
 
@@ -222,13 +222,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 }
 
-bitflags::bitflags! {
-    #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
-    struct Flags: u8 {
-        const BIAS_LEFT = 0b0000_0001;
-    }
-}
-
 /// A builder for inserting an item into a `MarkTree`, inserts on drop.
 pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
@@ -265,14 +258,14 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
             self.tree.len(),
         );
 
-        self.tree.replace(at..=at, Replacement::Id(id, self.flags))
+        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags)))
     }
 }
 
 enum Replacement {
     Gap(usize),
-    // Invariant, `Id` can only be used as a replacement if the range is empty. The replacement range is `byte..=byte`
-    Id(u64, Flags),
+    // Invariant, `Key` can only be used as a replacement if the range is empty. The replacement range is `byte..=byte`
+    Key(Key),
 }
 
 pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
@@ -314,16 +307,20 @@ struct LeafEntry {
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     // TODO there is probably a smallmap and intmap optimization here
-    ids: FxHashMap<u64, Flags>,
+    keys: tinyset::SetU64,
 }
 
 impl LeafEntry {
     #[track_caller]
-    fn new(length: usize, ids: impl IntoIterator<Item = (u64, Flags)>) -> Self {
+    fn new(length: usize, ids: impl IntoIterator<Item = Key>) -> Self {
         Self {
             length: NonZeroUsize::new(length).expect("leaf entry length must be > 0"),
-            ids: ids.into_iter().collect(),
+            keys: ids.into_iter().map(Key::into_raw).collect(),
         }
+    }
+
+    fn ids(&self) -> impl Iterator<Item = u64> + '_ {
+        self.keys.iter().map(Key::from_raw).map(Key::id)
     }
 
     #[inline]
@@ -340,9 +337,21 @@ struct Leaf<const N: usize> {
 impl<const N: usize> Leaf<N> {
     fn delete(&mut self, id: u64) -> Option<usize> {
         let mut offset = 0;
+
         for entry in &mut self.entries {
-            if entry.ids.remove(&id).is_some() {
+            if entry.keys.remove(id) {
+                // Fast path if the flags are empty.
                 return Some(offset);
+            } else {
+                // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
+                let mut iter = entry.keys.iter();
+                while let Some(key) = iter.next() {
+                    if Key::from_raw(key).id() == id {
+                        drop(iter);
+                        entry.keys.remove(key);
+                        return Some(offset);
+                    }
+                }
             }
 
             offset += entry.len();
@@ -395,8 +404,13 @@ mod builder {
         }
 
         #[track_caller]
-        pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = (u64, Flags)>) {
+        pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = Key>) {
             self.push_entry(LeafEntry::new(length, keys));
+        }
+
+        #[track_caller]
+        pub fn push_raw(&mut self, length: usize, keys: impl IntoIterator<Item = u64>) {
+            self.push(length, keys.into_iter().map(Key::from_raw));
         }
 
         pub fn push_gap(&mut self, gap: usize) {
@@ -408,12 +422,56 @@ mod builder {
         #[track_caller]
         pub fn push_entry(&mut self, entry: LeafEntry) {
             match self.entries.last_mut() {
-                Some(last) if entry.ids.is_empty() => {
+                Some(last) if entry.keys.is_empty() => {
                     // Merge entries if possible.
                     last.length = last.length.checked_add(entry.length.get()).unwrap();
                 }
                 _ => self.entries.push(entry),
             }
+        }
+    }
+}
+
+mod key {
+    use std::mem;
+
+    bitflags::bitflags! {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct Flags: u16 {
+            const BIAS_LEFT = 0b0000_0001;
+        }
+    }
+
+    /// Key encodes the 48-bit id and 16-bit flags.
+    #[derive(Clone, Copy)]
+    pub(super) struct Key(u64);
+
+    impl Key {
+        const FLAG_BITS: usize = 16;
+        const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
+
+        pub fn new(id: u64, flag: Flags) -> Self {
+            Self(id | ((flag.bits() as u64) << 48))
+        }
+
+        #[inline]
+        pub fn id(self) -> u64 {
+            self.0 << Self::FLAG_BITS >> Self::FLAG_BITS
+        }
+
+        #[inline]
+        pub fn flags(self) -> Flags {
+            Flags::from_bits((self.0 >> Self::ID_BITS) as u16).unwrap()
+        }
+
+        #[inline]
+        pub fn into_raw(self) -> u64 {
+            self.0
+        }
+
+        #[inline]
+        pub fn from_raw(id: u64) -> Self {
+            Self(id)
         }
     }
 }
@@ -458,16 +516,17 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     // Therefore: offset <= end && start < entry_end
 
                     match start.cmp(&offset) {
-                        cmp::Ordering::Greater => {
-                            builder.push(start - offset, mem::take(&mut entry.ids))
-                        }
+                        cmp::Ordering::Greater => builder.push(
+                            start - offset,
+                            mem::take(&mut entry.keys).iter().map(Key::from_raw),
+                        ),
                         // The interval starts exactly, move it to the right by pushing the gap first.
                         cmp::Ordering::Equal => builder.push_gap(gap.take().unwrap()),
                         _ => (),
                     }
 
                     if entry_end > end {
-                        builder.push(entry_end - end, mem::take(&mut entry.ids));
+                        builder.push_raw(entry_end - end, mem::take(&mut entry.keys));
                     }
 
                     offset += k;
@@ -477,16 +536,13 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     builder.push_gap(gap)
                 };
             }
-            Replacement::Id(id, flags) => {
+            Replacement::Key(key) => {
                 // We usually expect `start + 1 = end`.
                 // However, if `start == end` then we're inserting at the end of the leaf.
                 if start == end {
                     return Some(
-                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(
-                            1,
-                            [(id, flags)]
-                        )]))]
-                        .into_iter(),
+                        smallvec![Leaf::from(ArrayVec::from_iter([LeafEntry::new(1, [key])]))]
+                            .into_iter(),
                     );
                 }
 
@@ -509,14 +565,14 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     // The current entry extends beyond the start of the replacement range.
                     // Add the chunk of the entry that precedes the replacement range.
                     if start - offset > 0 {
-                        builder.push(start - offset, entry.ids);
+                        builder.push_raw(start - offset, entry.keys);
                         // Create a new segment for the id to add
-                        builder.push(1, [(id, flags)]);
+                        builder.push(1, [key]);
                     } else {
                         // Otherwise, they can be merged
-                        let mut ids = entry.ids;
-                        assert!(ids.insert(id, flags).is_none());
-                        builder.push(start - offset + 1, ids);
+                        let mut ids = entry.keys;
+                        assert!(ids.insert(key.into_raw()));
+                        builder.push_raw(start - offset + 1, ids);
                     }
 
                     if entry_end > end {
@@ -579,7 +635,8 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         for entry in self.entries.take() {
             if offset < up_to && offset + entry.len() > up_to {
                 let remaining_gap = offset + entry.len() - up_to;
-                new_entries.push(LeafEntry::new(remaining_gap, entry.ids));
+                new_entries
+                    .push(LeafEntry::new(remaining_gap, entry.keys.iter().map(Key::from_raw)));
                 break;
             }
             offset += entry.len();
@@ -645,8 +702,16 @@ impl<'a> LeafSlice<'a> {
     fn get(&self, id: u64) -> Option<usize> {
         let mut offset = 0;
         for entry in self.entries {
-            if entry.ids.contains_key(&id) {
+            if entry.keys.contains(id) {
+                // Fast path if the flags are empty.
                 return Some(offset);
+            } else {
+                // Otherwise, scan
+                for key in entry.keys.iter() {
+                    if Key::from_raw(key).id() == id {
+                        return Some(offset);
+                    }
+                }
             }
 
             offset += entry.len();
@@ -663,7 +728,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids.keys())),
+            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.keys.iter())),
         }
     }
 }

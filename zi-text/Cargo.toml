@@ -14,8 +14,8 @@ slotmap = { workspace = true }
 arrayvec = { workspace = true }
 roaring = { workspace = true }
 smallvec = { workspace = true }
-rustc-hash = { workspace = true }
 memmap2 = "0.9.4"
+tinyset = { version = "0.4.15", default-features = false }
 
 [dev-dependencies]
 expect-test = { workspace = true }
