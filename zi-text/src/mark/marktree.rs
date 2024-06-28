@@ -8,11 +8,11 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use roaring::RoaringTreemap;
 use smallvec::SmallVec;
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
+use self::bitmap::Bitmap48;
 use self::key::{Flags, Key};
 use crate::Deltas;
 
@@ -880,7 +880,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            ids: Bitmap48::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
         }
     }
 }
@@ -959,7 +959,7 @@ impl SubAssign<&Self> for Summary {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Summary {
-    ids: RoaringTreemap,
+    ids: Bitmap48,
     bytes: usize,
 }
 
@@ -1059,4 +1059,112 @@ where
     assert!(end <= hi, "end={end} <= hi={hi}");
 
     (start, end)
+}
+
+mod bitmap {
+    use std::collections::btree_map::Entry;
+    use std::collections::BTreeMap;
+    use std::ops::{BitOrAssign, SubAssign};
+
+    use roaring::RoaringBitmap;
+
+    /// A bitmap with 48-bit values.
+    /// Basically the same as `roaring::RoaringTreemap` but optimized for 48 bit values.
+    /// It panics if the upper 16 bits are set which is useful to catch errors.
+    #[derive(Debug, Default, Clone, PartialEq)]
+    pub struct Bitmap48 {
+        map: BTreeMap<u16, RoaringBitmap>,
+    }
+
+    impl Bitmap48 {
+        pub fn new() -> Self {
+            Self { map: BTreeMap::new() }
+        }
+
+        pub fn insert(&mut self, value: u64) {
+            let (hi, lo) = split(value);
+            self.map.entry(hi).or_default().insert(lo);
+        }
+
+        pub fn contains(&self, value: u64) -> bool {
+            let (hi, lo) = split(value);
+            self.map.get(&hi).map_or(false, |map| map.contains(lo))
+        }
+
+        pub fn remove(&mut self, value: u64) -> bool {
+            let (hi, lo) = split(value);
+            match self.map.entry(hi) {
+                Entry::Vacant(_) => false,
+                Entry::Occupied(mut ent) => {
+                    if ent.get_mut().remove(lo) {
+                        if ent.get().is_empty() {
+                            ent.remove();
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    impl BitOrAssign<Bitmap48> for Bitmap48 {
+        fn bitor_assign(&mut self, rhs: Bitmap48) {
+            for (key, other_rb) in rhs.map {
+                match self.map.entry(key) {
+                    Entry::Vacant(ent) => {
+                        ent.insert(other_rb);
+                    }
+                    Entry::Occupied(mut ent) => {
+                        BitOrAssign::bitor_assign(ent.get_mut(), other_rb);
+                    }
+                }
+            }
+        }
+    }
+
+    impl BitOrAssign<&Self> for Bitmap48 {
+        #[inline]
+        fn bitor_assign(&mut self, rhs: &Self) {
+            *self |= rhs.clone();
+        }
+    }
+
+    impl SubAssign<&Self> for Bitmap48 {
+        #[inline]
+        fn sub_assign(&mut self, rhs: &Self) {
+            *self -= rhs.clone();
+        }
+    }
+
+    impl SubAssign<Self> for Bitmap48 {
+        fn sub_assign(&mut self, rhs: Self) {
+            for (key, rhs_rb) in rhs.map {
+                match self.map.entry(key) {
+                    Entry::Vacant(_entry) => (),
+                    Entry::Occupied(mut entry) => {
+                        SubAssign::sub_assign(entry.get_mut(), rhs_rb);
+                        if entry.get().is_empty() {
+                            entry.remove_entry();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    impl FromIterator<u64> for Bitmap48 {
+        fn from_iter<I: IntoIterator<Item = u64>>(iter: I) -> Self {
+            let mut bitmap = Self::new();
+            iter.into_iter().for_each(|id| bitmap.insert(id));
+            bitmap
+        }
+    }
+
+    #[inline]
+    fn split(value: u64) -> (u16, u32) {
+        assert_eq!(value >> 48, 0, "upper 16 bits of value must be unused");
+        ((value >> 32) as u16, value as u32)
+    }
 }
