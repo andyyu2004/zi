@@ -36,8 +36,10 @@ const ARITY: usize = 7;
 /// This can be edited efficiently (logarithmic time) with `Deltas`.
 //
 // This is implemented in a way that is basically a rope but instead of actually representing
-// string data it's compressed into `Gap`s with `Item`s in between.
-// The `Item` are always zero-width and are used to represent the byte positions of the items.
+// string data it's compressed into `Extent`s containing a set of `MarkId`s.
+//
+// It is also extended to represent a range per mark not just an offset. This is done by inserting
+// two entries for the same id representing the start and end of the range.
 //
 // Plenty of optimizations available. The implementation is fairly naive.
 //  - avoid recreating bitmaps and arrays from scratch all the time
