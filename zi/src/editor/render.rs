@@ -119,13 +119,34 @@ impl Editor {
         let theme = self.theme();
 
         let line_offset = view.offset().line;
-        let relevant_range =
+        let relevant_point_range =
             PointRange::new((line_offset, 0usize), (line_offset + area.height as usize, 0usize));
+        // This doesn't quite work since the point range can be a bit larger than the actual text.
+        // let relevant_byte_range = text.point_range_to_byte_range(relevant_point_range);
 
         let syntax_highlights = buf
-            .syntax_highlights(self, &mut query_cursor, relevant_range)
+            .syntax_highlights(self, &mut query_cursor, relevant_point_range)
             .skip_while(|hl| hl.range.end().line() < line_offset)
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
+
+        let mark_highlights = buf
+            // TODO ask for the relevant range
+            // .marks(relevant_byte_range)
+            .marks(..)
+            .filter(|(range, _)| !range.is_empty())
+            .filter_map(|(byte_range, mark)| {
+                // return None;
+                let style = mark.highlight().style(theme)?;
+                let point_range = text.byte_range_to_point_range(&byte_range);
+                if !point_range.is_subrange_of(relevant_point_range) {
+                    return None;
+                }
+                // TODO how to handle multiline?
+                debug_assert!(point_range.is_subrange_of(relevant_point_range));
+                Some((point_range, style))
+            });
+
+        // TODO replace bunch of these highlights with a mark impl
 
         let overlay_highlights = buf
             .overlay_highlights(self, view, area.into())
@@ -216,6 +237,7 @@ impl Editor {
             .range_merge(overlay_highlights)
             .range_merge(diagnostic_highlights.into_iter())
             .range_merge(semantic_highlights)
+            .range_merge(mark_highlights)
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
             });

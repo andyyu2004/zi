@@ -266,7 +266,8 @@ pub(super) fn new() -> Keymap {
     fn tmp_create_mark_test(editor: &mut Editor) {
         let cursor = editor.cursor(Active);
         let byte = editor.buffer(Active).text().point_to_byte(cursor);
-        editor.create_mark(Active, Mark::builder(byte));
+        let hl = editor.highlight_id_by_name(crate::syntax::HighlightName::ERROR);
+        editor.create_mark(Active, Mark::builder(byte).hl(hl).width(5));
     }
 
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.

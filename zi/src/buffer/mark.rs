@@ -5,6 +5,7 @@ use zi_marktree::{MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
 use super::Buffer;
+use crate::syntax::HighlightId;
 
 slotmap::new_key_type! {
     pub struct MarkId;
@@ -64,8 +65,9 @@ impl Marks {
 
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let byte = builder.byte;
+        let width = builder.width;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, id);
+        self.tree.insert(byte, id).width(width);
         id
     }
 
@@ -90,29 +92,47 @@ impl Marks {
 }
 
 pub struct MarkBuilder {
+    hl: HighlightId,
     byte: usize,
+    width: usize,
 }
 
 impl MarkBuilder {
+    pub fn hl(mut self, hl: HighlightId) -> Self {
+        self.hl = hl;
+        self
+    }
+
+    pub fn width(mut self, width: usize) -> Self {
+        self.width = width;
+        self
+    }
+
     #[inline]
     fn build(self, id: MarkId) -> Mark {
-        Mark { id }
+        Mark { id, hl: self.hl }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mark {
     id: MarkId,
+    hl: HighlightId,
 }
 
 impl Mark {
     #[inline]
     pub fn builder(byte: usize) -> MarkBuilder {
-        MarkBuilder { byte }
+        MarkBuilder { byte, width: 0, hl: Default::default() }
     }
 
     #[inline]
     pub fn id(&self) -> MarkId {
         self.id
+    }
+
+    #[inline]
+    pub fn highlight(&self) -> HighlightId {
+        self.hl
     }
 }
