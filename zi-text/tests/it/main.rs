@@ -1,7 +1,3 @@
-#![feature(anonymous_lifetime_in_impl_trait)]
-
-mod marktree;
-
 use std::fmt;
 use std::io::Read;
 

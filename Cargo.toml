@@ -13,7 +13,7 @@ members = [
     "zi-textobject",
     "zi-core",
     "zi-indent",
-    "asciicast",
+    "asciicast", "zi-marktree",
 ]
 
 [workspace.dependencies]
@@ -22,6 +22,7 @@ zi = { path = "zi" }
 zi-core = { path = "zi-core" }
 zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
+zi-marktree = { path = "zi-marktree" }
 zi-nvim = { path = "zi-nvim" }
 zi-text = { path = "zi-text" }
 zi-textobject = { path = "zi-textobject" }

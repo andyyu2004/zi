@@ -1,3 +1,4 @@
+#![feature(array_chunks, coroutines, iter_from_coroutine)]
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
@@ -14,7 +15,6 @@ use tinyset::SetU64;
 
 use self::bitmap::Bitmap48;
 use self::key::{Flags, Key};
-use crate::Deltas;
 
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
@@ -277,14 +277,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Some(start..del(root, 0, id))
     }
 
-    /// Applies the given `deltas` to the tree.
-    /// This will update the byte positions of the items.
-    pub fn edit(&mut self, deltas: &Deltas<'_>) {
-        for delta in deltas.iter() {
-            self.shift(delta.range(), delta.text().len());
-        }
-    }
-
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
@@ -451,7 +443,8 @@ impl<const N: usize> Leaf<N> {
                         entry.keys.remove(key.into_raw());
 
                         if key.flags().contains(Flags::RANGE) {
-                            // Just resummarize the leaf for simplicity
+                            // Just removing the id isn't correct since it's pair may still exist.
+                            // Just resummarize the leaf for simplicity.
                             *summary = self.summarize();
                         } else {
                             summary.ids.remove(id);

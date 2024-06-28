@@ -1,6 +1,8 @@
+#![feature(anonymous_lifetime_in_impl_trait)]
+
 use std::fmt;
 
-use zi_text::{Bias, MarkTree, MarkTreeId};
+use zi_marktree::{Bias, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Id(usize);

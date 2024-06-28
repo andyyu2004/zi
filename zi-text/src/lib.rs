@@ -1,16 +1,14 @@
 #![feature(
-    iter_from_coroutine,
     trait_upcasting,
     coroutines,
+    iter_from_coroutine,
     type_alias_impl_trait,
-    impl_trait_in_assoc_type,
-    array_chunks
+    impl_trait_in_assoc_type
 )]
 
 mod cow_str_impl;
 mod cursor;
 mod delta;
-mod mark;
 mod readonly;
 mod rope;
 mod str_impl;
@@ -27,7 +25,6 @@ use dyn_clone::DynClone;
 use zi_core::{Line, Point, PointOrByte, PointRange};
 
 pub use self::delta::{Delta, DeltaRange, Deltas};
-pub use self::mark::{Bias, MarkTree, MarkTreeId};
 pub use self::readonly::ReadonlyText;
 
 /// Text that can be modified.

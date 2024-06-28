@@ -6,29 +6,16 @@ edition = "2021"
 [dependencies]
 zi-core = { workspace = true }
 regex-cursor = { workspace = true }
-bitflags = { workspace = true }
 crop = { workspace = true }
 dyn-clone = { workspace = true }
 stdx = { workspace = true }
-slotmap = { workspace = true }
-arrayvec = { workspace = true }
-roaring = { workspace = true }
-smallvec = { workspace = true }
 memmap2 = "0.9.4"
-tinyset = { version = "0.4.15", default-features = false }
 
 [dev-dependencies]
 expect-test = { workspace = true }
 proptest = { workspace = true }
 test-strategy = { workspace = true }
-divan = { workspace = true }
-mimalloc = { workspace = true }
 
 [lints]
 workspace = true
-
-[[bench]]
-name = "marktree"
-harness = false
-
 

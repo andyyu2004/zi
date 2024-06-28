@@ -3707,6 +3707,7 @@ dependencies = [
  "zi-core",
  "zi-indent",
  "zi-lsp",
+ "zi-marktree",
  "zi-nvim",
  "zi-text",
  "zi-textobject",
@@ -3758,6 +3759,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zi-marktree"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bitflags 2.6.0",
+ "crop",
+ "divan",
+ "mimalloc",
+ "roaring",
+ "smallvec 2.0.0-alpha.6",
+ "stdx",
+ "tinyset",
+]
+
+[[package]]
 name = "zi-nvim"
 version = "0.1.0"
 dependencies = [
@@ -3790,22 +3806,14 @@ dependencies = [
 name = "zi-text"
 version = "0.1.0"
 dependencies = [
- "arrayvec",
- "bitflags 2.6.0",
  "crop",
- "divan",
  "dyn-clone",
  "expect-test",
  "memmap2",
- "mimalloc",
  "proptest",
  "regex-cursor",
- "roaring",
- "slotmap",
- "smallvec 2.0.0-alpha.6",
  "stdx",
  "test-strategy",
- "tinyset",
  "zi-core",
 ]
 

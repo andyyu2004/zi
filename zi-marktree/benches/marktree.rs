@@ -1,5 +1,5 @@
 use divan::Bencher;
-use zi_text::{MarkTree, MarkTreeId};
+use zi_marktree::{MarkTree, MarkTreeId};
 
 #[global_allocator]
 static GLOBAL: divan::AllocProfiler<mimalloc::MiMalloc> =

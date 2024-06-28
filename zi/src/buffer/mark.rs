@@ -1,7 +1,8 @@
 use std::ops::{Range, RangeBounds};
 
 use slotmap::{Key, KeyData, SlotMap};
-use zi_text::{Deltas, MarkTree, MarkTreeId};
+use zi_marktree::{MarkTree, MarkTreeId};
+use zi_text::Deltas;
 
 use super::Buffer;
 
@@ -76,7 +77,7 @@ impl Marks {
 
     #[inline]
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
-        self.tree.edit(deltas);
+        deltas.iter().for_each(|delta| self.tree.shift(delta.range(), delta.text().len()));
     }
 
     #[inline]
