@@ -337,22 +337,22 @@ fn marktree_get() {
     assert_eq!(tree.len(), 10);
 
     tree.insert(0, Id(0));
-    assert_eq!(tree.get(0), Some(0));
+    assert_eq!(tree.get(0), Some(0..0));
 
     tree.insert(3, 1);
-    assert_eq!(tree.get(1), Some(3));
+    assert_eq!(tree.get(1), Some(3..3));
 
     tree.insert(3, 2);
-    assert_eq!(tree.get(2), Some(3));
+    assert_eq!(tree.get(2), Some(3..3));
 
     tree.insert(2, 4);
-    assert_eq!(tree.get(4), Some(2));
+    assert_eq!(tree.get(4), Some(2..2));
 
-    assert_eq!(tree.get(0), Some(0));
-    assert_eq!(tree.get(1), Some(3));
-    assert_eq!(tree.get(2), Some(3));
+    assert_eq!(tree.get(0), Some(0..0));
+    assert_eq!(tree.get(1), Some(3..3));
+    assert_eq!(tree.get(2), Some(3..3));
     assert_eq!(tree.get(3), None);
-    assert_eq!(tree.get(4), Some(2));
+    assert_eq!(tree.get(4), Some(2..2));
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn marktree_bulk_get() {
     (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
         let offset = tree.get(Id(i));
-        assert_eq!(offset, Some(i));
+        assert_eq!(offset, Some(i..i));
     });
 }
 

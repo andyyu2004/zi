@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
-use std::ops::{Add, AddAssign, RangeBounds, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
 use std::{cmp, fmt, iter, mem};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
-    Arc, AsSlice, BalancedLeaf, BaseMeasured, Lnode, Metric, Node, ReplaceableLeaf, Summarize, Tree,
+    Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
 use roaring::RoaringTreemap;
 use smallvec::SmallVec;
@@ -62,15 +62,15 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     #[inline]
-    pub fn get(&self, id: impl Into<Id>) -> Option<usize> {
+    pub fn get(&self, id: impl Into<Id>) -> Option<Range<usize>> {
         let id = id.into().into();
-        let (leaf_offset, leaf) = self.find_leaf(id)?;
-        let slice = leaf.as_slice();
-        let offset = slice.get(id)?;
-        Some(leaf_offset + offset)
+        let (left_offset, left_leaf) = self.find_left_leaf(id)?;
+        let (right_offset, right_leaf) = self.find_right_leaf(id)?;
+        Some(left_offset + left_leaf.get_left(id)?..right_offset - right_leaf.get_right(id)?)
     }
 
-    fn find_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Lnode<Leaf<N>>)> {
+    /// Return the `(offset, leaf)` pair of the leftmost leaf that contains the given `id`.
+    fn find_left_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Leaf<N>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
@@ -98,7 +98,41 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         })?
                         .as_ref();
                 }
-                Node::Leaf(leaf) => return Some((offset, leaf)),
+                Node::Leaf(leaf) => return Some((offset, leaf.value())),
+            }
+        }
+    }
+
+    /// Return the `(end_offset, leaf)` pair of the rightmost leaf that contains the given `id`.
+    fn find_right_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Leaf<N>)> {
+        let mut node = self.tree.root().as_ref();
+        let id = id.into().into();
+        if !node.summary().ids.contains(id) {
+            return None;
+        }
+
+        let mut offset = node.summary().bytes;
+
+        loop {
+            debug_assert!(node.summary().ids.contains(id));
+            match node {
+                Node::Internal(inode) => {
+                    node = inode
+                        .children()
+                        .iter()
+                        .rev()
+                        .find(|child| {
+                            let summary = child.summary();
+                            if summary.ids.contains(id) {
+                                true
+                            } else {
+                                offset -= summary.bytes;
+                                false
+                            }
+                        })?
+                        .as_ref();
+                }
+                Node::Leaf(leaf) => return Some((offset, leaf.value())),
             }
         }
     }
@@ -259,7 +293,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
             self.tree.len(),
         );
 
-        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags)))
+        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags)));
     }
 }
 
@@ -336,6 +370,16 @@ struct Leaf<const N: usize> {
 }
 
 impl<const N: usize> Leaf<N> {
+    #[inline]
+    fn get_left(&self, id: u64) -> Option<usize> {
+        self.as_slice().get_left(id)
+    }
+
+    #[inline]
+    fn get_right(&self, id: u64) -> Option<usize> {
+        self.as_slice().get_right(id)
+    }
+
     fn delete(&mut self, id: u64) -> Option<usize> {
         let mut offset = 0;
 
@@ -705,7 +749,7 @@ impl<'a> Default for LeafSlice<'a> {
 impl<'a> LeafSlice<'a> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
-    fn get(&self, id: u64) -> Option<usize> {
+    fn get_left(&self, id: u64) -> Option<usize> {
         let mut offset = 0;
         for entry in self.entries {
             if entry.keys.contains(id) {
@@ -716,6 +760,30 @@ impl<'a> LeafSlice<'a> {
                 for key in entry.keys.iter() {
                     if Key::from_raw(key).id() == id {
                         return Some(offset);
+                    }
+                }
+            }
+
+            offset += entry.len();
+        }
+
+        None
+    }
+
+    /// Return the item with the given `id` if it exists.
+    /// The item `byte` is the distance to the end of the leaf node.
+    fn get_right(&self, id: u64) -> Option<usize> {
+        let mut offset = 0;
+
+        for entry in self.entries.iter().rev() {
+            if entry.keys.contains(id) {
+                // Fast path if the flags are empty.
+                return Some(offset + entry.len());
+            } else {
+                // Otherwise, scan
+                for key in entry.keys.iter() {
+                    if Key::from_raw(key).id() == id {
+                        return Some(offset + entry.len());
                     }
                 }
             }

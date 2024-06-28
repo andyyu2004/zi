@@ -57,7 +57,7 @@ fn bench_marktree_get(bencher: Bencher<'_, '_>) {
     bencher.bench_local(move || {
         (0..10000).for_each(|i| {
             let item = tree.get(Id(i));
-            assert_eq!(item, Some(i));
+            assert_eq!(item, Some(i..i));
         });
     });
 }
