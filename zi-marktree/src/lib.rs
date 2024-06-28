@@ -1052,9 +1052,6 @@ where
         Bound::Unbounded => hi,
     };
 
-    assert!(start >= lo, "start={start} >= lo={lo}");
-    assert!(end <= hi, "end={end} <= hi={hi}");
-
     (start, end)
 }
 

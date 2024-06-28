@@ -121,8 +121,14 @@ impl Editor {
         let line_offset = view.offset().line;
         let relevant_point_range =
             PointRange::new((line_offset, 0usize), (line_offset + area.height as usize, 0usize));
-        // This doesn't quite work since the point range can be a bit larger than the actual text.
-        // let relevant_byte_range = text.point_range_to_byte_range(relevant_point_range);
+        let relevant_byte_range = {
+            let start_byte = text.line_to_byte(line_offset);
+            let end_byte = match text.try_line_to_byte(line_offset + area.height as usize) {
+                Some(end) => end + text.line(line_offset).unwrap().len_bytes(),
+                None => text.len_bytes(),
+            };
+            start_byte..end_byte
+        };
 
         let syntax_highlights = buf
             .syntax_highlights(self, &mut query_cursor, relevant_point_range)
@@ -130,9 +136,7 @@ impl Editor {
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
         let mark_highlights = buf
-            // TODO ask for the relevant range
-            // .marks(relevant_byte_range)
-            .marks(..)
+            .marks(relevant_byte_range)
             .filter(|(range, _)| !range.is_empty())
             .filter_map(|(byte_range, mark)| {
                 // return None;
