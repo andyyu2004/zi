@@ -288,7 +288,7 @@ fn marktree_shift_empty() {
 }
 
 #[test]
-fn marktree_shift() {
+fn marktree_shift_simple() {
     let mut tree = new(10);
 
     tree.insert(1, Id(0));
@@ -302,6 +302,15 @@ fn marktree_shift() {
     tree.shift(0..1, 0);
     assert_eq!(tree.len(), 11);
     assert_iter_eq(tree.range(..), [(2..2, Id(0))]);
+}
+
+#[test]
+fn marktree_shift() {
+    let mut tree = new(10);
+    tree.insert(0, Id(0));
+    tree.insert(1, Id(1));
+    tree.shift(0..0, 2);
+    assert_iter_eq(tree.range(..), [(2..2, Id(0)), (3..3, Id(1))]);
 }
 
 #[test]
@@ -381,4 +390,23 @@ fn marktree_bias() {
     tree.insert(0, Id(1)).bias(Bias::Right);
     tree.shift(0..0, 1);
     assert_iter_eq(tree.range(..), [(0..0, Id(0)), (1..1, Id(1))]);
+}
+
+#[test]
+fn marktree_range_mark() {
+    let mut tree = new(5);
+    tree.insert(0, Id(0)).width(1);
+    assert_iter_eq(tree.range(..), [(0..1, Id(0))]);
+
+    assert_eq!(tree.delete(Id(0)), Some(0..1));
+    assert_iter_eq(tree.range(..), []);
+
+    tree.insert(0, Id(1)).width(2);
+    assert_iter_eq(tree.range(..), [(0..2, Id(1))]);
+
+    tree.insert(1, Id(2)).width(3);
+    assert_iter_eq(tree.range(..), [(0..2, Id(1)), (1..4, Id(2))]);
+
+    tree.shift(0..0, 1);
+    assert_iter_eq(tree.range(..), [(1..3, Id(1)), (2..5, Id(2))]);
 }

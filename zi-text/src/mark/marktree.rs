@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
-use std::{cmp, fmt, iter, mem};
+use std::{cmp, fmt, iter};
 
 use arrayvec::ArrayVec;
 use crop::tree::{
@@ -64,9 +64,21 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     #[inline]
     pub fn get(&self, id: impl Into<Id>) -> Option<Range<usize>> {
         let id = id.into().into();
-        let (left_offset, left_leaf) = self.find_left_leaf(id)?;
-        let (right_offset, right_leaf) = self.find_right_leaf(id)?;
-        Some(left_offset + left_leaf.get_left(id)?..right_offset - right_leaf.get_right(id)?)
+        let start = self.get_left(id)?;
+        let end = self.get_right(id)?;
+        Some(start..end)
+    }
+
+    fn get_left(&self, id: impl Into<Id>) -> Option<usize> {
+        let id = id.into().into();
+        let (offset, leaf) = self.find_left_leaf(id)?;
+        leaf.get_left(id).map(|byte| offset + byte)
+    }
+
+    fn get_right(&self, id: impl Into<Id>) -> Option<usize> {
+        let id = id.into().into();
+        let (offset, leaf) = self.find_right_leaf(id)?;
+        leaf.get_right(id).map(|byte| offset - byte)
     }
 
     /// Return the `(offset, leaf)` pair of the leftmost leaf that contains the given `id`.
@@ -144,6 +156,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         debug_assert_eq!(self.len() + end, initial_len + by + start);
     }
 
+    /// Returns an iterator over the items whose start point is in the given range.
     pub fn range(
         &self,
         range: impl RangeBounds<usize>,
@@ -185,8 +198,16 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                                 }
 
                                 for key in entry.keys() {
-                                    if key.flags().contains(Flags::RANGE) {
-                                        todo!("how to handle paired ids?")
+                                    let flags = key.flags();
+                                    if flags.contains(Flags::END) {
+                                        continue;
+                                    }
+
+                                    if flags.contains(Flags::RANGE) {
+                                        let end = self
+                                            .get_right(key.id())
+                                            .expect("we should at least find the current key");
+                                        yield (offset..end, key.id().into());
                                     } else {
                                         yield (offset..offset, key.id().into());
                                     }
@@ -204,7 +225,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
     pub fn insert(&mut self, at: usize, id: impl Into<Id>) -> Inserter<'_, Id, N> {
-        Inserter { tree: self, id: id.into(), at, flags: Flags::empty() }
+        Inserter { tree: self, id: id.into(), at, width: 0, flags: Flags::empty() }
     }
 
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
@@ -275,6 +296,7 @@ pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
     id: Id,
     at: usize,
+    width: usize,
     flags: Flags,
 }
 
@@ -284,6 +306,16 @@ impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
             Bias::Left => self.flags.insert(Flags::BIAS_LEFT),
             Bias::Right => self.flags.remove(Flags::BIAS_LEFT),
         }
+        self
+    }
+
+    pub fn width(mut self, width: usize) -> Self {
+        if width > 0 {
+            self.flags.insert(Flags::RANGE);
+        } else {
+            self.flags.remove(Flags::RANGE);
+        }
+        self.width = width;
         self
     }
 }
@@ -307,6 +339,10 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         );
 
         self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags)));
+        if self.flags.contains(Flags::RANGE) {
+            let at = at + self.width;
+            self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags | Flags::END)));
+        }
     }
 }
 
@@ -367,6 +403,10 @@ impl LeafEntry {
         }
     }
 
+    fn ids(&self) -> impl Iterator<Item = u64> + '_ {
+        self.keys().map(Key::id)
+    }
+
     fn keys(&self) -> impl Iterator<Item = Key> + '_ {
         self.keys.iter().map(Key::from_raw)
     }
@@ -407,14 +447,15 @@ impl<const N: usize> Leaf<N> {
                 while let Some(key) = iter.next() {
                     let key = Key::from_raw(key);
                     if key.id() == id {
+                        drop(iter);
+                        entry.keys.remove(key.into_raw());
+
                         if key.flags().contains(Flags::RANGE) {
-                            todo!("how to handle paired ids?")
+                            // Just resummarize the leaf for simplicity
+                            *summary = self.summarize();
                         } else {
                             summary.ids.remove(id);
                         }
-
-                        drop(iter);
-                        entry.keys.remove(key.into_raw());
                         return Some(offset);
                     }
                 }
@@ -499,7 +540,7 @@ mod builder {
 }
 
 mod key {
-    use std::mem;
+    use std::{fmt, mem};
 
     bitflags::bitflags! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -507,12 +548,20 @@ mod key {
             const BIAS_LEFT = 1 << 0;
             // If the key is part of a range pair.
             const RANGE = 1 << 1;
+            /// The end of a range pair.
+            const END = 1 << 2;
         }
     }
 
     /// Key encodes the 48-bit id and 16-bit flags.
     #[derive(Clone, Copy)]
     pub(super) struct Key(u64);
+
+    impl fmt::Debug for Key {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Key").field("id", &self.id()).field("flags", &self.flags()).finish()
+        }
+    }
 
     impl Key {
         const FLAG_BITS: usize = 16;
@@ -564,12 +613,13 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         assert!(end <= n, "end <= n ({end} <= {n})");
 
         let mut builder = builder::EntryBuilder::<N>::default();
+        let mut keys = SetU64::default();
         match replace_with {
             Replacement::Gap(gap) => {
                 let mut gap = Some(gap);
 
                 let mut offset = 0;
-                for mut entry in self.entries.take() {
+                for entry in self.entries.take() {
                     let entry_end = offset + entry.len();
                     let k = entry.len();
 
@@ -581,35 +631,40 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                         continue;
                     }
 
+                    keys = keys | &entry.keys;
+
                     match start.cmp(&offset) {
                         cmp::Ordering::Greater => {
                             // The offset is before the start of the replacement range.
                             // Copy the chunk of the entry that precedes the replacement range.
-                            builder.push_raw(start - offset, mem::take(&mut entry.keys))
+                            builder.push_raw(start - offset, keys.drain())
                         }
-                        // The interval starts exactly at offset, move it to the right by pushing the gap first.
                         cmp::Ordering::Equal => {
+                            // The interval starts exactly at offset, move it to the right by pushing the gap first.
                             let gap = gap.take().unwrap();
                             if gap > 0 {
-                                let (left_biased, right_biased) = mem::take(&mut entry.keys)
-                                    .iter()
-                                    .partition::<SetU64, _>(|&key| {
+                                let (left_biased, right_biased) =
+                                    keys.drain().partition::<SetU64, _>(|&key| {
                                         Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
                                     });
 
-                                entry.keys = right_biased;
+                                keys = right_biased;
 
                                 builder.push_raw(gap, left_biased);
                             }
                         }
-                        _ => {}
+                        cmp::Ordering::Less => {
+                            if let Some(gap) = gap.take() {
+                                builder.push_gap(gap);
+                            }
+                        }
                     }
 
                     if entry_end > end {
-                        builder.push_raw(entry_end - end, mem::take(&mut entry.keys));
+                        // If the entry extends beyond the replacement,
+                        // push the remaining (right-biased only?) keys after.
+                        builder.push_raw(entry_end - end, keys.drain());
                     }
-
-                    debug_assert!(entry.keys.is_empty(), "didn't consume all keys");
 
                     offset += k;
                 }
@@ -643,9 +698,9 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                         builder.push(1, [key]);
                     } else {
                         // Otherwise, they can be merged
-                        let mut ids = entry.keys;
-                        assert!(ids.insert(key.into_raw()));
-                        builder.push_raw(start - offset + 1, ids);
+                        let mut keys = entry.keys;
+                        assert!(keys.insert(key.into_raw()));
+                        builder.push_raw(start - offset + 1, keys);
                     }
 
                     if entry_end > end {
@@ -825,7 +880,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.keys.iter())),
+            ids: RoaringTreemap::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
         }
     }
 }
