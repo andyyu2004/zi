@@ -225,7 +225,14 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
     pub fn insert(&mut self, at: usize, id: impl Into<Id>) -> Inserter<'_, Id, N> {
-        Inserter { tree: self, id: id.into(), at, width: 0, flags: Flags::empty() }
+        Inserter {
+            tree: self,
+            id: id.into(),
+            at,
+            width: 0,
+            start_flags: Flags::empty(),
+            end_flags: Flags::END,
+        }
     }
 
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
@@ -289,23 +296,34 @@ pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     id: Id,
     at: usize,
     width: usize,
-    flags: Flags,
+    start_flags: Flags,
+    end_flags: Flags,
 }
 
 impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
-    pub fn bias(mut self, bias: Bias) -> Self {
+    pub fn start_bias(mut self, bias: Bias) -> Self {
         match bias {
-            Bias::Left => self.flags.insert(Flags::BIAS_LEFT),
-            Bias::Right => self.flags.remove(Flags::BIAS_LEFT),
+            Bias::Left => self.start_flags.insert(Flags::BIAS_LEFT),
+            Bias::Right => self.start_flags.remove(Flags::BIAS_LEFT),
+        }
+        self
+    }
+
+    pub fn end_bias(mut self, bias: Bias) -> Self {
+        match bias {
+            Bias::Left => self.end_flags.insert(Flags::BIAS_LEFT),
+            Bias::Right => self.end_flags.remove(Flags::BIAS_LEFT),
         }
         self
     }
 
     pub fn width(mut self, width: usize) -> Self {
         if width > 0 {
-            self.flags.insert(Flags::RANGE);
+            self.start_flags.insert(Flags::RANGE);
+            self.end_flags.insert(Flags::RANGE);
         } else {
-            self.flags.remove(Flags::RANGE);
+            self.start_flags.remove(Flags::RANGE);
+            self.end_flags.remove(Flags::RANGE);
         }
         self.width = width;
         self
@@ -330,10 +348,11 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
             self.tree.len(),
         );
 
-        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags)));
-        if self.flags.contains(Flags::RANGE) {
+        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.start_flags)));
+        if self.start_flags.contains(Flags::RANGE) {
+            assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
             let at = at + self.width;
-            self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.flags | Flags::END)));
+            self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.end_flags)));
         }
     }
 }

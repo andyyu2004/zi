@@ -380,7 +380,7 @@ fn marktree_bulk_get() {
 #[test]
 fn marktree_left_bias() {
     let mut tree = new(1);
-    tree.insert(0, Id(0)).bias(Bias::Left);
+    tree.insert(0, Id(0)).start_bias(Bias::Left);
     tree.shift(0..0, 1);
     // Should not shift due to bias.
     assert_iter_eq(tree.range(..), [(0..0, Id(0))]);
@@ -389,8 +389,8 @@ fn marktree_left_bias() {
 #[test]
 fn marktree_bias() {
     let mut tree = new(5);
-    tree.insert(0, Id(0)).bias(Bias::Left);
-    tree.insert(0, Id(1)).bias(Bias::Right);
+    tree.insert(0, Id(0)).start_bias(Bias::Left);
+    tree.insert(0, Id(1)).start_bias(Bias::Right);
     tree.shift(0..0, 1);
     assert_iter_eq(tree.range(..), [(0..0, Id(0)), (1..1, Id(1))]);
 }

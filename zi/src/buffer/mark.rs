@@ -64,9 +64,9 @@ impl Marks {
     }
 
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
-        let MarkBuilder { bias, byte, width, .. } = builder;
+        let MarkBuilder { start_bias, end_bias, byte, width, .. } = builder;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, id).width(width).bias(bias);
+        self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
         id
     }
 
@@ -94,7 +94,8 @@ pub struct MarkBuilder {
     hl: HighlightId,
     byte: usize,
     width: usize,
-    bias: Bias,
+    start_bias: Bias,
+    end_bias: Bias,
 }
 
 impl MarkBuilder {
@@ -108,8 +109,13 @@ impl MarkBuilder {
         self
     }
 
-    pub fn bias(mut self, bias: Bias) -> Self {
-        self.bias = bias;
+    pub fn start_bias(mut self, bias: Bias) -> Self {
+        self.start_bias = bias;
+        self
+    }
+
+    pub fn end_bias(mut self, bias: Bias) -> Self {
+        self.end_bias = bias;
         self
     }
 
@@ -128,7 +134,13 @@ pub struct Mark {
 impl Mark {
     #[inline]
     pub fn builder(byte: usize) -> MarkBuilder {
-        MarkBuilder { byte, width: 0, bias: Bias::Right, hl: Default::default() }
+        MarkBuilder {
+            byte,
+            width: 0,
+            start_bias: Bias::Right,
+            end_bias: Bias::Right,
+            hl: Default::default(),
+        }
     }
 
     #[inline]
