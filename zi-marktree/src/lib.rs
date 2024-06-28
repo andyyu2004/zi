@@ -484,6 +484,7 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
 mod builder {
     use super::*;
 
+    #[derive(Debug)]
     pub(super) struct EntryBuilder<const N: usize> {
         entries: SmallVec<LeafEntry, N>,
     }
@@ -654,6 +655,9 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     }
 
                     if entry_end > end {
+                        if let Some(gap) = gap.take() {
+                            builder.push_gap(gap);
+                        }
                         // If the entry extends beyond the replacement,
                         // push the remaining (right-biased only?) keys after.
                         builder.push_raw(entry_end - end, keys.drain());

@@ -1,8 +1,9 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
 
-use std::fmt;
+use std::ops::Range;
+use std::{fmt, iter};
 
-use zi_marktree::{Bias, MarkTree, MarkTreeId};
+use zi_marktree::{Bias, Inserter, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Id(usize);
@@ -411,4 +412,22 @@ fn marktree_range_mark() {
 
     tree.shift(0..0, 1);
     assert_iter_eq(tree.range(..), [(1..3, Id(1)), (2..5, Id(2))]);
+}
+
+#[test]
+fn marktree_shift_range_mark() {
+    #[track_caller]
+    fn check(
+        at: usize,
+        f: impl FnOnce(Inserter<'_, Id, 4>) -> Inserter<'_, Id, 4>,
+        (shift_range, by): (Range<usize>, usize),
+        expected: (Range<usize>, Id),
+    ) {
+        let mut tree = new(5);
+        drop(f(tree.insert(at, Id(0))));
+        tree.shift(shift_range, by);
+        assert_iter_eq(tree.range(..), iter::once(expected));
+    }
+
+    check(0, |i| i.width(2), (1..1, 1), (0..3, Id(0)));
 }
