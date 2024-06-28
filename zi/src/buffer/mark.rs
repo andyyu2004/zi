@@ -1,7 +1,7 @@
 use std::ops::{Range, RangeBounds};
 
 use slotmap::{Key, KeyData, SlotMap};
-use zi_marktree::{MarkTree, MarkTreeId};
+use zi_marktree::{Bias, MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
 use super::Buffer;
@@ -64,10 +64,9 @@ impl Marks {
     }
 
     pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
-        let byte = builder.byte;
-        let width = builder.width;
+        let MarkBuilder { bias, byte, width, .. } = builder;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, id).width(width);
+        self.tree.insert(byte, id).width(width).bias(bias);
         id
     }
 
@@ -95,6 +94,7 @@ pub struct MarkBuilder {
     hl: HighlightId,
     byte: usize,
     width: usize,
+    bias: Bias,
 }
 
 impl MarkBuilder {
@@ -105,6 +105,11 @@ impl MarkBuilder {
 
     pub fn width(mut self, width: usize) -> Self {
         self.width = width;
+        self
+    }
+
+    pub fn bias(mut self, bias: Bias) -> Self {
+        self.bias = bias;
         self
     }
 
@@ -123,7 +128,7 @@ pub struct Mark {
 impl Mark {
     #[inline]
     pub fn builder(byte: usize) -> MarkBuilder {
-        MarkBuilder { byte, width: 0, hl: Default::default() }
+        MarkBuilder { byte, width: 0, bias: Bias::Right, hl: Default::default() }
     }
 
     #[inline]
