@@ -1,4 +1,4 @@
-use std::ops::RangeBounds;
+use std::ops::{Range, RangeBounds};
 
 use slotmap::{Key, KeyData, SlotMap};
 use zi_text::{Deltas, MarkTree, MarkTreeId};
@@ -68,7 +68,7 @@ impl Marks {
         id
     }
 
-    pub fn delete(&mut self, id: MarkId) -> Option<(usize, Mark)> {
+    pub fn delete(&mut self, id: MarkId) -> Option<(Range<usize>, Mark)> {
         let mark = self.marks.remove(id)?;
         let byte = self.tree.delete(id).expect("if map contains mark, tree should too");
         Some((byte, mark))

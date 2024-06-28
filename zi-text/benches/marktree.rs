@@ -45,7 +45,7 @@ fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
             tree
         })
         .bench_local_values(|mut tree| {
-            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i)))
+            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i)))
         })
 }
 

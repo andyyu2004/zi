@@ -22,17 +22,7 @@ impl From<u64> for Id {
 impl MarkTreeId for Id {}
 
 #[track_caller]
-fn assert_offset_iter_eq<T: Copy + Eq + fmt::Debug + 'static>(
-    values: impl Iterator<Item = (usize, T)>,
-    expected: impl IntoIterator<Item = (usize, T)>,
-) {
-    let values = values.collect::<Vec<_>>();
-    let expected = expected.into_iter().collect::<Vec<_>>();
-    assert_eq!(values, expected);
-}
-
-#[track_caller]
-fn assert_iter_eq<T: Copy + Eq + fmt::Debug + 'static>(
+fn assert_iter_eq<T: Eq + fmt::Debug + 'static>(
     values: impl Iterator<Item = T>,
     expected: impl IntoIterator<Item = T>,
 ) {
@@ -49,16 +39,16 @@ fn new(n: usize) -> MarkTree<Id, 4> {
 fn marktree_empty() {
     let mut tree = new(1);
     tree.insert(0, Id(0));
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(..0), []);
-    assert_offset_iter_eq(tree.range(..=0), [(0, Id(0))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0))]);
+    assert_iter_eq(tree.range(..0), []);
+    assert_iter_eq(tree.range(..=0), [(0, Id(0))]);
 
     // Should shift to the right as right-biased by default.
     tree.shift(0..0, 1);
-    assert_offset_iter_eq(tree.range(..), [(1, Id(0))]);
+    assert_iter_eq(tree.range(..), [(1, Id(0))]);
 
-    assert_eq!(tree.delete(0), Some(1));
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_eq!(tree.delete(0), Some(1..1));
+    assert_iter_eq(tree.range(..), []);
 }
 
 #[test]
@@ -67,26 +57,26 @@ fn marktree_range_iter() {
     tree.insert(0, Id(0));
     tree.insert(1, Id(1));
 
-    assert_offset_iter_eq(tree.range(0..0), []);
-    assert_offset_iter_eq(tree.range(0..=0), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(0..1), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(0..2), [(0, Id(0)), (1, Id(1))]);
-    assert_offset_iter_eq(tree.range(1..2), [(1, Id(1))]);
-    assert_offset_iter_eq(tree.range(2..2), []);
+    assert_iter_eq(tree.range(0..0), []);
+    assert_iter_eq(tree.range(0..=0), [(0, Id(0))]);
+    assert_iter_eq(tree.range(0..1), [(0, Id(0))]);
+    assert_iter_eq(tree.range(0..2), [(0, Id(0)), (1, Id(1))]);
+    assert_iter_eq(tree.range(1..2), [(1, Id(1))]);
+    assert_iter_eq(tree.range(2..2), []);
 
     (2..100).for_each(|i| drop(tree.insert(i, Id(i))));
 
-    assert_offset_iter_eq(tree.range(0..0), []);
-    assert_offset_iter_eq(tree.range(0..1), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(0..2), [(0, Id(0)), (1, Id(1))]);
-    assert_offset_iter_eq(tree.range(1..2), [(1, Id(1))]);
-    assert_offset_iter_eq(tree.range(2..2), []);
+    assert_iter_eq(tree.range(0..0), []);
+    assert_iter_eq(tree.range(0..1), [(0, Id(0))]);
+    assert_iter_eq(tree.range(0..2), [(0, Id(0)), (1, Id(1))]);
+    assert_iter_eq(tree.range(1..2), [(1, Id(1))]);
+    assert_iter_eq(tree.range(2..2), []);
 
-    assert_offset_iter_eq(tree.range(0..3), [(0, Id(0)), (1, Id(1)), (2, Id(2))]);
-    assert_offset_iter_eq(tree.range(0..=2), [(0, Id(0)), (1, Id(1)), (2, Id(2))]);
-    assert_offset_iter_eq(tree.range(20..40), (20..40).map(|i| (i, Id(i))));
-    assert_offset_iter_eq(tree.range(80..100), (80..100).map(|i| (i, Id(i))));
-    assert_offset_iter_eq(tree.range(80..=100), (80..100).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(0..3), [(0, Id(0)), (1, Id(1)), (2, Id(2))]);
+    assert_iter_eq(tree.range(0..=2), [(0, Id(0)), (1, Id(1)), (2, Id(2))]);
+    assert_iter_eq(tree.range(20..40), (20..40).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(80..100), (80..100).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(80..=100), (80..100).map(|i| (i, Id(i))));
 }
 
 #[test]
@@ -108,13 +98,13 @@ fn marktree_delete() {
     tree.insert(0, Id(0));
     tree.insert(0, 1);
 
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
 
     tree.delete(0);
-    assert_offset_iter_eq(tree.range(..), [(0, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(1))]);
 
     tree.delete(1);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
 }
 
 #[test]
@@ -123,8 +113,8 @@ fn marktree_bulk_delete() {
     let k = 2000;
     (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
-        assert_eq!(tree.delete(Id(i)), Some(i));
-        assert_offset_iter_eq(tree.range(..), (i + 1..k).map(|j| (j, Id(j))));
+        assert_eq!(tree.delete(Id(i)), Some(i..i));
+        assert_iter_eq(tree.range(..), (i + 1..k).map(|j| (j, Id(j))));
     });
 }
 
@@ -133,27 +123,27 @@ fn marktree_drain_2() {
     let mut tree = new(10);
     (0..4).for_each(|i| drop(tree.insert(i, Id(i))));
 
-    assert_iter_eq(tree.drain(0..=0), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(..), [(1, Id(1)), (2, Id(2)), (3, Id(3))]);
+    assert_iter_eq(tree.drain(0..=0), [(0..0, Id(0))]);
+    assert_iter_eq(tree.range(..), [(1, Id(1)), (2, Id(2)), (3, Id(3))]);
 
-    assert_iter_eq(tree.drain(1..=1), [(1, Id(1))]);
-    assert_offset_iter_eq(tree.range(..), [(2, Id(2)), (3, Id(3))]);
+    assert_iter_eq(tree.drain(1..=1), [(1..1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(2, Id(2)), (3, Id(3))]);
 
     tree.drain(2..=2);
-    assert_offset_iter_eq(tree.range(..), [(3, Id(3))]);
+    assert_iter_eq(tree.range(..), [(3, Id(3))]);
 
     tree.drain(3..=3);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
 
     tree.insert(0, 0);
     tree.insert(0, 1);
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
 
     tree.drain(0..0);
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (0, Id(1))]);
 
     tree.drain(0..1);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
 }
 
 #[test]
@@ -161,23 +151,23 @@ fn marktree_drain_1() {
     let mut tree = new(10);
 
     tree.insert(0, Id(0));
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0))]);
     assert_eq!(tree.len(), 10);
 
-    assert_iter_eq(tree.drain(0..1), [(0, Id(0))]);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.drain(0..1), [(0..0, Id(0))]);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 10);
 
     tree.insert(1, 1);
-    assert_offset_iter_eq(tree.range(..), [(1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(1, Id(1))]);
     assert_eq!(tree.len(), 10);
 
     assert_iter_eq(tree.drain(0..1), []);
-    assert_offset_iter_eq(tree.range(..), [(1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(1, Id(1))]);
     assert_eq!(tree.len(), 10);
 
-    assert_iter_eq(tree.drain(0..2), [(1, Id(1))]);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.drain(0..2), [(1..1, Id(1))]);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 10);
 }
 
@@ -187,15 +177,15 @@ fn marktree_bulk_drain() {
     let mut tree = new(LEN);
 
     (0..100).for_each(|i| drop(tree.insert(i, Id(i))));
-    assert_offset_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
     assert_eq!(tree.len(), LEN);
 
     tree.drain(0..20);
-    assert_offset_iter_eq(tree.range(..), (20..100).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(..), (20..100).map(|i| (i, Id(i))));
     assert_eq!(tree.len(), LEN);
 
     tree.drain(80..100);
-    assert_offset_iter_eq(tree.range(..), (20..80).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(..), (20..80).map(|i| (i, Id(i))));
     assert_eq!(tree.len(), LEN);
 }
 
@@ -204,13 +194,13 @@ fn marktree_simple_insert() {
     let mut tree = new(2);
     tree.insert(1, Id(0));
 
-    assert_offset_iter_eq(tree.range(..), [(1, Id(0))]);
+    assert_iter_eq(tree.range(..), [(1, Id(0))]);
 
     tree.insert(1, 1);
-    assert_offset_iter_eq(tree.range(..), [(1, Id(0)), (1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(1, Id(0)), (1, Id(1))]);
 
     tree.insert(0, 2);
-    assert_offset_iter_eq(tree.range(..), [(0, Id(2)), (1, Id(0)), (1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(2)), (1, Id(0)), (1, Id(1))]);
 }
 
 #[test]
@@ -226,7 +216,7 @@ fn marktree_small_insert() {
 fn marktree_split() {
     let mut tree = new(100);
     (0..100).for_each(|i| drop(tree.insert(i, Id(i))));
-    assert_offset_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
+    assert_iter_eq(tree.range(..), (0..100).map(|i| (i, Id(i))));
 }
 
 #[test]
@@ -256,7 +246,7 @@ fn marktree_bulk_insert() {
 fn marktree_shift_append() {
     let mut tree = new(1);
     tree.shift(0..0, 1);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 2);
 }
 
@@ -265,11 +255,11 @@ fn marktree_shift_append_delete() {
     let mut tree = new(1);
 
     tree.shift(0..0, 1);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 2);
 
     tree.shift(0..1, 0);
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 1);
 }
 
@@ -281,7 +271,7 @@ fn marktree_shift_delete() {
     assert_eq!(tree.len(), 3);
     tree.shift(0..3, 1);
 
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 1);
 }
 
@@ -302,16 +292,16 @@ fn marktree_shift() {
     let mut tree = new(10);
 
     tree.insert(1, Id(0));
-    assert_offset_iter_eq(tree.range(..), [(1, Id(0))]);
+    assert_iter_eq(tree.range(..), [(1, Id(0))]);
 
     tree.shift(0..0, 2);
 
-    assert_offset_iter_eq(tree.range(..), [(3, Id(0))]);
+    assert_iter_eq(tree.range(..), [(3, Id(0))]);
     assert_eq!(tree.len(), 12);
 
     tree.shift(0..1, 0);
     assert_eq!(tree.len(), 11);
-    assert_offset_iter_eq(tree.range(..), [(2, Id(0))]);
+    assert_iter_eq(tree.range(..), [(2, Id(0))]);
 }
 
 #[test]
@@ -321,13 +311,13 @@ fn marktree_smoke() {
     tree.insert(0, Id(0));
     tree.insert(3, Id(1));
 
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (3, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (3, Id(1))]);
 
     tree.insert(3, Id(2));
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (3, Id(1)), (3, Id(2))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (3, Id(1)), (3, Id(2))]);
 
     tree.insert(2, Id(4));
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (2, Id(4)), (3, Id(1)), (3, Id(2))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (2, Id(4)), (3, Id(1)), (3, Id(2))]);
     assert_eq!(tree.len(), 10);
 }
 
@@ -359,9 +349,9 @@ fn marktree_get() {
 fn marktree_duplicate_offsets() {
     let mut tree = new(10);
     (0..1000).for_each(|i| drop(tree.insert(0, i)));
-    assert_offset_iter_eq(tree.range(..), (0..1000).map(|i| (0, Id(i))));
-    assert_offset_iter_eq(tree.drain(0..=0), (0..1000).map(|i| (0, Id(i))));
-    assert_offset_iter_eq(tree.range(..), []);
+    assert_iter_eq(tree.range(..), (0..1000).map(|i| (0, Id(i))));
+    assert_iter_eq(tree.drain(0..=0), (0..1000).map(|i| (0..0, Id(i))));
+    assert_iter_eq(tree.range(..), []);
 }
 
 #[test]
@@ -381,7 +371,7 @@ fn marktree_left_bias() {
     tree.insert(0, Id(0)).bias(Bias::Left);
     tree.shift(0..0, 1);
     // Should not shift due to bias.
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0))]);
 }
 
 #[test]
@@ -390,5 +380,5 @@ fn marktree_bias() {
     tree.insert(0, Id(0)).bias(Bias::Left);
     tree.insert(0, Id(1)).bias(Bias::Right);
     tree.shift(0..0, 1);
-    assert_offset_iter_eq(tree.range(..), [(0, Id(0)), (1, Id(1))]);
+    assert_iter_eq(tree.range(..), [(0, Id(0)), (1, Id(1))]);
 }

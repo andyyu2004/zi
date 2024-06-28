@@ -208,7 +208,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Drain { tree: self, ids }
     }
 
-    pub fn delete(&mut self, id: impl Into<Id>) -> Option<usize> {
+    pub fn delete(&mut self, id: impl Into<Id>) -> Option<Range<usize>> {
         fn del<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
@@ -227,8 +227,8 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 }
                 Node::Leaf(leaf) => {
                     debug_assert!(leaf.summary().ids.contains(id.into()));
-                    leaf.summary_mut().ids.remove(id.into());
-                    let leaf_offset = leaf.value_mut().delete(id).expect("bitmap said it's here");
+                    let leaf_offset =
+                        leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here");
                     offset + leaf_offset
                 }
             }
@@ -240,7 +240,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             return None;
         }
 
-        Some(del(root, 0, id))
+        let start = del(root, 0, id);
+
+        if !root.summary().ids.contains(id) {
+            return Some(start..start);
+        }
+
+        Some(start..del(root, 0, id))
     }
 
     /// Applies the given `deltas` to the tree.
@@ -317,7 +323,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Drain<'a, Id, N> {
 }
 
 impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
-    type Item = (usize, Id);
+    type Item = (Range<usize>, Id);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -380,20 +386,28 @@ impl<const N: usize> Leaf<N> {
         self.as_slice().get_right(id)
     }
 
-    fn delete(&mut self, id: u64) -> Option<usize> {
+    fn delete(&mut self, summary: &mut Summary, id: u64) -> Option<usize> {
         let mut offset = 0;
 
         for entry in &mut self.entries {
             if entry.keys.remove(id) {
                 // Fast path if the flags are empty.
+                summary.ids.remove(id);
                 return Some(offset);
             } else {
                 // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
                 let mut iter = entry.keys.iter();
                 while let Some(key) = iter.next() {
-                    if Key::from_raw(key).id() == id {
+                    let key = Key::from_raw(key);
+                    if key.id() == id {
+                        if key.flags().contains(Flags::PAIRED) {
+                            todo!("how to handle paired ids?")
+                        } else {
+                            summary.ids.remove(id);
+                        }
+
                         drop(iter);
-                        entry.keys.remove(key);
+                        entry.keys.remove(key.into_raw());
                         return Some(offset);
                     }
                 }
@@ -483,7 +497,9 @@ mod key {
     bitflags::bitflags! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct Flags: u16 {
-            const BIAS_LEFT = 0b0000_0001;
+            const BIAS_LEFT = 1 << 0;
+            // If the key is part of a range pair.
+            const PAIRED = 1 << 1;
         }
     }
 
