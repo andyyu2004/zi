@@ -21,7 +21,7 @@ impl Buffer {
     pub(crate) fn marks(
         &self,
         range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (usize, &Mark)> + '_ {
+    ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
         self.marks.iter(range)
     }
 }
@@ -83,8 +83,8 @@ impl Marks {
     pub fn iter(
         &self,
         range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (usize, &Mark)> + '_ {
-        self.tree.range(range).map(move |(byte, id)| (byte, &self.marks[id]))
+    ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
+        self.tree.range(range).map(move |(range, id)| (range, &self.marks[id]))
     }
 }
 

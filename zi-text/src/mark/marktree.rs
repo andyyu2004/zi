@@ -144,7 +144,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         debug_assert_eq!(self.len() + end, initial_len + by + start);
     }
 
-    pub fn range(&self, range: impl RangeBounds<usize>) -> impl Iterator<Item = (usize, Id)> + '_ {
+    pub fn range(
+        &self,
+        range: impl RangeBounds<usize>,
+    ) -> impl Iterator<Item = (Range<usize>, Id)> + '_ {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
@@ -181,8 +184,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                                     continue;
                                 }
 
-                                for id in entry.ids() {
-                                    yield (offset, id.into());
+                                for key in entry.keys() {
+                                    if key.flags().contains(Flags::RANGE) {
+                                        todo!("how to handle paired ids?")
+                                    } else {
+                                        yield (offset..offset, key.id().into());
+                                    }
                                 }
 
                                 offset += entry.len();
@@ -360,8 +367,8 @@ impl LeafEntry {
         }
     }
 
-    fn ids(&self) -> impl Iterator<Item = u64> + '_ {
-        self.keys.iter().map(Key::from_raw).map(Key::id)
+    fn keys(&self) -> impl Iterator<Item = Key> + '_ {
+        self.keys.iter().map(Key::from_raw)
     }
 
     #[inline]
@@ -400,7 +407,7 @@ impl<const N: usize> Leaf<N> {
                 while let Some(key) = iter.next() {
                     let key = Key::from_raw(key);
                     if key.id() == id {
-                        if key.flags().contains(Flags::PAIRED) {
+                        if key.flags().contains(Flags::RANGE) {
                             todo!("how to handle paired ids?")
                         } else {
                             summary.ids.remove(id);
@@ -499,7 +506,7 @@ mod key {
         pub struct Flags: u16 {
             const BIAS_LEFT = 1 << 0;
             // If the key is part of a range pair.
-            const PAIRED = 1 << 1;
+            const RANGE = 1 << 1;
         }
     }
 

@@ -260,7 +260,7 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct MarkEntry {
             buf: BufferId,
-            point: Point,
+            range: PointRange,
             // TODO show something once there's more mark metadata
             #[allow(unused)]
             mark: Mark,
@@ -268,7 +268,7 @@ impl Editor {
 
         impl fmt::Display for MarkEntry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}", self.point)
+                write!(f, "{}", self.range)
             }
         }
 
@@ -280,7 +280,7 @@ impl Editor {
 
             #[inline]
             fn point(&self) -> Option<Point> {
-                Some(self.point)
+                Some(self.range.start())
             }
         }
 
@@ -293,10 +293,10 @@ impl Editor {
             "marks",
             ratio,
             |editor, injector| {
-                for (byte, mark) in editor.buffer(buf).marks(..) {
+                for (range, mark) in editor.buffer(buf).marks(..) {
                     if let Err(()) = injector.push(MarkEntry {
                         buf,
-                        point: editor[buf].text().byte_to_point(byte),
+                        range: editor[buf].text().byte_range_to_point_range(&range),
                         mark: mark.clone(),
                     }) {
                         break;

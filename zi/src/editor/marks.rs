@@ -1,4 +1,4 @@
-use std::ops::RangeBounds;
+use std::ops::{Range, RangeBounds};
 
 use super::{Editor, Selector};
 use crate::{BufferId, Mark, MarkBuilder, MarkId};
@@ -9,7 +9,7 @@ impl Editor {
         &self,
         selector: impl Selector<BufferId>,
         byte_range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (usize, &Mark)> {
+    ) -> impl Iterator<Item = (Range<usize>, &Mark)> {
         self.buffer(selector).marks(byte_range)
     }
 
