@@ -24,6 +24,7 @@ mod layout;
 mod location;
 #[doc(hidden)]
 pub mod lsp;
+mod namespace;
 mod operator;
 mod plugin;
 mod private;
@@ -50,6 +51,7 @@ pub use self::config::Setting;
 pub use self::editor::{Active, Client, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServerId};
+pub use self::namespace::{Namespace, NamespaceId};
 pub use self::view::{VerticalAlignment, View, ViewId};
 pub use self::wit::zi::api::editor::{Mode, Operator};
 

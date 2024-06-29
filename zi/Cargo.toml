@@ -17,8 +17,7 @@ slotmap = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
-# 0.1.13 introduces a lot of issues for zi for some reason
-# Monitor ratatui issues for any related reports
+itertools = { workspace = true }
 unicode-width = "=0.1.12"
 wasmtime = { version = "19", features = ["component-model"] }
 tui = { path = "../zi-tui", package = "zi-tui" }

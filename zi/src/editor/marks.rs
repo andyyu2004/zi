@@ -1,7 +1,7 @@
 use std::ops::{Range, RangeBounds};
 
 use super::{Editor, Selector};
-use crate::{BufferId, Mark, MarkBuilder, MarkId};
+use crate::{BufferId, Mark, MarkBuilder, MarkId, NamespaceId};
 
 impl Editor {
     #[inline]
@@ -23,7 +23,13 @@ impl Editor {
     }
 
     #[inline]
-    pub fn delete_mark(&mut self, selector: impl Selector<BufferId>, mark_id: MarkId) {
-        self.buffer_mut(selector).delete_mark(mark_id);
+    pub fn delete_mark(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        namespace: impl Selector<NamespaceId>,
+        mark: MarkId,
+    ) {
+        let namespace = namespace.select(self);
+        self.buffer_mut(selector).delete_mark(namespace, mark);
     }
 }

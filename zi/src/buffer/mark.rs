@@ -1,11 +1,14 @@
+use std::collections::HashMap;
 use std::ops::{Range, RangeBounds};
 
+use itertools::Itertools;
 use slotmap::{Key, KeyData, SlotMap};
 use zi_marktree::{Bias, MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
 use super::Buffer;
 use crate::syntax::HighlightId;
+use crate::NamespaceId;
 
 slotmap::new_key_type! {
     pub struct MarkId;
@@ -13,11 +16,12 @@ slotmap::new_key_type! {
 
 impl Buffer {
     pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
-        self.marks.create(builder)
+        let n = self.text().len_bytes();
+        self.marks.create(n, builder)
     }
 
-    pub(crate) fn delete_mark(&mut self, mark_id: MarkId) {
-        self.marks.delete(mark_id);
+    pub(crate) fn delete_mark(&mut self, ns: NamespaceId, id: MarkId) {
+        self.marks.delete(ns, id);
     }
 
     pub(crate) fn marks(
@@ -28,11 +32,45 @@ impl Buffer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Marks {
+    namespaces: HashMap<NamespaceId, PerNs>,
+}
+
+#[derive(Debug)]
+struct PerNs {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkId, 128>,
+    tree: MarkTree<MarkId, 16>,
+}
+
+impl PerNs {
+    fn new(text_len: usize) -> Self {
+        Self { marks: SlotMap::default(), tree: MarkTree::new(text_len + 1) }
+    }
+    fn iter(
+        &self,
+        range: impl RangeBounds<usize>,
+    ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
+        self.tree.range(range).map(move |(range, id)| (range, &self.marks[id]))
+    }
+
+    fn edit(&mut self, deltas: &Deltas<'_>) {
+        deltas.iter().for_each(|delta| self.tree.shift(delta.range(), delta.text().len()));
+    }
+
+    fn create(&mut self, builder: MarkBuilder) -> MarkId {
+        let MarkBuilder { start_bias, end_bias, byte, width, .. } = builder;
+        let id = self.marks.insert_with_key(|id| builder.build(id));
+        self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
+        id
+    }
+
+    fn delete(&mut self, id: MarkId) -> Option<(Range<usize>, Mark)> {
+        let mark = self.marks.remove(id)?;
+        let range = self.tree.delete(id).expect("if map contains mark, tree should too");
+        Some((range, mark))
+    }
 }
 
 impl From<u64> for MarkId {
@@ -54,43 +92,39 @@ impl From<MarkId> for u64 {
 impl MarkTreeId for MarkId {}
 
 impl Marks {
-    pub(crate) fn new(n: usize) -> Self {
-        Marks { marks: SlotMap::default(), tree: MarkTree::new(n) }
+    pub fn create(&mut self, text_len: usize, builder: MarkBuilder) -> MarkId {
+        let ns = builder.namespace;
+        debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
+        self.namespaces.entry(ns).or_insert_with(|| PerNs::new(text_len)).create(builder)
     }
 
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.tree.len()
-    }
-
-    pub fn create(&mut self, builder: MarkBuilder) -> MarkId {
-        let MarkBuilder { start_bias, end_bias, byte, width, .. } = builder;
-        let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
-        id
-    }
-
-    pub fn delete(&mut self, id: MarkId) -> Option<(Range<usize>, Mark)> {
-        let mark = self.marks.remove(id)?;
-        let byte = self.tree.delete(id).expect("if map contains mark, tree should too");
-        Some((byte, mark))
+    pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {
+        self.namespaces.get_mut(&ns).and_then(|ns| ns.delete(id))
     }
 
     #[inline]
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
-        deltas.iter().for_each(|delta| self.tree.shift(delta.range(), delta.text().len()));
+        for ns in self.namespaces.values_mut() {
+            ns.edit(deltas)
+        }
     }
 
+    /// Returns an iterator over all marks in the given range (all namespaces) sorted by `start`.
     #[inline]
     pub fn iter(
         &self,
         range: impl RangeBounds<usize>,
     ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
-        self.tree.range(range).map(move |(range, id)| (range, &self.marks[id]))
+        let range = (range.start_bound().cloned(), range.end_bound().cloned());
+        self.namespaces
+            .values()
+            .map(|per_ns| per_ns.iter(range))
+            .kmerge_by(|(a, _), (b, _)| a.start < b.start)
     }
 }
 
 pub struct MarkBuilder {
+    namespace: NamespaceId,
     hl: HighlightId,
     byte: usize,
     width: usize,
@@ -133,8 +167,9 @@ pub struct Mark {
 
 impl Mark {
     #[inline]
-    pub fn builder(byte: usize) -> MarkBuilder {
+    pub fn builder(namespace: NamespaceId, byte: usize) -> MarkBuilder {
         MarkBuilder {
+            namespace,
             byte,
             width: 0,
             start_bias: Bias::Right,

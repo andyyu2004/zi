@@ -293,6 +293,7 @@ impl Editor {
             "marks",
             ratio,
             |editor, injector| {
+                // TODO show all namespaces
                 for (range, mark) in editor.buffer(buf).marks(..) {
                     if let Err(()) = injector.push(MarkEntry {
                         buf,

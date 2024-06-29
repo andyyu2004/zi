@@ -60,7 +60,7 @@ use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
-    Mode, Operator, Point, Result, Url, VerticalAlignment, View, ViewId,
+    Mode, Namespace, NamespaceId, Operator, Point, Result, Url, VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -98,6 +98,8 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Buffer>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    namespaces: SlotMap<NamespaceId, Namespace>,
+    default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
     // The per-server diagnostics are sorted by range.
     lsp_diagnostics: HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>>,
@@ -371,6 +373,9 @@ impl Editor {
         let mut views = SlotMap::default();
         let active_view = views.insert_with_key(|id| View::new(id, scratch_buffer));
 
+        let mut namespaces = SlotMap::default();
+        let default_namespace = namespaces.insert_with_key(Namespace::new);
+
         let empty_buffer = buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
                 id,
@@ -397,6 +402,8 @@ impl Editor {
         let mut editor = Self {
             buffers,
             views,
+            namespaces,
+            default_namespace,
             callbacks_tx,
             requests_tx,
             plugins,
@@ -590,6 +597,10 @@ impl Editor {
 
     pub(crate) fn empty_buffer(&self) -> BufferId {
         self.empty_buffer
+    }
+
+    pub fn default_namespace(&self) -> NamespaceId {
+        self.default_namespace
     }
 
     pub(crate) fn update_diagnostics(
@@ -1767,6 +1778,10 @@ impl Editor {
 
     pub fn create_view(&mut self, buf: BufferId) -> ViewId {
         self.views.insert_with_key(|id| View::new(id, buf))
+    }
+
+    pub fn create_namespace(&mut self) -> NamespaceId {
+        self.namespaces.insert_with_key(|id| Namespace::new(id))
     }
 
     pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {

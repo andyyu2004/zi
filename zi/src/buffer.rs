@@ -148,9 +148,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
-        let n = buffer.text().len_bytes();
-        let this = Self { inner: buffer.boxed(), marks: Marks::new(n + 1) };
-        debug_assert_eq!(this.inner.text().len_bytes() + 1, this.marks.len());
+        let this = Self { inner: buffer.boxed(), marks: Marks::default() };
         this
     }
 
@@ -191,10 +189,8 @@ impl Buffer {
     }
 
     pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
-        debug_assert_eq!(self.inner.text().len_bytes() + 1, self.marks.len());
         self.inner.edit_flags(Internal(()), deltas, flags);
         self.marks.edit(deltas);
-        debug_assert_eq!(self.inner.text().len_bytes() + 1, self.marks.len());
     }
 
     pub(crate) fn keymap(&mut self) -> Option<&mut Keymap> {
