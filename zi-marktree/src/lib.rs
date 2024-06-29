@@ -299,7 +299,8 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
 
-    fn assert_invariants(&self) {
+    #[doc(hidden)]
+    pub fn assert_invariants(&self) {
         #[cfg(debug_assertions)]
         {
             // Ensure that the summaries are all correct by resummarizing the tree.
@@ -312,13 +313,14 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .fold(Summary::default(), |summary, child| summary + summarize(child)),
                     Node::Leaf(leaf) => leaf.as_slice().summarize(),
                 };
-                assert_eq!(node.summary().bytes, summary.bytes);
+
+                assert_eq!(node.summary(), &summary);
                 summary
             }
 
             // Too slow, uncomment for debugging only.
-            // summarize(&self.tree.root());
-            // self.tree.assert_invariants();
+            summarize(&self.tree.root());
+            self.tree.assert_invariants();
         }
     }
 }
@@ -913,8 +915,9 @@ impl<'a> LeafSlice<'a> {
                 return Some(offset);
             } else {
                 // Otherwise, scan
-                for key in entry.keys.iter() {
-                    if Key::from_raw(key).id() == id {
+                for key in entry.keys() {
+                    if key.id() == id {
+                        assert!(!key.flags().contains(Flags::END));
                         return Some(offset);
                     }
                 }
@@ -937,8 +940,9 @@ impl<'a> LeafSlice<'a> {
                 return Some(offset + entry.len());
             } else {
                 // Otherwise, scan
-                for key in entry.keys.iter() {
-                    if Key::from_raw(key).id() == id {
+                for key in entry.keys() {
+                    if key.id() == id {
+                        assert!(key.flags().contains(Flags::END));
                         return Some(offset + entry.len());
                     }
                 }

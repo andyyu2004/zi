@@ -457,14 +457,14 @@ fn repro2() {
 
         insertions.push((Id(i), at..at + width));
 
-        dbg!(&tree);
         tree.insert(at, Id(i)).width(width);
         dbg!(&tree);
+        tree.assert_invariants();
 
         assert_eq!(tree.len(), n);
 
         for &(id, ref range) in &insertions {
-            assert_eq!(dbg!(tree.get(dbg!(id))), Some(range.clone()));
+            assert_eq!(tree.get(id), Some(range.clone()));
         }
     }
 }
