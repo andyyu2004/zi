@@ -160,18 +160,19 @@ impl Editor {
 
         if let Some(fut) = self.request_semantic_tokens(buf) {
             self.callback("semantic tokens", fut.map_err(Into::into), move |editor, ()| {
-                let ns = editor.create_namespace("semantic-tokens");
-                editor[buf].clear_marks(ns, ..);
-
-                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
-                if cache.buf_version != editor[buf].version() {
+                if editor.semantic_tokens.get(&buf).is_none() {
                     return Ok(());
                 }
+
+                let ns = editor.create_namespace("semantic-tokens");
+                editor[buf].clear_marks(ns, ..);
+                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
 
                 let Some(server) = editor.active_language_servers.get(&cache.server) else {
                     return Ok(());
                 };
 
+                let start = Instant::now();
                 let encoding = server.position_encoding();
 
                 let mut line = 0;
@@ -207,6 +208,8 @@ impl Editor {
                 for mark in marks {
                     editor[buf].create_mark(mark);
                 }
+
+                tracing::info!(time = ?start.elapsed(), "semantic tokens refreshed");
 
                 Ok(())
             })

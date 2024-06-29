@@ -67,7 +67,6 @@ impl PerNs {
         let MarkBuilder { start_bias, end_bias, byte, width, .. } = builder;
         let id = self.marks.insert_with_key(|id| builder.build(id));
         self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
-        tracing::error!("{:#?}", self.tree);
         id
     }
 
