@@ -20,6 +20,10 @@ impl Buffer {
         self.marks.create(n, builder)
     }
 
+    pub(crate) fn clear_marks(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
+        self.marks.drain(ns, range)
+    }
+
     pub(crate) fn delete_mark(&mut self, ns: NamespaceId, id: MarkId) {
         self.marks.delete(ns, id);
     }
@@ -71,6 +75,12 @@ impl PerNs {
         let range = self.tree.delete(id).expect("if map contains mark, tree should too");
         Some((range, mark))
     }
+
+    fn drain<'a>(&'a mut self, range: impl RangeBounds<usize>) {
+        for (_range, id) in self.tree.drain(range) {
+            self.marks.remove(id).unwrap();
+        }
+    }
 }
 
 impl From<u64> for MarkId {
@@ -100,6 +110,12 @@ impl Marks {
 
     pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {
         self.namespaces.get_mut(&ns).and_then(|ns| ns.delete(id))
+    }
+
+    pub fn drain(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
+        if let Some(per_ns) = self.namespaces.get_mut(&ns) {
+            per_ns.drain(range)
+        }
     }
 
     #[inline]

@@ -13,6 +13,16 @@ impl Editor {
         self.buffer(selector).marks(byte_range)
     }
 
+    pub fn clear_marks(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        namespace: impl Selector<NamespaceId>,
+        range: impl RangeBounds<usize>,
+    ) {
+        let ns = namespace.select(self);
+        self.buffer_mut(selector).clear_marks(ns, range)
+    }
+
     #[inline]
     pub fn create_mark(
         &mut self,
