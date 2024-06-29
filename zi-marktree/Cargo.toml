@@ -7,9 +7,10 @@ edition = "2021"
 arrayvec = { workspace = true }
 bitflags = { workspace = true }
 crop = { workspace = true }
-roaring = { workspace = true }
 smallvec = { workspace = true }
 stdx = { workspace = true }
+rustc-hash = { workspace = true }
+hashbag = "0.1.12"
 tinyset = { version = "0.4.15", default-features = false }
 
 [dev-dependencies]

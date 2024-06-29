@@ -1,8 +1,7 @@
 #![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
-mod bitmap;
-
 use std::collections::VecDeque;
+use std::hash::BuildHasherDefault;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
 use std::{cmp, fmt, iter};
@@ -11,11 +10,12 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
+use hashbag::HashBag;
+use rustc_hash::FxHasher;
 use smallvec::SmallVec;
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
-use self::bitmap::Bitbag48;
 use self::key::{Flags, Key};
 
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
@@ -102,14 +102,14 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
-        if !node.summary().ids.contains(id) {
+        if node.summary().ids.contains(&id) == 0 {
             return None;
         }
 
         let mut offset = 0;
 
         loop {
-            debug_assert!(node.summary().ids.contains(id));
+            debug_assert!(node.summary().ids.contains(&id) > 0);
             match node {
                 Node::Internal(inode) => {
                     node = inode
@@ -117,7 +117,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .iter()
                         .find(|child| {
                             let summary = child.summary();
-                            if summary.ids.contains(id) {
+                            if summary.ids.contains(&id) > 0 {
                                 true
                             } else {
                                 offset += summary.bytes;
@@ -135,14 +135,14 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     fn find_right_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Leaf<N>)> {
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
-        if !node.summary().ids.contains(id) {
+        if node.summary().ids.contains(&id) == 0 {
             return None;
         }
 
         let mut offset = node.summary().bytes;
 
         loop {
-            debug_assert!(node.summary().ids.contains(id));
+            debug_assert!(node.summary().ids.contains(&id) > 0);
             match node {
                 Node::Internal(inode) => {
                     node = inode
@@ -151,7 +151,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .rev()
                         .find(|child| {
                             let summary = child.summary();
-                            if summary.ids.contains(id) {
+                            if summary.ids.contains(&id) > 0 {
                                 true
                             } else {
                                 offset -= summary.bytes;
@@ -269,7 +269,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
                         let summary = inode.child(i).summary();
-                        if summary.ids.contains(id) {
+                        if summary.ids.contains(&id) > 0 {
                             return inode.with_child_mut(i, |child| del(child, offset, id));
                         }
                         offset += summary.bytes;
@@ -277,7 +277,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                     unreachable!("bitmaps said it's here")
                 }
                 Node::Leaf(leaf) => {
-                    debug_assert!(leaf.summary().ids.contains(id));
+                    debug_assert!(leaf.summary().ids.contains(&id) > 0);
                     let leaf_offset =
                         leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here");
                     offset + leaf_offset
@@ -287,13 +287,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
         let id = id.into().into();
         let root = self.tree.root_mut();
-        if !root.summary().ids.contains(id) {
+        if root.summary().ids.contains(&id) == 0 {
             return None;
         }
 
         let start = del(root, 0, id);
 
-        if !root.summary().ids.contains(id) {
+        if root.summary().ids.contains(&id) == 0 {
             return Some(start..start);
         }
 
@@ -383,7 +383,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         // Check upper 16 bits are clear
         assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
 
-        if self.tree.tree.summary().ids.contains(id) {
+        if self.tree.tree.summary().ids.contains(&id) > 0 {
             todo!("MarkTree insertion of existing id")
         }
 
@@ -513,7 +513,7 @@ impl<const N: usize> Leaf<N> {
         for entry in &mut self.entries {
             if entry.keys.remove(id) {
                 // Fast path if the flags are empty.
-                assert!(summary.ids.remove(id).is_some());
+                assert!(summary.ids.remove(&id) > 0);
                 return Some(offset);
             } else {
                 // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
@@ -529,7 +529,7 @@ impl<const N: usize> Leaf<N> {
                             // Just resummarize the leaf for simplicity.
                             *summary = self.summarize();
                         } else {
-                            assert!(summary.ids.remove(id).is_some());
+                            assert!(summary.ids.remove(&id) > 0);
                         }
                         return Some(offset);
                     }
@@ -969,7 +969,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: Bitbag48::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
         }
     }
 }
@@ -980,16 +980,6 @@ impl Add<Self> for Summary {
     #[inline]
     fn add(mut self, rhs: Self) -> Self {
         self += rhs;
-        self
-    }
-}
-
-impl Sub<Self> for Summary {
-    type Output = Self;
-
-    #[inline]
-    fn sub(mut self, rhs: Self) -> Self {
-        self -= rhs;
         self
     }
 }
@@ -1018,29 +1008,25 @@ impl AddAssign<Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.bytes += rhs.bytes;
-        self.ids |= &rhs.ids;
-    }
-}
-
-impl SubAssign<Self> for Summary {
-    #[inline]
-    fn sub_assign(&mut self, rhs: Self) {
-        self.bytes -= rhs.bytes;
-        self.ids -= &rhs.ids;
+        self.ids.extend(rhs.ids);
     }
 }
 
 impl AddAssign<&Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        *self += rhs.clone();
+        self.bytes += rhs.bytes;
+        self.ids.extend(&rhs.ids);
     }
 }
 
 impl SubAssign<&Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
-        *self -= rhs.clone();
+        self.bytes -= rhs.bytes;
+        for (id, count) in rhs.ids.set_iter() {
+            self.ids.remove_up_to(id, count);
+        }
     }
 }
 
@@ -1048,13 +1034,16 @@ impl SubAssign<&Self> for Summary {
 struct Summary {
     /// This needs to be a `bag` not a `set` otherwise the `Sub` operation and `Add` operation will
     /// not be inverses of each other and `crop` assumptions break.
-    ids: Bitbag48<2>,
+    ids: HashBag<u64, BuildHasherDefault<FxHasher>>,
     bytes: usize,
 }
 
 impl fmt::Debug for Summary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("").field(&self.bytes).field(&self.ids).finish()
+        f.debug_tuple("")
+            .field(&self.bytes)
+            .field_with(|f| f.debug_map().entries(self.ids.set_iter()).finish())
+            .finish()
     }
 }
 

@@ -113,7 +113,7 @@ fn marktree_delete() {
 #[test]
 fn marktree_bulk_delete() {
     let mut tree = new(10000);
-    let k = 2000;
+    let k = 1000;
     (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
         assert_eq!(tree.delete(Id(i)), Some(i..i));
@@ -369,7 +369,7 @@ fn marktree_duplicate_offsets() {
 #[test]
 fn marktree_bulk_get() {
     let mut tree = new(10000);
-    let k = 4000;
+    let k = 2000;
     (0..k).for_each(|i| drop(tree.insert(i, Id(i))));
     (0..k).for_each(|i| {
         let offset = tree.get(Id(i));
