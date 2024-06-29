@@ -433,13 +433,15 @@ fn marktree_shift_range_mark() {
 }
 
 #[test]
-fn tmp() {
-    let mut tree = new(10000);
-    let at = [0, 923, 67, 923];
-    for (i, &at) in at.iter().enumerate() {
-        dbg!(&tree);
-        tree.insert(at, Id(i)).width(1);
-    }
+fn minimal() {
+    let mut tree = new(10);
+    tree.insert(0, Id(0)).width(1);
+    tree.insert(5, Id(1)).width(1);
+    tree.insert(1, Id(2)).width(1);
+
+    assert_iter_eq(tree.range(..), [(0..1, Id(0)), (1..2, Id(2)), (5..6, Id(1))]);
+    dbg!(&tree);
+    tree.insert(5, Id(3)).width(1);
 }
 
 use proptest::collection::vec;

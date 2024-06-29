@@ -1,4 +1,4 @@
-#![feature(array_chunks, coroutines, iter_from_coroutine)]
+#![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -401,12 +401,21 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
 //
 // The current implementation naive and each entry represents a single byte.
 // It would be better to have a more sophisticated implementation that can represent multiple bytes in a single entry (i.e. extents/ranges).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct Extent {
     length: NonZeroUsize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     keys: SetU64,
+}
+
+impl fmt::Debug for Extent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Extent")
+            .field(&self.length)
+            .field_with(|f| f.debug_list().entries(self.keys()).finish())
+            .finish()
+    }
 }
 
 impl Extent {
@@ -432,9 +441,15 @@ impl Extent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Leaf<const N: usize> {
     entries: ArrayVec<Extent, N>,
+}
+
+impl<const N: usize> fmt::Debug for Leaf<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.entries.iter()).finish()
+    }
 }
 
 impl<const N: usize> Leaf<N> {
@@ -577,7 +592,7 @@ mod key {
 
     impl fmt::Debug for Key {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("Key").field("id", &self.id()).field("flags", &self.flags()).finish()
+            f.debug_tuple("Key").field(&self.id()).field(&self.flags()).finish()
         }
     }
 
@@ -695,13 +710,14 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 };
             }
             Replacement::Key(key) => {
-                // We usually expect `start + 1 = end`.
-                // However, if `start == end`,
                 if start == end {
-                    // This requires a
+                    dbg!(&self);
+                    // We usually expect `start + 1 = end`.
+                    // However, this can occur if we're appending at the end of a leaf.
                     todo!()
                 }
 
+                // We're assuming that we're replacing a range of one byte to avoid the zero-length entry issue.
                 assert_eq!(start + 1, end);
 
                 let mut offset = 0;
@@ -718,11 +734,11 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
                     // Therefore: offset < end && start < entry_end
 
-                    // The current entry extends beyond the start of the replacement range.
-                    // Add the chunk of the entry that precedes the replacement range.
                     if start - offset > 0 {
+                        // The current entry extends beyond the start of the replacement range.
+                        // Add the chunk of the entry that precedes the replacement range.
                         builder.push_raw(start - offset, entry.keys);
-                        // Create a new segment for the id to add, we use length 1 because
+                        // Push a new entry for the key with length 1.
                         builder.push(1, [key]);
                     } else {
                         // Otherwise, they can be merged
