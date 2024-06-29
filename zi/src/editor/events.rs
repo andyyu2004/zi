@@ -121,47 +121,50 @@ impl Editor {
     }
 
     fn schedule_semantic_tokens(&mut self, buf: BufferId) -> event::HandlerResult {
-        if let Some(fut) = self.request_semantic_tokens(buf) {
-            fn semantic_tt_to_highlight(
-                tt: &lsp_types::SemanticTokenType,
-            ) -> Option<HighlightName> {
-                use lsp_types::SemanticTokenType as Stt;
-                Some(match tt {
-                    t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
-                    t if t == &Stt::TYPE => HighlightName::TYPE,
-                    t if t == &Stt::STRUCT => HighlightName::TYPE,
-                    t if t == &Stt::CLASS => HighlightName::TYPE,
-                    t if t == &Stt::INTERFACE => HighlightName::TYPE,
-                    t if t == &Stt::ENUM => HighlightName::TYPE,
-                    t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
-                    t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
-                    t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
-                    t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
-                    // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
-                    // t if t == &Stt::EVENT => HighlightName::EVENT,
-                    t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
-                    t if t == &Stt::METHOD => HighlightName::FUNCTION,
-                    t if t == &Stt::MACRO => HighlightName::MACRO,
-                    t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
-                    // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
-                    t if t == &Stt::COMMENT => HighlightName::COMMENT,
-                    t if t == &Stt::STRING => HighlightName::STRING,
-                    t if t == &Stt::NUMBER => HighlightName::NUMBER,
-                    t if t == &Stt::REGEXP => HighlightName::STRING,
-                    // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
-                    // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
-                    _ => return None,
-                })
-            }
+        fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
+            use lsp_types::SemanticTokenType as Stt;
+            Some(match tt {
+                t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
+                t if t == &Stt::TYPE => HighlightName::TYPE,
+                t if t == &Stt::STRUCT => HighlightName::TYPE,
+                t if t == &Stt::CLASS => HighlightName::TYPE,
+                t if t == &Stt::INTERFACE => HighlightName::TYPE,
+                t if t == &Stt::ENUM => HighlightName::TYPE,
+                t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
+                t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
+                t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
+                t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
+                // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
+                // t if t == &Stt::EVENT => HighlightName::EVENT,
+                t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
+                t if t == &Stt::METHOD => HighlightName::FUNCTION,
+                t if t == &Stt::MACRO => HighlightName::MACRO,
+                t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
+                // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
+                t if t == &Stt::COMMENT => HighlightName::COMMENT,
+                t if t == &Stt::STRING => HighlightName::STRING,
+                t if t == &Stt::NUMBER => HighlightName::NUMBER,
+                t if t == &Stt::REGEXP => HighlightName::STRING,
+                // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
+                // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
+                _ => return None,
+            })
+        }
 
+        if let Some(fut) = self.request_semantic_tokens(buf) {
             self.callback("semantic tokens", fut.map_err(Into::into), move |editor, ()| {
                 let ns = editor.create_namespace("semantic-tokens");
                 editor[buf].clear_marks(ns, ..);
+
                 let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
+                if cache.buf_version != editor[buf].version() {
+                    return Ok(());
+                }
 
                 let Some(server) = editor.active_language_servers.get(&cache.server) else {
                     return Ok(());
                 };
+
                 let encoding = server.position_encoding();
 
                 let mut line = 0;
@@ -186,6 +189,7 @@ impl Editor {
                         let point =
                             from_proto::point(encoding, text, lsp_types::Position::new(line, char));
                         let start = text.point_to_byte(point);
+                        // TODO need to convert this length to the right encoding too...
                         Some(Mark::builder(ns, start).width(token.length as usize).hl(hl))
                     })
                     .collect::<Vec<_>>();
@@ -197,6 +201,7 @@ impl Editor {
                 Ok(())
             })
         };
+
         event::HandlerResult::Continue
     }
 

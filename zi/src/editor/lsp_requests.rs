@@ -401,6 +401,8 @@ impl Editor {
 
         tracing::info!(?buf, "requesting semantic tokens");
 
+        let buf_version = self[buf].version();
+
         let client = self.client();
 
         let Some(uri) = self.buffers[buf].file_url().cloned() else {
@@ -438,6 +440,7 @@ impl Editor {
                     // If the server is different (e.g. the prior one died), we need to clear the tokens.
                     entry.insert(SemanticTokens {
                         server,
+                        buf_version,
                         legend: caps.legend.clone(),
                         tokens: Default::default(),
                         last_request_id: None,
@@ -447,6 +450,7 @@ impl Editor {
             }
             Entry::Vacant(entry) => entry.insert(SemanticTokens {
                 server,
+                buf_version,
                 legend: caps.legend.clone(),
                 tokens: Default::default(),
                 last_request_id: None,

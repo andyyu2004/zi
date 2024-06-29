@@ -375,10 +375,10 @@ pub fn client_capabilities() -> ClientCapabilities {
                     lsp_types::SemanticTokenType::OPERATOR,
                 ],
                 formats: vec![lsp_types::TokenFormat::RELATIVE],
+                multiline_token_support: None,
                 augments_syntax_tokens: None,
                 dynamic_registration: None,
                 overlapping_token_support: None,
-                multiline_token_support: None,
                 server_cancel_support: None,
             }),
             ..Default::default()
