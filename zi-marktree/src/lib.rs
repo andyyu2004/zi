@@ -33,10 +33,12 @@ const ARITY: usize = 4;
 const ARITY: usize = 7;
 
 /// A tree of ordered items that each have a byte position.
-/// This can be edited efficiently (logarithmic time) with `Deltas`.
+/// This can be edited efficiently (logarithmic time) with the `shift` operation.
 //
-// This is implemented in a way that is basically a rope but instead of actually representing
-// string data it's compressed into `Extent`s containing a set of `MarkId`s.
+// This is implemented in a way that is basically a rope but instead of representing
+// character data per byte, it stores a set of `MarkId`s.
+//
+// This is further optimized by compressing each byte into `Extent`s which represents a range containing a set of `MarkId`s.
 //
 // It is also extended to represent a range per mark not just an offset. This is done by inserting
 // two entries for the same id representing the start and end of the range.
@@ -399,15 +401,14 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
 // The current implementation naive and each entry represents a single byte.
 // It would be better to have a more sophisticated implementation that can represent multiple bytes in a single entry (i.e. extents/ranges).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LeafEntry {
+struct Extent {
     length: NonZeroUsize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
-    // TODO there is probably a smallmap and intmap optimization here
     keys: SetU64,
 }
 
-impl LeafEntry {
+impl Extent {
     #[track_caller]
     fn new(length: usize, ids: impl IntoIterator<Item = Key>) -> Self {
         Self {
@@ -432,7 +433,7 @@ impl LeafEntry {
 
 #[derive(Debug, Clone)]
 struct Leaf<const N: usize> {
-    entries: ArrayVec<LeafEntry, N>,
+    entries: ArrayVec<Extent, N>,
 }
 
 impl<const N: usize> Leaf<N> {
@@ -482,9 +483,9 @@ impl<const N: usize> Leaf<N> {
     }
 }
 
-impl<const N: usize> From<ArrayVec<LeafEntry, N>> for Leaf<N> {
+impl<const N: usize> From<ArrayVec<Extent, N>> for Leaf<N> {
     #[inline]
-    fn from(entries: ArrayVec<LeafEntry, N>) -> Self {
+    fn from(entries: ArrayVec<Extent, N>) -> Self {
         Self { entries }
     }
 }
@@ -507,7 +508,7 @@ mod builder {
 
     #[derive(Debug)]
     pub(super) struct EntryBuilder<const N: usize> {
-        entries: SmallVec<LeafEntry, N>,
+        entries: SmallVec<Extent, N>,
     }
 
     impl<const N: usize> Default for EntryBuilder<N> {
@@ -517,17 +518,17 @@ mod builder {
     }
 
     impl<const N: usize> EntryBuilder<N> {
-        pub fn entries(&self) -> &[LeafEntry] {
+        pub fn entries(&self) -> &[Extent] {
             &self.entries
         }
 
-        pub fn finish(self) -> SmallVec<LeafEntry, N> {
+        pub fn finish(self) -> SmallVec<Extent, N> {
             self.entries
         }
 
         #[track_caller]
         pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = Key>) {
-            self.push_entry(LeafEntry::new(length, keys));
+            self.push_entry(Extent::new(length, keys));
         }
 
         #[track_caller]
@@ -542,7 +543,7 @@ mod builder {
         }
 
         #[track_caller]
-        pub fn push_entry(&mut self, entry: LeafEntry) {
+        pub fn push_entry(&mut self, entry: Extent) {
             match self.entries.last_mut() {
                 Some(last) if entry.keys.is_empty() => {
                     // Merge entries if possible.
@@ -781,8 +782,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         for entry in self.entries.take() {
             if offset < up_to && offset + entry.len() > up_to {
                 let remaining_gap = offset + entry.len() - up_to;
-                new_entries
-                    .push(LeafEntry::new(remaining_gap, entry.keys.iter().map(Key::from_raw)));
+                new_entries.push(Extent::new(remaining_gap, entry.keys.iter().map(Key::from_raw)));
                 break;
             }
             offset += entry.len();
@@ -832,7 +832,7 @@ impl<const N: usize> AsSlice for Leaf<N> {
 
 #[derive(Debug, Clone, Copy)]
 struct LeafSlice<'a> {
-    entries: &'a [LeafEntry],
+    entries: &'a [Extent],
 }
 
 impl<'a> Default for LeafSlice<'a> {
