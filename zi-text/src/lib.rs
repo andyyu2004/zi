@@ -68,6 +68,7 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     /// This must be consistent with `self.lines.count()` if `Text` is also implemented
     fn len_lines(&self) -> usize;
     fn len_bytes(&self) -> usize;
+    fn len_utf16_cu(&self) -> usize;
 
     fn byte_to_line(&self, byte_idx: usize) -> usize;
     fn line_to_byte(&self, line_idx: usize) -> usize;
@@ -139,6 +140,11 @@ impl<T: TextBase + ?Sized> TextBase for Box<T> {
     #[inline]
     fn len_bytes(&self) -> usize {
         (**self).len_bytes()
+    }
+
+    #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        (**self).len_utf16_cu()
     }
 
     #[inline]
@@ -727,6 +733,11 @@ impl<T: TextBase + ?Sized> TextBase for &T {
     #[inline]
     fn len_bytes(&self) -> usize {
         (**self).len_bytes()
+    }
+
+    #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        (**self).len_utf16_cu()
     }
 
     #[inline]

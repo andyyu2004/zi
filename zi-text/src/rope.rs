@@ -57,6 +57,11 @@ impl TextBase for crop::Rope {
     }
 
     #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        self.utf16_len()
+    }
+
+    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.line_of_byte(byte_idx)
     }
@@ -134,6 +139,11 @@ impl TextBase for crop::RopeSlice<'_> {
     #[inline]
     fn len_bytes(&self) -> usize {
         self.byte_len()
+    }
+
+    #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        self.utf16_len()
     }
 
     #[inline]

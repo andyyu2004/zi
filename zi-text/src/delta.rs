@@ -62,9 +62,14 @@ impl<'a> Deltas<'a> {
         Self { deltas }
     }
 
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.deltas.len()
+    }
+
     /// Returns an iterator over the disjoint deltas ordered by their start point descending.
     // Note: This is an important property as the tree-sitter code is relying on it to be correct.
-    pub fn iter(&self) -> impl Iterator<Item = &Delta<'a>> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &Delta<'a>> {
         let mut prev_start: Option<usize> = None;
         self.deltas.iter().rev().inspect(move |d| {
             if let Some(prev_start) = prev_start {

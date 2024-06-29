@@ -25,12 +25,19 @@ impl<B> Clone for ReadonlyText<B> {
 struct Inner<B> {
     buf: B,
     len_lines: OnceLock<usize>,
+    len_utf16_cu: OnceLock<usize>,
 }
 
 impl<B: Deref<Target = [u8]>> ReadonlyText<B> {
     pub fn new(buf: B) -> Self {
         str::from_utf8(&buf).expect("readonly text implementation only supports utf-8");
-        Self { inner: Arc::new(Inner { buf, len_lines: OnceLock::new() }) }
+        Self {
+            inner: Arc::new(Inner {
+                buf,
+                len_lines: OnceLock::new(),
+                len_utf16_cu: OnceLock::new(),
+            }),
+        }
     }
 
     #[inline]
@@ -110,6 +117,11 @@ impl<B: Deref<Target = [u8]> + Send + Sync> TextBase for ReadonlyText<B> {
     #[inline]
     fn len_lines(&self) -> usize {
         *self.inner.len_lines.get_or_init(|| self.as_str().len_lines())
+    }
+
+    #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        *self.inner.len_utf16_cu.get_or_init(|| self.as_str().len_utf16_cu())
     }
 
     #[inline]

@@ -18,7 +18,7 @@ impl PointRangeExt for PointRange {
             } else {
                 text.line(line).unwrap().len_bytes()
             };
-            PointRange::new(Point::new(line, start_col), Point::new(line, end_col.max(start_col)))
+            PointRange::new(Point::new(line, start_col), Point::new(line, end_col))
         })
     }
 }

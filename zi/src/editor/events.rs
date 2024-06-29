@@ -63,8 +63,15 @@ impl Editor {
                             let deltas = lsp::from_proto::deltas(encoding, text, edits);
 
                             if buf.version() == version {
-                                editor.edit(event.buf, &deltas)?;
-                                editor[event.buf].snapshot(SnapshotFlags::empty());
+                                match deltas {
+                                    Some(deltas) => {
+                                        editor.edit(event.buf, &deltas)?;
+                                        editor[event.buf].snapshot(SnapshotFlags::empty());
+                                    }
+                                    None => {
+                                        tracing::error!("ignoring invalid format edits")
+                                    }
+                                }
                             } else {
                                 assert!(buf.version() > version, "version has gone down?");
                                 tracing::info!(
@@ -186,8 +193,11 @@ impl Editor {
                         )
                         .map(|name| editor.highlight_id_by_name(name))?;
 
-                        let point =
-                            from_proto::point(encoding, text, lsp_types::Position::new(line, char));
+                        let point = from_proto::point(
+                            encoding,
+                            text,
+                            lsp_types::Position::new(line, char),
+                        )?;
                         let start = text.point_to_byte(point);
                         // TODO need to convert this length to the right encoding too...
                         Some(Mark::builder(ns, start).width(token.length as usize).hl(hl))

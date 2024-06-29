@@ -431,3 +431,10 @@ fn marktree_shift_range_mark() {
 
     check(0, |i| i.width(2), (1..1, 1), (0..3, Id(0)));
 }
+
+#[test]
+fn tmp() {
+    let mut tree = new(4);
+    dbg!(&tree);
+    tree.insert(0, Id(0)).width(4);
+}

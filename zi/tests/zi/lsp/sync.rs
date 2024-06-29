@@ -76,7 +76,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     }];
 
     let text = "abc";
-    let deltas = zi::lsp::from_proto::deltas(zi_lsp::PositionEncoding::Utf8, text, edits);
+    let deltas = zi::lsp::from_proto::deltas(zi_lsp::PositionEncoding::Utf8, text, edits).unwrap();
     let buf = cx.open_tmp(text, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
     cx.with(move |editor| editor.edit(buf, &deltas)).await.unwrap();
 
@@ -218,7 +218,8 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
                         zi_lsp::PositionEncoding::Utf8,
                         &*text,
                         lsp_range,
-                    );
+                    )
+                    .unwrap();
                     let byte_range = text.point_range_to_byte_range(point_range);
                     // Must drop the guard, otherwise `send` will be stuck on a lock
                     drop(text);

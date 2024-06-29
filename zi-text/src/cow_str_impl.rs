@@ -17,6 +17,11 @@ impl TextBase for Cow<'_, str> {
     }
 
     #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        self.as_ref().len_utf16_cu()
+    }
+
+    #[inline]
     fn byte_to_line(&self, byte_idx: usize) -> usize {
         self.as_ref().byte_to_line(byte_idx)
     }

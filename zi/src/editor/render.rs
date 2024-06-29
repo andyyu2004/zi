@@ -193,6 +193,7 @@ impl Editor {
                         )
                     })
                     .filter_map(|diag| {
+                        let diag = diag?;
                         let hl_name = match diag.severity {
                             Severity::Error => HighlightName::ERROR,
                             Severity::Warning => HighlightName::WARNING,

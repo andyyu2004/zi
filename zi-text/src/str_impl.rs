@@ -89,6 +89,11 @@ impl TextBase for str {
     }
 
     #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        self.chars().map(char::len_utf16).sum()
+    }
+
+    #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
         str_lines_inclusive(self).take(line_idx).map(|l| l.len()).sum()
     }
@@ -156,6 +161,11 @@ impl TextBase for String {
     #[inline]
     fn len_lines(&self) -> usize {
         self.as_str().len_lines()
+    }
+
+    #[inline]
+    fn len_utf16_cu(&self) -> usize {
+        self.as_str().len_utf16_cu()
     }
 
     #[inline]

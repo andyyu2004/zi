@@ -385,8 +385,10 @@ impl Editor {
             client
                 .with(move |editor| {
                     let text = editor[buf].text();
-                    let point = from_proto::point(encoding, text, location.range.start);
-                    editor.jump(from, Location::new(buf, point));
+                    match from_proto::point(encoding, text, location.range.start) {
+                        Some(point) => editor.jump(from, Location::new(buf, point)),
+                        None => tracing::warn!(?location, "lsp returned invalid location"),
+                    }
                 })
                 .await;
             Ok(())
