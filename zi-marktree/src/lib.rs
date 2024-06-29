@@ -1094,28 +1094,26 @@ mod bitmap {
     /// Basically the same as `roaring::RoaringTreemap` but optimized for 48 bit values.
     /// It panics if the upper 16 bits are set which is useful to catch errors.
     #[derive(Debug, Default, Clone, PartialEq)]
-    pub struct Bitmap48 {
-        map: BTreeMap<u16, RoaringBitmap>,
-    }
+    pub struct Bitmap48(BTreeMap<u16, RoaringBitmap>);
 
     impl Bitmap48 {
         pub fn new() -> Self {
-            Self { map: BTreeMap::new() }
+            Self(BTreeMap::new())
         }
 
         pub fn insert(&mut self, value: u64) {
             let (hi, lo) = split(value);
-            self.map.entry(hi).or_default().insert(lo);
+            self.0.entry(hi).or_default().insert(lo);
         }
 
         pub fn contains(&self, value: u64) -> bool {
             let (hi, lo) = split(value);
-            self.map.get(&hi).map_or(false, |map| map.contains(lo))
+            self.0.get(&hi).map_or(false, |map| map.contains(lo))
         }
 
         pub fn remove(&mut self, value: u64) -> bool {
             let (hi, lo) = split(value);
-            match self.map.entry(hi) {
+            match self.0.entry(hi) {
                 Entry::Vacant(_) => false,
                 Entry::Occupied(mut ent) => {
                     if ent.get_mut().remove(lo) {
@@ -1133,14 +1131,10 @@ mod bitmap {
 
     impl BitOrAssign<Bitmap48> for Bitmap48 {
         fn bitor_assign(&mut self, rhs: Bitmap48) {
-            for (key, other_rb) in rhs.map {
-                match self.map.entry(key) {
-                    Entry::Vacant(ent) => {
-                        ent.insert(other_rb);
-                    }
-                    Entry::Occupied(mut ent) => {
-                        BitOrAssign::bitor_assign(ent.get_mut(), other_rb);
-                    }
+            for (key, other_rb) in rhs.0 {
+                match self.0.entry(key) {
+                    Entry::Vacant(ent) => drop(ent.insert(other_rb)),
+                    Entry::Occupied(mut ent) => BitOrAssign::bitor_assign(ent.get_mut(), other_rb),
                 }
             }
         }
@@ -1162,8 +1156,8 @@ mod bitmap {
 
     impl SubAssign<Self> for Bitmap48 {
         fn sub_assign(&mut self, rhs: Self) {
-            for (key, rhs_rb) in rhs.map {
-                match self.map.entry(key) {
+            for (key, rhs_rb) in rhs.0 {
+                match self.0.entry(key) {
                     Entry::Vacant(_entry) => (),
                     Entry::Occupied(mut entry) => {
                         SubAssign::sub_assign(entry.get_mut(), rhs_rb);

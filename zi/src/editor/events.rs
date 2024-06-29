@@ -1,5 +1,6 @@
 use futures_util::TryFutureExt;
 
+use self::lsp::from_proto;
 use super::*;
 use crate::syntax::HighlightName;
 use crate::Mark;
@@ -157,8 +158,15 @@ impl Editor {
                 let ns = editor.create_namespace("semantic-tokens");
                 editor[buf].clear_marks(ns, ..);
                 let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
+
+                let Some(server) = editor.active_language_servers.get(&cache.server) else {
+                    return Ok(());
+                };
+                let encoding = server.position_encoding();
+
                 let mut line = 0;
                 let mut char = 0;
+                let text = editor[buf].text();
                 let marks = cache
                     .tokens
                     .iter()
@@ -167,17 +175,17 @@ impl Editor {
                             char = 0;
                         }
 
-                        line += token.delta_line as usize;
-                        char += token.delta_start as usize;
+                        line += token.delta_line;
+                        char += token.delta_start;
 
-                        let range =
-                            PointRange::new((line, char), (line, char + token.length as usize));
                         let hl = semantic_tt_to_highlight(
                             &cache.legend.token_types[token.token_type as usize],
                         )
                         .map(|name| editor.highlight_id_by_name(name))?;
 
-                        let start = editor[buf].text().point_to_byte(range.start());
+                        let point =
+                            from_proto::point(encoding, text, lsp_types::Position::new(line, char));
+                        let start = text.point_to_byte(point);
                         Some(Mark::builder(ns, start).width(token.length as usize).hl(hl))
                     })
                     .collect::<Vec<_>>();
