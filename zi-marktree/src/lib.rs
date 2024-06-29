@@ -451,9 +451,9 @@ struct Extent {
 
 impl fmt::Debug for Extent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Extent")
+        f.debug_tuple("")
             .field(&self.length)
-            .field_with(|f| f.debug_list().entries(self.keys()).finish())
+            .field_with(|f| f.debug_set().entries(self.keys()).finish())
             .finish()
     }
 }
@@ -616,7 +616,7 @@ mod key {
     use std::{fmt, mem};
 
     bitflags::bitflags! {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Clone, Copy, PartialEq, Eq)]
         pub struct Flags: u16 {
             const BIAS_LEFT = 1 << 0;
             // If the key is part of a range pair.
@@ -626,13 +626,19 @@ mod key {
         }
     }
 
+    impl fmt::Debug for Flags {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
     /// Key encodes the 48-bit id and 16-bit flags.
     #[derive(Clone, Copy)]
     pub(super) struct Key(u64);
 
     impl fmt::Debug for Key {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_tuple("Key").field(&self.id()).field(&self.flags()).finish()
+            f.debug_tuple("").field(&self.id()).field(&self.flags()).finish()
         }
     }
 
@@ -1027,10 +1033,16 @@ impl SubAssign<&Self> for Summary {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 struct Summary {
     ids: Bitmap48,
     bytes: usize,
+}
+
+impl fmt::Debug for Summary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("").field(&self.bytes).field(&self.ids).finish()
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -1131,6 +1143,7 @@ where
 mod bitmap {
     use std::collections::btree_map::Entry;
     use std::collections::BTreeMap;
+    use std::fmt;
     use std::ops::{BitOrAssign, SubAssign};
 
     use roaring::RoaringBitmap;
@@ -1138,8 +1151,14 @@ mod bitmap {
     /// A bitmap with 48-bit values.
     /// Basically the same as `roaring::RoaringTreemap` but optimized for 48 bit values.
     /// It panics if the upper 16 bits are set which is useful to catch errors.
-    #[derive(Debug, Default, Clone, PartialEq)]
+    #[derive(Default, Clone, PartialEq)]
     pub struct Bitmap48(BTreeMap<u16, RoaringBitmap>);
+
+    impl fmt::Debug for Bitmap48 {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_set().entries(self.iter()).finish()
+        }
+    }
 
     impl Bitmap48 {
         pub fn new() -> Self {
@@ -1154,6 +1173,10 @@ mod bitmap {
         pub fn contains(&self, value: u64) -> bool {
             let (hi, lo) = split(value);
             self.0.get(&hi).map_or(false, |map| map.contains(lo))
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
+            self.0.iter().flat_map(|(&hi, map)| map.iter().map(move |lo| combine(hi, lo)))
         }
 
         pub fn remove(&mut self, value: u64) -> bool {
@@ -1229,5 +1252,9 @@ mod bitmap {
     fn split(value: u64) -> (u16, u32) {
         assert_eq!(value >> 48, 0, "upper 16 bits of value must be unused");
         ((value >> 32) as u16, value as u32)
+    }
+
+    fn combine(hi: u16, lo: u32) -> u64 {
+        ((hi as u64) << 32) | lo as u64
     }
 }

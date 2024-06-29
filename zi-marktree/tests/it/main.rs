@@ -446,16 +446,26 @@ fn marktree_regression_1() {
 
 #[test]
 fn repro2() {
+    let at = [0, 504, 0, 0, 0, 0, 0, 0];
+    let widths = [1, 1, 4, 7, 2, 5];
+
     let n = 1000;
     let mut tree = new(n);
-    let at = [0, 0, 1, 907, 0, 66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 875, 0];
-    let widths = [66, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32];
+    let mut insertions = vec![];
     for (i, &at) in at.iter().enumerate() {
         let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
+        insertions.push((Id(i), at..at + width));
+
+        dbg!(&tree);
         tree.insert(at, Id(i)).width(width);
-        assert_eq!(tree.get(Id(i)), Some(at..at + width));
+        dbg!(&tree);
+
         assert_eq!(tree.len(), n);
+
+        for &(id, ref range) in &insertions {
+            assert_eq!(dbg!(tree.get(dbg!(id))), Some(range.clone()));
+        }
     }
 }
 
