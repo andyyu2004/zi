@@ -464,12 +464,18 @@ proptest::proptest! {
     fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
         let n = 10000;
         let mut tree = new(n);
+        let mut insertions = vec![];
         for (i, &at) in at.iter().enumerate() {
             let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
+            insertions.push((Id(i), at..at + width));
             tree.insert(at, Id(i)).width(width);
-            assert_eq!(tree.get(Id(i)), Some(at..at + width));
+
             assert_eq!(tree.len(), n);
+
+            for &(id, ref range) in &insertions {
+                assert_eq!(tree.get(id), Some(range.clone()));
+            }
         }
     }
 }
