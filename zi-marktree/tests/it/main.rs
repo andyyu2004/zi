@@ -1,8 +1,8 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
-
 use std::ops::Range;
 use std::{fmt, iter};
 
+use proptest::collection::vec;
 use zi_marktree::{Bias, Inserter, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -454,13 +454,11 @@ fn repro2() {
         let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
         tree.insert(at, Id(i)).width(width);
-        dbg!(&tree);
         assert_eq!(tree.get(Id(i)), Some(at..at + width));
         assert_eq!(tree.len(), n);
     }
 }
 
-use proptest::collection::vec;
 proptest::proptest! {
     #[test]
     fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {

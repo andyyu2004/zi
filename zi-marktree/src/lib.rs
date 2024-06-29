@@ -46,10 +46,15 @@ const ARITY: usize = 7;
 //
 // Plenty of optimizations available. The implementation is fairly naive.
 //  - avoid recreating bitmaps and arrays from scratch all the time
-#[derive(Debug)]
 pub struct MarkTree<Id: MarkTreeId, const N: usize> {
     tree: Tree<ARITY, Leaf<N>>,
     _id: PhantomData<Id>,
+}
+
+impl<Id: MarkTreeId, const N: usize> fmt::Debug for MarkTree<Id, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tree.fmt(f)
+    }
 }
 
 impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
@@ -307,14 +312,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .fold(Summary::default(), |summary, child| summary + summarize(child)),
                     Node::Leaf(leaf) => leaf.as_slice().summarize(),
                 };
-                // dbg!((node, node.summary(), &summary));
-                // assert_eq!(node.summary(), &summary);
                 assert_eq!(node.summary().bytes, summary.bytes);
                 summary
             }
 
-            // Too expensive, uncomment for debugging.
-            summarize(&self.tree.root());
+            // Too slow, uncomment for debugging only.
+            // summarize(&self.tree.root());
             // self.tree.assert_invariants();
         }
     }
@@ -751,7 +754,11 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     // We usually expect `start + 1 = end`.
                     // However, this can occur if we're appending at the end of a leaf.
                     debug_assert_eq!(end, n);
-                    debug_assert_eq!(*summary, self.summarize());
+                    debug_assert_eq!(
+                        *summary,
+                        self.summarize(),
+                        "this node should remain unchanged"
+                    );
                     let extent = [Extent::new(1, iter::once(key))];
                     return Some(smallvec![Leaf::from(ArrayVec::from_iter(extent))].into_iter());
                 }
@@ -836,24 +843,8 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     }
 
     #[inline]
-    fn remove_up_to(&mut self, summary: &mut Self::Summary, ByteMetric(up_to): ByteMetric) {
-        assert!(up_to <= summary.bytes);
-        let mut offset = 0;
-
-        let mut new_entries = ArrayVec::new();
-
-        for entry in self.entries.take() {
-            if offset < up_to && offset + entry.len() > up_to {
-                let remaining_gap = offset + entry.len() - up_to;
-                new_entries.push(Extent::new(remaining_gap, entry.keys.iter().map(Key::from_raw)));
-                break;
-            }
-            offset += entry.len();
-        }
-
-        self.entries = new_entries;
-
-        *summary = self.summarize();
+    fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
+        self.replace(summary, ..up_to, Replacement::Gap(0));
     }
 }
 
