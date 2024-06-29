@@ -56,6 +56,7 @@ use crate::layout::Layer;
 use crate::lsp::{self, LanguageServer};
 use crate::plugin::Plugins;
 use crate::private::Sealed;
+use crate::symbol::Symbol;
 use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
@@ -374,7 +375,7 @@ impl Editor {
         let active_view = views.insert_with_key(|id| View::new(id, scratch_buffer));
 
         let mut namespaces = SlotMap::default();
-        let default_namespace = namespaces.insert_with_key(Namespace::new);
+        let default_namespace = namespaces.insert_with_key(|id| Namespace::new(id, "default"));
 
         let empty_buffer = buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
@@ -1780,8 +1781,13 @@ impl Editor {
         self.views.insert_with_key(|id| View::new(id, buf))
     }
 
-    pub fn create_namespace(&mut self) -> NamespaceId {
-        self.namespaces.insert_with_key(|id| Namespace::new(id))
+    pub fn create_namespace(&mut self, name: impl Into<Symbol>) -> NamespaceId {
+        let name = name.into();
+        if let Some(ns) = self.namespaces.values().find(|ns| ns.name() == &name) {
+            return ns.id();
+        }
+
+        self.namespaces.insert_with_key(|id| Namespace::new(id, name))
     }
 
     pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {

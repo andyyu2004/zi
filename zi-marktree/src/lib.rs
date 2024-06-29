@@ -1,4 +1,5 @@
 #![feature(array_chunks, coroutines, iter_from_coroutine)]
+
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
@@ -693,6 +694,12 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 };
             }
             Replacement::Key(key) => {
+                // We usually expect `start + 1 = end`.
+                // However, if `start == end` then we're inserting at the end of the leaf.
+                if start == end {
+                    todo!();
+                }
+
                 assert_eq!(start + 1, end);
 
                 let mut offset = 0;

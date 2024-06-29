@@ -1,6 +1,8 @@
 use futures_util::TryFutureExt;
 
 use super::*;
+use crate::syntax::HighlightName;
+use crate::Mark;
 
 impl Editor {
     pub(super) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
@@ -119,7 +121,73 @@ impl Editor {
 
     fn schedule_semantic_tokens(&mut self, buf: BufferId) -> event::HandlerResult {
         if let Some(fut) = self.request_semantic_tokens(buf) {
-            self.schedule("semantic tokens", fut.map_err(Into::into));
+            fn semantic_tt_to_highlight(
+                tt: &lsp_types::SemanticTokenType,
+            ) -> Option<HighlightName> {
+                use lsp_types::SemanticTokenType as Stt;
+                Some(match tt {
+                    t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
+                    t if t == &Stt::TYPE => HighlightName::TYPE,
+                    t if t == &Stt::STRUCT => HighlightName::TYPE,
+                    t if t == &Stt::CLASS => HighlightName::TYPE,
+                    t if t == &Stt::INTERFACE => HighlightName::TYPE,
+                    t if t == &Stt::ENUM => HighlightName::TYPE,
+                    t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
+                    t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
+                    t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
+                    t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
+                    // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
+                    // t if t == &Stt::EVENT => HighlightName::EVENT,
+                    t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
+                    t if t == &Stt::METHOD => HighlightName::FUNCTION,
+                    t if t == &Stt::MACRO => HighlightName::MACRO,
+                    t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
+                    // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
+                    t if t == &Stt::COMMENT => HighlightName::COMMENT,
+                    t if t == &Stt::STRING => HighlightName::STRING,
+                    t if t == &Stt::NUMBER => HighlightName::NUMBER,
+                    t if t == &Stt::REGEXP => HighlightName::STRING,
+                    // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
+                    // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
+                    _ => return None,
+                })
+            }
+
+            self.callback("semantic tokens", fut.map_err(Into::into), move |editor, ()| {
+                let ns = editor.create_namespace("semantic-tokens");
+                editor[buf].clear_marks(ns, ..);
+                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
+                let mut line = 0;
+                let mut char = 0;
+                let marks = cache
+                    .tokens
+                    .iter()
+                    .filter_map(|token| {
+                        if token.delta_line > 0 {
+                            char = 0;
+                        }
+
+                        line += token.delta_line as usize;
+                        char += token.delta_start as usize;
+
+                        let range =
+                            PointRange::new((line, char), (line, char + token.length as usize));
+                        let hl = semantic_tt_to_highlight(
+                            &cache.legend.token_types[token.token_type as usize],
+                        )
+                        .map(|name| editor.highlight_id_by_name(name))?;
+
+                        let start = editor[buf].text().point_to_byte(range.start());
+                        Some(Mark::builder(ns, start).width(token.length as usize).hl(hl))
+                    })
+                    .collect::<Vec<_>>();
+
+                for mark in marks {
+                    editor[buf].create_mark(mark);
+                }
+
+                Ok(())
+            })
         };
         event::HandlerResult::Continue
     }

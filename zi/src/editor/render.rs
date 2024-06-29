@@ -6,7 +6,6 @@ use stdx::merge::Merge;
 use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
-use zi_lsp::lsp_types;
 use zi_text::{AnyTextSlice, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
@@ -214,33 +213,33 @@ impl Editor {
                     .collect::<Vec<_>>()
             });
 
-        let buf_tokens = self.semantic_tokens.get(&buf.id());
-        let semantic_highlights = buf_tokens.iter().flat_map(|cache| {
-            let mut line = 0;
-            let mut char = 0;
-            cache.tokens.iter().filter_map(move |token| {
-                if token.delta_line > 0 {
-                    char = 0;
-                }
-
-                line += token.delta_line as usize;
-                char += token.delta_start as usize;
-                if line < line_offset {
-                    return None;
-                }
-
-                let range = PointRange::new((line, char), (line, char + token.length as usize));
-                let hl =
-                    semantic_tt_to_highlight(&cache.legend.token_types[token.token_type as usize])
-                        .map(|name| self.highlight_id_by_name(name))?;
-                Some((range, hl.style(theme)?))
-            })
-        });
+        // let buf_tokens = self.semantic_tokens.get(&buf.id());
+        // let semantic_highlights = buf_tokens.iter().flat_map(|cache| {
+        //     let mut line = 0;
+        //     let mut char = 0;
+        //     cache.tokens.iter().filter_map(move |token| {
+        //         if token.delta_line > 0 {
+        //             char = 0;
+        //         }
+        //
+        //         line += token.delta_line as usize;
+        //         char += token.delta_start as usize;
+        //         if line < line_offset {
+        //             return None;
+        //         }
+        //
+        //         let range = PointRange::new((line, char), (line, char + token.length as usize));
+        //         let hl =
+        //             semantic_tt_to_highlight(&cache.legend.token_types[token.token_type as usize])
+        //                 .map(|name| self.highlight_id_by_name(name))?;
+        //         Some((range, hl.style(theme)?))
+        //     })
+        // });
 
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
             .range_merge(diagnostic_highlights.into_iter())
-            .range_merge(semantic_highlights)
+            // .range_merge(semantic_highlights)
             .range_merge(mark_highlights)
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
@@ -306,34 +305,4 @@ impl Editor {
         let width = lines.render_(area, surface);
         view.number_width.set(width as u16);
     }
-}
-
-fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
-    use lsp_types::SemanticTokenType as Stt;
-    Some(match tt {
-        t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
-        t if t == &Stt::TYPE => HighlightName::TYPE,
-        t if t == &Stt::STRUCT => HighlightName::TYPE,
-        t if t == &Stt::CLASS => HighlightName::TYPE,
-        t if t == &Stt::INTERFACE => HighlightName::TYPE,
-        t if t == &Stt::ENUM => HighlightName::TYPE,
-        t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
-        t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
-        t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
-        t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
-        // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
-        // t if t == &Stt::EVENT => HighlightName::EVENT,
-        t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
-        t if t == &Stt::METHOD => HighlightName::FUNCTION,
-        t if t == &Stt::MACRO => HighlightName::MACRO,
-        t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
-        // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
-        t if t == &Stt::COMMENT => HighlightName::COMMENT,
-        t if t == &Stt::STRING => HighlightName::STRING,
-        t if t == &Stt::NUMBER => HighlightName::NUMBER,
-        t if t == &Stt::REGEXP => HighlightName::STRING,
-        // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
-        // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
-        _ => return None,
-    })
 }
