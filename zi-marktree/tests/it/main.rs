@@ -1,11 +1,14 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::{fmt, iter};
 
 use proptest::collection::vec;
+use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::{prop_compose, prop_oneof};
 use zi_marktree::{Bias, Inserter, MarkTree, MarkTreeId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Id(usize);
 
 impl From<Id> for u64 {
@@ -455,25 +458,71 @@ fn check_inserts(
 ) {
     let n = 10000;
     let mut tree = new(n);
-    let mut insertions = vec![];
+    let mut insertions = BTreeMap::new();
     let widths = widths.into_iter().collect::<Vec<_>>();
     for (i, at) in at.into_iter().enumerate() {
         let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
-        insertions.push((Id(i), at..at + width));
+        assert!(insertions.insert(Id(i), at..at + width).is_none());
         tree.insert(at, Id(i)).width(width);
 
         assert_eq!(tree.len(), 10000);
 
-        for &(id, ref range) in &insertions {
+        for (&id, range) in &insertions {
             assert_eq!(tree.get(id), Some(range.clone()));
         }
     }
 }
 
+#[derive(Debug)]
+enum Action {
+    Insert { at: usize, width: usize, id: Id },
+    Delete(Id),
+}
+
+prop_compose! {
+    fn arb_action_insert()(
+        at in 0..1000usize,
+        width in 1..100usize,
+        id in 0..100usize,
+    ) -> Action {
+        Action::Insert { at, width, id: Id(id) }
+    }
+}
+
+fn arb_action() -> BoxedStrategy<Action> {
+    prop_oneof![arb_action_insert(), (0..1000usize).prop_map(Id).prop_map(Action::Delete)].boxed()
+}
+
 proptest::proptest! {
     #[test]
-    fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
+    fn marktree_prop_insert(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
         check_inserts(at, widths);
     }
+
+    #[test]
+    fn marktree_prop_insert_delete(at in vec(arb_action(), 0..100)) {
+        let n = 10000;
+        let mut tree = new(n);
+        let mut insertions = BTreeMap::new();
+        for action in at {
+            match action {
+                Action::Insert { at, width, id } => {
+                    insertions.insert(id, at..at + width) ;
+                    tree.insert(at, id).width(width);
+                }
+                Action::Delete(id) => {
+                    assert_eq!(tree.delete(id), insertions.remove(&id))
+                }
+            }
+
+            assert_eq!(tree.len(), n);
+
+            for (&id, range) in &insertions {
+                assert_eq!(tree.get(id), Some(range.clone()));
+            }
+        }
+    }
+
+
 }

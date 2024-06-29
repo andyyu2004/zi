@@ -35,7 +35,8 @@ const ARITY: usize = 4;
 const ARITY: usize = 7;
 
 /// A tree of ordered items that each have a byte position.
-/// This can be edited efficiently (logarithmic time) with the `shift` operation.
+/// This has a similar API to a `BTreeMap<Id, Range<usize>>` but is augmented with an efficient
+/// `shift` operation to perform edits.
 //
 // This is implemented in a way that is basically a rope but instead of representing
 // character data per byte, it stores a set of `MarkId`s.
@@ -384,7 +385,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
 
         if self.tree.tree.summary().ids.contains(&id) > 0 {
-            todo!("MarkTree insertion of existing id")
+            self.tree.delete(id).unwrap();
         }
 
         assert!(
