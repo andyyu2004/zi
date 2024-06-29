@@ -433,30 +433,45 @@ fn marktree_shift_range_mark() {
 }
 
 #[test]
-fn minimal() {
+fn marktree_regression_1() {
     let mut tree = new(10);
     tree.insert(0, Id(0)).width(1);
     tree.insert(5, Id(1)).width(1);
     tree.insert(1, Id(2)).width(1);
 
     assert_iter_eq(tree.range(..), [(0..1, Id(0)), (1..2, Id(2)), (5..6, Id(1))]);
-    dbg!(&tree);
     tree.insert(5, Id(3)).width(1);
+    assert_eq!(tree.len(), 10);
+}
+
+#[test]
+fn repro2() {
+    let n = 1000;
+    let mut tree = new(n);
+    let at = [0, 0, 1, 907, 0, 66, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 875, 0];
+    let widths = [66, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32];
+    for (i, &at) in at.iter().enumerate() {
+        let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
+
+        tree.insert(at, Id(i)).width(width);
+        dbg!(&tree);
+        assert_eq!(tree.get(Id(i)), Some(at..at + width));
+        assert_eq!(tree.len(), n);
+    }
 }
 
 use proptest::collection::vec;
-
 proptest::proptest! {
     #[test]
-    fn marktree_prop(at in vec(0..1000usize, 0..100), width in vec(1..100usize, 0..100)) {
-        let mut tree = new(10000);
+    fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
+        let n = 10000;
+        let mut tree = new(n);
         for (i, &at) in at.iter().enumerate() {
-            dbg!(&tree);
-            if width.is_empty() {
-                tree.insert(at, Id(i));
-            } else {
-                tree.insert(at, Id(i)).width(width[i % width.len()]);
-            }
+            let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
+
+            tree.insert(at, Id(i)).width(width);
+            assert_eq!(tree.get(Id(i)), Some(at..at + width));
+            assert_eq!(tree.len(), n);
         }
     }
 }

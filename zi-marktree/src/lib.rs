@@ -10,7 +10,7 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
@@ -293,9 +293,35 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
     }
+
+    fn assert_invariants(&self) {
+        #[cfg(debug_assertions)]
+        {
+            // Ensure that the summaries are all correct by resummarizing the tree.
+            #[allow(unused)]
+            fn summarize<const N: usize>(node: &Arc<Node<ARITY, Leaf<N>>>) -> Summary {
+                let summary = match node.as_ref() {
+                    Node::Internal(inode) => inode
+                        .children()
+                        .iter()
+                        .fold(Summary::default(), |summary, child| summary + summarize(child)),
+                    Node::Leaf(leaf) => leaf.as_slice().summarize(),
+                };
+                // dbg!((node, node.summary(), &summary));
+                // assert_eq!(node.summary(), &summary);
+                assert_eq!(node.summary().bytes, summary.bytes);
+                summary
+            }
+
+            // Too expensive, uncomment for debugging.
+            summarize(&self.tree.root());
+            // self.tree.assert_invariants();
+        }
+    }
 }
 
 /// A builder for inserting an item into a `MarkTree`, inserts on drop.
+#[derive(Debug)]
 pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
     id: Id,
@@ -339,6 +365,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
     fn drop(&mut self) {
         let id = self.id.into();
         let at = self.at;
+        let n = self.tree.len();
 
         // Check upper 16 bits are clear
         assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
@@ -348,16 +375,26 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         }
 
         assert!(
-            at < self.tree.len(),
-            "byte {at} out of bounds of marktree of length {}",
+            at + self.width < self.tree.len(),
+            "range {at}..={} out of bounds of marktree of length {}",
+            self.at + self.width,
             self.tree.len(),
         );
 
         self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.start_flags)));
+        assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
+        self.tree.assert_invariants();
+
         if self.start_flags.contains(Flags::RANGE) {
             assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
             let at = at + self.width;
             self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.end_flags)));
+            assert_eq!(
+                self.tree.len(),
+                n,
+                "second insertion should not change the length of the tree"
+            );
+            self.tree.assert_invariants();
         }
     }
 }
@@ -469,7 +506,7 @@ impl<const N: usize> Leaf<N> {
         for entry in &mut self.entries {
             if entry.keys.remove(id) {
                 // Fast path if the flags are empty.
-                summary.ids.remove(id);
+                assert!(summary.ids.remove(id));
                 return Some(offset);
             } else {
                 // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
@@ -478,14 +515,14 @@ impl<const N: usize> Leaf<N> {
                     let key = Key::from_raw(key);
                     if key.id() == id {
                         drop(iter);
-                        entry.keys.remove(key.into_raw());
+                        assert!(entry.keys.remove(key.into_raw()));
 
                         if key.flags().contains(Flags::RANGE) {
                             // Just removing the id isn't correct since it's pair may still exist.
                             // Just resummarize the leaf for simplicity.
                             *summary = self.summarize();
                         } else {
-                            summary.ids.remove(id);
+                            assert!(summary.ids.remove(id));
                         }
                         return Some(offset);
                     }
@@ -711,10 +748,12 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
             }
             Replacement::Key(key) => {
                 if start == end {
-                    dbg!(&self);
                     // We usually expect `start + 1 = end`.
                     // However, this can occur if we're appending at the end of a leaf.
-                    todo!()
+                    debug_assert_eq!(end, n);
+                    debug_assert_eq!(*summary, self.summarize());
+                    let extent = [Extent::new(1, iter::once(key))];
+                    return Some(smallvec![Leaf::from(ArrayVec::from_iter(extent))].into_iter());
                 }
 
                 // We're assuming that we're replacing a range of one byte to avoid the zero-length entry issue.
@@ -791,7 +830,6 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 .map(ArrayVec::from)
                 .exact_chain(rem)
                 .map(Leaf::from)
-                // TODO maybe can avoid the collect here
                 .collect::<SmallVec<_, 1>>()
                 .into_iter(),
         )
@@ -987,16 +1025,14 @@ impl SubAssign<Self> for Summary {
 impl AddAssign<&Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        self.bytes += rhs.bytes;
-        self.ids |= &rhs.ids;
+        *self += rhs.clone();
     }
 }
 
 impl SubAssign<&Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
-        self.bytes -= rhs.bytes;
-        self.ids -= &rhs.ids;
+        *self -= rhs.clone();
     }
 }
 
@@ -1119,9 +1155,9 @@ mod bitmap {
             Self(BTreeMap::new())
         }
 
-        pub fn insert(&mut self, value: u64) {
+        pub fn insert(&mut self, value: u64) -> bool {
             let (hi, lo) = split(value);
-            self.0.entry(hi).or_default().insert(lo);
+            self.0.entry(hi).or_default().insert(lo)
         }
 
         pub fn contains(&self, value: u64) -> bool {
@@ -1152,7 +1188,7 @@ mod bitmap {
             for (key, other_rb) in rhs.0 {
                 match self.0.entry(key) {
                     Entry::Vacant(ent) => drop(ent.insert(other_rb)),
-                    Entry::Occupied(mut ent) => BitOrAssign::bitor_assign(ent.get_mut(), other_rb),
+                    Entry::Occupied(mut ent) => *ent.get_mut() |= other_rb,
                 }
             }
         }
@@ -1178,7 +1214,7 @@ mod bitmap {
                 match self.0.entry(key) {
                     Entry::Vacant(_entry) => (),
                     Entry::Occupied(mut entry) => {
-                        SubAssign::sub_assign(entry.get_mut(), rhs_rb);
+                        *entry.get_mut() -= rhs_rb;
                         if entry.get().is_empty() {
                             entry.remove_entry();
                         }
@@ -1191,7 +1227,9 @@ mod bitmap {
     impl FromIterator<u64> for Bitmap48 {
         fn from_iter<I: IntoIterator<Item = u64>>(iter: I) -> Self {
             let mut bitmap = Self::new();
-            iter.into_iter().for_each(|id| bitmap.insert(id));
+            iter.into_iter().for_each(|id| {
+                bitmap.insert(id);
+            });
             bitmap
         }
     }

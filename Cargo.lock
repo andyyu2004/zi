@@ -664,7 +664,6 @@ dependencies = [
 [[package]]
 name = "crop"
 version = "0.4.2"
-source = "git+https://github.com/andyyu2004/crop?branch=main#ac92d6136d49c8fed8e308ab51309941218d1817"
 dependencies = [
  "str_indices",
  "unicode-segmentation",
