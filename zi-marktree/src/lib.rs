@@ -323,7 +323,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             }
 
             // Too slow, uncomment for debugging only.
-            summarize(&self.tree.root());
+            // summarize(&self.tree.root());
             // self.tree.assert_invariants();
         }
     }
@@ -408,6 +408,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
     }
 }
 
+#[derive(Debug)]
 enum Replacement {
     Gap(usize),
     // Invariant, `Key` can only be used as a replacement if the range is empty. The replacement range is `byte..=byte`
@@ -444,9 +445,6 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
 
 // NOTE: It's important to have a structure such that every leaf entry has a non-zero length.
 // Otherwise, a zero-length entry could take up arbitrarily many slots in the tree which breaks assumptions by the tree impl.
-//
-// The current implementation naive and each entry represents a single byte.
-// It would be better to have a more sophisticated implementation that can represent multiple bytes in a single entry (i.e. extents/ranges).
 #[derive(Clone, PartialEq, Eq)]
 struct Extent {
     length: NonZeroUsize,
@@ -697,6 +695,8 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
+        eprintln!("replace start: {start}..{end} with {:?} {self:?}", replace_with);
+
         let mut builder = builder::EntryBuilder::<N>::default();
         let mut keys = SetU64::default();
         match replace_with {
@@ -758,8 +758,12 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 }
 
                 if let Some(gap) = gap {
-                    builder.push_gap(gap)
-                };
+                    builder.push_raw(gap, keys)
+                } else {
+                    // TODO what to do with these keys when there's nowhere to go?
+                    // e.g. replace start: 0..1 with Gap(0) [(1, {(1, RANGE)})]
+                    assert!(keys.is_empty());
+                }
             }
             Replacement::Key(key) => {
                 if start == end {
@@ -829,7 +833,10 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 true,
             ),
         };
+
         self.entries = chunk;
+        eprintln!("replace end: {start}..{end} with {:?} {self:?}", replace_with);
+        assert!(!self.entries.is_empty());
 
         *summary = self.summarize();
 
@@ -856,7 +863,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
     #[inline]
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
-        self.replace(summary, ..up_to, Replacement::Gap(0));
+        assert!(self.replace(summary, ..up_to, Replacement::Gap(0)).is_none(), "how to handle");
     }
 }
 
