@@ -51,9 +51,9 @@ impl<const N: usize> Bitbag48<N> {
         // Only used for debugging for now, so naive impl
         let mut values = self.values().map(|v| (v, 1)).collect::<Vec<_>>();
         for k in 1..N {
-            for i in 0..values.len() {
-                if self.0[k].contains(values[i].0) {
-                    values[i].1 += 1;
+            for (value, count) in values.iter_mut() {
+                if self.0[k].contains(*value) {
+                    *count += 1;
                 }
             }
         }

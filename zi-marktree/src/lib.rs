@@ -4,7 +4,6 @@ mod bitmap;
 
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
 use std::{cmp, fmt, iter};
 
@@ -12,7 +11,7 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
@@ -71,6 +70,11 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     #[inline]
     pub fn len(&self) -> usize {
         self.tree.summary().bytes
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     #[inline]
@@ -265,7 +269,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
                         let summary = inode.child(i).summary();
-                        if summary.ids.contains(id.into()) {
+                        if summary.ids.contains(id) {
                             return inode.with_child_mut(i, |child| del(child, offset, id));
                         }
                         offset += summary.bytes;
@@ -273,7 +277,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                     unreachable!("bitmaps said it's here")
                 }
                 Node::Leaf(leaf) => {
-                    debug_assert!(leaf.summary().ids.contains(id.into()));
+                    debug_assert!(leaf.summary().ids.contains(id));
                     let leaf_offset =
                         leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here");
                     offset + leaf_offset
@@ -384,20 +388,20 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         }
 
         assert!(
-            at + self.width < self.tree.len(),
-            "range {at}..={} out of bounds of marktree of length {}",
+            at + self.width <= self.tree.len(),
+            "range {at}..{} out of bounds of marktree of length {}",
             self.at + self.width,
             self.tree.len(),
         );
 
-        self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.start_flags)));
+        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.start_flags)));
         assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
         self.tree.assert_invariants();
 
         if self.start_flags.contains(Flags::RANGE) {
             assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
             let at = at + self.width;
-            self.tree.replace(at..=at, Replacement::Key(Key::new(id, self.end_flags)));
+            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.end_flags)));
             assert_eq!(
                 self.tree.len(),
                 n,
@@ -411,7 +415,8 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
 #[derive(Debug)]
 enum Replacement {
     Gap(usize),
-    // Invariant, `Key` can only be used as a replacement if the range is empty. The replacement range is `byte..=byte`
+    // Invariant, `Key` can only be used as a replacement if the range is empty.
+    // The replacement range is `byte..byte`
     Key(Key),
 }
 
@@ -443,11 +448,9 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
     }
 }
 
-// NOTE: It's important to have a structure such that every leaf entry has a non-zero length.
-// Otherwise, a zero-length entry could take up arbitrarily many slots in the tree which breaks assumptions by the tree impl.
 #[derive(Clone, PartialEq, Eq)]
 struct Extent {
-    length: NonZeroUsize,
+    length: usize,
     /// The ids contained within this range.
     /// All their positions is considered to be the start of the entry.
     keys: SetU64,
@@ -465,10 +468,7 @@ impl fmt::Debug for Extent {
 impl Extent {
     #[track_caller]
     fn new(length: usize, ids: impl IntoIterator<Item = Key>) -> Self {
-        Self {
-            length: NonZeroUsize::new(length).expect("leaf entry length must be > 0"),
-            keys: ids.into_iter().map(Key::into_raw).collect(),
-        }
+        Self { length, keys: ids.into_iter().map(Key::into_raw).collect() }
     }
 
     fn ids(&self) -> impl Iterator<Item = u64> + '_ {
@@ -481,7 +481,7 @@ impl Extent {
 
     #[inline]
     fn len(&self) -> usize {
-        self.length.get()
+        self.length
     }
 }
 
@@ -590,9 +590,10 @@ mod builder {
         pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = Key>) {
             let mut keys = keys.into_iter().peekable();
             match self.entries.last_mut() {
-                Some(last) if keys.peek().is_none() => {
+                Some(last) if last.length == 0 || keys.peek().is_none() => {
                     // Merge entries if possible.
-                    last.length = last.length.checked_add(length).unwrap();
+                    last.length += length;
+                    last.keys.extend(keys.map(Key::into_raw));
                 }
                 _ => self.entries.push(Extent::new(length, keys)),
             }
@@ -695,8 +696,6 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         assert!(end <= n, "end <= n ({end} <= {n})");
 
-        eprintln!("replace start: {start}..{end} with {:?} {self:?}", replace_with);
-
         let mut builder = builder::EntryBuilder::<N>::default();
         let mut keys = SetU64::default();
         match replace_with {
@@ -759,33 +758,24 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
                 if let Some(gap) = gap {
                     builder.push_raw(gap, keys)
-                } else {
-                    // TODO what to do with these keys when there's nowhere to go?
-                    // e.g. replace start: 0..1 with Gap(0) [(1, {(1, RANGE)})]
-                    assert!(keys.is_empty());
+                } else if !keys.is_empty() {
+                    builder.push_raw(0, keys);
                 }
             }
             Replacement::Key(key) => {
-                if start == end {
-                    // We usually expect `start + 1 = end`.
-                    // However, this can occur if we're appending at the end of a leaf.
-                    debug_assert_eq!(end, n);
-                    debug_assert_eq!(
-                        *summary,
-                        self.summarize(),
-                        "this node should remain unchanged"
-                    );
-                    let extent = [Extent::new(1, iter::once(key))];
-                    return Some(smallvec![Leaf::from(ArrayVec::from_iter(extent))].into_iter());
-                }
-
-                // We're assuming that we're replacing a range of one byte to avoid the zero-length entry issue.
-                assert_eq!(start + 1, end);
+                assert_eq!(start, end);
+                let mut key = Some(key);
 
                 let mut offset = 0;
                 for entry in self.entries.take() {
                     let entry_end = offset + entry.len();
                     let k = entry.len();
+
+                    if start == offset {
+                        if let Some(key) = key.take() {
+                            builder.push(0, [key]);
+                        }
+                    }
 
                     if entry_end <= start || offset >= end {
                         // If the entry range does not intersect the replacement range just copy
@@ -796,17 +786,20 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
                     // Therefore: offset < end && start < entry_end
 
+                    let key = key.take().unwrap();
+
                     if start - offset > 0 {
                         // The current entry extends beyond the start of the replacement range.
                         // Add the chunk of the entry that precedes the replacement range.
                         builder.push_raw(start - offset, entry.keys);
-                        // Push a new entry for the key with length 1.
-                        builder.push(1, [key]);
+                        // Push a new entry for the key with length 0.
+                        builder.push(0, [key]);
                     } else {
+                        debug_assert_eq!(start, offset);
                         // Otherwise, they can be merged
                         let mut keys = entry.keys;
                         assert!(keys.insert(key.into_raw()));
-                        builder.push_raw(start - offset + 1, keys);
+                        builder.push_raw(start - offset, keys);
                     }
 
                     if entry_end > end {
@@ -814,6 +807,10 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     }
 
                     offset += k;
+                }
+
+                if let Some(key) = key {
+                    builder.push(0, [key]);
                 }
 
                 debug_assert_eq!(
@@ -835,7 +832,6 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         };
 
         self.entries = chunk;
-        eprintln!("replace end: {start}..{end} with {:?} {self:?}", replace_with);
         assert!(!self.entries.is_empty());
 
         *summary = self.summarize();

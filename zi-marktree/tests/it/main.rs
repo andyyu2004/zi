@@ -334,7 +334,7 @@ fn marktree_smoke() {
 }
 
 #[test]
-fn marktree_get() {
+fn marktree_get_simple() {
     let mut tree = new(10);
     assert_eq!(tree.len(), 10);
 
@@ -461,26 +461,19 @@ fn check_inserts(
         let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
         insertions.push((Id(i), at..at + width));
-        if (at, i) == (923, 3) {
-            dbg!(&tree);
-        }
         tree.insert(at, Id(i)).width(width);
-        if (at, i) == (923, 3) {
-            dbg!(&tree);
-        }
 
         assert_eq!(tree.len(), 10000);
 
         for &(id, ref range) in &insertions {
-            dbg!(&id);
             assert_eq!(tree.get(id), Some(range.clone()));
         }
     }
 }
 
-// proptest::proptest! {
-//     #[test]
-//     fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
-//         check_inserts(at, widths);
-//     }
-// }
+proptest::proptest! {
+    #[test]
+    fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
+        check_inserts(at, widths);
+    }
+}
