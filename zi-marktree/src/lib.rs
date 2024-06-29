@@ -229,10 +229,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
-    pub fn insert(&mut self, at: usize, id: impl Into<Id>) -> Inserter<'_, Id, N> {
+    pub fn insert(&mut self, at: usize, id: Id) -> Inserter<'_, Id, N> {
         Inserter {
             tree: self,
-            id: id.into(),
+            id,
             at,
             width: 0,
             start_flags: Flags::empty(),
@@ -529,7 +529,14 @@ mod builder {
 
         #[track_caller]
         pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = Key>) {
-            self.push_entry(Extent::new(length, keys));
+            let mut keys = keys.into_iter().peekable();
+            match self.entries.last_mut() {
+                Some(last) if keys.peek().is_none() => {
+                    // Merge entries if possible.
+                    last.length = last.length.checked_add(length).unwrap();
+                }
+                _ => self.entries.push(Extent::new(length, keys)),
+            }
         }
 
         #[track_caller]
@@ -545,13 +552,7 @@ mod builder {
 
         #[track_caller]
         pub fn push_entry(&mut self, entry: Extent) {
-            match self.entries.last_mut() {
-                Some(last) if entry.keys.is_empty() => {
-                    // Merge entries if possible.
-                    last.length = last.length.checked_add(entry.length.get()).unwrap();
-                }
-                _ => self.entries.push(entry),
-            }
+            self.push_raw(entry.len(), entry.keys().map(Key::into_raw));
         }
     }
 }
@@ -695,9 +696,10 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
             }
             Replacement::Key(key) => {
                 // We usually expect `start + 1 = end`.
-                // However, if `start == end` then we're inserting at the end of the leaf.
+                // However, if `start == end`,
                 if start == end {
-                    todo!();
+                    // This requires a
+                    todo!()
                 }
 
                 assert_eq!(start + 1, end);
@@ -720,7 +722,7 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                     // Add the chunk of the entry that precedes the replacement range.
                     if start - offset > 0 {
                         builder.push_raw(start - offset, entry.keys);
-                        // Create a new segment for the id to add
+                        // Create a new segment for the id to add, we use length 1 because
                         builder.push(1, [key]);
                     } else {
                         // Otherwise, they can be merged

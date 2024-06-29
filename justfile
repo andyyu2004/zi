@@ -2,7 +2,7 @@ test *FLAGS: build
     mold -run cargo test {{FLAGS}}
 
 run *FLAGS:
-    @RUST_BACKTRACE=1 cargo run -p zi-term {{FLAGS}}
+    @RUST_BACKTRACE=1 cargo run -p zi-term -- {{FLAGS}}
 
 # Trying to build plugins with a standard cargo build results in linker issues hence the exclude
 build *FLAGS: build-plugins

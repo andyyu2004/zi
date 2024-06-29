@@ -99,7 +99,7 @@ fn marktree_id_too_large() {
 fn marktree_delete() {
     let mut tree = new(10);
     tree.insert(0, Id(0));
-    tree.insert(0, 1);
+    tree.insert(0, Id(1));
 
     assert_iter_eq(tree.range(..), [(0..0, Id(0)), (0..0, Id(1))]);
 
@@ -138,8 +138,8 @@ fn marktree_drain_2() {
     tree.drain(3..=3);
     assert_iter_eq(tree.range(..), []);
 
-    tree.insert(0, 0);
-    tree.insert(0, 1);
+    tree.insert(0, Id(0));
+    tree.insert(0, Id(1));
     assert_iter_eq(tree.range(..), [(0..0, Id(0)), (0..0, Id(1))]);
 
     tree.drain(0..0);
@@ -161,7 +161,7 @@ fn marktree_drain_1() {
     assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 10);
 
-    tree.insert(1, 1);
+    tree.insert(1, Id(1));
     assert_iter_eq(tree.range(..), [(1..1, Id(1))]);
     assert_eq!(tree.len(), 10);
 
@@ -199,10 +199,10 @@ fn marktree_simple_insert() {
 
     assert_iter_eq(tree.range(..), [(1..1, Id(0))]);
 
-    tree.insert(1, 1);
+    tree.insert(1, Id(1));
     assert_iter_eq(tree.range(..), [(1..1, Id(0)), (1..1, Id(1))]);
 
-    tree.insert(0, 2);
+    tree.insert(0, Id(2));
     assert_iter_eq(tree.range(..), [(0..0, Id(2)), (1..1, Id(0)), (1..1, Id(1))]);
 }
 
@@ -341,13 +341,13 @@ fn marktree_get() {
     tree.insert(0, Id(0));
     assert_eq!(tree.get(0), Some(0..0));
 
-    tree.insert(3, 1);
+    tree.insert(3, Id(1));
     assert_eq!(tree.get(1), Some(3..3));
 
-    tree.insert(3, 2);
+    tree.insert(3, Id(2));
     assert_eq!(tree.get(2), Some(3..3));
 
-    tree.insert(2, 4);
+    tree.insert(2, Id(4));
     assert_eq!(tree.get(4), Some(2..2));
 
     assert_eq!(tree.get(0), Some(0..0));
@@ -360,7 +360,7 @@ fn marktree_get() {
 #[test]
 fn marktree_duplicate_offsets() {
     let mut tree = new(10);
-    (0..1000).for_each(|i| drop(tree.insert(0, i)));
+    (0..1000).for_each(|i| drop(tree.insert(0, Id(i))));
     assert_iter_eq(tree.range(..), (0..1000).map(|i| (0..0, Id(i))));
     assert_iter_eq(tree.drain(0..=0), (0..1000).map(|i| (0..0, Id(i))));
     assert_iter_eq(tree.range(..), []);
@@ -434,7 +434,27 @@ fn marktree_shift_range_mark() {
 
 #[test]
 fn tmp() {
-    let mut tree = new(4);
-    dbg!(&tree);
-    tree.insert(0, Id(0)).width(4);
+    let mut tree = new(10000);
+    let at = [0, 923, 67, 923];
+    for (i, &at) in at.iter().enumerate() {
+        dbg!(&tree);
+        tree.insert(at, Id(i)).width(1);
+    }
+}
+
+use proptest::collection::vec;
+
+proptest::proptest! {
+    #[test]
+    fn marktree_prop(at in vec(0..1000usize, 0..100), width in vec(1..100usize, 0..100)) {
+        let mut tree = new(10000);
+        for (i, &at) in at.iter().enumerate() {
+            dbg!(&tree);
+            if width.is_empty() {
+                tree.insert(at, Id(i));
+            } else {
+                tree.insert(at, Id(i)).width(width[i % width.len()]);
+            }
+        }
+    }
 }

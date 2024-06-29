@@ -15,6 +15,7 @@ tinyset = { version = "0.4.15", default-features = false }
 [dev-dependencies]
 divan = { workspace = true }
 mimalloc = { workspace = true }
+proptest = { workspace = true }
 
 [lints]
 workspace = true

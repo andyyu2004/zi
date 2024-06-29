@@ -3777,6 +3777,7 @@ dependencies = [
  "crop",
  "divan",
  "mimalloc",
+ "proptest",
  "roaring",
  "smallvec 2.0.0-alpha.6",
  "stdx",
