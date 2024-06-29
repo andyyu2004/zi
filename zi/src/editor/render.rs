@@ -6,7 +6,7 @@ use stdx::merge::Merge;
 use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
-use zi_text::{AnyTextSlice, Text, TextSlice};
+use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
 use crate::editor::Resource;
@@ -138,16 +138,15 @@ impl Editor {
             .marks(relevant_byte_range)
             .filter(|(range, _)| !range.is_empty())
             .filter_map(|(byte_range, mark)| {
-                // return None;
                 let style = mark.highlight().style(theme)?;
                 let point_range = text.byte_range_to_point_range(&byte_range);
                 if !point_range.is_subrange_of(relevant_point_range) {
                     return None;
                 }
-                // TODO how to handle multiline?
-                debug_assert!(point_range.is_subrange_of(relevant_point_range));
-                Some((point_range, style))
-            });
+
+                Some(point_range.explode(text).map(move |range| (range, style)))
+            })
+            .flatten();
 
         // TODO replace bunch of these highlights with a mark impl
 
@@ -201,15 +200,10 @@ impl Editor {
                             Severity::Hint => HighlightName::HINT,
                         };
                         let style = self.highlight_id_by_name(hl_name).style(theme)?;
-                        // Need to truncate multi-line ranges to the first line.
-                        // We extend it to the end of the line.
-                        Some((
-                            diag.range.truncate(|| {
-                                buf.text().line(diag.range.start().line()).unwrap().len_bytes()
-                            }),
-                            style,
-                        ))
+                        // Need to explode out multi-line ranges.
+                        Some(diag.range.explode(buf.text()).map(move |range| (range, style)))
                     })
+                    .flatten()
                     .collect::<Vec<_>>()
             });
 

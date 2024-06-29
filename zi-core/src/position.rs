@@ -122,19 +122,6 @@ impl PointRange {
         self.start.line == self.end.line
     }
 
-    /// Truncate the range to only keep the first line of the range.
-    /// The caller must pass in the desired end column.
-    #[inline]
-    pub fn truncate(&self, mk_end_col: impl FnOnce() -> usize) -> PointRange {
-        if self.is_single_line() {
-            return *self;
-        }
-
-        let range = Self::new(self.start, self.start.with_col(mk_end_col()));
-        debug_assert!(range.is_single_line());
-        range
-    }
-
     #[inline]
     pub fn start(&self) -> Point {
         self.start
@@ -531,6 +518,23 @@ where
             }
         }
     }
+}
+
+#[macro_export]
+macro_rules! point {
+    ($line:literal:$col:literal) => {
+        $crate::Point::new($line, $col)
+    };
+    ($line:expr, $col:expr) => {
+        $crate::Point::new($line, $col)
+    };
+}
+
+#[macro_export]
+macro_rules! point_range {
+    ($start_line:literal:$start_col:literal..$end_line:literal:$end_col:literal) => {
+        $crate::PointRange::new(point!($start_line:$start_col), point!($end_line:$end_col))
+    };
 }
 
 #[cfg(test)]
