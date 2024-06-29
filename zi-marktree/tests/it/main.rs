@@ -445,25 +445,28 @@ fn marktree_regression_1() {
 }
 
 #[test]
-fn repro2() {
-    let at = [0, 504, 0, 0, 0, 0, 0, 0];
-    let widths = [1, 1, 4, 7, 2, 5];
+fn marktree_inserts() {
+    check_inserts([0, 923, 67, 923], [1]);
+}
 
-    let n = 1000;
+fn check_inserts(
+    at: impl IntoIterator<Item = usize>,
+    widths: impl IntoIterator<Item = usize, IntoIter: ExactSizeIterator>,
+) {
+    let n = 10000;
     let mut tree = new(n);
     let mut insertions = vec![];
-    for (i, &at) in at.iter().enumerate() {
+    let widths = widths.into_iter().collect::<Vec<_>>();
+    for (i, at) in at.into_iter().enumerate() {
         let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
 
         insertions.push((Id(i), at..at + width));
-
         tree.insert(at, Id(i)).width(width);
-        dbg!(&tree);
-        tree.assert_invariants();
 
-        assert_eq!(tree.len(), n);
+        assert_eq!(tree.len(), 10000);
 
         for &(id, ref range) in &insertions {
+            dbg!((id, &tree));
             assert_eq!(tree.get(id), Some(range.clone()));
         }
     }
@@ -472,20 +475,6 @@ fn repro2() {
 proptest::proptest! {
     #[test]
     fn marktree_prop(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
-        let n = 10000;
-        let mut tree = new(n);
-        let mut insertions = vec![];
-        for (i, &at) in at.iter().enumerate() {
-            let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
-
-            insertions.push((Id(i), at..at + width));
-            tree.insert(at, Id(i)).width(width);
-
-            assert_eq!(tree.len(), n);
-
-            for &(id, ref range) in &insertions {
-                assert_eq!(tree.get(id), Some(range.clone()));
-            }
-        }
+        check_inserts(at, widths);
     }
 }

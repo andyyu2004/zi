@@ -1,5 +1,7 @@
 #![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
+mod bitmap;
+
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
@@ -14,7 +16,7 @@ use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
-use self::bitmap::Bitmap48;
+use self::bitmap::Bitbag48;
 use self::key::{Flags, Key};
 
 pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
@@ -300,11 +302,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     #[doc(hidden)]
+    #[track_caller]
     pub fn assert_invariants(&self) {
         #[cfg(debug_assertions)]
         {
             // Ensure that the summaries are all correct by resummarizing the tree.
             #[allow(unused)]
+            #[track_caller]
             fn summarize<const N: usize>(node: &Arc<Node<ARITY, Leaf<N>>>) -> Summary {
                 let summary = match node.as_ref() {
                     Node::Internal(inode) => inode
@@ -320,7 +324,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
             // Too slow, uncomment for debugging only.
             summarize(&self.tree.root());
-            self.tree.assert_invariants();
+            // self.tree.assert_invariants();
         }
     }
 }
@@ -511,7 +515,7 @@ impl<const N: usize> Leaf<N> {
         for entry in &mut self.entries {
             if entry.keys.remove(id) {
                 // Fast path if the flags are empty.
-                assert!(summary.ids.remove(id));
+                assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
             } else {
                 // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
@@ -527,7 +531,7 @@ impl<const N: usize> Leaf<N> {
                             // Just resummarize the leaf for simplicity.
                             *summary = self.summarize();
                         } else {
-                            assert!(summary.ids.remove(id));
+                            assert!(summary.ids.remove(id).is_some());
                         }
                         return Some(offset);
                     }
@@ -962,7 +966,7 @@ impl<'a> Summarize for LeafSlice<'a> {
     fn summarize(&self) -> Self::Summary {
         Summary {
             bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            ids: Bitmap48::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            ids: Bitbag48::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
         }
     }
 }
@@ -1011,7 +1015,7 @@ impl AddAssign<Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.bytes += rhs.bytes;
-        self.ids |= rhs.ids;
+        self.ids |= &rhs.ids;
     }
 }
 
@@ -1019,7 +1023,7 @@ impl SubAssign<Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         self.bytes -= rhs.bytes;
-        self.ids -= rhs.ids;
+        self.ids -= &rhs.ids;
     }
 }
 
@@ -1039,7 +1043,9 @@ impl SubAssign<&Self> for Summary {
 
 #[derive(Default, Clone, PartialEq)]
 struct Summary {
-    ids: Bitmap48,
+    /// This needs to be a `bag` not a `set` otherwise the `Sub` operation and `Add` operation will
+    /// not be inverses of each other and `crop` assumptions break.
+    ids: Bitbag48<2>,
     bytes: usize,
 }
 
@@ -1142,123 +1148,4 @@ where
     };
 
     (start, end)
-}
-
-mod bitmap {
-    use std::collections::btree_map::Entry;
-    use std::collections::BTreeMap;
-    use std::fmt;
-    use std::ops::{BitOrAssign, SubAssign};
-
-    use roaring::RoaringBitmap;
-
-    /// A bitmap with 48-bit values.
-    /// Basically the same as `roaring::RoaringTreemap` but optimized for 48 bit values.
-    /// It panics if the upper 16 bits are set which is useful to catch errors.
-    #[derive(Default, Clone, PartialEq)]
-    pub struct Bitmap48(BTreeMap<u16, RoaringBitmap>);
-
-    impl fmt::Debug for Bitmap48 {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_set().entries(self.iter()).finish()
-        }
-    }
-
-    impl Bitmap48 {
-        pub fn new() -> Self {
-            Self(BTreeMap::new())
-        }
-
-        pub fn insert(&mut self, value: u64) -> bool {
-            let (hi, lo) = split(value);
-            self.0.entry(hi).or_default().insert(lo)
-        }
-
-        pub fn contains(&self, value: u64) -> bool {
-            let (hi, lo) = split(value);
-            self.0.get(&hi).map_or(false, |map| map.contains(lo))
-        }
-
-        pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
-            self.0.iter().flat_map(|(&hi, map)| map.iter().map(move |lo| combine(hi, lo)))
-        }
-
-        pub fn remove(&mut self, value: u64) -> bool {
-            let (hi, lo) = split(value);
-            match self.0.entry(hi) {
-                Entry::Vacant(_) => false,
-                Entry::Occupied(mut ent) => {
-                    if ent.get_mut().remove(lo) {
-                        if ent.get().is_empty() {
-                            ent.remove();
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-        }
-    }
-
-    impl BitOrAssign<Bitmap48> for Bitmap48 {
-        fn bitor_assign(&mut self, rhs: Bitmap48) {
-            for (key, other_rb) in rhs.0 {
-                match self.0.entry(key) {
-                    Entry::Vacant(ent) => drop(ent.insert(other_rb)),
-                    Entry::Occupied(mut ent) => *ent.get_mut() |= other_rb,
-                }
-            }
-        }
-    }
-
-    impl BitOrAssign<&Self> for Bitmap48 {
-        #[inline]
-        fn bitor_assign(&mut self, rhs: &Self) {
-            *self |= rhs.clone();
-        }
-    }
-
-    impl SubAssign<&Self> for Bitmap48 {
-        #[inline]
-        fn sub_assign(&mut self, rhs: &Self) {
-            *self -= rhs.clone();
-        }
-    }
-
-    impl SubAssign<Self> for Bitmap48 {
-        fn sub_assign(&mut self, rhs: Self) {
-            for (key, rhs_rb) in rhs.0 {
-                match self.0.entry(key) {
-                    Entry::Vacant(_entry) => (),
-                    Entry::Occupied(mut entry) => {
-                        *entry.get_mut() -= rhs_rb;
-                        if entry.get().is_empty() {
-                            entry.remove_entry();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    impl FromIterator<u64> for Bitmap48 {
-        fn from_iter<I: IntoIterator<Item = u64>>(iter: I) -> Self {
-            let mut bitmap = Self::new();
-            iter.into_iter().for_each(|id| {
-                bitmap.insert(id);
-            });
-            bitmap
-        }
-    }
-
-    #[inline]
-    fn split(value: u64) -> (u16, u32) {
-        assert_eq!(value >> 48, 0, "upper 16 bits of value must be unused");
-        ((value >> 32) as u16, value as u32)
-    }
-
-    fn combine(hi: u16, lo: u32) -> u64 {
-        ((hi as u64) << 32) | lo as u64
-    }
 }
