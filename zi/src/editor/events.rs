@@ -85,7 +85,7 @@ impl Editor {
                 }
             }
 
-            Ok(HandlerResult::Continue)
+            Ok(())
         })
     }
 

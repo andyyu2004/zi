@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use super::*;
 use crate::Client;
 
+/// Analagous to the synchronous `EventHandler`, but for asynchronous events. This currently has
+/// the limitation of not having the unsubscribe functionality that the synchronous version has.
 #[async_trait]
 pub trait AsyncEventHandler: Send + Sync + 'static {
     type Event: AsyncEvent;
@@ -30,10 +32,10 @@ where
         event: &(dyn Any + Send + Sync),
     ) -> AsyncHandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
-            return self.on_event(client.clone(), event.clone()).await;
+            return self.on_event(client, event.clone()).await;
         }
 
-        Ok(HandlerResult::Continue)
+        Ok(())
     }
 }
 

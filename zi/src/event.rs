@@ -107,20 +107,15 @@ impl Registry {
     }
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
-        let handlers = self.async_handlers.pin();
         let id = TypeId::of::<T>();
-        let handlers = handlers.get(&id).map(|handlers| handlers.clone());
+        let handlers = self.async_handlers.pin().get(&id).map(|handlers| handlers.clone());
         if let Some(handlers) = handlers {
             for handler in handlers {
-                match handler.dyn_on_event(client.clone(), &event).await {
-                    Ok(HandlerResult::Continue) => {}
-                    Ok(HandlerResult::Unsubscribe) => {
-                        handlers.remove(&handler);
-                    }
-                    Err(e) => return Err(e),
-                }
+                // Maybe should run the rest of the handlers on failure anyway?
+                handler.dyn_on_event(client.clone(), event).await?;
             }
         }
+
         Ok(())
     }
 }
@@ -134,7 +129,7 @@ pub enum HandlerResult {
     Unsubscribe,
 }
 
-pub type AsyncHandlerResult = Result<HandlerResult>;
+pub type AsyncHandlerResult = Result<()>;
 
 /// Marker trait for a synchronous event.
 pub trait Event: Any + Send + Sync {}

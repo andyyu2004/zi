@@ -49,7 +49,7 @@ use crate::buffer::{
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::config::Setting;
-use crate::event::{AsyncEventHandler, EventHandler, HandlerResult};
+use crate::event::{AsyncEventHandler, EventHandler};
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
