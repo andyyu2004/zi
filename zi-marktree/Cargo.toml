@@ -9,11 +9,7 @@ bitflags = { workspace = true }
 crop = { workspace = true }
 smallvec = { workspace = true }
 stdx = { workspace = true }
-rustc-hash = { workspace = true }
-measureme = { workspace = true }
-hashbag = "0.1.12"
 tinyset = { version = "0.4.15", default-features = false }
-roaring = { version = "0.10.5", features = ["simd"] }
 croaring = "1.1.0"
 
 [dev-dependencies]

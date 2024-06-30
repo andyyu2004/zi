@@ -361,12 +361,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
-name = "bytemuck"
-version = "1.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b236fc92302c97ed75b38da1f4917b5cdda4984745740f153a5d3059e48d725e"
-
-[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1285,14 +1279,8 @@ dependencies = [
  "grep-matcher",
  "log",
  "memchr",
- "memmap2 0.9.4",
+ "memmap2",
 ]
-
-[[package]]
-name = "hashbag"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98f494b2060b2a8f5e63379e1e487258e014cee1b1725a735816c0107a2e9d93"
 
 [[package]]
 name = "hashbrown"
@@ -1587,20 +1575,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "measureme"
-version = "12.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ed2d26a61b68ba37bf203340b6b6addf4da2c2e7cfb0cff700792088d69ebc9"
-dependencies = [
- "log",
- "memmap2 0.2.3",
- "parking_lot",
- "perf-event-open-sys",
- "rustc-hash",
- "smallvec 1.13.2",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1613,15 +1587,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2cffa4ad52c6f791f4f8b15f0c05f9824b2ced1160e88cc393d64fff9a8ac64"
 dependencies = [
  "rustix",
-]
-
-[[package]]
-name = "memmap2"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "723e3ebdcdc5c023db1df315364573789f8857c11b631a2fdfad7c00f5c046b4"
-dependencies = [
- "libc",
 ]
 
 [[package]]
@@ -1843,15 +1808,6 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
-
-[[package]]
-name = "perf-event-open-sys"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b29be2ba35c12c6939f6bc73187f728bba82c3c062ecdc5fa90ea739282a1f58"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "pin-project-lite"
@@ -2205,16 +2161,6 @@ checksum = "58450723cd9ee93273ce44a20b6ec4efe17f8ed2e3631474387bfdecf18bb2a9"
 dependencies = [
  "num-traits",
  "rmp",
-]
-
-[[package]]
-name = "roaring"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7699249cc2c7d71939f30868f47e9d7add0bdc030d90ee10bfd16887ff8bb1c8"
-dependencies = [
- "bytemuck",
- "byteorder",
 ]
 
 [[package]]
@@ -3888,12 +3834,8 @@ dependencies = [
  "croaring",
  "crop",
  "divan",
- "hashbag",
- "measureme",
  "mimalloc",
  "proptest",
- "roaring",
- "rustc-hash",
  "smallvec 2.0.0-alpha.6",
  "stdx",
  "tinyset",
@@ -3935,7 +3877,7 @@ dependencies = [
  "crop",
  "dyn-clone",
  "expect-test",
- "memmap2 0.9.4",
+ "memmap2",
  "proptest",
  "regex-cursor",
  "stdx",

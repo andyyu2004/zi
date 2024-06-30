@@ -11,65 +11,12 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use measureme::Profiler;
 use smallvec::SmallVec;
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
 use self::bitbag::Bitbag;
 use self::key::{Flags, Key};
-
-thread_local! {
-    static PROFILER: Profiler = Profiler::new("/tmp/zi-marktree.mm_profdata").unwrap();
-}
-
-fn summarize_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("summarize"))
-}
-
-fn summarize_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(summarize_event_kind())
-}
-
-fn outer_replace_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("outer_replace"))
-}
-
-fn add_assign_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("add_assign"))
-}
-
-fn add_assign_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(add_assign_event_kind())
-}
-
-fn sub_assign_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("sub_assign"))
-}
-
-fn sub_assign_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(sub_assign_event_kind())
-}
-
-fn outer_replace_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(outer_replace_event_kind())
-}
-
-fn replace_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("replace"))
-}
-
-fn replace_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(replace_event_kind())
-}
-
-fn insert_event_kind() -> measureme::StringId {
-    PROFILER.with(|profiler| profiler.alloc_string("insert"))
-}
-
-fn insert_event_id() -> measureme::EventId {
-    measureme::EventId::from_label(insert_event_kind())
-}
 
 pub trait MarkTreeId: Copy + Eq + From<u32> + Into<u32> + fmt::Debug + 'static {}
 
@@ -365,19 +312,11 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {
-        PROFILER.with(|profiler| {
-            let _guard = profiler.start_recording_interval_event(
-                outer_replace_event_kind(),
-                outer_replace_event_id(),
-                0,
-            );
-
-            let initial_len = self.len();
-            let k = replace_with.width();
-            let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-            self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
-            debug_assert_eq!(self.len() + end, initial_len + start + k);
-        })
+        let initial_len = self.len();
+        let k = replace_with.width();
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
+        debug_assert_eq!(self.len() + end, initial_len + start + k);
     }
 
     #[doc(hidden)]
@@ -454,46 +393,37 @@ impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
 
 impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
     fn drop(&mut self) {
-        PROFILER.with(|profiler| {
-            let _guard =
-                profiler.start_recording_interval_event(insert_event_kind(), insert_event_id(), 0);
+        let id = self.id.into();
+        let at = self.at;
+        let n = self.tree.len();
 
-            let id = self.id.into();
-            let at = self.at;
-            let n = self.tree.len();
+        if self.tree.tree.summary().ids.contains(id) {
+            // if self.tree.tree.summary().ids.contains(&id) > 0 {
+            self.tree.delete(id).unwrap();
+        }
 
-            if self.tree.tree.summary().ids.contains(id) {
-                // if self.tree.tree.summary().ids.contains(&id) > 0 {
-                self.tree.delete(id).unwrap();
-            }
+        assert!(
+            at + self.width <= self.tree.len(),
+            "range {at}..{} out of bounds of marktree of length {}",
+            self.at + self.width,
+            self.tree.len(),
+        );
 
-            assert!(
-                at + self.width <= self.tree.len(),
-                "range {at}..{} out of bounds of marktree of length {}",
-                self.at + self.width,
-                self.tree.len(),
-            );
+        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.start_flags)));
+        assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
 
-            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.start_flags)));
+        if self.start_flags.contains(Flags::RANGE) {
+            assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
+            let at = at + self.width;
+            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.end_flags)));
             assert_eq!(
                 self.tree.len(),
                 n,
-                "first insertion should not change the length of the tree"
+                "second insertion should not change the length of the tree"
             );
+        }
 
-            if self.start_flags.contains(Flags::RANGE) {
-                assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
-                let at = at + self.width;
-                self.tree.replace(at..at, Replacement::Key(Key::new(id, self.end_flags)));
-                assert_eq!(
-                    self.tree.len(),
-                    n,
-                    "second insertion should not change the length of the tree"
-                );
-            }
-
-            self.tree.assert_invariants();
-        })
+        self.tree.assert_invariants();
     }
 }
 
@@ -790,178 +720,170 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
     where
         R: RangeBounds<ByteMetric>,
     {
-        PROFILER.with(|profiler| {
-            let _guard = profiler.start_recording_interval_event(
-                replace_event_kind(),
-                replace_event_id(),
-                0,
-            );
+        debug_assert_eq!(*summary, self.summarize());
+        let n = summary.bytes;
+        let (start, end) = range_bounds_to_start_end(range, 0, n);
+        debug_assert!(end <= n, "end <= n ({end} <= {n})");
 
-            debug_assert_eq!(*summary, self.summarize());
-            let n = summary.bytes;
-            let (start, end) = range_bounds_to_start_end(range, 0, n);
-            debug_assert!(end <= n, "end <= n ({end} <= {n})");
+        let mut builder = builder::EntryBuilder::<N>::default();
+        let mut keys = SetU64::default();
+        match replace_with {
+            Replacement::Gap(gap) => {
+                let mut gap = Some(gap);
 
-            let mut builder = builder::EntryBuilder::<N>::default();
-            let mut keys = SetU64::default();
-            match replace_with {
-                Replacement::Gap(gap) => {
-                    let mut gap = Some(gap);
+                let mut offset = 0;
+                for entry in self.entries.take() {
+                    let entry_end = offset + entry.len();
+                    let k = entry.len();
 
-                    let mut offset = 0;
-                    for entry in self.entries.take() {
-                        let entry_end = offset + entry.len();
-                        let k = entry.len();
+                    if entry_end < start || offset > end {
+                        // If the entry range does not intersect the replacement range just copy
+                        builder.push_entry(entry);
+                        offset += k;
 
-                        if entry_end < start || offset > end {
-                            // If the entry range does not intersect the replacement range just copy
-                            builder.push_entry(entry);
-                            offset += k;
+                        continue;
+                    }
 
-                            continue;
+                    keys = keys | &entry.keys;
+
+                    match start.cmp(&offset) {
+                        cmp::Ordering::Greater => {
+                            // The offset is before the start of the replacement range.
+                            // Copy the chunk of the entry that precedes the replacement range.
+                            builder.push_raw(start - offset, keys.drain())
                         }
+                        cmp::Ordering::Equal => {
+                            // The interval starts exactly at offset, move it to the right by pushing the gap first.
+                            let gap = gap.take().unwrap();
+                            if gap > 0 {
+                                let (left_biased, right_biased) =
+                                    keys.drain().partition::<SetU64, _>(|&key| {
+                                        Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
+                                    });
 
-                        keys = keys | &entry.keys;
+                                keys = right_biased;
 
-                        match start.cmp(&offset) {
-                            cmp::Ordering::Greater => {
-                                // The offset is before the start of the replacement range.
-                                // Copy the chunk of the entry that precedes the replacement range.
-                                builder.push_raw(start - offset, keys.drain())
-                            }
-                            cmp::Ordering::Equal => {
-                                // The interval starts exactly at offset, move it to the right by pushing the gap first.
-                                let gap = gap.take().unwrap();
-                                if gap > 0 {
-                                    let (left_biased, right_biased) =
-                                        keys.drain().partition::<SetU64, _>(|&key| {
-                                            Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
-                                        });
-
-                                    keys = right_biased;
-
-                                    builder.push_raw(gap, left_biased);
-                                }
-                            }
-                            cmp::Ordering::Less => {
-                                if let Some(gap) = gap.take() {
-                                    builder.push_gap(gap);
-                                }
+                                builder.push_raw(gap, left_biased);
                             }
                         }
-
-                        if entry_end > end {
+                        cmp::Ordering::Less => {
                             if let Some(gap) = gap.take() {
                                 builder.push_gap(gap);
                             }
-                            // If the entry extends beyond the replacement,
-                            // push the remaining (right-biased only?) keys after.
-                            builder.push_raw(entry_end - end, keys.drain());
                         }
-
-                        offset += k;
                     }
 
-                    if let Some(gap) = gap {
-                        builder.push_raw(gap, keys)
-                    } else if !keys.is_empty() {
-                        builder.push_raw(0, keys);
+                    if entry_end > end {
+                        if let Some(gap) = gap.take() {
+                            builder.push_gap(gap);
+                        }
+                        // If the entry extends beyond the replacement,
+                        // push the remaining (right-biased only?) keys after.
+                        builder.push_raw(entry_end - end, keys.drain());
                     }
+
+                    offset += k;
                 }
-                Replacement::Key(key) => {
-                    assert_eq!(start, end);
-                    let mut key = Some(key);
 
-                    let mut offset = 0;
-                    for entry in self.entries.take() {
-                        let entry_end = offset + entry.len();
-                        let k = entry.len();
-
-                        if start == offset {
-                            if let Some(key) = key.take() {
-                                builder.push(0, [key]);
-                            }
-                        }
-
-                        if entry_end <= start || offset >= end {
-                            // If the entry range does not intersect the replacement range just copy
-                            builder.push_entry(entry);
-                            offset += k;
-                            continue;
-                        }
-
-                        // Therefore: offset < end && start < entry_end
-
-                        let key = key.take().unwrap();
-
-                        if start - offset > 0 {
-                            // The current entry extends beyond the start of the replacement range.
-                            // Add the chunk of the entry that precedes the replacement range.
-                            builder.push_raw(start - offset, entry.keys);
-                            // Push a new entry for the key with length 0.
-                            builder.push(0, [key]);
-                        } else {
-                            debug_assert_eq!(start, offset);
-                            // Otherwise, they can be merged
-                            let mut keys = entry.keys;
-                            assert!(keys.insert(key.into_raw()));
-                            builder.push_raw(start - offset, keys);
-                        }
-
-                        if entry_end > end {
-                            builder.push_gap(entry_end - end);
-                        }
-
-                        offset += k;
-                    }
-
-                    if let Some(key) = key {
-                        builder.push(0, [key]);
-                    }
-
-                    debug_assert_eq!(
-                        builder.entries().iter().map(|entry| entry.len()).sum::<usize>(),
-                        n,
-                        "adding an item should not change the total length of the leaf"
-                    );
+                if let Some(gap) = gap {
+                    builder.push_raw(gap, keys)
+                } else if !keys.is_empty() {
+                    builder.push_raw(0, keys);
                 }
-            };
-
-            let entries = builder.finish();
-            let mut chunks = entries.array_chunks::<N>();
-            let (chunk, used_remainder) = match chunks.next() {
-                Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-                None => (
-                    ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
-                    true,
-                ),
-            };
-
-            self.entries = chunk;
-            assert!(!self.entries.is_empty());
-
-            *summary = self.summarize();
-
-            if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
-                return None;
             }
+            Replacement::Key(key) => {
+                assert_eq!(start, end);
+                let mut key = Some(key);
 
-            let rem = if chunks.remainder().is_empty() {
-                None
-            } else {
-                Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
-            };
+                let mut offset = 0;
+                for entry in self.entries.take() {
+                    let entry_end = offset + entry.len();
+                    let k = entry.len();
 
-            Some(
-                chunks
-                    .cloned()
-                    .map(ArrayVec::from)
-                    .exact_chain(rem)
-                    .map(Leaf::from)
-                    .collect::<SmallVec<_, 1>>()
-                    .into_iter(),
-            )
-        })
+                    if start == offset {
+                        if let Some(key) = key.take() {
+                            builder.push(0, [key]);
+                        }
+                    }
+
+                    if entry_end <= start || offset >= end {
+                        // If the entry range does not intersect the replacement range just copy
+                        builder.push_entry(entry);
+                        offset += k;
+                        continue;
+                    }
+
+                    // Therefore: offset < end && start < entry_end
+
+                    let key = key.take().unwrap();
+
+                    if start - offset > 0 {
+                        // The current entry extends beyond the start of the replacement range.
+                        // Add the chunk of the entry that precedes the replacement range.
+                        builder.push_raw(start - offset, entry.keys);
+                        // Push a new entry for the key with length 0.
+                        builder.push(0, [key]);
+                    } else {
+                        debug_assert_eq!(start, offset);
+                        // Otherwise, they can be merged
+                        let mut keys = entry.keys;
+                        assert!(keys.insert(key.into_raw()));
+                        builder.push_raw(start - offset, keys);
+                    }
+
+                    if entry_end > end {
+                        builder.push_gap(entry_end - end);
+                    }
+
+                    offset += k;
+                }
+
+                if let Some(key) = key {
+                    builder.push(0, [key]);
+                }
+
+                debug_assert_eq!(
+                    builder.entries().iter().map(|entry| entry.len()).sum::<usize>(),
+                    n,
+                    "adding an item should not change the total length of the leaf"
+                );
+            }
+        };
+
+        let entries = builder.finish();
+        let mut chunks = entries.array_chunks::<N>();
+        let (chunk, used_remainder) = match chunks.next() {
+            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
+            None => (
+                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+                true,
+            ),
+        };
+
+        self.entries = chunk;
+        assert!(!self.entries.is_empty());
+
+        *summary = self.summarize();
+
+        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+            return None;
+        }
+
+        let rem = if chunks.remainder().is_empty() {
+            None
+        } else {
+            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+        };
+
+        Some(
+            chunks
+                .cloned()
+                .map(ArrayVec::from)
+                .exact_chain(rem)
+                .map(Leaf::from)
+                .collect::<SmallVec<_, 1>>()
+                .into_iter(),
+        )
     }
 
     #[inline]
@@ -1079,18 +1001,11 @@ impl<'a> Summarize for LeafSlice<'a> {
 
     #[inline]
     fn summarize(&self) -> Self::Summary {
-        PROFILER.with(|profiler| {
-            let _guard = profiler.start_recording_interval_event(
-                summarize_event_kind(),
-                summarize_event_id(),
-                0,
-            );
-            Summary {
-                bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-                // ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
-                ids: FromIterator::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
-            }
-        })
+        Summary {
+            bytes: self.entries.iter().map(|entry| entry.len()).sum(),
+            // ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            ids: FromIterator::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+        }
     }
 }
 
@@ -1135,16 +1050,7 @@ impl AddAssign<&Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
         self.bytes += rhs.bytes;
-        PROFILER.with(|profiler| {
-            let _guard = profiler.start_recording_interval_event(
-                add_assign_event_kind(),
-                add_assign_event_id(),
-                0,
-            );
-
-            self.ids |= &rhs.ids;
-            // self.ids.extend(rhs.ids.set_iter());
-        })
+        self.ids |= &rhs.ids;
     }
 }
 
@@ -1152,18 +1058,7 @@ impl SubAssign<&Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
         self.bytes -= rhs.bytes;
-        PROFILER.with(|profiler| {
-            let _guard = profiler.start_recording_interval_event(
-                sub_assign_event_kind(),
-                sub_assign_event_id(),
-                0,
-            );
-
-            self.ids -= &rhs.ids;
-            // for (id, count) in rhs.ids.set_iter() {
-            //     self.ids.remove_up_to(id, count);
-            // }
-        })
+        self.ids -= &rhs.ids;
     }
 }
 
@@ -1171,9 +1066,7 @@ impl SubAssign<&Self> for Summary {
 struct Summary {
     /// This needs to be a `bag` not a `set` otherwise the `Sub` operation and `Add` operation will
     /// not be inverses of each other and `crop` assumptions break.
-    // ids: HashBag<u32, BuildHasherDefault<FxHasher>>,
     ids: Bitbag,
-    // ids: RoaringBitmap,
     bytes: usize,
 }
 
