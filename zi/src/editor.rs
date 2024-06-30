@@ -89,6 +89,7 @@ type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
 
 struct SemanticTokens {
     last_request_id: Option<String>,
+    buf_version: u32,
     server: LanguageServerId,
     legend: lsp_types::SemanticTokensLegend,
     tokens: Vec<lsp_types::SemanticToken>,

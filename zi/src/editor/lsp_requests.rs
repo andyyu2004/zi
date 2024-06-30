@@ -401,7 +401,8 @@ impl Editor {
     ) -> Option<impl Future<Output = zi_lsp::Result<()>>> {
         let buf = selector.select(self);
 
-        tracing::info!(?buf, "requesting semantic tokens");
+        let buf_version = self.buffers[buf].version();
+        tracing::info!(?buf, buf_version, "requesting semantic tokens");
 
         let client = self.client();
 
@@ -440,6 +441,7 @@ impl Editor {
                     // If the server is different (e.g. the prior one died), we need to clear the tokens.
                     entry.insert(SemanticTokens {
                         server,
+                        buf_version,
                         legend: caps.legend.clone(),
                         tokens: Default::default(),
                         last_request_id: None,
@@ -449,6 +451,7 @@ impl Editor {
             }
             Entry::Vacant(entry) => entry.insert(SemanticTokens {
                 server,
+                buf_version,
                 legend: caps.legend.clone(),
                 tokens: Default::default(),
                 last_request_id: None,
@@ -514,6 +517,7 @@ impl Editor {
                                 },
                                 None => {
                                     cache.last_request_id = None;
+                                    cache.buf_version = buf_version;
                                     cache.tokens.clear();
                                 }
                             }
@@ -531,6 +535,7 @@ impl Editor {
                                 Some(res) => match res {
                                     lsp_types::SemanticTokensResult::Tokens(tokens) => {
                                         cache.last_request_id = tokens.result_id;
+                                        cache.buf_version = buf_version;
                                         cache.tokens = tokens.data;
                                     }
                                     lsp_types::SemanticTokensResult::Partial(_) => {
@@ -539,6 +544,7 @@ impl Editor {
                                 },
                                 None => {
                                     cache.last_request_id = None;
+                                    cache.buf_version = buf_version;
                                     cache.tokens.clear();
                                 }
                             }
@@ -570,6 +576,7 @@ impl Editor {
                     tracing::warn!(?url, "ignoring non-file related document diagnostics");
                     continue;
                 };
+
                 match related {
                     lsp_types::DocumentDiagnosticReportKind::Full(report) => {
                         client

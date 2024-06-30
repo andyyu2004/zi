@@ -164,10 +164,15 @@ impl Editor {
                     return Ok(());
                 }
 
+                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
+                if cache.buf_version != editor[buf].version() {
+                    return Ok(());
+                }
+
                 let ns = editor.create_namespace("semantic-tokens");
                 editor[buf].clear_marks(ns, ..);
-                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
 
+                let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
                 let Some(server) = editor.active_language_servers.get(&cache.server) else {
                     return Ok(());
                 };
