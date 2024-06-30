@@ -757,7 +757,7 @@ impl Editor {
         render(self)?;
 
         let mut requests = pin!(requests.fuse().peekable());
-        let mut callbacks = pin!(callbacks.buffer_unordered(16).peekable());
+        let mut callbacks = pin!(callbacks.buffer_unordered(128).peekable());
 
         let mut events = pin!(events);
         loop {
