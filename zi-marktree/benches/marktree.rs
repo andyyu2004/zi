@@ -28,10 +28,12 @@ impl From<u64> for Id {
 
 impl MarkTreeId for Id {}
 
+const LEAF_SIZE: usize = 12;
+
 #[divan::bench]
 fn bench_marktree_insert(bencher: Bencher<'_, '_>) {
     bencher.bench_local(move || {
-        let mut tree = MarkTree::<Id, 8>::new(100_000);
+        let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
         (0..2_000).for_each(|i| drop(tree.insert(i, Id(i))));
     });
 }
@@ -40,7 +42,7 @@ fn bench_marktree_insert(bencher: Bencher<'_, '_>) {
 fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
     bencher
         .with_inputs(|| {
-            let mut tree = MarkTree::<Id, 8>::new(100_000);
+            let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
             (0..2_000).for_each(|i| drop(tree.insert(i, Id(i))));
             tree
         })
@@ -51,7 +53,7 @@ fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
 
 #[divan::bench]
 fn bench_marktree_get(bencher: Bencher<'_, '_>) {
-    let mut tree = MarkTree::<Id, 8>::new(100_000);
+    let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
     (0..20000).for_each(|i| drop(tree.insert(i, Id(i))));
 
     bencher.bench_local(move || {

@@ -45,7 +45,7 @@ pub(crate) struct Marks {
 struct PerNs {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkId, 16>,
+    tree: MarkTree<MarkId, 12>,
 }
 
 impl PerNs {
