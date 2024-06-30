@@ -58,6 +58,18 @@ fn marktree_empty() {
 }
 
 #[test]
+fn marktree_shift_end_equal_start() {
+    let mut tree = new(5);
+    tree.insert(0, Id(0)).width(2);
+    assert_iter_eq(tree.range(..), [(0..2, Id(0))]);
+    tree.shift(0..2, 0);
+    assert_eq!(tree.len(), 3);
+    assert_iter_eq(tree.range(..), [(0..0, Id(0))]);
+    assert_eq!(tree.delete(Id(0)), Some(0..0));
+    assert_iter_eq(tree.range(..), []);
+}
+
+#[test]
 fn marktree_range_iter() {
     let mut tree = new(1000);
     tree.insert(0, Id(0));

@@ -971,13 +971,6 @@ impl<'a> LeafSlice<'a> {
                 // Otherwise, scan
                 for key in entry.keys() {
                     if key.id() == id {
-                        let flags = key.flags();
-                        if flags.contains(Flags::RANGE) {
-                            assert!(
-                                flags.contains(Flags::END),
-                                "get_right should return the end if it's a range key: {key:?} {self:?}"
-                            );
-                        }
                         return Some(offset + entry.len());
                     }
                 }
