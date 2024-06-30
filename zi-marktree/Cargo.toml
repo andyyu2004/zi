@@ -13,6 +13,7 @@ rustc-hash = { workspace = true }
 measureme = { workspace = true }
 hashbag = "0.1.12"
 tinyset = { version = "0.4.15", default-features = false }
+roaring = { version = "0.10.5", features = ["simd"] }
 
 [dev-dependencies]
 divan = { workspace = true }
