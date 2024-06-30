@@ -15,9 +15,9 @@ slotmap::new_key_type! {
 }
 
 impl Buffer {
-    pub(crate) fn create_mark(&mut self, builder: MarkBuilder) -> MarkId {
+    pub(crate) fn create_mark(&mut self, namespace: NamespaceId, builder: MarkBuilder) -> MarkId {
         let n = self.text().len_bytes();
-        self.marks.create(n, builder)
+        self.marks.create(n, namespace, builder)
     }
 
     pub(crate) fn clear_marks(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
@@ -112,10 +112,14 @@ impl From<MarkId> for u32 {
 }
 
 impl Marks {
-    pub fn create(&mut self, text_len: usize, builder: MarkBuilder) -> MarkId {
-        let ns = builder.namespace;
+    pub(crate) fn create(
+        &mut self,
+        text_len: usize,
+        namespace: NamespaceId,
+        builder: MarkBuilder,
+    ) -> MarkId {
         debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
-        self.namespaces.entry(ns).or_insert_with(|| PerNs::new(text_len)).create(builder)
+        self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len)).create(builder)
     }
 
     pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {
@@ -150,7 +154,6 @@ impl Marks {
 }
 
 pub struct MarkBuilder {
-    namespace: NamespaceId,
     hl: HighlightId,
     byte: usize,
     width: usize,
@@ -193,9 +196,8 @@ pub struct Mark {
 
 impl Mark {
     #[inline]
-    pub fn builder(namespace: NamespaceId, byte: usize) -> MarkBuilder {
+    pub fn builder(byte: usize) -> MarkBuilder {
         MarkBuilder {
-            namespace,
             byte,
             width: 0,
             start_bias: Bias::Right,

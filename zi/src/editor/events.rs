@@ -206,12 +206,12 @@ impl Editor {
                         )?;
                         let start = text.point_to_byte(point);
                         // TODO need to convert this length to the right encoding too...
-                        Some(Mark::builder(ns, start).width(token.length as usize).hl(hl))
+                        Some(Mark::builder(start).width(token.length as usize).hl(hl))
                     })
                     .collect::<Vec<_>>();
 
                 for mark in marks {
-                    editor[buf].create_mark(mark);
+                    editor[buf].create_mark(ns, mark);
                 }
 
                 tracing::info!(time = ?start.elapsed(), "semantic tokens refreshed");

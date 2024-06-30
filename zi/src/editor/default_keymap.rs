@@ -267,10 +267,10 @@ pub(super) fn new() -> Keymap {
         let cursor = editor.cursor(Active);
         let byte = editor.buffer(Active).text().point_to_byte(cursor);
         let hl = editor.highlight_id_by_name(crate::syntax::HighlightName::ERROR);
-        let ns = editor.default_namespace();
         editor.create_mark(
             Active,
-            Mark::builder(ns, byte).hl(hl).width(5).start_bias(zi_marktree::Bias::Left),
+            editor.default_namespace(),
+            Mark::builder(byte).hl(hl).width(5).start_bias(zi_marktree::Bias::Left),
         );
     }
 

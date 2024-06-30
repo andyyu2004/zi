@@ -27,9 +27,11 @@ impl Editor {
     pub fn create_mark(
         &mut self,
         selector: impl Selector<BufferId>,
+        namespace: impl Selector<NamespaceId>,
         builder: MarkBuilder,
     ) -> MarkId {
-        self.buffer_mut(selector).create_mark(builder)
+        let namespace = namespace.select(self);
+        self.buffer_mut(selector).create_mark(namespace, builder)
     }
 
     #[inline]
