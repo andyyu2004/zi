@@ -167,10 +167,8 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
-        let initial_len = self.len();
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        self.tree.replace(ByteMetric(start)..ByteMetric(end), Replacement::Gap(by));
-        debug_assert_eq!(self.len() + end, initial_len + by + start);
+        self.replace(range, Replacement::Gap(by));
+        self.tree.assert_invariants();
     }
 
     /// Returns an iterator over the items whose start point is in the given range.
@@ -298,12 +296,17 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             return Some(start..start);
         }
 
-        Some(start..del(root, 0, id))
+        let range = start..del(root, 0, id);
+        self.tree.assert_invariants();
+        Some(range)
     }
 
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {
+        let initial_len = self.len();
+        let k = replace_with.width();
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         self.tree.replace(ByteMetric(start)..ByteMetric(end), replace_with);
+        debug_assert_eq!(self.len() + end, initial_len + start + k);
     }
 
     #[doc(hidden)]
@@ -330,6 +333,9 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             // Too slow, uncomment for debugging only.
             // summarize(&self.tree.root());
             // self.tree.assert_invariants();
+            // for &id in &self.tree.summary().ids {
+            //     self.get(id).expect("id in summary but not found");
+            // }
         }
     }
 }
@@ -397,7 +403,6 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
 
         self.tree.replace(at..at, Replacement::Key(Key::new(id, self.start_flags)));
         assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
-        self.tree.assert_invariants();
 
         if self.start_flags.contains(Flags::RANGE) {
             assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
@@ -408,8 +413,9 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
                 n,
                 "second insertion should not change the length of the tree"
             );
-            self.tree.assert_invariants();
         }
+
+        self.tree.assert_invariants();
     }
 }
 
@@ -419,6 +425,15 @@ enum Replacement {
     // Invariant, `Key` can only be used as a replacement if the range is empty.
     // The replacement range is `byte..byte`
     Key(Key),
+}
+
+impl Replacement {
+    fn width(&self) -> usize {
+        match self {
+            Replacement::Gap(n) => *n,
+            Replacement::Key(_) => 0,
+        }
+    }
 }
 
 pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
@@ -900,9 +915,15 @@ impl<const N: usize> AsSlice for Leaf<N> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct LeafSlice<'a> {
     entries: &'a [Extent],
+}
+
+impl fmt::Debug for LeafSlice<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.entries.fmt(f)
+    }
 }
 
 impl<'a> Default for LeafSlice<'a> {
@@ -950,7 +971,13 @@ impl<'a> LeafSlice<'a> {
                 // Otherwise, scan
                 for key in entry.keys() {
                     if key.id() == id {
-                        assert!(key.flags().contains(Flags::END));
+                        let flags = key.flags();
+                        if flags.contains(Flags::RANGE) {
+                            assert!(
+                                flags.contains(Flags::END),
+                                "get_right should return the end if it's a range key: {key:?} {self:?}"
+                            );
+                        }
                         return Some(offset + entry.len());
                     }
                 }

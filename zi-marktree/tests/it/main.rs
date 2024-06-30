@@ -449,6 +449,7 @@ fn marktree_regression_1() {
 
 #[test]
 fn marktree_inserts() {
+    check_inserts([0], [1]);
     check_inserts([0, 923, 67, 923], [1]);
 }
 
