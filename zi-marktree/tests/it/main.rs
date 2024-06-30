@@ -1,4 +1,8 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::{fmt, iter};
