@@ -210,11 +210,9 @@ impl Editor {
                     })
                     .collect::<Vec<_>>();
 
-                for mark in marks {
-                    editor[buf].create_mark(ns, mark);
-                }
+                editor.create_marks(buf, ns, marks);
 
-                tracing::info!(time = ?start.elapsed(), "semantic tokens refreshed");
+                tracing::debug!(time = ?start.elapsed(), "created marks from semantic tokens");
 
                 Ok(())
             })

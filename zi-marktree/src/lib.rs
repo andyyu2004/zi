@@ -398,7 +398,6 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         let n = self.tree.len();
 
         if self.tree.tree.summary().ids.contains(id) {
-            // if self.tree.tree.summary().ids.contains(&id) > 0 {
             self.tree.delete(id).unwrap();
         }
 

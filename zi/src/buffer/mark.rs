@@ -20,6 +20,14 @@ impl Buffer {
         self.marks.create(n, namespace, builder)
     }
 
+    pub(crate) fn create_marks(
+        &mut self,
+        namespace: NamespaceId,
+        builders: impl IntoIterator<Item = MarkBuilder>,
+    ) {
+        self.marks.create_many(self.text().len_bytes(), namespace, builders)
+    }
+
     pub(crate) fn clear_marks(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
         self.marks.drain(ns, range)
     }
@@ -64,7 +72,7 @@ impl PerNs {
     }
 
     fn create(&mut self, builder: MarkBuilder) -> MarkId {
-        let MarkBuilder { start_bias, end_bias, byte, width, .. } = builder;
+        let MarkBuilder { start_bias, end_bias, byte, width, hl: _ } = builder;
         let id = self.marks.insert_with_key(|id| builder.build(id));
         self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
         id
@@ -120,6 +128,19 @@ impl Marks {
     ) -> MarkId {
         debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
         self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len)).create(builder)
+    }
+
+    pub(crate) fn create_many(
+        &mut self,
+        text_len: usize,
+        namespace: NamespaceId,
+        builders: impl IntoIterator<Item = MarkBuilder>,
+    ) {
+        debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
+        let per_ns = self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len));
+        builders.into_iter().for_each(|builder| {
+            per_ns.create(builder);
+        });
     }
 
     pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {

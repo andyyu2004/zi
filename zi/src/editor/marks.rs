@@ -35,6 +35,17 @@ impl Editor {
     }
 
     #[inline]
+    pub fn create_marks(
+        &mut self,
+        selector: impl Selector<BufferId>,
+        namespace: impl Selector<NamespaceId>,
+        builders: impl IntoIterator<Item = MarkBuilder>,
+    ) {
+        let namespace = namespace.select(self);
+        self.buffer_mut(selector).create_marks(namespace, builders)
+    }
+
+    #[inline]
     pub fn delete_mark(
         &mut self,
         selector: impl Selector<BufferId>,
