@@ -683,6 +683,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "croaring"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "611eaefca84c93e431ad82dfb848f6e05a99e25148384f45a3852b0fbe1c8086"
+dependencies = [
+ "byteorder",
+ "croaring-sys",
+]
+
+[[package]]
+name = "croaring-sys"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e5fed89265a702f0085844237a7ebbadf8a7c42de6304fddca30a5013f9aecb"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "crop"
 version = "0.4.2"
 dependencies = [
@@ -3866,6 +3885,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags 2.6.0",
+ "croaring",
  "crop",
  "divan",
  "hashbag",

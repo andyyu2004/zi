@@ -237,12 +237,6 @@ fn marktree_split() {
 }
 
 #[test]
-fn marktree_insert_tmp() {
-    let mut tree = MarkTree::<Id, 12>::new(100_000);
-    (0..10_000).for_each(|i| drop(tree.insert(i, Id(i))));
-}
-
-#[test]
 fn marktree_bulk_insert() {
     #[track_caller]
     fn check<const N: usize>() {

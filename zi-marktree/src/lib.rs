@@ -1,7 +1,8 @@
 #![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
+mod bitbag;
+
 use std::collections::VecDeque;
-use std::hash::BuildHasherDefault;
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Range, RangeBounds, Sub, SubAssign};
 use std::{cmp, fmt, iter};
@@ -10,18 +11,24 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use hashbag::HashBag;
 use measureme::Profiler;
-use roaring::RoaringBitmap;
-use rustc_hash::FxHasher;
 use smallvec::SmallVec;
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
+use self::bitbag::Bitbag;
 use self::key::{Flags, Key};
 
 thread_local! {
     static PROFILER: Profiler = Profiler::new("/tmp/zi-marktree.mm_profdata").unwrap();
+}
+
+fn summarize_event_kind() -> measureme::StringId {
+    PROFILER.with(|profiler| profiler.alloc_string("summarize"))
+}
+
+fn summarize_event_id() -> measureme::EventId {
+    measureme::EventId::from_label(summarize_event_kind())
 }
 
 fn outer_replace_event_kind() -> measureme::StringId {
@@ -600,7 +607,8 @@ impl<const N: usize> Leaf<N> {
         for entry in &mut self.entries {
             if entry.keys.remove(id as u64) {
                 // Fast path if the flags are empty.
-                assert!(summary.ids.remove(id));
+                summary.ids.remove(id);
+                // assert!(summary.ids.remove(id));
                 // assert!(summary.ids.remove(&id) > 0);
                 return Some(offset);
             } else {
@@ -618,7 +626,8 @@ impl<const N: usize> Leaf<N> {
                             *summary = self.summarize();
                         } else {
                             // assert!(summary.ids.remove(&id) > 0);
-                            assert!(summary.ids.remove(id));
+                            // assert!(summary.ids.remove(id));
+                            summary.ids.remove(id);
                         }
                         return Some(offset);
                     }
@@ -1070,11 +1079,18 @@ impl<'a> Summarize for LeafSlice<'a> {
 
     #[inline]
     fn summarize(&self) -> Self::Summary {
-        Summary {
-            bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            // ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
-            ids: RoaringBitmap::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
-        }
+        PROFILER.with(|profiler| {
+            let _guard = profiler.start_recording_interval_event(
+                summarize_event_kind(),
+                summarize_event_id(),
+                0,
+            );
+            Summary {
+                bytes: self.entries.iter().map(|entry| entry.len()).sum(),
+                // ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+                ids: FromIterator::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            }
+        })
     }
 }
 
@@ -1118,6 +1134,7 @@ impl AddAssign<Self> for Summary {
 impl AddAssign<&Self> for Summary {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
+        self.bytes += rhs.bytes;
         PROFILER.with(|profiler| {
             let _guard = profiler.start_recording_interval_event(
                 add_assign_event_kind(),
@@ -1125,7 +1142,6 @@ impl AddAssign<&Self> for Summary {
                 0,
             );
 
-            self.bytes += rhs.bytes;
             self.ids |= &rhs.ids;
             // self.ids.extend(rhs.ids.set_iter());
         })
@@ -1135,6 +1151,7 @@ impl AddAssign<&Self> for Summary {
 impl SubAssign<&Self> for Summary {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
+        self.bytes -= rhs.bytes;
         PROFILER.with(|profiler| {
             let _guard = profiler.start_recording_interval_event(
                 sub_assign_event_kind(),
@@ -1142,7 +1159,6 @@ impl SubAssign<&Self> for Summary {
                 0,
             );
 
-            self.bytes -= rhs.bytes;
             self.ids -= &rhs.ids;
             // for (id, count) in rhs.ids.set_iter() {
             //     self.ids.remove_up_to(id, count);
@@ -1156,7 +1172,8 @@ struct Summary {
     /// This needs to be a `bag` not a `set` otherwise the `Sub` operation and `Add` operation will
     /// not be inverses of each other and `crop` assumptions break.
     // ids: HashBag<u32, BuildHasherDefault<FxHasher>>,
-    ids: RoaringBitmap,
+    ids: Bitbag,
+    // ids: RoaringBitmap,
     bytes: usize,
 }
 

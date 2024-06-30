@@ -40,14 +40,6 @@ fn bench_marktree_insert(bencher: Bencher<'_, '_>) {
 }
 
 #[divan::bench]
-fn bench_marktree_insert2(bencher: Bencher<'_, '_>) {
-    bencher.bench_local(move || {
-        let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
-        (0..10_000).for_each(|i| drop(tree.insert(i, Id(i))));
-    });
-}
-
-#[divan::bench]
 fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
     bencher
         .with_inputs(|| {
