@@ -4,16 +4,16 @@ use super::*;
 use crate::Client;
 
 #[async_trait]
-pub trait AsyncEventHandler: Send + 'static {
+pub trait AsyncEventHandler: Send + Sync + 'static {
     type Event: AsyncEvent;
 
-    async fn on_event(&mut self, client: Client, event: Self::Event) -> AsyncHandlerResult;
+    async fn on_event(&self, client: Client, event: Self::Event) -> AsyncHandlerResult;
 }
 
 #[async_trait]
 pub(super) trait ErasedAsyncEventHandler: Send + 'static {
     async fn dyn_on_event(
-        &mut self,
+        &self,
         client: Client,
         event: &(dyn Any + Send + Sync),
     ) -> AsyncHandlerResult;
@@ -25,7 +25,7 @@ where
     H: AsyncEventHandler,
 {
     async fn dyn_on_event(
-        &mut self,
+        &self,
         client: Client,
         event: &(dyn Any + Send + Sync),
     ) -> AsyncHandlerResult {
@@ -39,19 +39,27 @@ where
 
 struct AsyncHandlerFunc<F, Fut, E> {
     f: F,
-    _marker: std::marker::PhantomData<(Fut, E)>,
+    _marker: std::marker::PhantomData<(fn() -> Fut, fn() -> E)>,
+}
+
+/// `Fut` shouldn't need to be sync for the handler to be sync
+unsafe impl<F, Fut, E> Sync for AsyncHandlerFunc<F, Fut, E>
+where
+    F: Sync,
+    E: Sync,
+{
 }
 
 #[async_trait]
 impl<F, E, Fut> AsyncEventHandler for AsyncHandlerFunc<F, Fut, E>
 where
-    F: FnMut(Client, E) -> Fut + Send + 'static,
+    F: Fn(Client, E) -> Fut + Send + Sync + 'static,
     E: AsyncEvent,
     Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
     type Event = E;
 
-    async fn on_event(&mut self, client: Client, event: E) -> AsyncHandlerResult {
+    async fn on_event(&self, client: Client, event: E) -> AsyncHandlerResult {
         (self.f)(client, event).await
     }
 }
@@ -59,7 +67,7 @@ where
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
 pub(crate) fn async_handler<E, Fut>(
-    f: impl FnMut(Client, E) -> Fut + Send + 'static,
+    f: impl Fn(Client, E) -> Fut + Send + Sync + 'static,
 ) -> impl AsyncEventHandler<Event = E>
 where
     E: AsyncEvent,
@@ -68,21 +76,21 @@ where
     AsyncHandlerFunc::<_, Fut, E> { f, _marker: std::marker::PhantomData }
 }
 
-pub trait EventHandler: Send + 'static {
+pub trait EventHandler: Send + Sync + 'static {
     type Event: Event;
 
-    fn on_event(&mut self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
+    fn on_event(&self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
 }
 
 pub(super) trait ErasedEventHandler: Send + 'static {
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
+    fn dyn_on_event(&self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
 }
 
 impl<H> ErasedEventHandler for H
 where
     H: EventHandler,
 {
-    fn dyn_on_event(&mut self, editor: &mut Editor, event: &dyn Event) -> HandlerResult {
+    fn dyn_on_event(&self, editor: &mut Editor, event: &dyn Event) -> HandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
             return self.on_event(editor, event);
         }
@@ -98,12 +106,12 @@ struct HandlerFunc<F, E> {
 
 impl<F, E> EventHandler for HandlerFunc<F, E>
 where
-    F: FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
+    F: Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
     E: Event,
 {
     type Event = E;
 
-    fn on_event(&mut self, editor: &mut Editor, event: &E) -> HandlerResult {
+    fn on_event(&self, editor: &mut Editor, event: &E) -> HandlerResult {
         (self.f)(editor, event)
     }
 }
@@ -111,7 +119,7 @@ where
 /// Create a new event handler from a closure.
 // Can't find a way to implement this as a blanket impl
 pub(crate) fn handler<E: Event>(
-    f: impl FnMut(&mut Editor, &E) -> HandlerResult + Send + 'static,
+    f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
 ) -> impl EventHandler<Event = E> {
     HandlerFunc { f, _marker: std::marker::PhantomData }
 }
