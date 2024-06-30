@@ -12,16 +12,17 @@ fn main() {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Id(usize);
 
-impl From<Id> for u64 {
+impl From<Id> for u32 {
     #[inline]
-    fn from(id: Id) -> u64 {
-        id.0 as u64
+    fn from(id: Id) -> u32 {
+        debug_assert!(id.0 < u32::MAX as usize);
+        id.0 as u32
     }
 }
 
-impl From<u64> for Id {
+impl From<u32> for Id {
     #[inline]
-    fn from(id: u64) -> Id {
+    fn from(id: u32) -> Id {
         Id(id as usize)
     }
 }

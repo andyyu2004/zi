@@ -15,16 +15,17 @@ use zi_marktree::{Bias, Inserter, MarkTree, MarkTreeId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Id(usize);
 
-impl From<Id> for u64 {
+impl From<Id> for u32 {
     #[inline]
-    fn from(id: Id) -> u64 {
-        id.0 as u64
+    fn from(id: Id) -> u32 {
+        debug_assert!(id.0 < u32::MAX as usize, "id.0 = {}", id.0);
+        id.0 as u32
     }
 }
 
-impl From<u64> for Id {
+impl From<u32> for Id {
     #[inline]
-    fn from(id: u64) -> Id {
+    fn from(id: u32) -> Id {
         Id(id as usize)
     }
 }
@@ -99,12 +100,6 @@ fn marktree_range_iter() {
     assert_iter_eq(tree.range(20..40), (20..40).map(|i| (i..i, Id(i))));
     assert_iter_eq(tree.range(80..100), (80..100).map(|i| (i..i, Id(i))));
     assert_iter_eq(tree.range(80..=100), (80..100).map(|i| (i..i, Id(i))));
-}
-
-#[test]
-fn marktree_id_not_too_large() {
-    let mut tree = new(10);
-    tree.insert(0, Id(1 << 47));
 }
 
 #[test]
@@ -239,6 +234,12 @@ fn marktree_split() {
     let mut tree = new(100);
     (0..100).for_each(|i| drop(tree.insert(i, Id(i))));
     assert_iter_eq(tree.range(..), (0..100).map(|i| (i..i, Id(i))));
+}
+
+#[test]
+fn marktree_insert_tmp() {
+    let mut tree = MarkTree::<Id, 12>::new(100_000);
+    (0..10_000).for_each(|i| drop(tree.insert(i, Id(i))));
 }
 
 #[test]

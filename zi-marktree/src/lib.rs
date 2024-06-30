@@ -63,7 +63,7 @@ fn insert_event_id() -> measureme::EventId {
     measureme::EventId::from_label(insert_event_kind())
 }
 
-pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
+pub trait MarkTreeId: Copy + Eq + From<u32> + Into<u32> + fmt::Debug + 'static {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Bias {
@@ -307,7 +307,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         fn del<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
-            id: u64,
+            id: u32,
         ) -> usize {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
@@ -444,9 +444,6 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
             let at = self.at;
             let n = self.tree.len();
 
-            // Check upper 16 bits are clear
-            assert_eq!(id >> 48, 0, "upper 16 bits of id must be unused");
-
             if self.tree.tree.summary().ids.contains(&id) > 0 {
                 self.tree.delete(id).unwrap();
             }
@@ -549,7 +546,7 @@ impl Extent {
         Self { length, keys: ids.into_iter().map(Key::into_raw).collect() }
     }
 
-    fn ids(&self) -> impl Iterator<Item = u64> + '_ {
+    fn ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.keys().map(Key::id)
     }
 
@@ -576,20 +573,20 @@ impl<const N: usize> fmt::Debug for Leaf<N> {
 
 impl<const N: usize> Leaf<N> {
     #[inline]
-    fn get_left(&self, id: u64) -> Option<usize> {
+    fn get_left(&self, id: u32) -> Option<usize> {
         self.as_slice().get_left(id)
     }
 
     #[inline]
-    fn get_right(&self, id: u64) -> Option<usize> {
+    fn get_right(&self, id: u32) -> Option<usize> {
         self.as_slice().get_right(id)
     }
 
-    fn delete(&mut self, summary: &mut Summary, id: u64) -> Option<usize> {
+    fn delete(&mut self, summary: &mut Summary, id: u32) -> Option<usize> {
         let mut offset = 0;
 
         for entry in &mut self.entries {
-            if entry.keys.remove(id) {
+            if entry.keys.remove(id as u64) {
                 // Fast path if the flags are empty.
                 assert!(summary.ids.remove(&id) > 0);
                 return Some(offset);
@@ -700,7 +697,7 @@ mod key {
 
     bitflags::bitflags! {
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct Flags: u16 {
+        pub struct Flags: u32 {
             const BIAS_LEFT = 1 << 0;
             // If the key is part of a range pair.
             const RANGE = 1 << 1;
@@ -715,7 +712,8 @@ mod key {
         }
     }
 
-    /// Key encodes the 48-bit id and 16-bit flags.
+    /// Key encodes the 32-bit id and 32-bit flags.
+    // We don't nearly need 32-bits of flag space, but we're keeping the id small to allow for optimizations.
     #[derive(Clone, Copy)]
     pub(super) struct Key(u64);
 
@@ -726,21 +724,21 @@ mod key {
     }
 
     impl Key {
-        const FLAG_BITS: usize = 16;
+        const FLAG_BITS: usize = 32;
         const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
 
-        pub fn new(id: u64, flag: Flags) -> Self {
-            Self(id | ((flag.bits() as u64) << 48))
+        pub fn new(id: u32, flag: Flags) -> Self {
+            Self(id as u64 | ((flag.bits() as u64) << 32))
         }
 
         #[inline]
-        pub fn id(self) -> u64 {
-            self.0 << Self::FLAG_BITS >> Self::FLAG_BITS
+        pub fn id(self) -> u32 {
+            self.0 as u32
         }
 
         #[inline]
         pub fn flags(self) -> Flags {
-            Flags::from_bits((self.0 >> Self::ID_BITS) as u16).unwrap()
+            Flags::from_bits((self.0 >> Self::ID_BITS) as u32).unwrap()
         }
 
         #[inline]
@@ -1006,10 +1004,10 @@ impl<'a> Default for LeafSlice<'a> {
 impl<'a> LeafSlice<'a> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
-    fn get_left(&self, id: u64) -> Option<usize> {
+    fn get_left(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
         for entry in self.entries {
-            if entry.keys.contains(id) {
+            if entry.keys.contains(id as u64) {
                 // Fast path if the flags are empty.
                 return Some(offset);
             } else {
@@ -1030,11 +1028,11 @@ impl<'a> LeafSlice<'a> {
 
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is the distance to the end of the leaf node.
-    fn get_right(&self, id: u64) -> Option<usize> {
+    fn get_right(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
 
         for entry in self.entries.iter().rev() {
-            if entry.keys.contains(id) {
+            if entry.keys.contains(id as u64) {
                 // Fast path if the flags are empty.
                 return Some(offset + entry.len());
             } else {
@@ -1140,7 +1138,7 @@ impl SubAssign<&Self> for Summary {
 struct Summary {
     /// This needs to be a `bag` not a `set` otherwise the `Sub` operation and `Add` operation will
     /// not be inverses of each other and `crop` assumptions break.
-    ids: HashBag<u64, BuildHasherDefault<FxHasher>>,
+    ids: HashBag<u32, BuildHasherDefault<FxHasher>>,
     bytes: usize,
 }
 

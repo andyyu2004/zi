@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::{Range, RangeBounds};
 
 use itertools::Itertools;
-use slotmap::{Key, KeyData, SlotMap};
+use slotmap::{Key, SlotMap};
 use zi_marktree::{Bias, MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
@@ -83,17 +83,20 @@ impl PerNs {
     }
 }
 
-impl From<u64> for MarkId {
+impl From<u32> for MarkId {
     #[inline]
-    fn from(id: u64) -> MarkId {
-        MarkId::from(KeyData::from_ffi(id))
+    fn from(_id: u32) -> MarkId {
+        todo!()
+        // MarkId::from(KeyData::from_ffi(id))
     }
 }
 
-impl From<MarkId> for u64 {
+impl From<MarkId> for u32 {
     #[inline]
-    fn from(id: MarkId) -> u64 {
-        id.data().as_ffi()
+    fn from(id: MarkId) -> u32 {
+        let _raw = id.data().as_ffi();
+        // Take the first 16 of the upper 32 bits and the lower 32 bits
+        todo!()
     }
 }
 
