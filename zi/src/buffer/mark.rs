@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::{Range, RangeBounds};
 
 use itertools::Itertools;
-use slotmap::{Key, SlotMap};
+use slotmap::{Key, KeyData, SlotMap};
 use zi_marktree::{Bias, MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
@@ -45,7 +45,7 @@ pub(crate) struct Marks {
 struct PerNs {
     marks: SlotMap<MarkId, Mark>,
     // TODO pick some less arbitrary number
-    tree: MarkTree<MarkId, 12>,
+    tree: MarkTree<MarkId, 32>,
 }
 
 impl PerNs {
@@ -83,26 +83,33 @@ impl PerNs {
     }
 }
 
+/// We're packing the 64bit `slotmap::KeyData` into 32 bits.
+/// Usually the upper 32-bits are for the version and the lower 32-bits are for the index.
+/// In practice, 12-bits should be enough for the version, and 20-bits for the index.
+impl MarkTreeId for MarkId {}
+
 impl From<u32> for MarkId {
     #[inline]
-    fn from(_id: u32) -> MarkId {
-        todo!()
-        // MarkId::from(KeyData::from_ffi(id))
+    fn from(raw: u32) -> MarkId {
+        let version = raw >> 20;
+        let index = raw << 12 >> 12;
+        MarkId::from(KeyData::from_ffi((version as u64) << 32 | index as u64))
     }
 }
 
 impl From<MarkId> for u32 {
     #[inline]
     fn from(id: MarkId) -> u32 {
-        let _raw = id.data().as_ffi();
-        // Take the first 16 of the upper 32 bits and the lower 32 bits
-        todo!()
+        let raw = id.data().as_ffi();
+        let version = raw >> 32;
+        let index = raw << 32 >> 32;
+
+        assert!(version < 1 << 12, "version is too large");
+        assert!(index < 1 << 20, "index is too large");
+
+        (version << 20 | index) as u32
     }
 }
-
-// This is ok in practice since the upper 32 bits are used to store versions which is
-// never going to be that high.
-impl MarkTreeId for MarkId {}
 
 impl Marks {
     pub fn create(&mut self, text_len: usize, builder: MarkBuilder) -> MarkId {
