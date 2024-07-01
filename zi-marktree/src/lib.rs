@@ -665,15 +665,17 @@ impl<const N: usize> Leaf<N> {
         at: usize,
         key: Key,
     ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
-        let mut offset = 0;
-
+        debug_assert!(at <= summary.bytes);
         if at == summary.bytes {
             // Trying to insert at the end. Just propogate the new key up.
             let array = ArrayVec::<_, N>::from_iter([Extent::new(0, [key])]);
             return Some(smallvec![Leaf::from(array)].into_iter());
         }
 
-        for i in 0..self.extents.len() {
+        // We search from right-to-left because usually insertions happen in increasing order by range.
+        let mut offset = summary.bytes;
+        for i in (0..self.extents.len()).rev() {
+            offset -= self.extents[i].len();
             if at == offset {
                 // There is an existing extent that exactly matches the insertion point.
                 // Just add the new key to the extent and return.
@@ -682,7 +684,7 @@ impl<const N: usize> Leaf<N> {
                 break;
             }
 
-            if offset + self.extents[i].len() > at {
+            if offset < at {
                 // The extent covers the insertion point.
                 // Split the extent into two and add the key to the second extent.
                 let rem = self.extents[i].length - (at - offset);
@@ -718,8 +720,6 @@ impl<const N: usize> Leaf<N> {
                 }
                 break;
             }
-
-            offset += self.extents[i].len();
         }
 
         None
