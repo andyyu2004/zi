@@ -1,4 +1,4 @@
-#![feature(anonymous_lifetime_in_impl_trait)]
+#![feature(anonymous_lifetime_in_impl_trait, is_sorted)]
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -34,10 +34,10 @@ impl MarkTreeId for Id {}
 
 #[track_caller]
 fn assert_iter_eq<T: Eq + fmt::Debug + 'static>(
-    values: impl Iterator<Item = T>,
+    values: impl IntoIterator<Item = T>,
     expected: impl IntoIterator<Item = T>,
 ) {
-    let values = values.collect::<Vec<_>>();
+    let values = values.into_iter().collect::<Vec<_>>();
     let expected = expected.into_iter().collect::<Vec<_>>();
     assert_eq!(values, expected);
 }
@@ -470,6 +470,14 @@ fn marktree_inserts() {
 fn marktree_build() {
     check_build(100, [0], [1]);
     check_build(100, [1], [1]);
+    check_build(
+        1000,
+        [
+            41, 1, 31, 74, 28, 34, 18, 78, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,
+        ],
+        [1, 1],
+    );
 }
 
 proptest::proptest! {
@@ -548,10 +556,23 @@ fn check_build(
     let tree = MarkTree::<Id, 4>::build(n, insertions);
 
     // builder should produce the same tree as manual insertions
-    let actual = tree.range(..);
+    let mut actual = tree.range(..).collect::<Vec<_>>();
+    assert!(actual.is_sorted_by_key(|(range, _)| range.start));
+
     let mut expected = check_inserts(n, at, widths).range(..).collect::<Vec<_>>();
-    // We need to explicitly sort because we don't guarantee the order of the end points if the start points are equal.
-    expected.sort_by(|(a, _), (b, _)| a.start.cmp(&b.start).then_with(|| a.end.cmp(&b.end)));
+    assert!(expected.is_sorted_by_key(|(range, _)| range.start));
+
+    // We need to explicitly sort because we don't guarantee the order of the end points
+    // if the start points are equal.
+    // Similarly, if both start and end points are equal, we don't guarantee ordering about ids.
+
+    actual.sort_by(|(a, x), (b, y)| {
+        a.start.cmp(&b.start).then_with(|| a.end.cmp(&b.end)).then_with(|| x.cmp(y))
+    });
+    expected.sort_by(|(a, x), (b, y)| {
+        a.start.cmp(&b.start).then_with(|| a.end.cmp(&b.end)).then_with(|| x.cmp(y))
+    });
+
     assert_iter_eq(actual, expected);
     tree
 }

@@ -3,11 +3,11 @@ use std::iter;
 use std::marker::PhantomData;
 
 use arrayvec::ArrayVec;
-use crop::tree::{Arc, Inode, Lnode, Node, Tree};
+use crop::tree::TreeBuilder;
 use tinyset::SetU64;
 
 use crate::key::{Flags, Key};
-use crate::{Bias, Extent, Inserter, Leaf, MarkTree, MarkTreeId, ARITY};
+use crate::{Bias, Extent, Inserter, Leaf, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MarkBuilder {
@@ -78,10 +78,10 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
             }
         }
 
-        let mut insertions = vec![];
+        let mut extents = vec![];
         let (&offset, _) = map.first_key_value().expect("insertions is non-empty");
         if offset > 0 {
-            insertions.push((offset, SetU64::new()));
+            extents.push(Extent { length: offset, keys: SetU64::new() });
         }
 
         let next_offsets = map
@@ -90,38 +90,27 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
             .skip(1)
             .chain(iter::once(len))
             .collect::<Vec<_>>();
-        insertions.extend(
-            map.into_iter()
-                .zip(next_offsets)
-                .map(|((start_offset, keys), end_offset)| (end_offset - start_offset, keys)),
-        );
 
-        let root = from_sorted(&insertions);
-        let tree = Tree::from(root);
-        let tree = Self { tree, _id: PhantomData };
+        assert_eq!(next_offsets.len(), map.len());
+        extents.extend(map.into_iter().zip(next_offsets).map(
+            |((start_offset, keys), end_offset)| Extent { length: end_offset - start_offset, keys },
+        ));
+
+        let mut builder = TreeBuilder::new();
+        let mut chunks = extents.into_iter().array_chunks::<N>();
+        for leaf in chunks.by_ref().map(ArrayVec::from).map(Leaf::from) {
+            builder.append(leaf);
+        }
+
+        if let Some(rem) = chunks.into_remainder() {
+            let array = ArrayVec::from_iter(rem);
+            builder.append(Leaf::from(array));
+        }
+
+        let tree = Self { tree: builder.build(), _id: PhantomData };
 
         assert_eq!(tree.len(), len);
 
         tree
     }
-}
-
-fn from_sorted<const N: usize>(inputs: &[(usize, SetU64)]) -> Arc<Node<ARITY, Leaf<N>>> {
-    if inputs.len() > N {
-        // Split into ARITY number of chunks and recurse
-        let chunk_size =
-            if inputs.len() % ARITY == 0 { inputs.len() / ARITY } else { 1 + inputs.len() / ARITY };
-
-        return Arc::new(Node::Internal(Inode::from_children(
-            inputs.chunks(chunk_size).map(|chunk| from_sorted(chunk)),
-        )));
-    }
-
-    // build a leaf node
-    let mut extents = ArrayVec::<Extent, N>::new();
-    for &(length, ref keys) in inputs {
-        extents.push(Extent { length, keys: keys.clone() });
-    }
-
-    return Arc::new(Node::Leaf(Lnode::from(Leaf { extents })));
 }
