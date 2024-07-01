@@ -1,4 +1,4 @@
-#![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
+#![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers, iter_map_windows)]
 
 mod bitbag;
 mod builder;
@@ -66,7 +66,7 @@ impl<Id: MarkTreeId, const N: usize> fmt::Debug for MarkTree<Id, N> {
 impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Creates a new `MarkTree` appropriate for a text of length `n`.
     pub fn new(n: usize) -> Self {
-        assert!(n > 0, "MarkTree must have a non-zero length");
+        // assert!(n > 0, "MarkTree must have a non-zero length");
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
         this.replace(0..0, Replacement::Gap(n));
         this

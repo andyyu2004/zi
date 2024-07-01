@@ -10,7 +10,7 @@ use std::{fmt, iter};
 use proptest::collection::vec;
 use proptest::strategy::{BoxedStrategy, Strategy};
 use proptest::{prop_compose, prop_oneof};
-use zi_marktree::{Bias, Inserter, MarkTree, MarkTreeId};
+use zi_marktree::{Bias, Inserter, MarkBuilder, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Id(usize);
@@ -460,58 +460,27 @@ fn marktree_regression_1() {
 
 #[test]
 fn marktree_inserts() {
-    check_inserts([1, 2], [2, 2]);
-    check_inserts([1], []);
-    check_inserts([0], [1]);
-    check_inserts([0, 923, 67, 923], [1]);
+    check_inserts(100, [1, 2], [2, 2]);
+    check_inserts(100, [1], []);
+    check_inserts(100, [0], [1]);
+    check_inserts(10000, [0, 923, 67, 923], [1]);
 }
 
-fn check_inserts(
-    at: impl IntoIterator<Item = usize>,
-    widths: impl IntoIterator<Item = usize, IntoIter: ExactSizeIterator>,
-) {
-    let n = 10000;
-    let mut tree = new(n);
-    let mut insertions = BTreeMap::new();
-    let widths = widths.into_iter().collect::<Vec<_>>();
-    for (i, at) in at.into_iter().enumerate() {
-        let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
-
-        assert!(insertions.insert(Id(i), at..at + width).is_none());
-        tree.insert(at, Id(i)).width(width);
-
-        assert_eq!(tree.len(), 10000);
-
-        for (&id, range) in &insertions {
-            assert_eq!(tree.get(id), Some(range.clone()));
-        }
-    }
-}
-
-#[derive(Debug)]
-enum Action {
-    Insert { at: usize, width: usize, id: Id },
-    Delete(Id),
-}
-
-prop_compose! {
-    fn arb_action_insert()(
-        at in 0..1000usize,
-        width in 1..100usize,
-        id in 0..100usize,
-    ) -> Action {
-        Action::Insert { at, width, id: Id(id) }
-    }
-}
-
-fn arb_action() -> BoxedStrategy<Action> {
-    prop_oneof![arb_action_insert(), (0..1000usize).prop_map(Id).prop_map(Action::Delete)].boxed()
+#[test]
+fn marktree_build() {
+    check_build(100, [0], [1]);
+    check_build(100, [1], [1]);
 }
 
 proptest::proptest! {
     #[test]
     fn marktree_prop_insert(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 0..100)) {
-        check_inserts(at, widths);
+        check_inserts(10000, at, widths);
+    }
+
+    #[test]
+    fn marktree_prop_build(at in vec(0..1000usize, 0..100), widths in vec(1..100usize, 1..100)) {
+        check_build(10000, at, widths);
     }
 
     #[test]
@@ -537,4 +506,72 @@ proptest::proptest! {
             }
         }
     }
+}
+
+fn check_inserts(
+    n: usize,
+    at: impl IntoIterator<Item = usize>,
+    widths: impl IntoIterator<Item = usize>,
+) -> MarkTree<Id, 4> {
+    let mut tree = new(n);
+    let mut insertions = BTreeMap::new();
+    let widths = widths.into_iter().collect::<Vec<_>>();
+    for (i, at) in at.into_iter().enumerate() {
+        let width = if widths.is_empty() { 0 } else { widths[i % widths.len()] };
+
+        assert!(insertions.insert(Id(i), at..at + width).is_none());
+        tree.insert(at, Id(i)).width(width);
+
+        assert_eq!(tree.len(), n, "mark insertion should never change length of tree");
+
+        for (&id, range) in &insertions {
+            assert_eq!(tree.get(id), Some(range.clone()));
+        }
+    }
+
+    tree
+}
+
+fn check_build(
+    n: usize,
+    at: impl IntoIterator<Item = usize>,
+    widths: impl IntoIterator<Item = usize>,
+) -> MarkTree<Id, 4> {
+    let at = at.into_iter().collect::<Vec<_>>();
+    let widths = widths.into_iter().collect::<Vec<_>>();
+    let insertions = at
+        .iter()
+        .zip(widths.iter().cycle())
+        .enumerate()
+        .map(|(id, (&at, &width))| (Id(id), MarkBuilder::new(at).width(width)));
+
+    let tree = MarkTree::<Id, 4>::build(n, insertions);
+
+    // builder should produce the same tree as manual insertions
+    let actual = tree.range(..);
+    let mut expected = check_inserts(n, at, widths).range(..).collect::<Vec<_>>();
+    // We need to explicitly sort because we don't guarantee the order of the end points if the start points are equal.
+    expected.sort_by(|(a, _), (b, _)| a.start.cmp(&b.start).then_with(|| a.end.cmp(&b.end)));
+    assert_iter_eq(actual, expected);
+    tree
+}
+
+#[derive(Debug)]
+enum Action {
+    Insert { at: usize, width: usize, id: Id },
+    Delete(Id),
+}
+
+prop_compose! {
+    fn arb_action_insert()(
+        at in 0..1000usize,
+        width in 1..100usize,
+        id in 0..100usize,
+    ) -> Action {
+        Action::Insert { at, width, id: Id(id) }
+    }
+}
+
+fn arb_action() -> BoxedStrategy<Action> {
+    prop_oneof![arb_action_insert(), (0..1000usize).prop_map(Id).prop_map(Action::Delete)].boxed()
 }
