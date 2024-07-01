@@ -18,7 +18,7 @@ use stdx::range::RangeExt;
 use tinyset::SetU64;
 
 use self::bitbag::Bitbag;
-use self::builder::Builder;
+pub use self::builder::MarkBuilder;
 use self::extent_builder::ExtentBuilder;
 use self::key::{Flags, Key};
 
@@ -70,10 +70,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
         this.replace(0..0, Replacement::Gap(n));
         this
-    }
-
-    pub fn builder() -> Builder<N> {
-        Builder::new()
     }
 
     #[inline]
@@ -243,16 +239,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Inserts an item based on its byte position.
     /// This does not affect `self.len()`.
     pub fn insert(&mut self, at: usize, id: Id) -> Inserter<'_, Id, N> {
-        Inserter {
-            tree: self,
-            ins: Insertion {
-                id: id.into(),
-                at,
-                width: 0,
-                start_flags: Flags::empty(),
-                end_flags: Flags::END,
-            },
-        }
+        Inserter { tree: self, id, builder: MarkBuilder::new(at) }
     }
 
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
@@ -349,52 +336,31 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 #[derive(Debug)]
 pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
-    ins: Insertion,
-}
-
-#[derive(Debug)]
-struct Insertion {
-    at: usize,
-    id: u32,
-    width: usize,
-    start_flags: Flags,
-    end_flags: Flags,
+    id: Id,
+    builder: MarkBuilder,
 }
 
 impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
     pub fn start_bias(mut self, bias: Bias) -> Self {
-        match bias {
-            Bias::Left => self.ins.start_flags.insert(Flags::BIAS_LEFT),
-            Bias::Right => self.ins.start_flags.remove(Flags::BIAS_LEFT),
-        }
+        self.builder = self.builder.start_bias(bias);
         self
     }
 
     pub fn end_bias(mut self, bias: Bias) -> Self {
-        match bias {
-            Bias::Left => self.ins.end_flags.insert(Flags::BIAS_LEFT),
-            Bias::Right => self.ins.end_flags.remove(Flags::BIAS_LEFT),
-        }
+        self.builder = self.builder.end_bias(bias);
         self
     }
 
     pub fn width(mut self, width: usize) -> Self {
-        if width > 0 {
-            self.ins.start_flags.insert(Flags::RANGE);
-            self.ins.end_flags.insert(Flags::RANGE);
-        } else {
-            self.ins.start_flags.remove(Flags::RANGE);
-            self.ins.end_flags.remove(Flags::RANGE);
-        }
-        self.ins.width = width;
+        self.builder = self.builder.width(width);
         self
     }
 }
 
 impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
     fn drop(&mut self) {
-        let id = self.ins.id.into();
-        let at = self.ins.at;
+        let id = self.id.into();
+        let at = self.builder.at;
         let n = self.tree.len();
 
         if self.tree.tree.summary().ids.contains(id) {
@@ -402,19 +368,19 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         }
 
         assert!(
-            at + self.ins.width <= self.tree.len(),
+            at + self.builder.width <= self.tree.len(),
             "range {at}..{} out of bounds of marktree of length {}",
-            self.ins.at + self.ins.width,
+            self.builder.at + self.builder.width,
             self.tree.len(),
         );
 
-        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.ins.start_flags)));
+        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.builder.start_flags)));
         assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
 
-        if self.ins.start_flags.contains(Flags::RANGE) {
-            assert!(self.ins.end_flags.contains(Flags::RANGE | Flags::END));
-            let at = at + self.ins.width;
-            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.ins.end_flags)));
+        if self.builder.start_flags.contains(Flags::RANGE) {
+            assert!(self.builder.end_flags.contains(Flags::RANGE | Flags::END));
+            let at = at + self.builder.width;
+            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.builder.end_flags)));
             assert_eq!(
                 self.tree.len(),
                 n,

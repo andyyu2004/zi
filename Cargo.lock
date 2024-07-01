@@ -698,7 +698,7 @@ dependencies = [
 [[package]]
 name = "crop"
 version = "0.4.2"
-source = "git+https://github.com/andyyu2004/crop?branch=main#7c2ac10f6654c5e0a77c908f0bb8e79c672c89cd"
+source = "git+https://github.com/andyyu2004/crop?branch=main#9633279ef97cfc60de2c0ea2a13f8ecf0e91f6a8"
 dependencies = [
  "arrayvec",
  "str_indices",
@@ -2263,9 +2263,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.119"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8eddb61f0697cc3989c5d64b452f5488e2b8a60fd7d5076a3045076ffef8cb0"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "itoa",
  "ryu",

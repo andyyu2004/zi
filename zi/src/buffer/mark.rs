@@ -72,9 +72,9 @@ impl PerNs {
     }
 
     fn create(&mut self, builder: MarkBuilder) -> MarkId {
-        let MarkBuilder { start_bias, end_bias, byte, width, hl: _ } = builder;
         let id = self.marks.insert_with_key(|id| builder.build(id));
-        self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
+        builder.builder.insert(&mut self.tree, id);
+        // self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
         id
     }
 
@@ -174,12 +174,10 @@ impl Marks {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct MarkBuilder {
     hl: HighlightId,
-    byte: usize,
-    width: usize,
-    start_bias: Bias,
-    end_bias: Bias,
+    builder: zi_marktree::MarkBuilder,
 }
 
 impl MarkBuilder {
@@ -189,17 +187,17 @@ impl MarkBuilder {
     }
 
     pub fn width(mut self, width: usize) -> Self {
-        self.width = width;
+        self.builder = self.builder.width(width);
         self
     }
 
     pub fn start_bias(mut self, bias: Bias) -> Self {
-        self.start_bias = bias;
+        self.builder = self.builder.start_bias(bias);
         self
     }
 
     pub fn end_bias(mut self, bias: Bias) -> Self {
-        self.end_bias = bias;
+        self.builder = self.builder.end_bias(bias);
         self
     }
 
@@ -218,13 +216,7 @@ pub struct Mark {
 impl Mark {
     #[inline]
     pub fn builder(byte: usize) -> MarkBuilder {
-        MarkBuilder {
-            byte,
-            width: 0,
-            start_bias: Bias::Right,
-            end_bias: Bias::Right,
-            hl: Default::default(),
-        }
+        MarkBuilder { builder: zi_marktree::MarkBuilder::new(byte), hl: Default::default() }
     }
 
     #[inline]
