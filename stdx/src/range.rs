@@ -6,6 +6,6 @@ pub trait RangeExt<T> {
 
 impl<T: PartialOrd> RangeExt<T> for ops::Range<T> {
     fn intersects(&self, other: &Self) -> bool {
-        self.start < other.end && other.start < self.end
+        self.start <= other.end && other.start <= self.end
     }
 }

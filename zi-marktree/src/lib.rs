@@ -13,6 +13,7 @@ use crop::tree::{
 };
 use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
+use stdx::range::RangeExt;
 use tinyset::SetU64;
 
 use self::bitbag::Bitbag;
@@ -187,18 +188,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         Node::Internal(inode) => {
                             for child in inode.children().iter() {
                                 let summary = child.summary();
-                                // TODO something like the following logic to avoid adding
-                                // unnecessary nodes to the queue
-                                // let child_range = (offset..offset + summary.bytes);
-                                // if !child_range.contains(start..end) {
-                                //     continue;
-                                // }
-
-                                q.push_back((offset, child.as_ref()));
-                                offset += summary.bytes;
-                                if offset >= end {
-                                    break;
+                                if (offset..offset + summary.bytes).intersects(&(start..end)) {
+                                    // Child node has intersection with the relevant range,
+                                    // continue exploring it.
+                                    q.push_back((offset, child.as_ref()));
                                 }
+
+                                offset += summary.bytes;
                             }
                         }
                         Node::Leaf(leaf) => {
