@@ -29,18 +29,18 @@ impl From<u32> for Id {
 
 impl MarkTreeId for Id {}
 
-const LEAF_SIZE: usize = 12;
+const LEAF_SIZES: [usize; 9] = [4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
-#[divan::bench]
-fn bench_marktree_insert(bencher: Bencher<'_, '_>) {
+#[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_insert<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     bencher.bench_local(move || {
         let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
         (0..2_000).for_each(|i| drop(tree.insert(i, Id(i))));
     });
 }
 
-#[divan::bench]
-fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
+#[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_delete<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     bencher
         .with_inputs(|| {
             let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
@@ -52,8 +52,8 @@ fn bench_marktree_delete(bencher: Bencher<'_, '_>) {
         })
 }
 
-#[divan::bench]
-fn bench_marktree_get(bencher: Bencher<'_, '_>) {
+#[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_get<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
     (0..20000).for_each(|i| drop(tree.insert(i, Id(i))));
 
