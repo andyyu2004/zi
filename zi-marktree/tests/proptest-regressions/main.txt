@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 26c972726e65fb9b766098e71923e3a916ec0798978f8a6c16037225214af432 # shrinks to at = [0, 923, 67, 923], width = []
 cc b776f1eb19b2e98207c6c9c06a91e5c0c1dcdad6b3e500c525adc78e75a1f27f # shrinks to at = [428, 752, 203, 428, 793, 428, 852, 0, 0, 0, 0, 0, 0, 953, 953], width = [1, 41, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+cc 912b3fdea55c3eca32e0919d8833a5b7aabac823a690c40f7b9f18713d0f14b0 # shrinks to at = [Insert { at: 0, width: 1, id: Id(0) }, Insert { at: 142, width: 1, id: Id(0) }, Insert { at: 116, width: 26, id: Id(0) }]

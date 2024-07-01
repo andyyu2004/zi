@@ -11,7 +11,7 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use stdx::iter::ExactChain;
 use tinyset::SetU64;
 
@@ -104,14 +104,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
         if !node.summary().ids.contains(id) {
-            // if node.summary().ids.contains(&id) == 0 {
             return None;
         }
 
         let mut offset = 0;
 
         loop {
-            // debug_assert!(node.summary().ids.contains(&id) > 0);
             debug_assert!(node.summary().ids.contains(id));
             match node {
                 Node::Internal(inode) => {
@@ -121,7 +119,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .find(|child| {
                             let summary = child.summary();
                             if summary.ids.contains(id) {
-                                // if summary.ids.contains(&id) > 0 {
                                 true
                             } else {
                                 offset += summary.bytes;
@@ -140,7 +137,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let mut node = self.tree.root().as_ref();
         let id = id.into().into();
         if !node.summary().ids.contains(id) {
-            // if node.summary().ids.contains(&id) == 0 {
             return None;
         }
 
@@ -148,7 +144,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
         loop {
             debug_assert!(node.summary().ids.contains(id));
-            // debug_assert!(node.summary().ids.contains(&id) > 0);
             match node {
                 Node::Internal(inode) => {
                     node = inode
@@ -158,7 +153,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                         .find(|child| {
                             let summary = child.summary();
                             if summary.ids.contains(id) {
-                                // if summary.ids.contains(&id) > 0 {
                                 true
                             } else {
                                 offset -= summary.bytes;
@@ -208,17 +202,17 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                             }
                         }
                         Node::Leaf(leaf) => {
-                            for entry in leaf.as_slice().entries {
+                            for extent in leaf.as_slice().extents {
                                 if offset >= end {
                                     break;
                                 }
 
                                 if offset < start {
-                                    offset += entry.len();
+                                    offset += extent.len();
                                     continue;
                                 }
 
-                                for key in entry.keys() {
+                                for key in extent.keys() {
                                     let flags = key.flags();
                                     if flags.contains(Flags::END) {
                                         continue;
@@ -234,7 +228,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                                     }
                                 }
 
-                                offset += entry.len();
+                                offset += extent.len();
                             }
                         }
                     }
@@ -275,7 +269,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                     for i in 0..inode.children().len() {
                         let summary = inode.child(i).summary();
                         if summary.ids.contains(id) {
-                            // if summary.ids.contains(&id) > 0 {
                             return inode.with_child_mut(i, |child| del(child, offset, id));
                         }
                         offset += summary.bytes;
@@ -284,7 +277,6 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 }
                 Node::Leaf(leaf) => {
                     debug_assert!(leaf.summary().ids.contains(id));
-                    // debug_assert!(leaf.summary().ids.contains(&id) > 0);
                     let leaf_offset =
                         leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here");
                     offset + leaf_offset
@@ -295,14 +287,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let id = id.into().into();
         let root = self.tree.root_mut();
         if !root.summary().ids.contains(id) {
-            // if root.summary().ids.contains(&id) == 0 {
             return None;
         }
 
         let start = del(root, 0, id);
 
         if !root.summary().ids.contains(id) {
-            // if root.summary().ids.contains(&id) == 0 {
             return Some(start..start);
         }
 
@@ -475,7 +465,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
 struct Extent {
     length: usize,
     /// The ids contained within this range.
-    /// All their positions is considered to be the start of the entry.
+    /// All their positions is considered to be the start of the extent.
     keys: SetU64,
 }
 
@@ -510,12 +500,12 @@ impl Extent {
 
 #[derive(Clone)]
 struct Leaf<const N: usize> {
-    entries: ArrayVec<Extent, N>,
+    extents: ArrayVec<Extent, N>,
 }
 
 impl<const N: usize> fmt::Debug for Leaf<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.entries.iter()).finish()
+        f.debug_list().entries(self.extents.iter()).finish()
     }
 }
 
@@ -533,37 +523,99 @@ impl<const N: usize> Leaf<N> {
     fn delete(&mut self, summary: &mut Summary, id: u32) -> Option<usize> {
         let mut offset = 0;
 
-        for entry in &mut self.entries {
-            if entry.keys.remove(id as u64) {
+        for extent in &mut self.extents {
+            if extent.keys.remove(id as u64) {
                 // Fast path if the flags are empty.
-                summary.ids.remove(id);
-                // assert!(summary.ids.remove(id));
-                // assert!(summary.ids.remove(&id) > 0);
+                assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
             } else {
                 // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
-                let mut iter = entry.keys.iter();
+                let mut iter = extent.keys.iter();
                 while let Some(key) = iter.next() {
                     let key = Key::from_raw(key);
                     if key.id() == id {
                         drop(iter);
-                        assert!(entry.keys.remove(key.into_raw()));
+                        assert!(extent.keys.remove(key.into_raw()));
 
                         if key.flags().contains(Flags::RANGE) {
                             // Just removing the id isn't correct since it's pair may still exist.
                             // Just resummarize the leaf for simplicity.
                             *summary = self.summarize();
                         } else {
-                            // assert!(summary.ids.remove(&id) > 0);
-                            // assert!(summary.ids.remove(id));
-                            summary.ids.remove(id);
+                            assert!(summary.ids.remove(id).is_some());
                         }
                         return Some(offset);
                     }
                 }
             }
 
-            offset += entry.len();
+            offset += extent.len();
+        }
+
+        None
+    }
+
+    fn insert(
+        &mut self,
+        summary: &mut Summary,
+        at: usize,
+        key: Key,
+    ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
+        let mut offset = 0;
+
+        if at == summary.bytes {
+            // Trying to insert at the end. Just propogate the new key up.
+            let array = ArrayVec::<_, N>::from_iter([Extent::new(0, [key])]);
+            return Some(smallvec![Leaf::from(array)].into_iter());
+        }
+
+        for i in 0..self.extents.len() {
+            if at == offset {
+                // There is an existing extent that exactly matches the insertion point.
+                // Just add the new key to the extent and return.
+                self.extents[i].keys.insert(key.into_raw());
+                summary.ids.insert(key.id());
+                break;
+            }
+
+            if offset + self.extents[i].len() > at {
+                // The extent covers the insertion point.
+                // Split the extent into two and add the key to the second extent.
+                let rem = self.extents[i].length - (at - offset);
+                self.extents[i].length -= rem;
+
+                match self.extents.try_insert(i + 1, Extent::new(rem, [key])) {
+                    Ok(()) => {
+                        summary.ids.insert(key.id());
+                    }
+                    Err(err) => {
+                        if i + 1 == N {
+                            summary.bytes -= rem;
+                            // Trying to insert at end, propogate the new key up.
+                            let array = ArrayVec::<_, N>::from_iter([err.element()]);
+                            return Some(smallvec![Leaf::from(array)].into_iter());
+                        }
+
+                        // If we can't fit, drain the remainder of the keys and propogate them up.
+                        let drained = self
+                            .extents
+                            .drain(i + 1..)
+                            .inspect(|extent| *summary -= extent)
+                            .collect::<ArrayVec<_, N>>();
+
+                        let extent = err.element();
+                        for key in extent.keys() {
+                            summary.ids.insert(key.id());
+                        }
+                        self.extents.insert(i + 1, extent);
+
+                        return Some(smallvec![Leaf::from(drained)].into_iter());
+                    }
+                }
+                break;
+            }
+
+            offset += self.extents[i].len();
         }
 
         None
@@ -573,7 +625,7 @@ impl<const N: usize> Leaf<N> {
 impl<const N: usize> From<ArrayVec<Extent, N>> for Leaf<N> {
     #[inline]
     fn from(entries: ArrayVec<Extent, N>) -> Self {
-        Self { entries }
+        Self { extents: entries }
     }
 }
 
@@ -586,7 +638,7 @@ impl<const N: usize> Default for Leaf<N> {
 impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     #[inline]
     fn from(slice: LeafSlice<'_>) -> Self {
-        Self::from(ArrayVec::try_from(slice.entries).unwrap())
+        Self::from(ArrayVec::try_from(slice.extents).unwrap())
     }
 }
 
@@ -594,35 +646,31 @@ mod builder {
     use super::*;
 
     #[derive(Debug)]
-    pub(super) struct EntryBuilder<const N: usize> {
-        entries: SmallVec<Extent, N>,
+    pub(super) struct ExtentBuilder<const N: usize> {
+        extents: SmallVec<Extent, N>,
     }
 
-    impl<const N: usize> Default for EntryBuilder<N> {
+    impl<const N: usize> Default for ExtentBuilder<N> {
         fn default() -> Self {
-            Self { entries: SmallVec::new() }
+            Self { extents: SmallVec::new() }
         }
     }
 
-    impl<const N: usize> EntryBuilder<N> {
-        pub fn entries(&self) -> &[Extent] {
-            &self.entries
-        }
-
+    impl<const N: usize> ExtentBuilder<N> {
         pub fn finish(self) -> SmallVec<Extent, N> {
-            self.entries
+            self.extents
         }
 
         #[track_caller]
         pub fn push(&mut self, length: usize, keys: impl IntoIterator<Item = Key>) {
             let mut keys = keys.into_iter().peekable();
-            match self.entries.last_mut() {
+            match self.extents.last_mut() {
                 Some(last) if last.length == 0 || keys.peek().is_none() => {
                     // Merge entries if possible.
                     last.length += length;
                     last.keys.extend(keys.map(Key::into_raw));
                 }
-                _ => self.entries.push(Extent::new(length, keys)),
+                _ => self.extents.push(Extent::new(length, keys)),
             }
         }
 
@@ -638,8 +686,8 @@ mod builder {
         }
 
         #[track_caller]
-        pub fn push_entry(&mut self, entry: Extent) {
-            self.push_raw(entry.len(), entry.keys().map(Key::into_raw));
+        pub fn push_extent(&mut self, extent: Extent) {
+            self.push_raw(extent.len(), extent.keys().map(Key::into_raw));
         }
     }
 }
@@ -724,31 +772,31 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         debug_assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let mut builder = builder::EntryBuilder::<N>::default();
+        let mut builder = builder::ExtentBuilder::<N>::default();
         let mut keys = SetU64::default();
         match replace_with {
             Replacement::Gap(gap) => {
                 let mut gap = Some(gap);
 
                 let mut offset = 0;
-                for entry in self.entries.take() {
-                    let entry_end = offset + entry.len();
-                    let k = entry.len();
+                for extent in self.extents.take() {
+                    let extent_end = offset + extent.len();
+                    let k = extent.len();
 
-                    if entry_end < start || offset > end {
-                        // If the entry range does not intersect the replacement range just copy
-                        builder.push_entry(entry);
+                    if extent_end < start || offset > end {
+                        // If the extent range does not intersect the replacement range just copy
+                        builder.push_extent(extent);
                         offset += k;
 
                         continue;
                     }
 
-                    keys = keys | &entry.keys;
+                    keys = keys | &extent.keys;
 
                     match start.cmp(&offset) {
                         cmp::Ordering::Greater => {
                             // The offset is before the start of the replacement range.
-                            // Copy the chunk of the entry that precedes the replacement range.
+                            // Copy the chunk of the extent that precedes the replacement range.
                             builder.push_raw(start - offset, keys.drain())
                         }
                         cmp::Ordering::Equal => {
@@ -772,13 +820,13 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                         }
                     }
 
-                    if entry_end > end {
+                    if extent_end > end {
                         if let Some(gap) = gap.take() {
                             builder.push_gap(gap);
                         }
-                        // If the entry extends beyond the replacement,
+                        // If the extent extends beyond the replacement,
                         // push the remaining (right-biased only?) keys after.
-                        builder.push_raw(entry_end - end, keys.drain());
+                        builder.push_raw(extent_end - end, keys.drain());
                     }
 
                     offset += k;
@@ -789,100 +837,51 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
                 } else if !keys.is_empty() {
                     builder.push_raw(0, keys);
                 }
+
+                let entries = builder.finish();
+                let mut chunks = entries.array_chunks::<N>();
+                let (chunk, used_remainder) = match chunks.next() {
+                    Some(chunk) => (ArrayVec::from(chunk.clone()), false),
+                    None => (
+                        ArrayVec::try_from(chunks.remainder())
+                            .expect("remainder can't be too large"),
+                        true,
+                    ),
+                };
+
+                self.extents = chunk;
+                assert!(!self.extents.is_empty());
+
+                *summary = self.summarize();
+
+                if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+                    return None;
+                }
+
+                let rem = if chunks.remainder().is_empty() {
+                    None
+                } else {
+                    Some(
+                        ArrayVec::try_from(chunks.remainder())
+                            .expect("remainder can't be too large"),
+                    )
+                };
+
+                Some(
+                    chunks
+                        .cloned()
+                        .map(ArrayVec::from)
+                        .exact_chain(rem)
+                        .map(Leaf::from)
+                        .collect::<SmallVec<_, 1>>()
+                        .into_iter(),
+                )
             }
             Replacement::Key(key) => {
                 assert_eq!(start, end);
-                let mut key = Some(key);
-
-                let mut offset = 0;
-                for entry in self.entries.take() {
-                    let entry_end = offset + entry.len();
-                    let k = entry.len();
-
-                    if start == offset {
-                        if let Some(key) = key.take() {
-                            builder.push(0, [key]);
-                        }
-                    }
-
-                    if entry_end <= start || offset >= end {
-                        // If the entry range does not intersect the replacement range just copy
-                        builder.push_entry(entry);
-                        offset += k;
-                        continue;
-                    }
-
-                    // Therefore: offset < end && start < entry_end
-
-                    let key = key.take().unwrap();
-
-                    if start - offset > 0 {
-                        // The current entry extends beyond the start of the replacement range.
-                        // Add the chunk of the entry that precedes the replacement range.
-                        builder.push_raw(start - offset, entry.keys);
-                        // Push a new entry for the key with length 0.
-                        builder.push(0, [key]);
-                    } else {
-                        debug_assert_eq!(start, offset);
-                        // Otherwise, they can be merged
-                        let mut keys = entry.keys;
-                        assert!(keys.insert(key.into_raw()));
-                        builder.push_raw(start - offset, keys);
-                    }
-
-                    if entry_end > end {
-                        builder.push_gap(entry_end - end);
-                    }
-
-                    offset += k;
-                }
-
-                if let Some(key) = key {
-                    builder.push(0, [key]);
-                }
-
-                debug_assert_eq!(
-                    builder.entries().iter().map(|entry| entry.len()).sum::<usize>(),
-                    n,
-                    "adding an item should not change the total length of the leaf"
-                );
+                self.insert(summary, start, key)
             }
-        };
-
-        let entries = builder.finish();
-        let mut chunks = entries.array_chunks::<N>();
-        let (chunk, used_remainder) = match chunks.next() {
-            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-            None => (
-                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
-                true,
-            ),
-        };
-
-        self.entries = chunk;
-        assert!(!self.entries.is_empty());
-
-        *summary = self.summarize();
-
-        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
-            return None;
         }
-
-        let rem = if chunks.remainder().is_empty() {
-            None
-        } else {
-            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
-        };
-
-        Some(
-            chunks
-                .cloned()
-                .map(ArrayVec::from)
-                .exact_chain(rem)
-                .map(Leaf::from)
-                .collect::<SmallVec<_, 1>>()
-                .into_iter(),
-        )
     }
 
     #[inline]
@@ -923,25 +922,25 @@ impl<const N: usize> AsSlice for Leaf<N> {
 
     #[inline]
     fn as_slice(&self) -> Self::Slice<'_> {
-        LeafSlice { entries: &self.entries }
+        LeafSlice { extents: &self.extents }
     }
 }
 
 #[derive(Clone, Copy)]
 struct LeafSlice<'a> {
-    entries: &'a [Extent],
+    extents: &'a [Extent],
 }
 
 impl fmt::Debug for LeafSlice<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.entries.fmt(f)
+        self.extents.fmt(f)
     }
 }
 
 impl<'a> Default for LeafSlice<'a> {
     #[inline]
     fn default() -> Self {
-        Self { entries: &[] }
+        Self { extents: &[] }
     }
 }
 
@@ -950,13 +949,13 @@ impl<'a> LeafSlice<'a> {
     /// The item `byte` is relative to the start of the leaf node.
     fn get_left(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
-        for entry in self.entries {
-            if entry.keys.contains(id as u64) {
+        for extent in self.extents {
+            if extent.keys.contains(id as u64) {
                 // Fast path if the flags are empty.
                 return Some(offset);
             } else {
                 // Otherwise, scan
-                for key in entry.keys() {
+                for key in extent.keys() {
                     if key.id() == id {
                         assert!(!key.flags().contains(Flags::END));
                         return Some(offset);
@@ -964,7 +963,7 @@ impl<'a> LeafSlice<'a> {
                 }
             }
 
-            offset += entry.len();
+            offset += extent.len();
         }
 
         None
@@ -975,20 +974,20 @@ impl<'a> LeafSlice<'a> {
     fn get_right(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
 
-        for entry in self.entries.iter().rev() {
-            if entry.keys.contains(id as u64) {
+        for extent in self.extents.iter().rev() {
+            if extent.keys.contains(id as u64) {
                 // Fast path if the flags are empty.
-                return Some(offset + entry.len());
+                return Some(offset + extent.len());
             } else {
                 // Otherwise, scan
-                for key in entry.keys() {
+                for key in extent.keys() {
                     if key.id() == id {
-                        return Some(offset + entry.len());
+                        return Some(offset + extent.len());
                     }
                 }
             }
 
-            offset += entry.len();
+            offset += extent.len();
         }
 
         None
@@ -1001,9 +1000,8 @@ impl<'a> Summarize for LeafSlice<'a> {
     #[inline]
     fn summarize(&self) -> Self::Summary {
         Summary {
-            bytes: self.entries.iter().map(|entry| entry.len()).sum(),
-            // ids: HashBag::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
-            ids: FromIterator::from_iter(self.entries.iter().flat_map(|entry| entry.ids())),
+            bytes: self.extents.iter().map(|extent| extent.len()).sum(),
+            ids: FromIterator::from_iter(self.extents.iter().flat_map(|extent| extent.ids())),
         }
     }
 }
@@ -1035,6 +1033,28 @@ impl Sub<&Self> for Summary {
     fn sub(mut self, rhs: &Self) -> Self {
         self -= rhs;
         self
+    }
+}
+
+impl AddAssign<&Extent> for Summary {
+    #[inline]
+    fn add_assign(&mut self, rhs: &Extent) {
+        self.bytes += rhs.len();
+        for key in rhs.keys() {
+            // TODO probably is a faster way to do this
+            self.ids.insert(key.id());
+        }
+    }
+}
+
+impl SubAssign<&Extent> for Summary {
+    #[inline]
+    fn sub_assign(&mut self, rhs: &Extent) {
+        self.bytes -= rhs.len();
+        for key in rhs.keys() {
+            // TODO probably is a faster way to do this
+            assert!(self.ids.remove(key.id()).is_some());
+        }
     }
 }
 
@@ -1073,7 +1093,6 @@ impl fmt::Debug for Summary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("")
             .field(&self.bytes)
-            // .field_with(|f| f.debug_map().entries(self.ids.set_iter()).finish())
             .field_with(|f| f.debug_set().entries(self.ids.iter()).finish())
             .finish()
     }
