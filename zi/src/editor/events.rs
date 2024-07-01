@@ -177,7 +177,6 @@ impl Editor {
                     return Ok(());
                 };
 
-                let start = Instant::now();
                 let encoding = server.position_encoding();
 
                 let mut line = 0;
@@ -210,9 +209,10 @@ impl Editor {
                     })
                     .collect::<Vec<_>>();
 
+                let n = marks.len();
+                let start = Instant::now();
                 editor.create_marks(buf, ns, marks);
-
-                tracing::debug!(time = ?start.elapsed(), "created marks from semantic tokens");
+                tracing::debug!(n, time = ?start.elapsed(), "created marks from semantic tokens");
 
                 Ok(())
             })
