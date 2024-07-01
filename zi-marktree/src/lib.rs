@@ -1,6 +1,7 @@
 #![feature(array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
 mod bitbag;
+mod builder;
 
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -17,6 +18,8 @@ use stdx::range::RangeExt;
 use tinyset::SetU64;
 
 use self::bitbag::Bitbag;
+use self::builder::Builder;
+use self::extent_builder::ExtentBuilder;
 use self::key::{Flags, Key};
 
 pub trait MarkTreeId: Copy + Eq + From<u32> + Into<u32> + fmt::Debug + 'static {}
@@ -67,6 +70,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
         this.replace(0..0, Replacement::Gap(n));
         this
+    }
+
+    pub fn builder() -> Builder<N> {
+        Builder::new()
     }
 
     #[inline]
@@ -238,11 +245,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     pub fn insert(&mut self, at: usize, id: Id) -> Inserter<'_, Id, N> {
         Inserter {
             tree: self,
-            id,
-            at,
-            width: 0,
-            start_flags: Flags::empty(),
-            end_flags: Flags::END,
+            ins: Insertion {
+                id: id.into(),
+                at,
+                width: 0,
+                start_flags: Flags::empty(),
+                end_flags: Flags::END,
+            },
         }
     }
 
@@ -340,8 +349,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 #[derive(Debug)]
 pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     tree: &'a mut MarkTree<Id, N>,
-    id: Id,
+    ins: Insertion,
+}
+
+#[derive(Debug)]
+struct Insertion {
     at: usize,
+    id: u32,
     width: usize,
     start_flags: Flags,
     end_flags: Flags,
@@ -350,37 +364,37 @@ pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
 impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
     pub fn start_bias(mut self, bias: Bias) -> Self {
         match bias {
-            Bias::Left => self.start_flags.insert(Flags::BIAS_LEFT),
-            Bias::Right => self.start_flags.remove(Flags::BIAS_LEFT),
+            Bias::Left => self.ins.start_flags.insert(Flags::BIAS_LEFT),
+            Bias::Right => self.ins.start_flags.remove(Flags::BIAS_LEFT),
         }
         self
     }
 
     pub fn end_bias(mut self, bias: Bias) -> Self {
         match bias {
-            Bias::Left => self.end_flags.insert(Flags::BIAS_LEFT),
-            Bias::Right => self.end_flags.remove(Flags::BIAS_LEFT),
+            Bias::Left => self.ins.end_flags.insert(Flags::BIAS_LEFT),
+            Bias::Right => self.ins.end_flags.remove(Flags::BIAS_LEFT),
         }
         self
     }
 
     pub fn width(mut self, width: usize) -> Self {
         if width > 0 {
-            self.start_flags.insert(Flags::RANGE);
-            self.end_flags.insert(Flags::RANGE);
+            self.ins.start_flags.insert(Flags::RANGE);
+            self.ins.end_flags.insert(Flags::RANGE);
         } else {
-            self.start_flags.remove(Flags::RANGE);
-            self.end_flags.remove(Flags::RANGE);
+            self.ins.start_flags.remove(Flags::RANGE);
+            self.ins.end_flags.remove(Flags::RANGE);
         }
-        self.width = width;
+        self.ins.width = width;
         self
     }
 }
 
 impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
     fn drop(&mut self) {
-        let id = self.id.into();
-        let at = self.at;
+        let id = self.ins.id.into();
+        let at = self.ins.at;
         let n = self.tree.len();
 
         if self.tree.tree.summary().ids.contains(id) {
@@ -388,19 +402,19 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
         }
 
         assert!(
-            at + self.width <= self.tree.len(),
+            at + self.ins.width <= self.tree.len(),
             "range {at}..{} out of bounds of marktree of length {}",
-            self.at + self.width,
+            self.ins.at + self.ins.width,
             self.tree.len(),
         );
 
-        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.start_flags)));
+        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.ins.start_flags)));
         assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
 
-        if self.start_flags.contains(Flags::RANGE) {
-            assert!(self.end_flags.contains(Flags::RANGE | Flags::END));
-            let at = at + self.width;
-            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.end_flags)));
+        if self.ins.start_flags.contains(Flags::RANGE) {
+            assert!(self.ins.end_flags.contains(Flags::RANGE | Flags::END));
+            let at = at + self.ins.width;
+            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.ins.end_flags)));
             assert_eq!(
                 self.tree.len(),
                 n,
@@ -559,7 +573,7 @@ impl<const N: usize> Leaf<N> {
     ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
         let (start, end) = (range.start, range.end);
 
-        let mut builder = builder::ExtentBuilder::<N>::default();
+        let mut builder = ExtentBuilder::<N>::default();
         let mut keys = SetU64::default();
         let mut gap = Some(by);
 
@@ -746,7 +760,7 @@ impl<const N: usize> From<LeafSlice<'_>> for Leaf<N> {
     }
 }
 
-mod builder {
+mod extent_builder {
     use super::*;
 
     #[derive(Debug)]
