@@ -551,6 +551,114 @@ impl<const N: usize> Leaf<N> {
         None
     }
 
+    fn shift(
+        &mut self,
+        summary: &mut Summary,
+        range: Range<usize>,
+        by: usize,
+    ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
+        let (start, end) = (range.start, range.end);
+
+        let mut builder = builder::ExtentBuilder::<N>::default();
+        let mut keys = SetU64::default();
+        let mut gap = Some(by);
+
+        let mut offset = 0;
+        for extent in self.extents.take() {
+            let extent_end = offset + extent.len();
+            let k = extent.len();
+
+            if extent_end < start || offset > end {
+                // If the extent range does not intersect the replacement range just copy
+                builder.push_extent(extent);
+                offset += k;
+
+                continue;
+            }
+
+            keys = keys | &extent.keys;
+
+            match start.cmp(&offset) {
+                cmp::Ordering::Greater => {
+                    // The offset is before the start of the replacement range.
+                    // Copy the chunk of the extent that precedes the replacement range.
+                    builder.push_raw(start - offset, keys.drain())
+                }
+                cmp::Ordering::Equal => {
+                    // The interval starts exactly at offset, move it to the right by pushing the gap first.
+                    let gap = gap.take().unwrap();
+                    if gap > 0 {
+                        let (left_biased, right_biased) =
+                            keys.drain().partition::<SetU64, _>(|&key| {
+                                Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
+                            });
+
+                        keys = right_biased;
+
+                        builder.push_raw(gap, left_biased);
+                    }
+                }
+                cmp::Ordering::Less => {
+                    if let Some(gap) = gap.take() {
+                        builder.push_gap(gap);
+                    }
+                }
+            }
+
+            if extent_end > end {
+                if let Some(gap) = gap.take() {
+                    builder.push_gap(gap);
+                }
+                // If the extent extends beyond the replacement,
+                // push the remaining (right-biased only?) keys after.
+                builder.push_raw(extent_end - end, keys.drain());
+            }
+
+            offset += k;
+        }
+
+        if let Some(gap) = gap {
+            builder.push_raw(gap, keys)
+        } else if !keys.is_empty() {
+            builder.push_raw(0, keys);
+        }
+
+        let entries = builder.finish();
+        let mut chunks = entries.array_chunks::<N>();
+        let (chunk, used_remainder) = match chunks.next() {
+            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
+            None => (
+                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
+                true,
+            ),
+        };
+
+        self.extents = chunk;
+        assert!(!self.extents.is_empty());
+
+        *summary = self.summarize();
+
+        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+            return None;
+        }
+
+        let rem = if chunks.remainder().is_empty() {
+            None
+        } else {
+            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+        };
+
+        Some(
+            chunks
+                .cloned()
+                .map(ArrayVec::from)
+                .exact_chain(rem)
+                .map(Leaf::from)
+                .collect::<SmallVec<_, 1>>()
+                .into_iter(),
+        )
+    }
+
     fn insert(
         &mut self,
         summary: &mut Summary,
@@ -768,111 +876,8 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
         let (start, end) = range_bounds_to_start_end(range, 0, n);
         debug_assert!(end <= n, "end <= n ({end} <= {n})");
 
-        let mut builder = builder::ExtentBuilder::<N>::default();
-        let mut keys = SetU64::default();
         match replace_with {
-            Replacement::Gap(gap) => {
-                let mut gap = Some(gap);
-
-                let mut offset = 0;
-                for extent in self.extents.take() {
-                    let extent_end = offset + extent.len();
-                    let k = extent.len();
-
-                    if extent_end < start || offset > end {
-                        // If the extent range does not intersect the replacement range just copy
-                        builder.push_extent(extent);
-                        offset += k;
-
-                        continue;
-                    }
-
-                    keys = keys | &extent.keys;
-
-                    match start.cmp(&offset) {
-                        cmp::Ordering::Greater => {
-                            // The offset is before the start of the replacement range.
-                            // Copy the chunk of the extent that precedes the replacement range.
-                            builder.push_raw(start - offset, keys.drain())
-                        }
-                        cmp::Ordering::Equal => {
-                            // The interval starts exactly at offset, move it to the right by pushing the gap first.
-                            let gap = gap.take().unwrap();
-                            if gap > 0 {
-                                let (left_biased, right_biased) =
-                                    keys.drain().partition::<SetU64, _>(|&key| {
-                                        Key::from_raw(key).flags().contains(Flags::BIAS_LEFT)
-                                    });
-
-                                keys = right_biased;
-
-                                builder.push_raw(gap, left_biased);
-                            }
-                        }
-                        cmp::Ordering::Less => {
-                            if let Some(gap) = gap.take() {
-                                builder.push_gap(gap);
-                            }
-                        }
-                    }
-
-                    if extent_end > end {
-                        if let Some(gap) = gap.take() {
-                            builder.push_gap(gap);
-                        }
-                        // If the extent extends beyond the replacement,
-                        // push the remaining (right-biased only?) keys after.
-                        builder.push_raw(extent_end - end, keys.drain());
-                    }
-
-                    offset += k;
-                }
-
-                if let Some(gap) = gap {
-                    builder.push_raw(gap, keys)
-                } else if !keys.is_empty() {
-                    builder.push_raw(0, keys);
-                }
-
-                let entries = builder.finish();
-                let mut chunks = entries.array_chunks::<N>();
-                let (chunk, used_remainder) = match chunks.next() {
-                    Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-                    None => (
-                        ArrayVec::try_from(chunks.remainder())
-                            .expect("remainder can't be too large"),
-                        true,
-                    ),
-                };
-
-                self.extents = chunk;
-                assert!(!self.extents.is_empty());
-
-                *summary = self.summarize();
-
-                if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
-                    return None;
-                }
-
-                let rem = if chunks.remainder().is_empty() {
-                    None
-                } else {
-                    Some(
-                        ArrayVec::try_from(chunks.remainder())
-                            .expect("remainder can't be too large"),
-                    )
-                };
-
-                Some(
-                    chunks
-                        .cloned()
-                        .map(ArrayVec::from)
-                        .exact_chain(rem)
-                        .map(Leaf::from)
-                        .collect::<SmallVec<_, 1>>()
-                        .into_iter(),
-                )
-            }
+            Replacement::Gap(gap) => self.shift(summary, start..end, gap),
             Replacement::Key(key) => {
                 assert_eq!(start, end);
                 self.insert(summary, start, key)
