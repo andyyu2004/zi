@@ -515,14 +515,7 @@ impl<const N: usize> Leaf<N> {
                     if key.id() == id {
                         drop(iter);
                         assert!(extent.keys.remove(key.into_raw()));
-
-                        if key.flags().contains(Flags::RANGE) {
-                            // Just removing the id isn't correct since it's pair may still exist.
-                            // Just resummarize the leaf for simplicity.
-                            *summary = self.summarize();
-                        } else {
-                            assert!(summary.ids.remove(id).is_some());
-                        }
+                        assert!(summary.ids.remove(id).is_some());
                         return Some(offset);
                     }
                 }
