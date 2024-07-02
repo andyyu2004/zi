@@ -208,33 +208,9 @@ impl Editor {
                     .collect::<Vec<_>>()
             });
 
-        // let buf_tokens = self.semantic_tokens.get(&buf.id());
-        // let semantic_highlights = buf_tokens.iter().flat_map(|cache| {
-        //     let mut line = 0;
-        //     let mut char = 0;
-        //     cache.tokens.iter().filter_map(move |token| {
-        //         if token.delta_line > 0 {
-        //             char = 0;
-        //         }
-        //
-        //         line += token.delta_line as usize;
-        //         char += token.delta_start as usize;
-        //         if line < line_offset {
-        //             return None;
-        //         }
-        //
-        //         let range = PointRange::new((line, char), (line, char + token.length as usize));
-        //         let hl =
-        //             semantic_tt_to_highlight(&cache.legend.token_types[token.token_type as usize])
-        //                 .map(|name| self.highlight_id_by_name(name))?;
-        //         Some((range, hl.style(theme)?))
-        //     })
-        // });
-
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
             .range_merge(diagnostic_highlights.into_iter())
-            // .range_merge(semantic_highlights)
             .range_merge(mark_highlights)
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
