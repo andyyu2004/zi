@@ -976,7 +976,17 @@ impl Editor {
         Ok(())
     }
 
+    #[inline]
+    pub fn set_mode(&mut self, to: Mode) {
+        let from = mode!(self);
+
+        self.dispatch(event::WillChangeMode { from, to });
+        self.state = mem::take(&mut self.state).transition(to);
+        self.dispatch(event::DidChangeMode { from, to });
+    }
+
     fn insert_to_normal(&mut self) {
+        assert_eq!(self.mode(), Mode::Insert);
         let (view, buf) = self.get(Active);
 
         {
@@ -1005,24 +1015,8 @@ impl Editor {
         let _ = self.motion(Active, motion::PrevChar);
 
         // Request diagnostics using the pull model to ensure we have the latest diagnostics
-
-        // FIXME use an event rather than hardcoding this randomly here
         let fut = self.request_diagnostics(Active);
-        tokio::spawn(async move {
-            if let Err(err) = fut.await {
-                tracing::error!("failed to request diagnostics: {err}");
-            }
-        });
-    }
-
-    #[inline]
-    pub fn set_mode(&mut self, mode: Mode) {
-        let from = mode!(self);
-        if let (Mode::Insert, Mode::Normal) = (from, mode) {
-            self.insert_to_normal()
-        }
-
-        self.state = mem::take(&mut self.state).transition(mode);
+        self.schedule("pull diagnostics", fut);
     }
 
     #[inline]
@@ -1927,6 +1921,12 @@ impl Editor {
     fn subscribe_sync_hooks() {
         event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
         event::subscribe(Self::lsp_did_change_refresh_semantic_tokens());
+        event::subscribe_with::<event::WillChangeMode>(|editor, event| {
+            match (event.from, event.to) {
+                (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
+                _ => (),
+            }
+        });
     }
 
     async fn subscribe_async_hooks() {

@@ -14,10 +14,14 @@ use crate::{Client, Editor, Result};
 
 #[derive(Default)]
 pub struct Registry {
-    handlers:
-        parking_lot::RwLock<FxHashMap<TypeId, Vec<Arc<dyn ErasedEventHandler + Send + Sync>>>>,
-    async_handlers:
-        tokio::sync::RwLock<FxHashMap<TypeId, Vec<Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>>,
+    // map<event_type, map<handler_type, handler>>
+    // We key by handler type too to avoid duplicates in tests as this is stored in a static.
+    handlers: parking_lot::RwLock<
+        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedEventHandler + Send + Sync>>>,
+    >,
+    async_handlers: tokio::sync::RwLock<
+        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
+    >,
 }
 
 fn registry() -> &'static Registry {
@@ -54,25 +58,34 @@ where
 }
 
 impl Registry {
-    pub fn subscribe<T: Event>(&self, handler: impl EventHandler<Event = T>) {
-        self.handlers.write().entry(TypeId::of::<T>()).or_default().push(Arc::new(handler));
+    pub fn subscribe<T, H>(&self, handler: H)
+    where
+        T: Event,
+        H: EventHandler<Event = T>,
+    {
+        self.handlers
+            .write()
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .insert(TypeId::of::<H>(), Arc::new(handler));
     }
 
-    pub async fn subscribe_async<T: AsyncEvent>(
-        &self,
-        handler: impl AsyncEventHandler<Event = T> + Sync,
-    ) {
+    pub async fn subscribe_async<T, H>(&self, handler: H)
+    where
+        T: AsyncEvent,
+        H: AsyncEventHandler<Event = T> + Sync,
+    {
         self.async_handlers
             .write()
             .await
             .entry(TypeId::of::<T>())
             .or_default()
-            .push(Arc::new(handler));
+            .insert(TypeId::of::<H>(), Arc::new(handler));
     }
 
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
         if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
-            for handler in handlers {
+            for handler in handlers.values() {
                 handler.dyn_on_event(editor, event)
             }
         }
@@ -80,7 +93,7 @@ impl Registry {
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
         if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
-            for handler in handlers {
+            for handler in handlers.values() {
                 handler.dyn_on_event(client, event).await?;
             }
         }

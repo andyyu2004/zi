@@ -64,8 +64,8 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("A\n AA", "WkdBj");
-    test("A\n  a", "Wlkdkj");
+    test("AA", "ccuu<ESC>");
+    // test("A\n  a", "Wlkdkj");
 }
 
 #[track_caller]

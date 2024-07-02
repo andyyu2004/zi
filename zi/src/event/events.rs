@@ -1,7 +1,7 @@
 use zi_text::{AnyText, Deltas};
 
 use super::{AsyncEvent, Event};
-use crate::{BufferId, ViewId};
+use crate::{BufferId, Mode, ViewId};
 
 #[derive(Debug, Clone)]
 pub struct DidChangeBuffer {
@@ -32,3 +32,19 @@ pub struct WillSaveBuffer {
 }
 
 impl AsyncEvent for WillSaveBuffer {}
+
+#[derive(Debug, Clone)]
+pub struct WillChangeMode {
+    pub from: Mode,
+    pub to: Mode,
+}
+
+impl Event for WillChangeMode {}
+
+#[derive(Debug, Clone)]
+pub struct DidChangeMode {
+    pub from: Mode,
+    pub to: Mode,
+}
+
+impl Event for DidChangeMode {}
