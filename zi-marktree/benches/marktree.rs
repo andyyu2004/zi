@@ -1,5 +1,5 @@
 use divan::Bencher;
-use zi_marktree::{MarkTree, MarkTreeId};
+use zi_marktree::{MarkBuilder, MarkTree, MarkTreeId};
 
 #[global_allocator]
 static GLOBAL: divan::AllocProfiler<mimalloc::MiMalloc> =
@@ -29,7 +29,7 @@ impl From<u32> for Id {
 
 impl MarkTreeId for Id {}
 
-const LEAF_SIZES: [usize; 9] = [4, 8, 16, 32, 64, 128, 256, 512, 1024];
+const LEAF_SIZES: [usize; 7] = [4, 8, 16, 32, 64, 128, 256];
 
 #[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_insert<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
@@ -40,27 +40,45 @@ fn bench_marktree_insert<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
 }
 
 #[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_build<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
+    bencher.bench_local(move || {
+        MarkTree::<Id, LEAF_SIZE>::build(
+            100_000,
+            (0..20_000).map(|i| (Id(i), MarkBuilder::new(i).width(i))),
+        );
+    });
+}
+
+#[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_delete<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
+    // FIXME this is really slow if k != 0 for some reason.
+    let k = 0;
     bencher
         .with_inputs(|| {
-            let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
-            (0..2_000).for_each(|i| drop(tree.insert(i, Id(i))));
+            let tree = MarkTree::<Id, LEAF_SIZE>::build(
+                100_000,
+                (0..2000).map(|i| (Id(i), MarkBuilder::new(i).width(k))),
+            );
             tree
         })
         .bench_local_values(|mut tree| {
-            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i)))
+            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i + k)))
         })
 }
 
 #[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_get<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
-    let mut tree = MarkTree::<Id, LEAF_SIZE>::new(100_000);
-    (0..20000).for_each(|i| drop(tree.insert(i, Id(i))));
+    // FIXME this is really slow if k != 0 for some reason.
+    let k = 0;
+    let tree = MarkTree::<Id, LEAF_SIZE>::build(
+        100_000,
+        (0..20_000).map(|i| (Id(i), MarkBuilder::new(i).width(k))),
+    );
 
     bencher.bench_local(move || {
         (0..10000).for_each(|i| {
             let item = tree.get(Id(i));
-            assert_eq!(item, Some(i..i));
+            assert_eq!(item, Some(i..i + k));
         });
     });
 }
