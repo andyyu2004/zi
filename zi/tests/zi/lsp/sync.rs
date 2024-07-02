@@ -10,7 +10,7 @@ async fn lsp_change_no_sync() -> zi::Result<()> {
     let cx = new("").await;
     let bomb = DropBomb::new("initialize should be called");
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _| {
                 bomb.defuse();
@@ -45,7 +45,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
         vec![lsp_change_event!("dbc\n")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(|_, _| async {
                 Ok(lsp_types::InitializeResult {
@@ -101,7 +101,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
         vec![lsp_change_event!(0:2..0:2 => "z"), lsp_change_event!(0:0..0:0 => "©")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {
@@ -156,7 +156,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
         vec![lsp_change_event!(0:1..0:1 => "z")],
     ]);
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {
@@ -196,7 +196,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
 
     let (tx, rx) = watch::channel(String::new());
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", tx, |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", tx, |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _params| async {
                 Ok(lsp_types::InitializeResult {

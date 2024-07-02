@@ -8,7 +8,9 @@ use zi_text::TextMut;
 
 use super::*;
 use crate::editor::{get, Action};
-use crate::{hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId};
+use crate::{
+    filetype, hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId,
+};
 
 pub struct PickerBuffer<P: Picker> {
     id: BufferId,
@@ -290,7 +292,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
     }
 
     fn file_type(&self) -> FileType {
-        FileType::PICKER
+        filetype!(picker)
     }
 
     fn settings(&self) -> &Settings {

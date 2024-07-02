@@ -2,6 +2,7 @@ use std::ops::RangeBounds;
 
 use super::*;
 use crate::editor::Active;
+use crate::filetype;
 
 pub struct InspectorBuffer {
     id: BufferId,
@@ -43,7 +44,7 @@ impl BufferInternal for InspectorBuffer {
     }
 
     fn file_type(&self) -> FileType {
-        FileType::TEXT
+        filetype!(text)
     }
 
     fn settings(&self) -> &Settings {

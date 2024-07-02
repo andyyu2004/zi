@@ -19,6 +19,7 @@ tracing = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
 itertools = { workspace = true }
 rustc-hash = { workspace = true }
+ustr = { workspace = true }
 unicode-width = "=0.1.12"
 wasmtime = { version = "19", features = ["component-model"] }
 tui = { path = "../zi-tui", package = "zi-tui" }

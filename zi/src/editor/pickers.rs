@@ -130,7 +130,7 @@ impl Editor {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
-                FileType::TEXT,
+                filetype!(text),
                 path,
                 Rope::new(),
                 &self.theme,

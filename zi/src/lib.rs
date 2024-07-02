@@ -28,7 +28,6 @@ mod namespace;
 mod operator;
 mod plugin;
 mod private;
-mod symbol;
 mod syntax;
 mod undo;
 pub mod view;

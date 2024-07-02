@@ -11,7 +11,7 @@ async fn setup(
     let path = cx.tempfile(text)?;
     let uri = Url::from_file_path(&path).unwrap();
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(move |_, _| {
                 let encoding = position_encoding.clone();

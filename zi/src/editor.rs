@@ -1,6 +1,7 @@
 mod config;
 pub(crate) mod cursor;
 mod default_keymap;
+mod diagnostics;
 mod errors;
 mod events;
 mod lsp_requests;
@@ -31,6 +32,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
+use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::lsp_types;
 use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
@@ -38,6 +40,7 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
+use self::diagnostics::LspDiagnostics;
 pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
@@ -48,7 +51,6 @@ use crate::buffer::{
     PickerBuffer, SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
-use crate::config::Setting;
 use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
@@ -56,12 +58,12 @@ use crate::layout::Layer;
 use crate::lsp::LanguageServer;
 use crate::plugin::Plugins;
 use crate::private::Sealed;
-use crate::symbol::Symbol;
 use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
-    event, language, layout, BufferId, Direction, Error, FileType, LanguageServerId, Location,
-    Mode, Namespace, NamespaceId, Operator, Point, Result, Url, VerticalAlignment, View, ViewId,
+    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServerId,
+    Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url, VerticalAlignment, View,
+    ViewId,
 };
 
 bitflags::bitflags! {
@@ -84,8 +86,6 @@ fn pool() -> &'static rayon::ThreadPool {
     static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
 }
-
-type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
 
 struct SemanticTokens {
     last_request_id: Option<String>,
@@ -112,7 +112,6 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
-
     active_language_servers: HashMap<LanguageServerId, LanguageServer>,
     active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
     callbacks_tx: CallbacksSender,
@@ -367,7 +366,7 @@ impl Editor {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
-                FileType::TEXT,
+                filetype!(text),
                 "scratch",
                 Rope::new(),
                 &theme,
@@ -383,7 +382,7 @@ impl Editor {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::READONLY,
-                FileType::TEXT,
+                filetype!(text),
                 "empty",
                 "",
                 &theme,
@@ -451,11 +450,6 @@ impl Editor {
 
     pub fn size(&self) -> Size {
         self.tree.size()
-    }
-
-    /// Return the current state of the raw diagnostics returned by the language servers.
-    pub fn lsp_diagnostics(&self) -> &HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>> {
-        &self.lsp_diagnostics
     }
 
     fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
@@ -604,35 +598,6 @@ impl Editor {
 
     pub fn default_namespace(&self) -> NamespaceId {
         self.default_namespace
-    }
-
-    pub(crate) fn update_diagnostics(
-        &mut self,
-        server: LanguageServerId,
-        path: PathBuf,
-        version: Option<u32>,
-        diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
-    ) {
-        let version = version.unwrap_or_else(|| {
-            // If there's a buffer with the same path, use its version.
-            if let Some(buf) = self.buffers.values().find(|b| {
-                b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(&path)
-            }) {
-                buf.version()
-            } else {
-                0
-            }
-        });
-
-        let mut diagnostics: Box<[_]> = diagnostics.into();
-        diagnostics.sort_unstable_by_key(|d| d.range.start);
-        self.lsp_diagnostics
-            .entry(path)
-            .or_default()
-            .entry(server)
-            .or_default()
-            .write((version, diagnostics));
-        request_redraw();
     }
 
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
@@ -1765,7 +1730,7 @@ impl Editor {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::READONLY,
-                FileType::TEXT,
+                filetype!(text),
                 path,
                 ReadonlyText::new(s),
                 &self.theme,
@@ -1777,9 +1742,9 @@ impl Editor {
         self.views.insert_with_key(|id| View::new(id, buf))
     }
 
-    pub fn create_namespace(&mut self, name: impl Into<Symbol>) -> NamespaceId {
+    pub fn create_namespace(&mut self, name: impl Into<Ustr>) -> NamespaceId {
         let name = name.into();
-        if let Some(ns) = self.namespaces.values().find(|ns| ns.name() == &name) {
+        if let Some(ns) = self.namespaces.values().find(|ns| ns.name() == name) {
             return ns.id();
         }
 

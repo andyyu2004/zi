@@ -1,8 +1,8 @@
+use ustr::Ustr;
 use zi_lsp::lsp_types::Url;
 
 use crate::editor::{Resource, Selector};
 use crate::private::Sealed;
-use crate::symbol::Symbol;
 use crate::Editor;
 
 slotmap::new_key_type! {
@@ -11,20 +11,20 @@ slotmap::new_key_type! {
 
 pub struct Namespace {
     id: NamespaceId,
-    name: Symbol,
+    name: Ustr,
     url: Url,
 }
 
 impl Namespace {
-    pub(crate) fn new(id: NamespaceId, name: impl Into<Symbol>) -> Self {
+    pub(crate) fn new(id: NamespaceId, name: impl Into<Ustr>) -> Self {
         let name = name.into();
         let url = Url::parse(&format!("{}://{name}", Self::URL_SCHEME)).unwrap();
         Namespace { id, url, name }
     }
 
     #[inline]
-    pub fn name(&self) -> &Symbol {
-        &self.name
+    pub fn name(&self) -> Ustr {
+        self.name
     }
 }
 

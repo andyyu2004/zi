@@ -6,7 +6,7 @@ use nucleo::Nucleo;
 use super::*;
 use crate::editor::{get, Action};
 use crate::syntax::HighlightName;
-use crate::{hashmap, trie, Mode};
+use crate::{filetype, hashmap, trie, Mode};
 
 pub struct ExplorerBuffer<T: Entry, F: 'static> {
     id: BufferId,
@@ -99,7 +99,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
     }
 
     fn file_type(&self) -> FileType {
-        FileType::EXPLORER
+        filetype!(explorer)
     }
 
     fn settings(&self) -> &Settings {

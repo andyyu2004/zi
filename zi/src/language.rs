@@ -3,16 +3,17 @@ use std::ffi::OsString;
 use std::fmt;
 use std::ops::DerefMut;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use anyhow::bail;
 use futures_core::future::BoxFuture;
+use ustr::{ustr, Ustr};
 
 use crate::lsp::LanguageClient;
-use crate::symbol::Symbol;
 use crate::Result;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileType(Symbol);
+pub struct FileType(Ustr);
 
 impl fmt::Display for FileType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -26,41 +27,65 @@ impl fmt::Debug for FileType {
     }
 }
 
-impl FileType {
-    pub const TEXT: Self = Self(Symbol::const_new("text"));
-    pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
-    pub const JAVASCRIPT: Self = Self(Symbol::const_new("javascript"));
-    pub const TYPESCRIPT: Self = Self(Symbol::const_new("typescript"));
-    pub const C: Self = Self(Symbol::const_new("c"));
-    pub const RUST: Self = Self(Symbol::const_new("rust"));
-    pub const GO: Self = Self(Symbol::const_new("go"));
-    pub const TOML: Self = Self(Symbol::const_new("toml"));
-    pub const JSON: Self = Self(Symbol::const_new("json"));
-    pub const PICKER: Self = Self(Symbol::const_new("picker"));
-    pub const EXPLORER: Self = Self(Symbol::const_new("explorer"));
+#[doc(hidden)]
+pub struct KnownFileTypes {
+    pub text: FileType,
+    pub gqlt: FileType,
+    pub javascript: FileType,
+    pub typescript: FileType,
+    pub c: FileType,
+    pub rust: FileType,
+    pub go: FileType,
+    pub toml: FileType,
+    pub json: FileType,
+    pub picker: FileType,
+    pub explorer: FileType,
+}
 
-    pub fn new(name: &'static str) -> Self {
-        Self(Symbol::const_new(name))
+fn ft(ft: &str) -> FileType {
+    FileType(ustr(ft))
+}
+
+#[macro_export]
+macro_rules! filetype {
+    ($ft:ident) => {
+        $crate::FileType::known().$ft
+    };
+}
+
+impl FileType {
+    #[doc(hidden)]
+    pub fn known() -> &'static KnownFileTypes {
+        static KNOWN_FILE_TYPES: OnceLock<KnownFileTypes> = OnceLock::new();
+        KNOWN_FILE_TYPES.get_or_init(|| KnownFileTypes {
+            text: ft("text"),
+            gqlt: ft("gqlt"),
+            javascript: ft("javascript"),
+            typescript: ft("typescript"),
+            c: ft("c"),
+            rust: ft("rust"),
+            go: ft("go"),
+            toml: ft("toml"),
+            json: ft("json"),
+            picker: ft("picker"),
+            explorer: ft("explorer"),
+        })
     }
 
     pub fn detect(path: &Path) -> Self {
         match path.extension() {
             Some(ext) => match ext.to_str() {
-                Some("c") => Self::C,
-                Some("rs") => Self::RUST,
-                Some("go") => Self::GO,
-                Some("toml") => Self::TOML,
-                Some("json") => Self::JSON,
-                Some("gqlt") => Self::GQLT,
-                Some("js") => Self::JAVASCRIPT,
-                Some("ts") => Self::TYPESCRIPT,
-                Some("txt") | Some("text") => Self::TEXT,
-                // Some(ext) => Self(Symbol::const_new(ext)),
-                // TODO need some string interning mechanism to get &'static str without repeated allocations
-                Some(_ext) => Self::TEXT,
-                None => Self::TEXT,
+                Some("c") => filetype!(c),
+                Some("rs") => filetype!(rust),
+                Some("go") => filetype!(go),
+                Some("toml") => filetype!(toml),
+                Some("json") => filetype!(json),
+                Some("gqlt") => filetype!(gqlt),
+                Some("js") => filetype!(javascript),
+                Some("ts") => filetype!(typescript),
+                _ => filetype!(text),
             },
-            None => Self::TEXT,
+            None => filetype!(text),
         }
     }
 
@@ -77,11 +102,44 @@ impl AsRef<Path> for FileType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LanguageServerId(Symbol);
+pub struct LanguageServerId(Ustr);
+
+#[doc(hidden)]
+struct KnownLanguageServers {
+    pub rust_analyzer: LanguageServerId,
+    pub tsserver: LanguageServerId,
+    pub gopls: LanguageServerId,
+    pub gqlt: LanguageServerId,
+    pub clangd: LanguageServerId,
+}
+
+macro_rules! language_server_id {
+    ($id:ident) => {
+        $crate::LanguageServerId::known().$id
+    };
+}
+
+impl From<&str> for LanguageServerId {
+    fn from(id: &str) -> Self {
+        Self(ustr(id))
+    }
+}
 
 impl LanguageServerId {
-    pub fn new(id: impl Into<Symbol>) -> Self {
+    pub fn new(id: impl Into<Ustr>) -> Self {
         Self(id.into())
+    }
+
+    #[doc(hidden)]
+    fn known() -> &'static KnownLanguageServers {
+        static KNOWN_LANGUAGE_SERVERS: OnceLock<KnownLanguageServers> = OnceLock::new();
+        KNOWN_LANGUAGE_SERVERS.get_or_init(|| KnownLanguageServers {
+            rust_analyzer: LanguageServerId::new("rust-analyzer"),
+            tsserver: LanguageServerId::new("tsserver"),
+            gopls: LanguageServerId::new("gopls"),
+            gqlt: LanguageServerId::new("gqlt"),
+            clangd: LanguageServerId::new("clangd"),
+        })
     }
 
     pub fn as_str(&self) -> &str {
@@ -92,21 +150,6 @@ impl LanguageServerId {
 impl fmt::Display for LanguageServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl LanguageServerId {
-    pub const RUST_ANALYZER: Self = Self(Symbol::const_new("rust-analyzer"));
-    // I know, tsserver != typescript-language-server, but the name is too long :)
-    pub const TSSERVER: Self = Self(Symbol::const_new("tsserver"));
-    pub const GOPLS: Self = Self(Symbol::const_new("gopls"));
-    pub const GQLT: Self = Self(Symbol::const_new("gqlt"));
-    pub const CLANGD: Self = Self(Symbol::const_new("clangd"));
-}
-
-impl From<&'static str> for LanguageServerId {
-    fn from(id: &'static str) -> Self {
-        Self(Symbol::const_new(id))
     }
 }
 
@@ -168,51 +211,51 @@ impl Default for Config {
     fn default() -> Self {
         let languages = BTreeMap::from([
             (
-                FileType::RUST,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::RUST_ANALYZER]) },
+                filetype!(rust),
+                LanguageConfig { language_servers: Box::new([language_server_id!(rust_analyzer)]) },
             ),
             (
-                FileType::GO,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::GOPLS]) },
+                filetype!(go),
+                LanguageConfig { language_servers: Box::new([language_server_id!(gopls)]) },
             ),
             (
-                FileType::GQLT,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::GQLT]) },
+                filetype!(gqlt),
+                LanguageConfig { language_servers: Box::new([language_server_id!(gqlt)]) },
             ),
             (
-                FileType::C,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::CLANGD]) },
+                filetype!(c),
+                LanguageConfig { language_servers: Box::new([language_server_id!(clangd)]) },
             ),
             (
-                FileType::JAVASCRIPT,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::TSSERVER]) },
+                filetype!(javascript),
+                LanguageConfig { language_servers: Box::new([language_server_id!(tsserver)]) },
             ),
             (
-                FileType::TYPESCRIPT,
-                LanguageConfig { language_servers: Box::new([LanguageServerId::TSSERVER]) },
+                filetype!(typescript),
+                LanguageConfig { language_servers: Box::new([language_server_id!(tsserver)]) },
             ),
-            (FileType::TEXT, LanguageConfig { language_servers: Box::new([]) }),
-            (FileType::TOML, LanguageConfig { language_servers: Box::new([]) }),
-            (FileType::JSON, LanguageConfig { language_servers: Box::new([]) }),
+            (filetype!(text), LanguageConfig { language_servers: Box::new([]) }),
+            (filetype!(toml), LanguageConfig { language_servers: Box::new([]) }),
+            (filetype!(json), LanguageConfig { language_servers: Box::new([]) }),
         ]);
 
         let language_servers = BTreeMap::from(
             [
                 (
-                    LanguageServerId::RUST_ANALYZER,
+                    language_server_id!(rust_analyzer),
                     ExecutableLanguageServerConfig::new("ra-multiplex", []),
                     // ExecutableLanguageServerConfig::new("rust-analyzer", []),
                 ),
                 (
-                    LanguageServerId::TSSERVER,
+                    language_server_id!(tsserver),
                     ExecutableLanguageServerConfig::new(
                         "typescript-language-server",
                         ["--stdio".into()],
                     ),
                 ),
-                (LanguageServerId::GOPLS, ExecutableLanguageServerConfig::new("gopls", [])),
-                (LanguageServerId::GQLT, ExecutableLanguageServerConfig::new("gqlt", [])),
-                (LanguageServerId::CLANGD, ExecutableLanguageServerConfig::new("clangd", [])),
+                (language_server_id!(gopls), ExecutableLanguageServerConfig::new("gopls", [])),
+                (language_server_id!(gqlt), ExecutableLanguageServerConfig::new("gqlt", [])),
+                (language_server_id!(clangd), ExecutableLanguageServerConfig::new("clangd", [])),
             ]
             .map(|(k, v)| (k, Box::new(v) as _)),
         );

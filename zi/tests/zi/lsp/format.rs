@@ -8,7 +8,7 @@ async fn lsp_format() -> zi::Result<()> {
 
     let path = cx.tempfile(r#"abc"#)?;
 
-    cx.setup_lang_server(zi::FileType::TEXT, "test-server", (), |builder| {
+    cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
             .request::<request::Initialize, _>(|_, _| async {
                 Ok(lsp_types::InitializeResult {
