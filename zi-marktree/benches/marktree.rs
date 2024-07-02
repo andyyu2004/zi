@@ -29,7 +29,7 @@ impl From<u32> for Id {
 
 impl MarkTreeId for Id {}
 
-const LEAF_SIZES: [usize; 7] = [4, 8, 16, 32, 64, 128, 256];
+const LEAF_SIZES: [usize; 5] = [16, 32, 64, 128, 256];
 
 #[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_insert<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {

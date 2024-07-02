@@ -112,6 +112,7 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
+
     active_language_servers: HashMap<LanguageServerId, LanguageServer>,
     active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
     callbacks_tx: CallbacksSender,
@@ -2005,6 +2006,7 @@ fn callback<R: Send + 'static>(
         let res = tokio::time::timeout(TIMEOUT, fut).await.map_err(
             |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {TIMEOUT:?}"),
         )??;
+
         Ok(Box::new(move |editor: &mut Editor| f(editor, res))
             as Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>)
     }))

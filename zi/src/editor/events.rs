@@ -170,7 +170,6 @@ impl Editor {
                 }
 
                 let ns = editor.create_namespace("semantic-tokens");
-                editor[buf].clear_marks(ns, ..);
 
                 let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
                 let Some(server) = editor.active_language_servers.get(&cache.server) else {
@@ -211,7 +210,7 @@ impl Editor {
 
                 let n = marks.len();
                 let start = Instant::now();
-                editor.create_marks(buf, ns, marks);
+                editor[buf].replace_marks(ns, marks);
                 tracing::debug!(n, time = ?start.elapsed(), "created marks from semantic tokens");
 
                 Ok(())

@@ -20,12 +20,13 @@ impl Buffer {
         self.marks.create(n, namespace, builder)
     }
 
-    pub(crate) fn create_marks(
+    /// Replace all marks in the namespace.
+    pub(crate) fn replace_marks(
         &mut self,
         namespace: NamespaceId,
         builders: impl IntoIterator<Item = MarkBuilder>,
     ) {
-        self.marks.create_many(self.text().len_bytes(), namespace, builders)
+        self.marks.replace(self.text().len_bytes(), namespace, builders)
     }
 
     pub(crate) fn clear_marks(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
@@ -69,6 +70,17 @@ impl PerNs {
 
     fn edit(&mut self, deltas: &Deltas<'_>) {
         deltas.iter().for_each(|delta| self.tree.shift(delta.range(), delta.text().len()));
+    }
+
+    fn replace(&mut self, text_len: usize, builders: impl IntoIterator<Item = MarkBuilder>) {
+        self.marks.clear();
+        self.tree = MarkTree::build(
+            text_len,
+            builders.into_iter().map(|builder| {
+                let id = self.marks.insert_with_key(|id| builder.build(id));
+                (id, builder.builder)
+            }),
+        )
     }
 
     fn create(&mut self, builder: MarkBuilder) -> MarkId {
@@ -130,17 +142,17 @@ impl Marks {
         self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len)).create(builder)
     }
 
-    pub(crate) fn create_many(
+    pub(crate) fn replace(
         &mut self,
         text_len: usize,
         namespace: NamespaceId,
         builders: impl IntoIterator<Item = MarkBuilder>,
     ) {
         debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
-        let per_ns = self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len));
-        builders.into_iter().for_each(|builder| {
-            per_ns.create(builder);
-        });
+        self.namespaces
+            .entry(namespace)
+            .or_insert_with(|| PerNs::new(text_len))
+            .replace(text_len, builders)
     }
 
     pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {
