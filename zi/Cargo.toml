@@ -18,7 +18,7 @@ tokio = { workspace = true, default-features = false, features = ["sync", "rt-mu
 tracing = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
 itertools = { workspace = true }
-flurry = { workspace = true }
+rustc-hash = { workspace = true }
 unicode-width = "=0.1.12"
 wasmtime = { version = "19", features = ["component-model"] }
 tui = { path = "../zi-tui", package = "zi-tui" }

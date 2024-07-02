@@ -5,6 +5,8 @@ use std::any::{Any, TypeId};
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
+use rustc_hash::FxHashMap;
+
 pub use self::events::*;
 pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler, EventHandler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
@@ -12,8 +14,10 @@ use crate::{Client, Editor, Result};
 
 #[derive(Default)]
 pub struct Registry {
-    handlers: flurry::HashMap<TypeId, Vec<Arc<dyn ErasedEventHandler + Send + Sync>>>,
-    async_handlers: flurry::HashMap<TypeId, Vec<Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
+    handlers:
+        parking_lot::RwLock<FxHashMap<TypeId, Vec<Arc<dyn ErasedEventHandler + Send + Sync>>>>,
+    async_handlers:
+        tokio::sync::RwLock<FxHashMap<TypeId, Vec<Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>>,
 }
 
 fn registry() -> &'static Registry {
@@ -33,9 +37,7 @@ pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     registry().subscribe(handler)
 }
 
-pub fn subscribe_with<E: Event>(
-    f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
-) {
+pub fn subscribe_with<E: Event>(f: impl Fn(&mut Editor, &E) + Send + Sync + 'static) {
     subscribe(handler(f));
 }
 
@@ -53,80 +55,38 @@ where
 
 impl Registry {
     pub fn subscribe<T: Event>(&self, handler: impl EventHandler<Event = T>) {
-        let handlers = self.handlers.pin();
-        let id = TypeId::of::<T>();
-        let handler = Arc::new(handler) as Arc<dyn ErasedEventHandler + Send + Sync>;
-        if handlers
-            .compute_if_present(&id, {
-                let handler = handler.clone();
-                |_k, v| {
-                    let mut v = v.to_vec();
-                    v.push(handler);
-                    Some(v)
-                }
-            })
-            .is_none()
-        {
-            handlers.insert(id, vec![handler]);
-        }
+        self.handlers.write().entry(TypeId::of::<T>()).or_default().push(Arc::new(handler));
     }
 
     pub async fn subscribe_async<T: AsyncEvent>(
         &self,
         handler: impl AsyncEventHandler<Event = T> + Sync,
     ) {
-        let handlers = self.async_handlers.pin();
-        let id = TypeId::of::<T>();
-        let handler = Arc::new(handler) as Arc<dyn ErasedAsyncEventHandler + Send + Sync>;
-        if handlers
-            .compute_if_present(&id, {
-                let handler = handler.clone();
-                |_k, v| {
-                    let mut v = v.to_vec();
-                    v.push(handler);
-                    Some(v)
-                }
-            })
-            .is_none()
-        {
-            handlers.insert(id, vec![handler]);
-        }
+        self.async_handlers
+            .write()
+            .await
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .push(Arc::new(handler));
     }
 
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
-        self.handlers.pin().compute_if_present(&TypeId::of::<T>(), |_, handlers| {
-            let new = handlers
-                .iter()
-                .filter_map(|handler| match handler.dyn_on_event(editor, event) {
-                    HandlerResult::Continue => Some(Arc::clone(&handler)),
-                    HandlerResult::Unsubscribe => None,
-                })
-                .collect::<Vec<_>>();
-            if new.is_empty() { None } else { Some(new) }
-        });
+        if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
+            for handler in handlers {
+                handler.dyn_on_event(editor, event)
+            }
+        }
     }
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
-        let id = TypeId::of::<T>();
-        let handlers = self.async_handlers.pin().get(&id).map(|handlers| handlers.clone());
-        if let Some(handlers) = handlers {
+        if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
             for handler in handlers {
-                // Maybe should run the rest of the handlers on failure anyway?
-                handler.dyn_on_event(client.clone(), event).await?;
+                handler.dyn_on_event(client, event).await?;
             }
         }
 
         Ok(())
     }
-}
-
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HandlerResult {
-    /// Continue processing the event.
-    Continue,
-    /// Unsubscribe the handler from the event.
-    Unsubscribe,
 }
 
 pub type AsyncHandlerResult = Result<()>;

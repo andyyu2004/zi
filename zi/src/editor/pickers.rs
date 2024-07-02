@@ -110,7 +110,6 @@ impl Editor {
             Err(id) => return id,
         };
 
-        let mode = mode!(self);
         self.set_mode(Mode::Insert);
 
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
@@ -143,17 +142,6 @@ impl Editor {
         // ensure all views are in the same group so they close together
         self.views[display_view].set_group(view_group);
         self.views[search_view].set_group(view_group);
-
-        event::subscribe_with::<event::DidCloseView>({
-            move |editor, event| {
-                // restore the mode if the picker view group is closed
-                if editor.views[event.view].group() == Some(view_group) {
-                    editor.set_mode(mode);
-                    return event::HandlerResult::Unsubscribe;
-                }
-                event::HandlerResult::Continue
-            }
-        });
 
         let mut injector = None;
         let picker_buf = self.buffers.insert_with_key(|id| {
