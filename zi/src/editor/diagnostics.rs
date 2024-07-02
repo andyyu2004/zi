@@ -49,7 +49,7 @@ impl Editor {
     }
 
     fn refresh_diagnostic_marks(&mut self, server: LanguageServerId, buf: BufferId) {
-        let ns = self.create_namespace(format!("lsp-diagnostics-{server}-{buf:?}"));
+        let ns = self.create_namespace(format!("lsp-diagnostics-{server}"));
 
         let Some(diagnostics) = self
             .buffer(buf)
