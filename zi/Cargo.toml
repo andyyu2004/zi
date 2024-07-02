@@ -47,6 +47,7 @@ tokio-util = { workspace = true }
 crop = { workspace = true }
 content_inspector = "0.2.4"
 cov-mark = "2.0.0-pre.1"
+crossbeam-queue = "0.3.11"
 
 [dev-dependencies]
 expect-test = { workspace = true }

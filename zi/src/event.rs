@@ -5,6 +5,7 @@ use std::any::{Any, TypeId};
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
+use crossbeam_queue::SegQueue;
 use rustc_hash::FxHashMap;
 
 pub use self::events::*;
@@ -19,6 +20,13 @@ pub struct Registry {
     handlers: parking_lot::RwLock<
         FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedEventHandler + Send + Sync>>>,
     >,
+    // The list of handlers to remove.
+    // The current strategy is to check this list when we subscribe a new handler.
+    // There is no guarantee that we will ever clear this queue.
+    // This could be a problem in theory if we keep attempting to subscribe the same handler.
+    garbage: SegQueue<(TypeId, TypeId)>,
+    async_garbage: SegQueue<(TypeId, TypeId)>,
+
     async_handlers: tokio::sync::RwLock<
         FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
     >,
@@ -41,7 +49,9 @@ pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     registry().subscribe(handler)
 }
 
-pub fn subscribe_with<E: Event>(f: impl Fn(&mut Editor, &E) + Send + Sync + 'static) {
+pub fn subscribe_with<E: Event>(
+    f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
+) {
     subscribe(handler(f));
 }
 
@@ -63,11 +73,12 @@ impl Registry {
         T: Event,
         H: EventHandler<Event = T>,
     {
-        self.handlers
-            .write()
-            .entry(TypeId::of::<T>())
-            .or_default()
-            .insert(TypeId::of::<H>(), Arc::new(handler));
+        let mut handlers = self.handlers.write();
+        while let Some((event_type, handler_type)) = self.garbage.pop() {
+            handlers.get_mut(&event_type).unwrap().remove(&handler_type);
+        }
+
+        handlers.entry(TypeId::of::<T>()).or_default().insert(TypeId::of::<H>(), Arc::new(handler));
     }
 
     pub async fn subscribe_async<T, H>(&self, handler: H)
@@ -75,26 +86,31 @@ impl Registry {
         T: AsyncEvent,
         H: AsyncEventHandler<Event = T> + Sync,
     {
-        self.async_handlers
-            .write()
-            .await
-            .entry(TypeId::of::<T>())
-            .or_default()
-            .insert(TypeId::of::<H>(), Arc::new(handler));
+        let mut handlers = self.async_handlers.write().await;
+
+        while let Some((event_type, handler_type)) = self.async_garbage.pop() {
+            handlers.get_mut(&event_type).unwrap().remove(&handler_type);
+        }
+
+        handlers.entry(TypeId::of::<T>()).or_default().insert(TypeId::of::<H>(), Arc::new(handler));
     }
 
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
         if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
-            for handler in handlers.values() {
-                handler.dyn_on_event(editor, event)
+            for (&hty, handler) in handlers {
+                if handler.dyn_on_event(editor, event) == HandlerResult::Unsubscribe {
+                    self.garbage.push((TypeId::of::<T>(), hty));
+                }
             }
         }
     }
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
         if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
-            for handler in handlers.values() {
-                handler.dyn_on_event(client, event).await?;
+            for (&hty, handler) in handlers {
+                if handler.dyn_on_event(client, event).await? == HandlerResult::Unsubscribe {
+                    self.async_garbage.push((TypeId::of::<T>(), hty));
+                }
             }
         }
 
@@ -102,7 +118,14 @@ impl Registry {
     }
 }
 
-pub type AsyncHandlerResult = Result<()>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandlerResult {
+    Continue,
+    /// Queue the handler for removal.
+    Unsubscribe,
+}
+
+pub type AsyncHandlerResult = Result<HandlerResult>;
 
 /// Marker trait for a synchronous event.
 pub trait Event: Any + Send + Sync {}

@@ -12,6 +12,7 @@ impl Editor {
                 (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
                 _ => (),
             }
+            event::HandlerResult::Continue
         });
 
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
@@ -21,6 +22,7 @@ impl Editor {
                 }
                 _ => (),
             }
+            event::HandlerResult::Continue
         });
     }
 

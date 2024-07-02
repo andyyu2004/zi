@@ -86,7 +86,7 @@ impl Editor {
                 }
             }
 
-            Ok(())
+            Ok(event::HandlerResult::Continue)
         })
     }
 
@@ -110,13 +110,16 @@ impl Editor {
                     })
                     .expect("lsp did_open failed");
             }
+
+            event::HandlerResult::Continue
         })
     }
 
     pub(super) fn lsp_did_open_refresh_semantic_tokens()
     -> impl EventHandler<Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
-            editor.schedule_semantic_tokens(event.buf)
+            editor.schedule_semantic_tokens(event.buf);
+            event::HandlerResult::Continue
         })
     }
 
@@ -229,7 +232,7 @@ impl Editor {
                     .map(|c| &c.language_servers)
                     .map_or(false, |servers| servers.contains(&server_id))
                 {
-                    return;
+                    return event::HandlerResult::Continue;
                 }
 
                 let encoding = server.position_encoding();
@@ -240,11 +243,11 @@ impl Editor {
                         lsp_types::TextDocumentSyncCapability::Options(opts) => {
                             match &opts.change {
                                 Some(kind) => kind,
-                                None => return,
+                                None => return event::HandlerResult::Continue,
                             }
                         }
                     },
-                    None => return,
+                    None => return event::HandlerResult::Continue,
                 };
 
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
@@ -264,7 +267,7 @@ impl Editor {
                             text: buf.text().to_string(),
                         }]
                     }
-                    lsp_types::TextDocumentSyncKind::NONE => return,
+                    lsp_types::TextDocumentSyncKind::NONE => return event::HandlerResult::Continue,
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
                 };
 
@@ -275,6 +278,8 @@ impl Editor {
                     tracing::error!(?err, "lsp did_change notification failed")
                 }
             }
+
+            event::HandlerResult::Continue
         })
     }
 }

@@ -105,6 +105,7 @@ impl Editor {
     where
         P: Picker,
     {
+        let prev_mode = mode!(self);
         let view_group = match self.create_view_group(view_group_url) {
             Ok(view_group) => view_group,
             Err(id) => return id,
@@ -142,6 +143,18 @@ impl Editor {
         // ensure all views are in the same group so they close together
         self.views[display_view].set_group(view_group);
         self.views[search_view].set_group(view_group);
+
+        event::subscribe_with::<event::DidCloseView>({
+            move |editor, event| {
+                // restore the mode if the picker view group is closed
+                if editor.views[event.view].group() == Some(view_group) {
+                    editor.set_mode(prev_mode);
+                    event::HandlerResult::Unsubscribe
+                } else {
+                    event::HandlerResult::Continue
+                }
+            }
+        });
 
         let mut injector = None;
         let picker_buf = self.buffers.insert_with_key(|id| {
