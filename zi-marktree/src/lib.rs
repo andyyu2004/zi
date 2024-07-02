@@ -97,23 +97,20 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Some(start..end)
     }
 
-    fn get_left(&self, id: impl Into<Id>) -> Option<usize> {
-        let id = id.into().into();
+    fn get_left(&self, id: u32) -> Option<usize> {
         let (offset, leaf) = self.find_left_leaf(id)?;
         leaf.get_left(id).map(|byte| offset + byte)
     }
 
-    fn get_right(&self, id: impl Into<Id>) -> Option<usize> {
-        let id = id.into().into();
+    fn get_right(&self, id: u32) -> Option<usize> {
         let (offset, leaf) = self.find_right_leaf(id)?;
         leaf.get_right(id).map(|byte| offset - byte)
     }
 
     /// Return the `(offset, leaf)` pair of the leftmost leaf that contains the given `id`.
-    fn find_left_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Leaf<N>)> {
+    fn find_left_leaf(&self, id: u32) -> Option<(usize, &Leaf<N>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
-        let id = id.into().into();
         if !node.summary().ids.contains(id) {
             return None;
         }
@@ -144,9 +141,8 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     /// Return the `(end_offset, leaf)` pair of the rightmost leaf that contains the given `id`.
-    fn find_right_leaf(&self, id: impl Into<Id>) -> Option<(usize, &Leaf<N>)> {
+    fn find_right_leaf(&self, id: u32) -> Option<(usize, &Leaf<N>)> {
         let mut node = self.tree.root().as_ref();
-        let id = id.into().into();
         if !node.summary().ids.contains(id) {
             return None;
         }
@@ -463,12 +459,12 @@ impl fmt::Debug for Extent {
 
 impl Extent {
     #[track_caller]
-    fn new(length: usize, ids: impl IntoIterator<Item = Key>) -> Self {
-        Self { length, keys: ids.into_iter().map(Key::into_raw).collect() }
+    fn new(length: usize, keys: impl IntoIterator<Item = Key>) -> Self {
+        Self { length, keys: keys.into_iter().map(Key::into_raw).collect() }
     }
 
     fn ids(&self) -> impl Iterator<Item = u32> + '_ {
-        self.keys().map(Key::id)
+        self.keys.iter().map(|key| key as u32)
     }
 
     fn keys(&self) -> impl Iterator<Item = Key> + '_ {
@@ -967,7 +963,8 @@ impl<'a> LeafSlice<'a> {
                 // Fast path if the flags are empty.
                 return Some(offset + extent.len());
             } else {
-                // Otherwise, scan
+                // Otherwise, scan.
+                // Technically we should scan from the right.
                 for key in extent.keys() {
                     if key.id() == id {
                         return Some(offset + extent.len());
