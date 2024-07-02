@@ -15,12 +15,15 @@ slotmap::new_key_type! {
 }
 
 impl Buffer {
+    /// Create a new mark in the given namespace.
+    /// Do not call this in a (100+ iteration) loop, it will be slow. Consider using `replace_marks` instead.
     pub(crate) fn create_mark(&mut self, namespace: NamespaceId, builder: MarkBuilder) -> MarkId {
         let n = self.text().len_bytes();
         self.marks.create(n, namespace, builder)
     }
 
     /// Replace all marks in the namespace.
+    /// This is much more efficient than deleting all marks and inserting new ones one by one.
     pub(crate) fn replace_marks(
         &mut self,
         namespace: NamespaceId,
@@ -86,7 +89,6 @@ impl PerNs {
     fn create(&mut self, builder: MarkBuilder) -> MarkId {
         let id = self.marks.insert_with_key(|id| builder.build(id));
         builder.builder.insert(&mut self.tree, id);
-        // self.tree.insert(byte, id).width(width).start_bias(start_bias).end_bias(end_bias);
         id
     }
 
@@ -97,9 +99,11 @@ impl PerNs {
     }
 
     fn drain<'a>(&'a mut self, range: impl RangeBounds<usize>) {
+        let start_len = self.tree.len();
         for (_range, id) in self.tree.drain(range) {
             self.marks.remove(id).unwrap();
         }
+        assert_eq!(self.tree.len(), start_len);
     }
 }
 
@@ -138,7 +142,6 @@ impl Marks {
         namespace: NamespaceId,
         builder: MarkBuilder,
     ) -> MarkId {
-        debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
         self.namespaces.entry(namespace).or_insert_with(|| PerNs::new(text_len)).create(builder)
     }
 
@@ -148,7 +151,6 @@ impl Marks {
         namespace: NamespaceId,
         builders: impl IntoIterator<Item = MarkBuilder>,
     ) {
-        debug_assert!(self.namespaces.values().all(|per_ns| per_ns.tree.len() == text_len + 1));
         self.namespaces
             .entry(namespace)
             .or_insert_with(|| PerNs::new(text_len))

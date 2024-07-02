@@ -3,14 +3,12 @@ use std::fmt;
 
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
-use stdx::slice::SliceExt;
 use tui::{Rect, Widget as _};
-use zi_core::{IteratorRangeExt, Offset, PointRange, Severity};
+use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
 use crate::editor::Resource;
-use crate::lsp::from_proto;
 use crate::syntax::HighlightName;
 use crate::ViewId;
 
@@ -148,69 +146,13 @@ impl Editor {
             })
             .flatten();
 
-        // TODO replace bunch of these highlights with a mark impl
-
         let overlay_highlights = buf
             .overlay_highlights(self, view, area.into())
             .skip_while(|hl| hl.range.end().line() < line_offset)
             .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
 
-        let diagnostic_highlights = buf
-            .path()
-            .and_then(|path| self.lsp_diagnostics.get(&path))
-            .into_iter()
-            .flatten()
-            .flat_map(|(server, d)| {
-                let guard = d.read();
-                let (version, diags) = &*guard;
-                    tracing::debug!(version, buf_version = buf.version(), "diagnostics");
-
-                // If the diagnostics are from a different version of the text, we clear them.
-                if *version != buf.version() {
-                    tracing::debug!(
-                        "clearing diagnostics for `{}` because the version is outdated: {version} > {}",
-                        buf.path().expect("if we're here, the buffer has a path").display(),
-                        buf.version()
-                    );
-
-                    drop(guard);
-                    d.write((buf.version(), vec![].into_boxed_slice()));
-                    return vec![];
-                }
-
-                diags
-                    .sorted_subslice_by_key(
-                        line_offset..line_offset + area.height as usize,
-                        |diag| diag.range.start.line as usize,
-                    )
-                    .iter()
-                    .cloned()
-                    .map(|diag| {
-                        from_proto::diagnostic(
-                            self.active_language_servers[server].position_encoding(),
-                            buf.text(),
-                            diag,
-                        )
-                    })
-                    .filter_map(|diag| {
-                        let diag = diag?;
-                        let hl_name = match diag.severity {
-                            Severity::Error => HighlightName::ERROR,
-                            Severity::Warning => HighlightName::WARNING,
-                            Severity::Info => HighlightName::INFO,
-                            Severity::Hint => HighlightName::HINT,
-                        };
-                        let style = self.highlight_id_by_name(hl_name).style(theme)?;
-                        // Need to explode out multi-line ranges.
-                        Some(diag.range.explode(buf.text()).map(move |range| (range, style)))
-                    })
-                    .flatten()
-                    .collect::<Vec<_>>()
-            });
-
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
-            .range_merge(diagnostic_highlights.into_iter())
             .range_merge(mark_highlights)
             .inspect(|(range, style)| {
                 tracing::trace!(%range, %style, "highlight");
