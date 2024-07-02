@@ -120,14 +120,7 @@ impl Editor {
         })
     }
 
-    pub(super) fn lsp_did_change_refresh_semantic_tokens()
-    -> impl EventHandler<Event = event::DidChangeBuffer> {
-        event::handler::<event::DidChangeBuffer>(move |editor, event| {
-            editor.schedule_semantic_tokens(event.buf)
-        })
-    }
-
-    fn schedule_semantic_tokens(&mut self, buf: BufferId) {
+    pub(super) fn schedule_semantic_tokens(&mut self, buf: BufferId) {
         fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
             use lsp_types::SemanticTokenType as Stt;
             Some(match tt {

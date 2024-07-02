@@ -6,11 +6,19 @@ mod lsp;
 impl Editor {
     pub(super) fn subscribe_sync_hooks() {
         event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
-        event::subscribe(Self::lsp_did_change_refresh_semantic_tokens());
 
         event::subscribe_with::<event::WillChangeMode>(|editor, event| {
             match (event.from, event.to) {
                 (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
+                _ => (),
+            }
+        });
+
+        event::subscribe_with::<event::DidChangeMode>(|editor, event| {
+            match (event.from, event.to) {
+                (Mode::Insert, Mode::Normal) => {
+                    editor.schedule_semantic_tokens(Active.select(editor))
+                }
                 _ => (),
             }
         });
