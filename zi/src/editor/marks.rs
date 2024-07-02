@@ -9,7 +9,7 @@ impl Editor {
         &self,
         selector: impl Selector<BufferId>,
         byte_range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (Range<usize>, &Mark)> {
+    ) -> impl Iterator<Item = (NamespaceId, Range<usize>, &Mark)> {
         self.buffer(selector).marks(byte_range)
     }
 

@@ -134,8 +134,8 @@ impl Editor {
 
         let mark_highlights = buf
             .marks(relevant_byte_range)
-            .filter(|(range, _)| !range.is_empty())
-            .filter_map(|(byte_range, mark)| {
+            .filter(|(_, range, _)| !range.is_empty())
+            .filter_map(|(_, byte_range, mark)| {
                 let style = mark.highlight().style(theme)?;
                 let point_range = text.byte_range_to_point_range(&byte_range);
                 if !point_range.is_subrange_of(relevant_point_range) {

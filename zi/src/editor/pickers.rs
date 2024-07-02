@@ -261,6 +261,7 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct MarkEntry {
             buf: BufferId,
+            namespace: Ustr,
             range: PointRange,
             // TODO show something once there's more mark metadata
             #[allow(unused)]
@@ -269,7 +270,7 @@ impl Editor {
 
         impl fmt::Display for MarkEntry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}", self.range)
+                write!(f, "{}:{}", self.namespace, self.range)
             }
         }
 
@@ -294,10 +295,10 @@ impl Editor {
             "marks",
             ratio,
             |editor, injector| {
-                // TODO show all namespaces
-                for (range, mark) in editor.buffer(buf).marks(..) {
+                for (ns, range, mark) in editor.buffer(buf).marks(..) {
                     if let Err(()) = injector.push(MarkEntry {
                         buf,
+                        namespace: editor[ns].name(),
                         range: editor[buf].text().byte_range_to_point_range(&range),
                         mark: mark.clone(),
                     }) {

@@ -43,7 +43,7 @@ impl Buffer {
     pub(crate) fn marks(
         &self,
         range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
+    ) -> impl Iterator<Item = (NamespaceId, Range<usize>, &Mark)> + '_ {
         self.marks.iter(range)
     }
 }
@@ -174,17 +174,17 @@ impl Marks {
         }
     }
 
-    /// Returns an iterator over all marks in the given range (all namespaces) sorted by `start`.
+    /// Returns an iterator over all marks in the given range (all namespaces) sorted by namespace then `range.start`.
     #[inline]
     pub fn iter(
         &self,
         range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (Range<usize>, &Mark)> + '_ {
+    ) -> impl Iterator<Item = (NamespaceId, Range<usize>, &Mark)> + '_ {
         let range = (range.start_bound().cloned(), range.end_bound().cloned());
         self.namespaces
-            .values()
-            .map(|per_ns| per_ns.iter(range))
-            .kmerge_by(|(a, _), (b, _)| a.start < b.start)
+            .iter()
+            .map(|(&ns, per_ns)| per_ns.iter(range).map(move |(range, mark)| (ns, range, mark)))
+            .kmerge_by(|(m, a, _), (n, b, _)| m < n || (m == n && a.start < b.start))
     }
 }
 

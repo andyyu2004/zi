@@ -160,6 +160,15 @@ impl Index<ViewGroupId> for Editor {
     }
 }
 
+impl Index<NamespaceId> for Editor {
+    type Output = Namespace;
+
+    #[inline]
+    fn index(&self, index: NamespaceId) -> &Self::Output {
+        &self.namespaces[index]
+    }
+}
+
 impl Index<BufferId> for Editor {
     type Output = Buffer;
 
@@ -359,7 +368,6 @@ impl Editor {
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
     pub fn new(size: impl Into<Size>) -> (Self, Tasks) {
-        let wer = 1;
         let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
