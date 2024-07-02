@@ -49,11 +49,11 @@ use crate::buffer::{
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::config::Setting;
-use crate::event::{AsyncEventHandler, EventHandler};
+use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::{self, LanguageServer};
+use crate::lsp::LanguageServer;
 use crate::plugin::Plugins;
 use crate::private::Sealed;
 use crate::symbol::Symbol;
@@ -1916,21 +1916,6 @@ impl Editor {
     #[inline]
     pub fn language_config_mut(&mut self) -> &mut language::Config {
         &mut self.language_config
-    }
-
-    fn subscribe_sync_hooks() {
-        event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
-        event::subscribe(Self::lsp_did_change_refresh_semantic_tokens());
-        event::subscribe_with::<event::WillChangeMode>(|editor, event| {
-            match (event.from, event.to) {
-                (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
-                _ => (),
-            }
-        });
-    }
-
-    async fn subscribe_async_hooks() {
-        event::subscribe_async(Self::format_before_save()).await;
     }
 }
 
