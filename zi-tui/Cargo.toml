@@ -7,7 +7,7 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-ratatui = { version = "0.26.1", features = ["unstable"] }
+ratatui = { version = "0.27", features = ["unstable"] }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 

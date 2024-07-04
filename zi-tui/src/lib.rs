@@ -237,7 +237,6 @@ where
         }
 
         lines.iter().enumerate().for_each(|(i, line)| {
-            tracing::debug!("set_line: {i}: {line:#?}");
             buf.set_line(area.x, area.y + i as u16, line, area.width);
         });
 
