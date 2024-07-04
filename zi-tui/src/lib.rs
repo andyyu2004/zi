@@ -12,7 +12,10 @@ pub use ratatui::buffer::Buffer;
 pub use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub use ratatui::style::{Color, Modifier, Style};
 pub use ratatui::text::{Line, Span, Text};
-pub use ratatui::widgets::{Clear, Widget, WidgetRef};
+pub use ratatui::widgets::{
+    Clear, List, ListDirection, ListItem, ListState, StatefulWidget, StatefulWidgetRef, Widget,
+    WidgetRef,
+};
 pub use ratatui::{backend, Frame, Terminal};
 
 /// Convenience trait to allow replacing the frame with a faster implementation for testing.

@@ -93,7 +93,14 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
 
         assert_eq!(next_offsets.len(), map.len());
         extents.extend(map.into_iter().zip(next_offsets).map(
-            |((start_offset, keys), end_offset)| Extent { length: end_offset - start_offset, keys },
+            |((start_offset, keys), end_offset)| {
+                // TODO this assertion can fail if `len` is larger than the largest offset
+                debug_assert!(
+                    start_offset <= end_offset,
+                    "start_offset: {start_offset}, end_offset: {end_offset}",
+                );
+                Extent { length: end_offset - start_offset, keys }
+            },
         ));
 
         let mut builder = TreeBuilder::new();

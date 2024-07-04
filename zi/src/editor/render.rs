@@ -3,14 +3,14 @@ use std::fmt;
 
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
-use tui::{Rect, Widget as _};
+use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
 use super::{get_ref, Editor, State};
 use crate::editor::Resource;
 use crate::syntax::HighlightName;
-use crate::ViewId;
+use crate::{Active, ViewId};
 
 impl Editor {
     pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
@@ -23,12 +23,10 @@ impl Editor {
 
         // Only iterate over the views that are in the view tree, as otherwise they are definitely
         // not visible and we don't need to render them.
-
         self.tree.views().for_each(|view| {
             let view = &self.views[view];
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
-            // do not swap the order of the calls, since we need it to not short-circuit
             buf.pre_render(&client, view, area)
         });
 
@@ -106,14 +104,67 @@ impl Editor {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn render_view(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) {
-        let view = &self[view];
         assert_eq!(surface.area.intersection(area), area);
 
-        let buf = self.buffer(view.buffer());
-        let text = buf.text();
+        let theme = self.theme();
+        let background = self
+            .highlight_id_by_name(HighlightName::BACKGROUND)
+            .style(theme)
+            .unwrap_or_else(|| theme.default_style());
+
+        surface.set_style(area, background);
+        let number_width = self.render_view_content(area, surface, view);
+        self[view].number_width.set(number_width as u16);
+
+        if view == self.view(Active).id() {
+            self.render_completion(area, surface, view);
+        }
+    }
+
+    fn render_completion(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) {
+        let State::Insert(state) = &self.state else { return };
+        if !state.completion.show || state.completion.items.is_empty() {
+            return;
+        }
+
+        let cursor = self[view].cursor();
+        let area = Rect {
+            x: area.x + self[view].number_width.get() + cursor.col() as u16,
+            y: area.y + cursor.line() as u16 + 1,
+            width: 50,
+            height: 20,
+        };
+
+        tui::Clear.render(area, surface);
+        let list = tui::List::new(state.completion.items.iter().map(|item| {
+            tui::ListItem::new(tui::Text::from(&*item.label).left_aligned()).style(
+                tui::Style::default()
+                    .bg(tui::Color::Rgb(0x07, 0x36, 0x42))
+                    .fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+            )
+        }))
+        .scroll_padding(3)
+        .highlight_style(
+            tui::Style::default()
+                .bg(tui::Color::Rgb(0x00, 0x2b, 0x36))
+                .fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
+        );
+
+        StatefulWidget::render(
+            list,
+            area,
+            surface,
+            &mut state.completion.widget_state.borrow_mut(),
+        );
+    }
+
+    fn render_view_content(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) -> usize {
+        let theme = self.theme();
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
-        let theme = self.theme();
+        let view = &self[view];
+        let buf = self.buffer(view.buffer());
+        let text = buf.text();
 
         let line_offset = view.offset().line;
         let relevant_point_range =
@@ -210,12 +261,6 @@ impl Editor {
             ),
         );
 
-        let background = self
-            .highlight_id_by_name(HighlightName::BACKGROUND)
-            .style(theme)
-            .unwrap_or_else(|| theme.default_style());
-        surface.set_style(area, background);
-        let width = lines.render_(area, surface);
-        view.number_width.set(width as u16);
+        lines.render_(area, surface)
     }
 }

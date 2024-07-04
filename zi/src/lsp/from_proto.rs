@@ -1,11 +1,17 @@
 //! Boring impls converting zi to lsp types
 //! We always return an `Option` since we don't want to panic if the server is buggy
 
-use zi_core::{Diagnostic, PointRange, Severity};
+use zi_core::{CompletionItem, Diagnostic, PointRange, Severity};
 use zi_lsp::{lsp_types, PositionEncoding};
 use zi_text::{Delta, Deltas, Text};
 
 use crate::Point;
+
+pub fn completions(
+    items: impl IntoIterator<Item = lsp_types::CompletionItem>,
+) -> impl Iterator<Item = CompletionItem> {
+    items.into_iter().map(|item| CompletionItem { label: item.label })
+}
 
 pub fn point(
     encoding: PositionEncoding,

@@ -1,3 +1,4 @@
+mod completion;
 mod config;
 pub(crate) mod cursor;
 mod default_keymap;
@@ -10,7 +11,6 @@ mod pickers;
 mod render;
 mod search;
 mod state;
-
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
@@ -1152,18 +1152,31 @@ impl Editor {
     pub fn tab(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
         let indent = *self[buf].settings().indent.read();
-        match mode!(self) {
-            Mode::Normal => {
+        match &mut self.state {
+            State::Normal(..) => {
                 // TODO
                 Ok(())
             }
-            Mode::Insert => match indent {
-                // Should probably align to a multiple of `n`
-                IndentSettings::Spaces(n) => self.insert(view, &" ".repeat(n as usize)),
-                IndentSettings::Tabs => self.insert_char(view, '\t'),
-            },
+            State::Insert(state) => {
+                if state.completion.show {
+                    let mut widget_state = state.completion.widget_state.borrow_mut();
+                    widget_state.select_next();
+                    if let Some(item) =
+                        widget_state.selected().and_then(|idx| state.completion.items.get(idx))
+                    {
+                        tracing::debug!(?item, "selected completion item");
+                    }
+                } else {
+                    match indent {
+                        // Should probably align to a multiple of `n`
+                        IndentSettings::Spaces(n) => self.insert(view, &" ".repeat(n as usize))?,
+                        IndentSettings::Tabs => self.insert_char(view, '\t')?,
+                    }
+                }
+                Ok(())
+            }
             // TODO
-            Mode::Visual | Mode::Command | Mode::OperatorPending(_) => Ok(()),
+            State::Visual(..) | State::Command(..) | State::OperatorPending(_) => Ok(()),
         }
     }
 

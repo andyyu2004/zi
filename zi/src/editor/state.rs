@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+
+use zi_core::CompletionItem;
+
 use crate::{Mode, Operator};
 
 /// Per mode state
@@ -47,7 +51,16 @@ impl State {
 pub(super) struct NormalState {}
 
 #[derive(Debug, Default)]
-pub(super) struct InsertState {}
+pub(super) struct InsertState {
+    pub(super) completion: CompletionState,
+}
+
+#[derive(Debug, Default)]
+pub(super) struct CompletionState {
+    pub(super) show: bool,
+    pub(super) items: Vec<CompletionItem>,
+    pub(super) widget_state: RefCell<tui::ListState>,
+}
 
 #[derive(Debug)]
 pub(super) struct CommandState {

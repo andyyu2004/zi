@@ -251,6 +251,10 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor, editor.tab(Active))
     }
 
+    fn trigger_completion(editor: &mut Editor) {
+        editor.trigger_completion()
+    }
+
     fn execute_buffered_command(editor: &mut Editor) {
         set_error_if!(editor, editor.execute_buffered_command());
     }
@@ -297,6 +301,7 @@ pub(super) fn new() -> Keymap {
                 }),
                 Mode::Insert => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
+                    "<C-Space>" => trigger_completion,
                     "<CR>" => insert_newline,
                     "<BS>" => backspace,
                     "<Tab>" => tab,
