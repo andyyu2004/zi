@@ -199,7 +199,8 @@ where
                     assert!(j > i);
                     break;
                 }
-                spans.push(Span::styled(text.clone(), style));
+
+                spans.push(Span::styled(text.trim_end_matches('\n').to_owned(), style));
                 self.chunks.next();
             }
 
@@ -236,6 +237,7 @@ where
         }
 
         lines.iter().enumerate().for_each(|(i, line)| {
+            tracing::debug!("set_line: {i}: {line:#?}");
             buf.set_line(area.x, area.y + i as u16, line, area.width);
         });
 
