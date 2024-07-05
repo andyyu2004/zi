@@ -56,7 +56,6 @@ pub(crate) struct Marks {
 #[derive(Debug)]
 struct PerNs {
     marks: SlotMap<MarkId, Mark>,
-    // TODO pick some less arbitrary number
     tree: MarkTree<MarkId, 32>,
 }
 
