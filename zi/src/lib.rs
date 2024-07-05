@@ -11,6 +11,7 @@ pub use tui::LineNumberStyle;
 pub use zi_text::deltas;
 pub mod buffer;
 mod command;
+mod completion;
 mod config;
 pub mod dirs;
 mod editor;
@@ -35,7 +36,9 @@ pub use location::Location;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::Constraint;
-pub use zi_core::{Col, Direction, Line, Mode, Offset, Operator, Point, PointRange, Size};
+pub use zi_core::{
+    Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange, Size,
+};
 pub use zi_lsp::lsp_types::Url;
 pub use zi_lsp::PositionEncoding;
 pub use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
@@ -45,6 +48,7 @@ pub use self::buffer::{
     BufferFlags, BufferId, Mark, MarkBuilder, MarkId, PickerBuffer, TextBuffer,
 };
 pub use self::command::{Command, Commands};
+pub use self::completion::{CompletionParams, CompletionProvider};
 pub use self::config::Setting;
 pub use self::editor::{
     Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks,

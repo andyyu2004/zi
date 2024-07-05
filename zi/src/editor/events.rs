@@ -1,5 +1,6 @@
 use super::*;
-use crate::{event, Editor};
+use crate::event::{self, HandlerResult};
+use crate::Editor;
 
 mod lsp;
 
@@ -12,7 +13,7 @@ impl Editor {
                 (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
                 _ => (),
             }
-            event::HandlerResult::Continue
+            HandlerResult::Continue
         });
 
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
@@ -22,7 +23,41 @@ impl Editor {
                 }
                 _ => (),
             }
-            event::HandlerResult::Continue
+            HandlerResult::Continue
+        });
+
+        event::subscribe_with::<event::DidInsertChar>(|editor, event| {
+            if event.view != Active.select(editor) {
+                return HandlerResult::Continue;
+            }
+
+            let State::Insert(state) = &mut editor.state else { return HandlerResult::Continue };
+
+            match event.char {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' => match &mut state.completion {
+                    CompletionState::Active(state) => state.update_query(Some(event.char)),
+                    CompletionState::Inactive => editor.trigger_completion(),
+                },
+                _ => state.completion.deactivate(),
+            }
+
+            HandlerResult::Continue
+        });
+
+        event::subscribe_with::<event::DidDeleteChar>(|editor, event| {
+            if event.view != Active.select(editor) {
+                return HandlerResult::Continue;
+            }
+
+            let State::Insert(state) = &mut editor.state else {
+                return HandlerResult::Continue;
+            };
+
+            if let CompletionState::Active(state) = &mut state.completion {
+                state.update_query(None)
+            }
+
+            HandlerResult::Continue
         });
     }
 

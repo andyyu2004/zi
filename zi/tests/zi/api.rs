@@ -1,4 +1,5 @@
 mod command;
+mod completion;
 mod config;
 mod cursor;
 mod edit;

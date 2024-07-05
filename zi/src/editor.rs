@@ -9,6 +9,7 @@ mod lsp_requests;
 mod marks;
 mod pickers;
 mod render;
+
 mod search;
 mod state;
 use std::any::Any;
@@ -44,7 +45,7 @@ use self::diagnostics::LspDiagnostics;
 pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
-use self::state::{OperatorPendingState, State};
+use self::state::{CompletionState, OperatorPendingState, State};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry, DynamicHandler, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector, InspectorBuffer,
@@ -1116,13 +1117,15 @@ impl Editor {
                     start_byte_idx,
                     SetCursorFlags::empty(),
                 );
+
+                let view = view.id();
+                self.dispatch(event::DidDeleteChar { view });
+
                 Ok(())
             }
         }
     }
 
-    // Bad API used in tests for now
-    #[doc(hidden)]
     pub fn insert_char(
         &mut self,
         selector: impl Selector<ViewId>,
@@ -1133,19 +1136,22 @@ impl Editor {
         let cursor = view.cursor();
 
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
-        let id = view.id();
-        self.edit(id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)))?;
+        let view_id = view.id();
+        self.edit(view_id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)))?;
 
         let (view, buf) = get!(self);
-        let area = self.tree.view_area(id);
+        let area = self.tree.view_area(view_id);
         match c {
             '\n' => {
                 let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
-                self.indent_newline(id)?;
+                self.indent_newline(view_id)?;
                 cursor
             }
             _ => self.motion(Active, motion::NextChar)?,
         };
+
+        self.dispatch(event::DidInsertChar { view: view_id, char: c });
+
         Ok(())
     }
 
@@ -1158,14 +1164,10 @@ impl Editor {
                 Ok(())
             }
             State::Insert(state) => {
-                if state.completion.show {
-                    let mut widget_state = state.completion.widget_state.borrow_mut();
+                if let CompletionState::Active(state) = &mut state.completion {
+                    let mut widget_state = state.widget_state.borrow_mut();
                     widget_state.select_next();
-                    if let Some(item) =
-                        widget_state.selected().and_then(|idx| state.completion.items.get(idx))
-                    {
-                        tracing::debug!(?item, "selected completion item");
-                    }
+                    widget_state.selected().and_then(|idx| state.matches().nth(idx));
                 } else {
                     match indent {
                         // Should probably align to a multiple of `n`

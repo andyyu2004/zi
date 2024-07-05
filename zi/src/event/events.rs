@@ -48,3 +48,17 @@ pub struct DidChangeMode {
 }
 
 impl Event for DidChangeMode {}
+
+#[derive(Debug, Clone)]
+pub struct DidInsertChar {
+    pub view: ViewId,
+    pub char: char,
+}
+
+impl Event for DidInsertChar {}
+
+pub struct DidDeleteChar {
+    pub view: ViewId,
+}
+
+impl Event for DidDeleteChar {}

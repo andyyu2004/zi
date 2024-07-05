@@ -7,6 +7,7 @@ use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
+use super::state::CompletionState;
 use super::{get_ref, Editor, State};
 use crate::editor::Resource;
 use crate::syntax::HighlightName;
@@ -121,22 +122,26 @@ impl Editor {
         }
     }
 
-    fn render_completion(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) {
+    fn render_completion(&self, view_area: Rect, surface: &mut tui::Buffer, view: ViewId) {
         let State::Insert(state) = &self.state else { return };
-        if !state.completion.show || state.completion.items.is_empty() {
+        let CompletionState::Active(state) = &state.completion else { return };
+
+        if state.matches().len() == 0 {
             return;
         }
 
+        let height = state.matches().take(20).len() as u16;
         let cursor = self[view].cursor();
         let area = Rect {
-            x: area.x + self[view].number_width.get() + cursor.col() as u16,
-            y: area.y + cursor.line() as u16 + 1,
+            x: view_area.x + self[view].number_width.get() + cursor.col() as u16,
+            y: view_area.y + cursor.line() as u16 + 1,
+            height,
             width: 50,
-            height: 20,
-        };
+        }
+        .intersection(view_area);
 
         tui::Clear.render(area, surface);
-        let list = tui::List::new(state.completion.items.iter().map(|item| {
+        let list = tui::List::new(state.matches().map(|item| {
             tui::ListItem::new(tui::Text::from(&*item.label).left_aligned()).style(
                 tui::Style::default()
                     .bg(tui::Color::Rgb(0x07, 0x36, 0x42))
@@ -150,12 +155,7 @@ impl Editor {
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
         );
 
-        StatefulWidget::render(
-            list,
-            area,
-            surface,
-            &mut state.completion.widget_state.borrow_mut(),
-        );
+        StatefulWidget::render(list, area, surface, &mut state.widget_state.borrow_mut());
     }
 
     fn render_view_content(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) -> usize {

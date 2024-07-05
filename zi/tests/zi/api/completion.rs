@@ -1,0 +1,68 @@
+use futures_core::future::BoxFuture;
+
+use crate::new;
+
+struct Completions;
+
+fn items() -> Vec<zi::CompletionItem> {
+    vec![
+        zi::CompletionItem { label: "foo".to_string() },
+        zi::CompletionItem { label: "bar".to_string() },
+    ]
+}
+
+impl zi::CompletionProvider for Completions {
+    fn completions(
+        &self,
+        _editor: &mut zi::Editor,
+        _params: zi::CompletionParams,
+    ) -> BoxFuture<'static, zi_lsp::Result<Vec<zi::CompletionItem>>> {
+        Box::pin(async move { Ok(items()) })
+    }
+}
+
+#[tokio::test]
+async fn request_completion() -> zi::Result<()> {
+    let cx = new("").await;
+    let completions = cx
+        .with(|editor| {
+            editor.register_completion_provider(Completions);
+            editor.request_completions(zi::Active)
+        })
+        .await
+        .await?;
+
+    assert_eq!(completions, items());
+
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn trigger_completions() -> zi::Result<()> {
+    let cx = new("").await;
+    cx.with(|editor| editor.register_completion_provider(Completions)).await;
+    cx.with(|editor| {
+        editor.set_mode(zi::Mode::Insert);
+        editor.trigger_completion();
+    })
+    .await;
+
+    fn completions(editor: &mut zi::Editor) -> Vec<zi::CompletionItem> {
+        editor.completions().unwrap().cloned().collect()
+    }
+
+    cx.with(|editor| {
+        assert_eq!(completions(editor), items());
+        editor.insert_char(zi::Active, 'f').unwrap();
+
+        assert_eq!(completions(editor), vec![zi::CompletionItem { label: "foo".to_string() }]);
+
+        editor.delete_char(zi::Active).unwrap();
+        assert_eq!(completions(editor), items());
+    })
+    .await;
+
+    cx.cleanup().await;
+    Ok(())
+}

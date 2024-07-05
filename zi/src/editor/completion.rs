@@ -1,64 +1,153 @@
+use std::any::TypeId;
 use std::future::Future;
+use std::sync::{Arc, OnceLock};
 
-use futures_util::TryFutureExt;
-use zi_lsp::lsp_types;
+use futures_core::future::BoxFuture;
+use futures_util::{stream, StreamExt, TryFutureExt, TryStreamExt};
+use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
+use zi_core::CompletionItem;
 
+use super::state::CompletionState;
 use super::{active_servers_of, Selector, State};
+use crate::completion::{CompletionParams, CompletionProvider};
 use crate::lsp::{from_proto, to_proto};
-use crate::{Active, Editor, ViewId};
+use crate::{Active, Editor, LanguageServerId, ViewId};
+
+static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
+    OnceLock::new();
 
 impl Editor {
-    pub(crate) fn trigger_completion(&mut self) {
-        let Some(fut) = self.request_completions() else { return };
+    pub fn register_completion_provider<P: CompletionProvider + 'static>(&mut self, provider: P) {
+        COMPLETION_PROVIDERS
+            .get_or_init(Default::default)
+            .write()
+            .insert(TypeId::of::<P>(), Arc::new(provider));
+    }
+
+    pub fn unregister_completion_provider<P: CompletionProvider + 'static>(&mut self) {
+        COMPLETION_PROVIDERS.get_or_init(Default::default).write().remove(&TypeId::of::<P>());
+    }
+
+    pub fn completions(&self) -> Option<impl ExactSizeIterator<Item = &CompletionItem>> {
+        match &self.state {
+            State::Insert(state) => Some(state.completion.matches()),
+            _ => None,
+        }
+    }
+
+    pub fn trigger_completion(&mut self) {
+        let fut = self.request_completions(Active);
+
+        let State::Insert(state) = &mut self.state else { return };
+        state.completion.activate();
 
         self.callback("completions", fut.map_err(Into::into), |editor, items| {
             let State::Insert(state) = &mut editor.state else { return Ok(()) };
-            state.completion.show = true;
-            state.completion.items = from_proto::completions(items).collect();
+            if let CompletionState::Active(state) = &mut state.completion {
+                state.set_items(items);
+            }
 
             return Ok(());
         });
     }
 
-    fn request_completions(
+    #[doc(hidden)]
+    pub fn request_completions(
         &mut self,
-    ) -> Option<impl Future<Output = zi_lsp::Result<Vec<lsp_types::CompletionItem>>>> {
-        let view: ViewId = Active.select(self);
+        view: impl Selector<ViewId>,
+    ) -> impl Future<Output = zi_lsp::Result<Vec<CompletionItem>>> {
+        enum Provider {
+            Lsp(LspCompletionProvider),
+            Provider(Arc<dyn CompletionProvider>),
+        }
+
+        impl CompletionProvider for Provider {
+            fn completions(
+                &self,
+                editor: &mut Editor,
+                params: CompletionParams,
+            ) -> BoxFuture<'static, zi_lsp::Result<Vec<CompletionItem>>> {
+                match self {
+                    Provider::Lsp(provider) => provider.completions(editor, params),
+                    Provider::Provider(provider) => provider.completions(editor, params),
+                }
+            }
+        }
+
+        let view = view.select(self);
         let buf = self[view].buffer();
-        let Some((server, _caps)) = active_servers_of!(self, buf).find_map(|server| {
-            let caps: lsp_types::CompletionOptions =
+        let providers = active_servers_of!(self, buf)
+            .filter_map(|&server| {
                 self.active_language_servers[&server].capabilities.completion_provider.clone()?;
-            Some((server, caps))
-        }) else {
-            tracing::warn!("No completion provider found for buffer {:?}", buf);
-            return None;
+                Some(Provider::Lsp(LspCompletionProvider { server }))
+            })
+            .chain(
+                COMPLETION_PROVIDERS
+                    .get_or_init(Default::default)
+                    .read()
+                    .values()
+                    .map(|provider| Provider::Provider(Arc::clone(provider))),
+            )
+            .collect::<Vec<_>>();
+
+        let point = self[view].cursor();
+        let params = CompletionParams { buf, point };
+        let futs = providers
+            .into_iter()
+            .map(|provider| provider.completions(self, params))
+            .collect::<Vec<_>>();
+
+        async move {
+            stream::iter(futs)
+                .buffered(16)
+                .try_fold(vec![], |mut acc, items| async move {
+                    acc.extend(items);
+                    Ok(acc)
+                })
+                .await
+        }
+    }
+}
+
+struct LspCompletionProvider {
+    server: LanguageServerId,
+}
+
+impl CompletionProvider for LspCompletionProvider {
+    fn completions(
+        &self,
+        editor: &mut Editor,
+        params: CompletionParams,
+    ) -> BoxFuture<'static, zi_lsp::Result<Vec<CompletionItem>>> {
+        use zi_lsp::lsp_types;
+
+        let buf = params.buf;
+        let Some(uri) = editor[buf].file_url().cloned() else {
+            return Box::pin(async move { Ok(vec![]) });
         };
-
-        let Some(uri) = self[buf].file_url().cloned() else { return None };
-
-        let cursor = self[view].cursor();
-        let s = self.active_language_servers.get_mut(&server).unwrap();
-        let text = self.buffers[buf].text();
+        let s = editor.active_language_servers.get_mut(&self.server).unwrap();
+        let text = editor.buffers[buf].text();
         let encoding = s.position_encoding();
 
         let fut = s.completion(lsp_types::CompletionParams {
             text_document_position: lsp_types::TextDocumentPositionParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri },
-                position: to_proto::point(encoding, &text, cursor),
+                position: to_proto::point(encoding, &text, params.point),
             },
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
             context: None,
         });
 
-        Some(async move {
+        Box::pin(async {
             let items = match fut.await? {
                 Some(lsp_types::CompletionResponse::List(list)) => list.items,
                 Some(lsp_types::CompletionResponse::Array(items)) => items,
                 None => vec![],
             };
 
-            Ok(items)
+            Ok(from_proto::completions(items).collect())
         })
     }
 }
