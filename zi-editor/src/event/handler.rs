@@ -4,29 +4,29 @@ use super::*;
 use crate::Client;
 
 #[async_trait]
-pub trait AsyncEventHandler: Send + Sync + 'static {
+pub trait AsyncEventHandler<B>: Send + Sync + 'static {
     type Event: AsyncEvent;
 
-    async fn on_event(&self, client: Client, event: Self::Event) -> AsyncHandlerResult;
+    async fn on_event(&self, client: Client<B>, event: Self::Event) -> AsyncHandlerResult;
 }
 
 #[async_trait]
-pub(super) trait ErasedAsyncEventHandler: Send + 'static {
+pub(super) trait ErasedAsyncEventHandler<B>: Send + 'static {
     async fn dyn_on_event(
         &self,
-        client: &Client,
+        client: &Client<B>,
         event: &(dyn Any + Send + Sync),
     ) -> AsyncHandlerResult;
 }
 
 #[async_trait]
-impl<H> ErasedAsyncEventHandler for H
+impl<B: Backend, H> ErasedAsyncEventHandler<B> for H
 where
-    H: AsyncEventHandler,
+    H: AsyncEventHandler<B>,
 {
     async fn dyn_on_event(
         &self,
-        client: &Client,
+        client: &Client<B>,
         event: &(dyn Any + Send + Sync),
     ) -> AsyncHandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {

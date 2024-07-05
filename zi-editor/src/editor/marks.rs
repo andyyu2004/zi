@@ -1,9 +1,9 @@
 use std::ops::{Range, RangeBounds};
 
-use super::{Editor, Selector};
+use super::{Backend, Editor, Selector};
 use crate::{BufferId, Mark, MarkBuilder, MarkId, NamespaceId};
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     #[inline]
     pub fn marks(
         &self,

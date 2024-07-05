@@ -3,11 +3,11 @@ use crate::{event, Editor};
 
 mod lsp;
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     pub(super) fn subscribe_sync_hooks() {
         event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
 
-        event::subscribe_with::<event::WillChangeMode>(|editor, event| {
+        event::subscribe_with::<B, event::WillChangeMode>(|editor, event| {
             match (event.from, event.to) {
                 (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
                 _ => (),
@@ -15,7 +15,7 @@ impl Editor {
             event::HandlerResult::Continue
         });
 
-        event::subscribe_with::<event::DidChangeMode>(|editor, event| {
+        event::subscribe_with::<B, event::DidChangeMode>(|editor, event| {
             match (event.from, event.to) {
                 (Mode::Insert, Mode::Normal) => {
                     editor.schedule_semantic_tokens(Active.select(editor))

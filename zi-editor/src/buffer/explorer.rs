@@ -1,14 +1,15 @@
+use std::marker::PhantomData;
 use std::path::MAIN_SEPARATOR;
 use std::sync::Arc;
 
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::{get, Action};
+use crate::editor::{get, Action, Backend};
 use crate::syntax::HighlightName;
 use crate::{filetype, hashmap, trie, Mode};
 
-pub struct ExplorerBuffer<T: Entry, F: 'static> {
+pub struct ExplorerBuffer<T: Entry, F: 'static, B> {
     id: BufferId,
     url: Url,
     text: String,
@@ -17,12 +18,13 @@ pub struct ExplorerBuffer<T: Entry, F: 'static> {
     keymap: Keymap,
     confirm: F,
     config: Settings,
+    _backend: PhantomData<fn() -> B>,
 }
 
-impl<T, F> ExplorerBuffer<T, F>
+impl<T, F, B> ExplorerBuffer<T, F, B>
 where
     T: Entry,
-    F: Fn(&mut Editor, T) + Copy,
+    F: Fn(&mut Editor<B>, T) + Copy,
 {
     pub fn new(
         id: BufferId,
@@ -34,8 +36,8 @@ where
         let cancel = Cancel::new();
         let injector = Injector::new(nucleo.injector(), cancel.clone());
         let keymap = {
-            let noop: Action = |_| {};
-            let confirm: Action = |editor| {
+            let noop: Action<B> = |_| {};
+            let confirm: Action<B> = |editor| {
                 let (view, buf) = get!(editor as Self);
                 let cursor = view.cursor();
                 if let Some(data) = buf
@@ -66,13 +68,14 @@ where
                 url: Url::parse("buffer://explorer").unwrap(),
                 config: Default::default(),
                 text: Default::default(),
+                _backend: PhantomData,
             },
             injector,
         )
     }
 }
 
-impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
+impl<T: Entry, F: Send + Sync, B: Backend> BufferInternal<B> for ExplorerBuffer<T, F, B> {
     fn id(&self) -> BufferId {
         self.id
     }
@@ -130,7 +133,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _: Internal, _client: &Client, _view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, _client: &Client<B>, _view: &View, area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }
@@ -145,7 +148,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
 
     fn overlay_highlights<'a>(
         &'a self,
-        editor: &'a Editor,
+        editor: &'a Editor<B>,
         _view: &View,
         _size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {

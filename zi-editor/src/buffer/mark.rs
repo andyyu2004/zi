@@ -14,7 +14,7 @@ slotmap::new_key_type! {
     pub struct MarkId;
 }
 
-impl Buffer {
+impl<B> Buffer<B> {
     /// Create a new mark in the given namespace.
     /// Do not call this in a (100+ iteration) loop, it will be slow. Consider using `replace_marks` instead.
     pub(crate) fn create_mark(&mut self, namespace: NamespaceId, builder: MarkBuilder) -> MarkId {

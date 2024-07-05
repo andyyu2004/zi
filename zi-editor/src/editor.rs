@@ -15,6 +15,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
@@ -58,7 +59,7 @@ use crate::layout::Layer;
 use crate::lsp::LanguageServer;
 // use crate::plugin::Plugins;
 use crate::private::Sealed;
-use crate::syntax::{HighlightId, Theme};
+use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServerId,
@@ -95,9 +96,13 @@ struct SemanticTokens {
     tokens: Vec<lsp_types::SemanticToken>,
 }
 
-pub struct Editor {
+pub trait Backend: 'static {
+    type Syntax: Syntax + Send + Sync + 'static;
+}
+
+pub struct Editor<B> {
     // pub(crate) to allow `active!` macro to access it
-    pub(crate) buffers: SlotMap<BufferId, Buffer>,
+    pub(crate) buffers: SlotMap<BufferId, Buffer<B>>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     namespaces: SlotMap<NamespaceId, Namespace>,
@@ -114,17 +119,18 @@ pub struct Editor {
     theme: Theme,
     active_language_servers: HashMap<LanguageServerId, LanguageServer>,
     active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
-    callbacks_tx: CallbacksSender,
-    requests_tx: tokio::sync::mpsc::Sender<Request>,
+    callbacks_tx: CallbacksSender<B>,
+    requests_tx: tokio::sync::mpsc::Sender<Request<B>>,
     language_config: language::Config,
     tree: layout::ViewTree,
     /// error to be displayed in the status line
     status_error: Option<String>,
-    command_handlers: HashMap<Word, Handler>,
+    command_handlers: HashMap<Word, Handler<B>>,
     // plugins: Plugins,
     notify_quit: Notify,
     notify_idle: &'static Notify,
     is_idle: bool,
+    _backend: PhantomData<B>,
 }
 
 macro_rules! mode {
@@ -135,7 +141,7 @@ macro_rules! mode {
 
 pub(super) use mode;
 
-impl Index<ViewId> for Editor {
+impl<B> Index<ViewId> for Editor<B> {
     type Output = View;
 
     #[inline]
@@ -144,14 +150,14 @@ impl Index<ViewId> for Editor {
     }
 }
 
-impl IndexMut<ViewId> for Editor {
+impl<B> IndexMut<ViewId> for Editor<B> {
     #[inline]
     fn index_mut(&mut self, index: ViewId) -> &mut Self::Output {
         &mut self.views[index]
     }
 }
 
-impl Index<ViewGroupId> for Editor {
+impl<B> Index<ViewGroupId> for Editor<B> {
     type Output = ViewGroup;
 
     #[inline]
@@ -160,7 +166,7 @@ impl Index<ViewGroupId> for Editor {
     }
 }
 
-impl Index<NamespaceId> for Editor {
+impl<B> Index<NamespaceId> for Editor<B> {
     type Output = Namespace;
 
     #[inline]
@@ -169,8 +175,8 @@ impl Index<NamespaceId> for Editor {
     }
 }
 
-impl Index<BufferId> for Editor {
-    type Output = Buffer;
+impl<B> Index<BufferId> for Editor<B> {
+    type Output = Buffer<B>;
 
     #[inline]
     fn index(&self, index: BufferId) -> &Self::Output {
@@ -178,7 +184,7 @@ impl Index<BufferId> for Editor {
     }
 }
 
-impl IndexMut<BufferId> for Editor {
+impl<B> IndexMut<BufferId> for Editor<B> {
     #[inline]
     fn index_mut(&mut self, index: BufferId) -> &mut Self::Output {
         &mut self.buffers[index]
@@ -195,7 +201,7 @@ pub(crate) trait Resource {
     fn url(&self) -> &Url;
 }
 
-pub(crate) type Action = fn(&mut Editor);
+pub(crate) type Action<B> = fn(&mut Editor<B>);
 
 static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
 
@@ -287,11 +293,11 @@ macro_rules! get_ref {
 
 pub(crate) use {get, get_ref};
 
-pub(crate) type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
+pub(crate) type EditorCallback<B> = Box<dyn FnOnce(&mut Editor<B>) -> Result<(), Error> + Send>;
 
-type CallbackFuture = Pin<Box<dyn Future<Output = Result<EditorCallback, Error>> + Send>>;
+type CallbackFuture<B> = Pin<Box<dyn Future<Output = Result<EditorCallback<B>, Error>> + Send>>;
 
-type CallbacksSender = UnboundedSender<CallbackFuture>;
+type CallbacksSender<B> = UnboundedSender<CallbackFuture<B>>;
 
 // Adaptor for tokio's channel to be a futures Stream
 struct ChannelStream<T>(Receiver<T>);
@@ -317,23 +323,29 @@ impl<T> Stream for UnboundedChannelStream<T> {
     }
 }
 
-struct Request {
+struct Request<B> {
     #[allow(clippy::type_complexity)]
-    f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
+    f: Box<dyn FnOnce(&mut Editor<B>) -> Box<dyn Any + Send> + Send>,
     tx: oneshot::Sender<Box<dyn Any + Send>>,
 }
 
 /// An async client to the editor.
-#[derive(Clone)]
-pub struct Client {
-    requests_tx: Sender<Request>,
-    callbacks_tx: CallbacksSender,
+pub struct Client<B> {
+    requests_tx: Sender<Request<B>>,
+    callbacks_tx: CallbacksSender<B>,
 }
 
-impl Client {
+impl<B> Clone for Client<B> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { requests_tx: self.requests_tx.clone(), callbacks_tx: self.callbacks_tx.clone() }
+    }
+}
+
+impl<B: Backend> Client<B> {
     pub async fn with<T: Send + 'static>(
         &self,
-        f: impl FnOnce(&mut Editor) -> T + Send + 'static,
+        f: impl FnOnce(&mut Editor<B>) -> T + Send + 'static,
     ) -> T {
         let (tx, rx) = oneshot::channel();
         self.requests_tx
@@ -345,20 +357,20 @@ impl Client {
 
     /// Send a callback to the editor to be executed.
     /// This is a sync operation with the limitation that we can't return a value.
-    pub fn send(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+    pub fn send<F: FnOnce(&mut Editor<B>) -> Result<(), Error> + Send + 'static>(&self, f: F) {
         // no description needed as `ready()` will never timeout
         callback(&self.callbacks_tx, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
 }
 
-pub struct Tasks {
-    requests: ChannelStream<Request>,
-    callbacks: UnboundedChannelStream<CallbackFuture>,
+pub struct Tasks<B> {
+    requests: ChannelStream<Request<B>>,
+    callbacks: UnboundedChannelStream<CallbackFuture<B>>,
     notify_redraw: &'static Notify,
     notify_idle: &'static Notify,
 }
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     // status line + command line
     pub const BOTTOM_BAR_HEIGHT: u16 = 1 + 1;
 
@@ -367,12 +379,12 @@ impl Editor {
     /// The callback stream must be polled and the resulting callback executed on the editor.
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
-    pub fn new(size: impl Into<Size>) -> (Self, Tasks) {
+    pub fn new(size: impl Into<Size>) -> (Self, Tasks<B>) {
         let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
         let scratch_buffer = buffers.insert_with_key(|id| {
-            Buffer::new(TextBuffer::new(
+            Buffer::new(TextBuffer::new::<B::Syntax>(
                 id,
                 BufferFlags::empty(),
                 filetype!(text),
@@ -436,6 +448,7 @@ impl Editor {
             search_state: Default::default(),
             theme: Default::default(),
             status_error: Default::default(),
+            _backend: PhantomData,
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -453,7 +466,7 @@ impl Editor {
         )
     }
 
-    pub fn client(&self) -> Client {
+    pub fn client(&self) -> Client<B> {
         Client { requests_tx: self.requests_tx.clone(), callbacks_tx: self.callbacks_tx.clone() }
     }
 
@@ -535,8 +548,8 @@ impl Editor {
 
         let client = self.client();
         Ok(async move {
-            async fn execute<T: Text + Clone + 'static>(
-                client: &Client,
+            async fn execute<B: Backend, T: Text + Clone + 'static>(
+                client: &Client<B>,
                 plan: Plan,
                 ft: FileType,
                 path: &Path,
@@ -548,13 +561,16 @@ impl Editor {
                 client
                     .with(move |editor| match plan {
                         Plan::Replace(id) => {
-                            let buf =
-                                Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme));
+                            let buf = Buffer::new(TextBuffer::new::<B::Syntax>(
+                                id, flags, ft, &path, text, &theme,
+                            ));
                             editor.buffers[id] = buf;
                             id
                         }
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
-                            Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme))
+                            Buffer::new(TextBuffer::new::<B::Syntax>(
+                                id, flags, ft, &path, text, &theme,
+                            ))
                         }),
                         Plan::Existing(_) => unreachable!(),
                     })
@@ -597,7 +613,7 @@ impl Editor {
         })
     }
 
-    pub fn register_command(&mut self, handler: Handler) {
+    pub fn register_command(&mut self, handler: Handler<B>) {
         self.command_handlers.insert(handler.name(), handler);
     }
 
@@ -725,7 +741,7 @@ impl Editor {
     pub async fn fuzz(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
-        Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks,
+        Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks<B>,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
         Self::subscribe_async_hooks().await;
@@ -786,7 +802,7 @@ impl Editor {
     pub async fn run(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
-        tasks: Tasks,
+        tasks: Tasks<B>,
         render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
         // let plugin_handle = tokio::spawn(self.plugins.clone().run());
@@ -1004,17 +1020,17 @@ impl Editor {
     }
 
     #[inline]
-    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &Buffer {
+    pub fn buffer(&self, selector: impl Selector<BufferId>) -> &Buffer<B> {
         self.buffers.get(selector.select(self)).expect("bad buffer id")
     }
 
     #[inline]
-    pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut Buffer {
+    pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut Buffer<B> {
         self.buffers.get_mut(selector.select(self)).expect("bad buffer id")
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer> {
+    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer<B>> {
         self.buffers.values()
     }
 
@@ -1736,7 +1752,7 @@ impl Editor {
         s: impl Deref<Target = [u8]> + Send + Sync + 'static,
     ) -> BufferId {
         self.buffers.insert_with_key(|id| {
-            Buffer::new(TextBuffer::new(
+            Buffer::new(TextBuffer::new::<B::Syntax>(
                 id,
                 BufferFlags::READONLY,
                 filetype!(text),
@@ -1864,7 +1880,7 @@ impl Editor {
         &self,
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<R, Error>> + Send + 'static,
-        f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
+        f: impl FnOnce(&mut Editor<B>, R) -> Result<(), Error> + Send + 'static,
     ) {
         callback(&self.callbacks_tx, desc, fut, f);
     }
@@ -1924,14 +1940,14 @@ async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Resu
 }
 
 pub trait Selector<T>: Sealed {
-    fn select(&self, editor: &Editor) -> T;
+    fn select<B: Backend>(&self, editor: &Editor<B>) -> T;
 }
 
 impl<T, S: Selector<T> + ?Sized> Selector<T> for &S
 where
     S: Selector<T>,
 {
-    fn select(&self, editor: &Editor) -> T {
+    fn select<B: Backend>(&self, editor: &Editor<B>) -> T {
         (**self).select(editor)
     }
 }
@@ -1942,23 +1958,23 @@ impl Sealed for Active {}
 
 impl Selector<ViewId> for Active {
     #[inline]
-    fn select(&self, editor: &Editor) -> ViewId {
+    fn select<B: Backend>(&self, editor: &Editor<B>) -> ViewId {
         editor.tree.active()
     }
 }
 
 impl Selector<BufferId> for Active {
     #[inline]
-    fn select(&self, editor: &Editor) -> BufferId {
+    fn select<B: Backend>(&self, editor: &Editor<B>) -> BufferId {
         editor.view(Active).buffer()
     }
 }
 
-fn callback<R: Send + 'static>(
-    tx: &CallbacksSender,
+fn callback<B: Backend, R: Send + 'static>(
+    tx: &CallbacksSender<B>,
     desc: impl fmt::Display + Send + 'static,
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
-    f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
+    f: impl FnOnce(&mut Editor<B>, R) -> Result<(), Error> + Send + 'static,
 ) {
     tx.send(Box::pin(async move {
         const TIMEOUT: Duration = Duration::from_secs(3);
@@ -1966,8 +1982,8 @@ fn callback<R: Send + 'static>(
             |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {TIMEOUT:?}"),
         )??;
 
-        Ok(Box::new(move |editor: &mut Editor| f(editor, res))
-            as Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>)
+        Ok(Box::new(move |editor: &mut Editor<B>| f(editor, res))
+            as Box<dyn FnOnce(&mut Editor<B>) -> Result<(), Error> + Send>)
     }))
     .expect("send failed");
 }

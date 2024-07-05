@@ -7,12 +7,12 @@ use tui::{Rect, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
-use super::{get_ref, Editor, State};
+use super::{get_ref, Backend, Editor, State};
 use crate::editor::Resource;
 use crate::syntax::HighlightName;
 use crate::ViewId;
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     pub fn render(&mut self, frame: &mut impl tui::DynFrame) {
         let buffer_area = frame.buffer_mut().area;
         let tree_area = self.tree.area();

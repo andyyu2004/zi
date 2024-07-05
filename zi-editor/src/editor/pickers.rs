@@ -1,11 +1,11 @@
 use super::*;
 use crate::Mark;
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
 
-        fn inner(editor: &mut Editor, path: &Path) {
+        fn inner<B: Backend>(editor: &mut Editor<B>, path: &Path) {
             let mut injector = None;
             let buf = editor.buffers.insert_with_key(|id| {
                 let (explorer, inj) = ExplorerBuffer::new(
@@ -70,7 +70,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
-        P: Picker,
+        P: Picker<B>,
     {
         self.open_picker::<P>(view_group_url, path, split_ratio, None, f)
     }
@@ -83,7 +83,7 @@ impl Editor {
         dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
     ) -> ViewGroupId
     where
-        P: Picker,
+        P: Picker<B>,
     {
         self.open_picker::<P>(
             view_group_url,
@@ -103,7 +103,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
     ) -> ViewGroupId
     where
-        P: Picker,
+        P: Picker<B>,
     {
         let prev_mode = mode!(self);
         let view_group = match self.create_view_group(view_group_url) {
@@ -127,7 +127,7 @@ impl Editor {
 
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
         self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
-            Buffer::new(TextBuffer::new(
+            Buffer::new(TextBuffer::new::<B::Syntax>(
                 id,
                 BufferFlags::empty(),
                 filetype!(text),
@@ -144,7 +144,7 @@ impl Editor {
         self.views[display_view].set_group(view_group);
         self.views[search_view].set_group(view_group);
 
-        event::subscribe_with::<event::DidCloseView>({
+        event::subscribe_with::<B, event::DidCloseView>({
             move |editor, event| {
                 // restore the mode if the picker view group is closed
                 if editor.views[event.view].group() == Some(view_group) {

@@ -1,7 +1,7 @@
 use std::ops::RangeBounds;
 
 use super::*;
-use crate::editor::Active;
+use crate::editor::{Active, Backend};
 use crate::filetype;
 
 pub struct InspectorBuffer {
@@ -22,7 +22,7 @@ impl InspectorBuffer {
     }
 }
 
-impl BufferInternal for InspectorBuffer {
+impl<B: Backend> BufferInternal<B> for InspectorBuffer {
     fn id(&self) -> BufferId {
         self.id
     }
@@ -71,7 +71,7 @@ impl BufferInternal for InspectorBuffer {
         panic!("is readonly")
     }
 
-    fn pre_render(&mut self, _: Internal, client: &Client, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, client: &Client<B>, _view: &View, _area: tui::Rect) {
         let buf = self.id;
         client.send(move |editor| {
             let mut query_cursor = QueryCursor::new();

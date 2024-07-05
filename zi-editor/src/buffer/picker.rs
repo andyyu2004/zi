@@ -7,12 +7,12 @@ use nucleo::Nucleo;
 use zi_text::TextMut;
 
 use super::*;
-use crate::editor::{get, Action};
+use crate::editor::{get, Action, Backend};
 use crate::{
     filetype, hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId,
 };
 
-pub struct PickerBuffer<P: Picker> {
+pub struct PickerBuffer<B, P: Picker<B>> {
     id: BufferId,
     /// The view that displays the results
     display_view: ViewId,
@@ -24,18 +24,19 @@ pub struct PickerBuffer<P: Picker> {
     url: Url,
     dynamic_handler: Option<DynamicHandler<P::Entry>>,
     config: Settings,
+    _backend: PhantomData<fn() -> B>,
 }
 
 pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
 
-pub trait Picker: Send + Sync + Copy + 'static {
+pub trait Picker<B>: Send + Sync + Copy + 'static {
     type Entry: Entry;
 
     fn new(preview: ViewId) -> Self;
 
-    fn select(self, editor: &mut Editor, entry: Self::Entry);
+    fn select(self, editor: &mut Editor<B>, entry: Self::Entry);
 
-    fn confirm(self, editor: &mut Editor, entry: Self::Entry);
+    fn confirm(self, editor: &mut Editor<B>, entry: Self::Entry);
 
     fn config(self) -> nucleo::Config {
         nucleo::Config::DEFAULT
@@ -78,8 +79,9 @@ impl<P> Clone for BufferPicker<P> {
 
 impl<P> Copy for BufferPicker<P> {}
 
-impl<P> Picker for BufferPicker<P>
+impl<B, P> Picker<B> for BufferPicker<P>
 where
+    B: Backend,
     P: BufferPickerEntry,
 {
     type Entry = P;
@@ -92,10 +94,10 @@ where
         nucleo::Config::DEFAULT.match_paths()
     }
 
-    fn select(self, editor: &mut Editor, entry: Self::Entry) {
+    fn select(self, editor: &mut Editor<B>, entry: Self::Entry) {
         let point = entry.point();
 
-        let preview = move |editor: &mut Editor, buf: BufferId| {
+        let preview = move |editor: &mut Editor<B>, buf: BufferId| {
             editor.set_buffer(self.preview, buf);
             if let Some(point) = point {
                 editor.reveal(self.preview, point, VerticalAlignment::Center)
@@ -126,7 +128,7 @@ where
         });
     }
 
-    fn confirm(self, editor: &mut Editor, entry: Self::Entry) {
+    fn confirm(self, editor: &mut Editor<B>, entry: Self::Entry) {
         let point = entry.point();
 
         let path = match entry.buffer_or_path() {
@@ -156,9 +158,10 @@ where
     }
 }
 
-impl<P> PickerBuffer<P>
+impl<B, P> PickerBuffer<B, P>
 where
-    P: Picker,
+    B: Backend,
+    P: Picker<B>,
 {
     pub fn new(
         id: BufferId,
@@ -178,11 +181,12 @@ where
             url: Url::parse("buffer://picker").unwrap(),
             config: Default::default(),
             text: Default::default(),
+            _backend: PhantomData,
             keymap: {
-                let next: Action = |editor| Self::select(editor, Direction::Down);
-                let prev: Action = |editor| Self::select(editor, Direction::Up);
-                let confirm: Action = |editor| Self::confirm(editor);
-                let close: Action = |editor| editor.close_view(Active);
+                let next: Action<B> = |editor| Self::select(editor, Direction::Down);
+                let prev: Action<B> = |editor| Self::select(editor, Direction::Up);
+                let confirm: Action<B> = |editor| Self::confirm(editor);
+                let close: Action<B> = |editor| editor.close_view(Active);
 
                 Keymap::from(hashmap! {
                     Mode::Insert => trie! ({
@@ -230,12 +234,16 @@ where
     }
 }
 
-impl<P: Picker> PickerBuffer<P> {
+impl<B, P> PickerBuffer<B, P>
+where
+    B: Backend,
+    P: Picker<B>,
+{
     fn item(&self, line: u32) -> Option<P::Entry> {
         self.nucleo.snapshot().get_matched_item(line).map(|item| item.data.clone())
     }
 
-    fn confirm(editor: &mut Editor) {
+    fn confirm(editor: &mut Editor<B>) {
         let (_, picker_buf) = get!(editor as Self);
         let display_view = picker_buf.display_view;
         let cursor = editor.view(display_view).cursor();
@@ -247,7 +255,7 @@ impl<P: Picker> PickerBuffer<P> {
         }
     }
 
-    fn select_current(buf_id: BufferId, editor: &mut Editor) {
+    fn select_current(buf_id: BufferId, editor: &mut Editor<B>) {
         let picker_buf = editor[buf_id].as_any().downcast_ref::<Self>().unwrap();
         let display_view = picker_buf.display_view;
         let cursor = editor.get_cursor(display_view);
@@ -258,7 +266,7 @@ impl<P: Picker> PickerBuffer<P> {
         }
     }
 
-    fn select(editor: &mut Editor, direction: Direction) {
+    fn select(editor: &mut Editor<B>, direction: Direction) {
         assert!(direction.is_vertical());
 
         let (_, picker_buf) = get!(editor as Self);
@@ -270,7 +278,11 @@ impl<P: Picker> PickerBuffer<P> {
     }
 }
 
-impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
+impl<B, P> BufferInternal<B> for PickerBuffer<B, P>
+where
+    B: Backend,
+    P: Picker<B> + Send + Sync,
+{
     fn id(&self) -> BufferId {
         self.id
     }
@@ -330,7 +342,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         }
     }
 
-    fn pre_render(&mut self, _: Internal, client: &Client, _view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, client: &Client<B>, _view: &View, _area: tui::Rect) {
         if !self.nucleo.tick(10).changed {
             return;
         }

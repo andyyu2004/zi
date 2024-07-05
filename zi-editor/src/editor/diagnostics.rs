@@ -5,14 +5,14 @@ use zi_core::Severity;
 use zi_lsp::lsp_types;
 use zi_text::PointRangeExt;
 
-use super::request_redraw;
+use super::{request_redraw, Backend};
 use crate::lsp::from_proto;
 use crate::syntax::HighlightName;
 use crate::{BufferId, Editor, LanguageServerId, Mark, Setting};
 
 pub(super) type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     /// Return the current state of the raw diagnostics returned by the language servers.
     pub fn lsp_diagnostics(&self) -> &HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>> {
         &self.lsp_diagnostics

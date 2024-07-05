@@ -34,7 +34,7 @@ impl Sealed for BufferId {}
 
 impl Selector<Self> for BufferId {
     #[inline]
-    fn select(&self, _: &Editor) -> Self {
+    fn select<B>(&self, _: &Editor<B>) -> Self {
         *self
     }
 }
@@ -96,7 +96,7 @@ pub struct SyntaxHighlight {
     pub capture_idx: u32,
 }
 
-impl Resource for Buffer {
+impl<B> Resource for Buffer<B> {
     type Id = BufferId;
 
     const URL_SCHEME: &'static str = "buffer";
@@ -141,13 +141,13 @@ pub(crate) trait BufferHistory {
 }
 
 // This wraps the trait to provide common functionality and to make it easier to control method privacy.
-pub struct Buffer {
+pub struct Buffer<B> {
     marks: Marks,
-    inner: Box<dyn BufferInternal>,
+    inner: Box<dyn BufferInternal<B>>,
 }
 
-impl Buffer {
-    pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
+impl<B> Buffer<B> {
+    pub(crate) fn new(buffer: impl BufferInternal<B> + 'static) -> Self {
         let this = Self { inner: buffer.boxed(), marks: Marks::default() };
         this
     }
@@ -213,7 +213,7 @@ impl Buffer {
         self.inner.on_leave(Internal(()));
     }
 
-    pub(crate) fn pre_render(&mut self, client: &Client, view: &View, area: tui::Rect) {
+    pub(crate) fn pre_render(&mut self, client: &Client<B>, view: &View, area: tui::Rect) {
         self.inner.pre_render(Internal(()), client, view, area);
     }
 
@@ -239,7 +239,7 @@ impl Buffer {
 
     pub(crate) fn syntax_highlights<'a>(
         &'a self,
-        editor: &Editor,
+        editor: &Editor<B>,
         cursor: &'a mut QueryCursor,
         range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
@@ -248,14 +248,14 @@ impl Buffer {
 
     pub(crate) fn overlay_highlights<'a>(
         &'a self,
-        editor: &'a Editor,
+        editor: &'a Editor<B>,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         self.inner.overlay_highlights(editor, view, size)
     }
 
-    pub fn syntax(&self) -> Option<&Syntax> {
+    pub fn syntax(&self) -> Option<&(dyn Syntax + Send + Sync)> {
         self.inner.syntax()
     }
 
@@ -267,7 +267,7 @@ impl Buffer {
     }
 }
 
-pub(crate) trait BufferInternal: Send + Sync {
+pub(crate) trait BufferInternal<B>: Send + Sync {
     fn id(&self) -> BufferId;
 
     fn flags(&self) -> BufferFlags;
@@ -309,7 +309,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     fn flushed(&mut self, _: Internal);
 
     #[doc(hidden)]
-    fn syntax(&self) -> Option<&Syntax> {
+    fn syntax(&self) -> Option<&(dyn Syntax + Send + Sync)> {
         None
     }
 
@@ -321,7 +321,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     #[doc(hidden)]
     fn syntax_highlights<'a>(
         &'a self,
-        editor: &Editor,
+        editor: &Editor<B>,
         cursor: &'a mut QueryCursor,
         range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
@@ -335,7 +335,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     #[doc(hidden)]
     fn overlay_highlights<'a>(
         &'a self,
-        editor: &'a Editor,
+        editor: &'a Editor<B>,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
@@ -343,7 +343,7 @@ pub(crate) trait BufferInternal: Send + Sync {
         Box::new(std::iter::empty())
     }
 
-    fn boxed(self) -> Box<dyn BufferInternal>
+    fn boxed(self) -> Box<dyn BufferInternal<B>>
     where
         Self: Sized + 'static,
     {
@@ -356,7 +356,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     }
 
     /// Called just before rendering the buffer, returns whether the buffer needs to be re-rendered.
-    fn pre_render(&mut self, _: Internal, _client: &Client, view: &View, _area: tui::Rect) {
+    fn pre_render(&mut self, _: Internal, _client: &Client<B>, view: &View, _area: tui::Rect) {
         assert_eq!(self.id(), view.buffer());
     }
 
@@ -364,7 +364,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     fn on_leave(&mut self, _: Internal) {}
 }
 
-impl dyn BufferInternal + '_ {
+impl<B> dyn BufferInternal<B> + '_ {
     #[inline]
     pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
         self.history_mut(Internal(())).and_then(|h| h.redo())
@@ -398,7 +398,7 @@ impl dyn BufferInternal + '_ {
 }
 
 // NOTE: remember to add all the methods to the Box<dyn Buffer> impl below, including default methods
-impl BufferInternal for Box<dyn BufferInternal> {
+impl<B> BufferInternal<B> for Box<dyn BufferInternal<B>> {
     #[inline]
     fn id(&self) -> BufferId {
         self.as_ref().id()
@@ -450,7 +450,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn syntax(&self) -> Option<&Syntax> {
+    fn syntax(&self) -> Option<&(dyn Syntax + Send + Sync)> {
         self.as_ref().syntax()
     }
 
@@ -477,7 +477,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     #[inline]
     fn syntax_highlights<'a>(
         &'a self,
-        editor: &Editor,
+        editor: &Editor<B>,
         cursor: &'a mut QueryCursor,
         range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
@@ -487,7 +487,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     #[inline]
     fn overlay_highlights<'a>(
         &'a self,
-        editor: &'a Editor,
+        editor: &'a Editor<B>,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + '_> {
@@ -495,7 +495,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn boxed(self) -> Box<dyn BufferInternal>
+    fn boxed(self) -> Box<dyn BufferInternal<B>>
     where
         Self: Sized + 'static,
     {
@@ -508,7 +508,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn pre_render(&mut self, internal: Internal, client: &Client, view: &View, area: tui::Rect) {
+    fn pre_render(&mut self, internal: Internal, client: &Client<B>, view: &View, area: tui::Rect) {
         self.as_mut().pre_render(internal, client, view, area)
     }
 

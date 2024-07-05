@@ -11,12 +11,14 @@ use zi_core::Point;
 use zi_lsp::lsp_types::{self, OneOf, Url};
 use zi_lsp::PositionEncoding;
 
-use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
+use super::{
+    active_servers_of, callback, event, get, Backend, Client, Result, Selector, SemanticTokens,
+};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::lsp::{self, from_proto, to_proto, LanguageClient, LanguageServer};
 use crate::{BufferId, Editor, FileType, LanguageServerId, Location, OpenFlags, ViewId};
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     pub fn goto_definition(
         &mut self,
         selector: impl Selector<ViewId>,
@@ -566,8 +568,8 @@ impl Editor {
         let buf = selector.select(self);
         tracing::info!(?buf, "requesting diagnostics");
 
-        async fn update_related_docs(
-            client: &Client,
+        async fn update_related_docs<B: Backend>(
+            client: &Client<B>,
             server_id: LanguageServerId,
             related_documents: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
         ) {
@@ -660,8 +662,8 @@ impl Editor {
     }
 }
 
-fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServerId) {
+fn subscribe_per_server_lsp_event_handlers<B: Backend>(server_id: LanguageServerId) {
     // TODO check capabilities
-    event::subscribe::<event::DidChangeBuffer>(Editor::lsp_did_change_sync(server_id));
-    event::subscribe::<event::DidOpenBuffer>(Editor::lsp_did_open(server_id));
+    event::subscribe::<event::DidChangeBuffer>(Editor::<B>::lsp_did_change_sync(server_id));
+    event::subscribe::<event::DidOpenBuffer>(Editor::<B>::lsp_did_open(server_id));
 }

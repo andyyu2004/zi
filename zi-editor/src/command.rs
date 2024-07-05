@@ -8,14 +8,14 @@ use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
 use smol_str::SmolStr;
 
-use crate::editor::SaveFlags;
+use crate::editor::{Backend, SaveFlags};
 // use crate::plugin::PluginId;
 // use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Active, Editor, Error};
 
 pub struct Commands(Box<[Command]>);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Arity {
     min: u8,
     max: u8,
@@ -233,25 +233,51 @@ impl fmt::Debug for CommandKind {
     }
 }
 
-#[derive(Clone)]
-pub struct Handler {
+pub struct Handler<B> {
     name: Word,
     arity: Arity,
     opts: CommandFlags,
-    handler: CommandHandler,
+    handler: CommandHandler<B>,
 }
 
-#[derive(Clone, Copy)]
-pub enum CommandHandler {
-    Local(LocalHandler),
+impl<B> Clone for Handler<B> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            handler: self.handler.clone(),
+            arity: self.arity,
+            opts: self.opts,
+        }
+    }
+}
+
+pub enum CommandHandler<B> {
+    Local(LocalHandler<B>),
     // Remote(PluginId),
 }
 
-#[derive(Clone, Copy)]
-pub struct LocalHandler(fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>);
+impl<B> Clone for CommandHandler<B> {
+    #[inline]
+    fn clone(&self) -> Self {
+        match self {
+            CommandHandler::Local(f) => CommandHandler::Local(f.clone()),
+            // CommandHandler::Remote(id) => CommandHandler::Remote(*id),
+        }
+    }
+}
 
-impl From<LocalHandler> for CommandHandler {
-    fn from(v: LocalHandler) -> Self {
+pub struct LocalHandler<B>(fn(&mut Editor<B>, Option<&CommandRange>, &[Word]) -> crate::Result<()>);
+
+impl<B> Clone for LocalHandler<B> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<B> From<LocalHandler<B>> for CommandHandler<B> {
+    fn from(v: LocalHandler<B>) -> Self {
         Self::Local(v)
     }
 }
@@ -273,24 +299,24 @@ impl RangeBounds<u8> for Arity {
     }
 }
 
-impl Handler {
+impl<B: Backend> Handler<B> {
     pub fn new(
         name: impl Into<Word>,
         arity: Arity,
         opts: CommandFlags,
-        handler: impl Into<CommandHandler>,
+        handler: impl Into<CommandHandler<B>>,
     ) -> Self {
         Self { name: name.into(), arity, opts, handler: handler.into() }
     }
 
     pub fn execute(
         &self,
-        editor: &mut Editor,
+        editor: &mut Editor<B>,
         range: Option<&CommandRange>,
         args: &[Word],
     ) -> Result<(), Error> {
         self.check(range, args)?;
-        match self.handler {
+        match &self.handler {
             CommandHandler::Local(f) => (f.0)(editor, range, args),
             // CommandHandler::Remote(id) => {
             //     let plugins = editor.plugins();
@@ -338,7 +364,7 @@ impl Arity {
     }
 }
 
-pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
+pub(crate) fn builtin_handlers<B: Backend>() -> HashMap<Word, Handler<B>> {
     [
         Handler {
             name: "q".try_into().unwrap(),
@@ -423,7 +449,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
     .collect()
 }
 
-fn set(editor: &Editor, key: &Word, value: &Word) -> crate::Result<()> {
+fn set<B: Backend>(editor: &Editor<B>, key: &Word, value: &Word) -> crate::Result<()> {
     let buf = editor.buffer(Active).settings();
     let view = editor.view(Active).settings();
 

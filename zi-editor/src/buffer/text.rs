@@ -3,7 +3,8 @@ use std::mem;
 use zi_text::{AnyTextSlice, Text, TextMut, TextSlice};
 
 use super::*;
-use crate::syntax::{HighlightMap, HighlightName};
+use crate::editor::Backend;
+use crate::syntax::{HighlightMap, HighlightName, Syntax};
 use crate::undo::UndoTree;
 
 pub struct TextBuffer<X> {
@@ -14,8 +15,8 @@ pub struct TextBuffer<X> {
     /// The url of the file (effectively a cached copy of `Url::from_file_path(&self.path)`)
     file_url: Option<Url>,
     text: X,
-    language_id: FileType,
-    syntax: Option<Syntax>,
+    file_type: FileType,
+    syntax: Option<Box<dyn Syntax + Send + Sync>>,
     highlight_map: HighlightMap,
     version: u32,
     config: Settings,
@@ -66,7 +67,7 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
     }
 }
 
-impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
+impl<B: Backend, X: Text + Clone + Send + 'static> BufferInternal<B> for TextBuffer<X> {
     #[inline]
     fn id(&self) -> BufferId {
         self.id
@@ -94,7 +95,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
     #[inline]
     fn file_type(&self) -> FileType {
-        self.language_id
+        self.file_type
     }
 
     #[inline]
@@ -108,8 +109,8 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
     }
 
     #[inline]
-    fn syntax(&self) -> Option<&Syntax> {
-        self.syntax.as_ref()
+    fn syntax(&self) -> Option<&(dyn Syntax + Send + Sync)> {
+        self.syntax.as_deref()
     }
 
     fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, flags: EditFlags) {
@@ -126,7 +127,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
     fn syntax_highlights<'a>(
         &'a self,
-        _editor: &Editor,
+        _editor: &Editor<B>,
         cursor: &'a mut QueryCursor,
         range: PointRange,
     ) -> Box<dyn Iterator<Item = SyntaxHighlight> + 'a> {
@@ -157,7 +158,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
     fn overlay_highlights(
         &self,
-        editor: &Editor,
+        editor: &Editor<B>,
         view: &View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + '_> {
@@ -193,14 +194,17 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
 impl<X: Text + Clone> TextBuffer<X> {
     #[inline]
-    pub fn new(
+    pub fn new<S>(
         id: BufferId,
         flags: BufferFlags,
-        ft: FileType,
+        file_type: FileType,
         path: impl AsRef<Path>,
         mut text: X,
         theme: &Theme,
-    ) -> Self {
+    ) -> Self
+    where
+        S: Syntax + Send + Sync + 'static,
+    {
         let flags = flags | BufferFlags::ENSURE_TRAILING_NEWLINE;
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
@@ -216,11 +220,11 @@ impl<X: Text + Clone> TextBuffer<X> {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
-        let mut syntax = match Syntax::for_file_type(ft) {
-            Ok(syntax) => syntax,
+        let mut syntax = match S::new(file_type) {
+            Ok(syntax) => syntax.map(|syn| Box::new(syn) as Box<dyn Syntax + Send + Sync>),
             Err(err) => {
                 // TODO show the error somewhere
-                tracing::error!("failed to load syntax for {ft}: {err}");
+                tracing::error!("failed to load syntax for {file_type}: {err}");
                 None
             }
         };
@@ -240,9 +244,9 @@ impl<X: Text + Clone> TextBuffer<X> {
             url,
             file_url,
             text,
-            syntax,
-            language_id: ft,
+            file_type,
             highlight_map,
+            syntax,
             config: Default::default(),
             changes: Default::default(),
             version: Default::default(),

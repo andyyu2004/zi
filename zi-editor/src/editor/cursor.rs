@@ -1,11 +1,11 @@
 use zi_core::PointOrByte;
 use zi_textobject::{motion, Motion};
 
-use super::{get, mode, Selector};
+use super::{get, mode, Backend, Selector};
 use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Mode, Point, ViewId};
 
-impl Editor {
+impl<B: Backend> Editor<B> {
     #[inline]
     pub fn get_cursor(&self, view: impl Selector<ViewId>) -> Point {
         self.view(view).cursor()

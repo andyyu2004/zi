@@ -11,10 +11,11 @@ use rustc_hash::FxHashMap;
 pub use self::events::*;
 pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler, EventHandler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
+use crate::editor::Backend;
 use crate::{Client, Editor, Result};
 
 #[derive(Default)]
-pub struct Registry {
+pub struct Registry<B> {
     // map<event_type, map<handler_type, handler>>
     // We key by handler type too to avoid duplicates in tests as this is stored in a static.
     handlers: parking_lot::RwLock<
@@ -28,20 +29,20 @@ pub struct Registry {
     async_garbage: SegQueue<(TypeId, TypeId)>,
 
     async_handlers: tokio::sync::RwLock<
-        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
+        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler<B> + Send + Sync>>>,
     >,
 }
 
-fn registry() -> &'static Registry {
-    static REGISTRY: OnceLock<Registry> = OnceLock::new();
+fn registry<B>() -> &'static Registry<B> {
+    static REGISTRY: OnceLock<Registry<B>> = OnceLock::new();
     REGISTRY.get_or_init(Registry::default)
 }
 
-pub fn dispatch(editor: &mut Editor, event: impl Event) {
+pub fn dispatch<B: Backend>(editor: &mut Editor<B>, event: impl Event) {
     registry().dispatch(editor, &event)
 }
 
-pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) -> Result<()> {
+pub async fn dispatch_async<B: Backend>(client: &Client<B>, event: impl AsyncEvent) -> Result<()> {
     registry().dispatch_async(client, &event).await
 }
 
@@ -49,8 +50,8 @@ pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
     registry().subscribe(handler)
 }
 
-pub fn subscribe_with<E: Event>(
-    f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
+pub fn subscribe_with<B: Backend, E: Event>(
+    f: impl Fn(&mut Editor<B>, &E) -> HandlerResult + Send + Sync + 'static,
 ) {
     subscribe(handler(f));
 }
@@ -59,8 +60,9 @@ pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Even
     registry().subscribe_async(handler).await
 }
 
-pub async fn subscribe_async_with<E, Fut>(f: impl Fn(Client, E) -> Fut + Send + Sync + 'static)
-where
+pub async fn subscribe_async_with<B: Backend, E, Fut>(
+    f: impl Fn(Client<B>, E) -> Fut + Send + Sync + 'static,
+) where
     E: AsyncEvent,
     Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
@@ -95,7 +97,7 @@ impl Registry {
         handlers.entry(TypeId::of::<T>()).or_default().insert(TypeId::of::<H>(), Arc::new(handler));
     }
 
-    pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
+    pub fn dispatch<B: Backend, T: Event>(&self, editor: &mut Editor<B>, event: &T) {
         if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
             for (&hty, handler) in handlers {
                 if handler.dyn_on_event(editor, event) == HandlerResult::Unsubscribe {
@@ -105,7 +107,11 @@ impl Registry {
         }
     }
 
-    pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
+    pub async fn dispatch_async<B: Backend, T: AsyncEvent>(
+        &self,
+        client: &Client<B>,
+        event: &T,
+    ) -> Result<()> {
         if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
             for (&hty, handler) in handlers {
                 if handler.dyn_on_event(client, event).await? == HandlerResult::Unsubscribe {

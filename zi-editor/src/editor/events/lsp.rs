@@ -6,8 +6,8 @@ use crate::lsp::{from_proto, to_proto};
 use crate::syntax::HighlightName;
 use crate::{event, Editor, Mark};
 
-impl Editor {
-    pub(crate) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
+impl<B: Backend> Editor<B> {
+    pub(crate) fn format_before_save() -> impl AsyncEventHandler<B, Event = event::WillSaveBuffer> {
         event::async_handler::<event::WillSaveBuffer, _>(|client, event| async move {
             let (version, format_fut) = client
                 .with(move |editor| {
@@ -242,7 +242,7 @@ impl Editor {
                         lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
                         lsp_types::TextDocumentSyncCapability::Options(opts) => {
                             match &opts.change {
-                                Some(kind) => kind,
+                                Some(kind) => *kind,
                                 None => return event::HandlerResult::Continue,
                             }
                         }
@@ -256,7 +256,7 @@ impl Editor {
                     version: buf.version() as i32,
                 };
 
-                let content_changes = match *kind {
+                let content_changes = match kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
                         to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
                     }
