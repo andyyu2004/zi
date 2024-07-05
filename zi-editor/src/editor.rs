@@ -56,7 +56,7 @@ use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
 use crate::lsp::LanguageServer;
-use crate::plugin::Plugins;
+// use crate::plugin::Plugins;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
@@ -121,7 +121,7 @@ pub struct Editor {
     /// error to be displayed in the status line
     status_error: Option<String>,
     command_handlers: HashMap<Word, Handler>,
-    plugins: Plugins,
+    // plugins: Plugins,
     notify_quit: Notify,
     notify_idle: &'static Notify,
     is_idle: bool,
@@ -402,10 +402,10 @@ impl Editor {
         let (callbacks_tx, callbacks_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(128);
-        let plugins = Plugins::new(Client {
-            requests_tx: requests_tx.clone(),
-            callbacks_tx: callbacks_tx.clone(),
-        });
+        // let plugins = Plugins::new(Client {
+        //     requests_tx: requests_tx.clone(),
+        //     callbacks_tx: callbacks_tx.clone(),
+        // });
 
         static NOTIFY_IDLE: OnceLock<Notify> = OnceLock::new();
         let notify_idle = NOTIFY_IDLE.get_or_init(Default::default);
@@ -417,7 +417,7 @@ impl Editor {
             default_namespace,
             callbacks_tx,
             requests_tx,
-            plugins,
+            // plugins,
             empty_buffer,
             notify_idle,
             keymap: default_keymap::new(),
@@ -715,9 +715,9 @@ impl Editor {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
 
-    pub(crate) fn plugins(&self) -> Plugins {
-        self.plugins.clone()
-    }
+    // pub(crate) fn plugins(&self) -> Plugins {
+    //     self.plugins.clone()
+    // }
 
     // HACK, run without spawning the plugin system
     // This can be executed with any executor
@@ -789,10 +789,10 @@ impl Editor {
         tasks: Tasks,
         render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
-        let plugin_handle = tokio::spawn(self.plugins.clone().run());
+        // let plugin_handle = tokio::spawn(self.plugins.clone().run());
         self.fuzz(events, tasks, render).await?;
-        plugin_handle.abort();
-        let _ = plugin_handle.await;
+        // plugin_handle.abort();
+        // let _ = plugin_handle.await;
 
         Ok(())
     }

@@ -3693,6 +3693,28 @@ dependencies = [
 name = "zi"
 version = "0.1.0"
 dependencies = [
+ "tracing",
+ "wasmtime",
+ "zi-editor",
+]
+
+[[package]]
+name = "zi-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "expect-test",
+ "parking_lot",
+ "stdx",
+ "tree-sitter",
+ "zi-tui",
+]
+
+[[package]]
+name = "zi-editor"
+version = "0.1.0"
+dependencies = [
  "anyhow",
  "arbitrary",
  "async-trait",
@@ -3745,19 +3767,6 @@ dependencies = [
  "zi-nvim",
  "zi-text",
  "zi-textobject",
- "zi-tui",
-]
-
-[[package]]
-name = "zi-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arbitrary",
- "expect-test",
- "parking_lot",
- "stdx",
- "tree-sitter",
  "zi-tui",
 ]
 

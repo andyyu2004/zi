@@ -1,0 +1,90 @@
+package zi:api;
+
+world plugin {
+    import editor;
+
+    export lifecycle;
+    export dependency;
+    export command;
+}
+
+interface dependency {
+    get-name: func() -> string;
+    dependencies: func() -> list<string>;
+}
+
+interface lifecycle {
+    use command.{command };
+
+    record initialize-result {
+        commands: list<command>,
+    }
+
+    initialize: func() -> initialize-result;
+    shutdown: func();
+}
+
+// This is structured in a very particular way to get bindgen to do what we want (on both host and guest side).
+// - Do not use anything from this interface in the main `world` otherwise the host will generate useless bindings.
+// - If this is not in separate interface (and in the main world) we have the above issue + the guest doesn't generate bindings for this.
+interface command {
+    record arity {
+        min: u8,
+        max: u8,
+    }
+
+    flags command-flags {
+        range,
+    }
+
+    record command {
+        name: string,
+        arity: arity,
+        opts: command-flags,
+    }
+
+    resource handler {
+        constructor();
+        exec: func(cmd: string, args: list<string>) -> ();
+    }
+}
+
+interface editor {
+    variant operator {
+        delete,
+        change,
+        yank,
+    }
+
+    variant mode {
+        normal,
+        insert,
+        visual,
+        command,
+        operator-pending(operator),
+    }
+
+    type line = u32;
+    type col = u32;
+
+    record point {
+       line: line,
+       col: col,
+    }
+
+    insert: func(text: string) -> ();
+    get-mode: func() -> mode;
+    set-mode: func(mode: mode) -> ();
+    get-active-view: func() -> view;
+
+    resource view {
+        get-buffer: func() -> buffer;
+        get-cursor: func() -> point;
+        set-cursor: func(pos: point) -> ();
+    }
+
+    resource buffer {
+    }
+}
+
+

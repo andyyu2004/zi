@@ -13,13 +13,14 @@ members = [
     "zi-textobject",
     "zi-core",
     "zi-indent",
-    "asciicast", "zi-marktree",
+    "asciicast", "zi-marktree", "zi-editor",
 ]
 
 [workspace.dependencies]
 asciicast = { path = "asciicast" }
 zi = { path = "zi" }
 zi-core = { path = "zi-core" }
+zi-editor = { path = "zi-editor" }
 zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }
@@ -63,6 +64,7 @@ dyn-clone = "1.0.17"
 serde_json = "1.0.95"
 mutants = "0.0.3"
 test-strategy = "0.3.1"
+wasmtime = { version = "19", features = ["component-model"] }
 
 [profile.dev.package.cranelift-codegen]
 opt-level = 3

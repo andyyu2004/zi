@@ -1,0 +1,76 @@
+[package]
+name = "zi-editor"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+bitflags = { workspace = true }
+futures-core = { workspace = true }
+parking_lot = { workspace = true }
+regex-cursor = { workspace = true }
+mutants = { workspace = true }
+slotmap = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
+tracing = { workspace = true }
+tree-sitter = { workspace = true, features = ["wasm"] }
+itertools = { workspace = true }
+rustc-hash = { workspace = true }
+ustr = { workspace = true }
+unicode-width = "0.1.13"
+wasmtime = { version = "19", features = ["component-model"] }
+tui = { path = "../zi-tui", package = "zi-tui" }
+nucleo = "0.5.0"
+ignore = "0.4.22"
+rayon = "1.9.0"
+chumsky = "0.9.3"
+crossterm = { workspace = true, optional = true }
+futures-util = { workspace = true }
+directories-next = "2.0.0"
+smol_str = "0.2.1"
+tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
+arbitrary = { workspace = true, optional = true, features = ["derive"] }
+rand = { workspace = true, optional = true }
+grep = "0.3.1"
+async-trait = { workspace = true }
+stdx = { workspace = true }
+zi-core = { workspace = true, features = ["tree-sitter"] }
+zi-marktree = { workspace = true }
+zi-indent = { workspace = true }
+zi-lsp = { workspace = true }
+zi-text = { workspace = true }
+zi-textobject = { workspace = true }
+dyn-clone = { workspace = true }
+tokio-util = { workspace = true }
+crop = { workspace = true }
+content_inspector = "0.2.4"
+cov-mark = "2.0.0-pre.1"
+crossbeam-queue = "0.3.11"
+
+[dev-dependencies]
+expect-test = { workspace = true }
+serde_json = { workspace = true}
+proptest = { workspace = true}
+test-strategy = { workspace = true }
+zi = { workspace = true, features = ["arbitrary", "rand"] }
+zi-nvim = { workspace = true }
+regex = { workspace = true }
+mimalloc = { workspace = true }
+datatest-stable = "0.2.3"
+duct = "0.13.7"
+tempfile = "3.10.0"
+
+[features]
+arbitrary = ["dep:arbitrary", "bitflags/arbitrary", "zi-core/arbitrary"]
+rand = ["dep:rand"]
+
+[[test]]
+name = "regression"
+harness = false
+
+[[test]]
+name = "nvim"
+harness = false

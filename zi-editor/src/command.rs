@@ -9,11 +9,24 @@ use chumsky::Parser;
 use smol_str::SmolStr;
 
 use crate::editor::SaveFlags;
-use crate::plugin::PluginId;
-use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
+// use crate::plugin::PluginId;
+// use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
 use crate::{Active, Editor, Error};
 
 pub struct Commands(Box<[Command]>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Arity {
+    min: u8,
+    max: u8,
+}
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct CommandFlags: u8 {
+        const RANGE = 0b0001;
+    }
+}
 
 impl fmt::Debug for Commands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -231,7 +244,7 @@ pub struct Handler {
 #[derive(Clone, Copy)]
 pub enum CommandHandler {
     Local(LocalHandler),
-    Remote(PluginId),
+    // Remote(PluginId),
 }
 
 #[derive(Clone, Copy)]
@@ -279,15 +292,15 @@ impl Handler {
         self.check(range, args)?;
         match self.handler {
             CommandHandler::Local(f) => (f.0)(editor, range, args),
-            CommandHandler::Remote(id) => {
-                let plugins = editor.plugins();
-                let name = self.name.clone();
-                let args = args.iter().map(Into::into).collect::<Box<_>>();
-                editor.schedule(format!("plugin command {name}"), async move {
-                    plugins.execute(id, name, None, args).await
-                });
-                Ok(())
-            }
+            // CommandHandler::Remote(id) => {
+            //     let plugins = editor.plugins();
+            //     let name = self.name.clone();
+            //     let args = args.iter().map(Into::into).collect::<Box<_>>();
+            //     editor.schedule(format!("plugin command {name}"), async move {
+            //         plugins.execute(id, name, None, args).await
+            //     });
+            //     Ok(())
+            // }
         }
     }
 
