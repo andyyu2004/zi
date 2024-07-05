@@ -95,6 +95,7 @@ struct SemanticTokens {
     tokens: Vec<lsp_types::SemanticToken>,
 }
 
+#[derive(Default)]
 pub struct DummyBackend;
 
 impl Backend for DummyBackend {

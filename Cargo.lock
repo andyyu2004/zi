@@ -3760,7 +3760,6 @@ dependencies = [
  "tree-sitter",
  "unicode-width",
  "ustr",
- "wasmtime",
  "zi",
  "zi-core",
  "zi-indent",
