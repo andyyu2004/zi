@@ -16,7 +16,7 @@ mutants = { workspace = true }
 slotmap = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
 tracing = { workspace = true }
-tree-sitter = { workspace = true, features = ["wasm"] }
+tree-sitter = { workspace = true }
 itertools = { workspace = true }
 rustc-hash = { workspace = true }
 ustr = { workspace = true }

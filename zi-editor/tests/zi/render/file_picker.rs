@@ -17,11 +17,11 @@ async fn file_picker() {
 
     cx.snapshot(expect![[r#"
         "  |                                                                                                 "
-        "  tests/zi/testdirs/binary.bin                                                                      "
-        "  tests/zi/testdirs/test.txt                                                                        "
         "  tests/zi/testdirs/a.txt                                                                           "
         "  tests/zi/testdirs/b.txt                                                                           "
+        "  tests/zi/testdirs/binary.bin                                                                      "
         "  tests/zi/testdirs/c.txt                                                                           "
+        "  tests/zi/testdirs/d.txt                                                                           "
         "buffer://picker:1:0                                                                                 "
         "-- INSERT --                                                                                        "
     "#]])

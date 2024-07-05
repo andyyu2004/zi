@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zi-editor = { workspace = true }
-wasmtime = { workspace = true }
+anyhow = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
-anyhow = { workspace = true }
+zi-editor = { workspace = true }
+tree-sitter = { workspace = true, features = ["wasm"] }
+# The version of wasmtime is decided by the dependency that tree-sitter takes
+wasmtime = { version = "21", features = ["component-model"] }
 
 [lints]
 workspace = true
