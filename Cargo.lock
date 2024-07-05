@@ -3693,6 +3693,8 @@ dependencies = [
 name = "zi"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "parking_lot",
  "tracing",
  "wasmtime",
  "zi-editor",

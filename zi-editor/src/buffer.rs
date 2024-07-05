@@ -255,7 +255,7 @@ impl Buffer {
         self.inner.overlay_highlights(editor, view, size)
     }
 
-    pub fn syntax(&self) -> Option<&Syntax> {
+    pub fn syntax(&self) -> Option<&dyn Syntax> {
         self.inner.syntax()
     }
 
@@ -309,7 +309,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     fn flushed(&mut self, _: Internal);
 
     #[doc(hidden)]
-    fn syntax(&self) -> Option<&Syntax> {
+    fn syntax(&self) -> Option<&dyn Syntax> {
         None
     }
 
@@ -450,7 +450,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn syntax(&self) -> Option<&Syntax> {
+    fn syntax(&self) -> Option<&dyn Syntax> {
         self.as_ref().syntax()
     }
 

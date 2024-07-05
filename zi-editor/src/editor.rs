@@ -58,7 +58,7 @@ use crate::layout::Layer;
 use crate::lsp::LanguageServer;
 // use crate::plugin::Plugins;
 use crate::private::Sealed;
-use crate::syntax::{HighlightId, Theme};
+use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
     event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServerId,
@@ -95,6 +95,18 @@ struct SemanticTokens {
     tokens: Vec<lsp_types::SemanticToken>,
 }
 
+pub struct DummyBackend;
+
+impl Backend for DummyBackend {
+    fn new_syntax(&mut self, _ft: FileType) -> io::Result<Option<Box<dyn Syntax>>> {
+        Ok(None)
+    }
+}
+
+pub trait Backend: Send + Sync + 'static {
+    fn new_syntax(&mut self, ft: FileType) -> io::Result<Option<Box<dyn Syntax>>>;
+}
+
 pub struct Editor {
     // pub(crate) to allow `active!` macro to access it
     pub(crate) buffers: SlotMap<BufferId, Buffer>,
@@ -125,6 +137,7 @@ pub struct Editor {
     notify_quit: Notify,
     notify_idle: &'static Notify,
     is_idle: bool,
+    backend: Box<dyn Backend>,
 }
 
 macro_rules! mode {
@@ -367,7 +380,7 @@ impl Editor {
     /// The callback stream must be polled and the resulting callback executed on the editor.
     /// The `notify` instance is used to signal the main thread to redraw the screen.
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
-    pub fn new(size: impl Into<Size>) -> (Self, Tasks) {
+    pub fn new(backend: impl Backend, size: impl Into<Size>) -> (Self, Tasks) {
         let size = size.into();
         let theme = Theme::default();
         let mut buffers = SlotMap::default();
@@ -379,6 +392,7 @@ impl Editor {
                 "scratch",
                 Rope::new(),
                 &theme,
+                None,
             ))
         });
         let mut views = SlotMap::default();
@@ -395,6 +409,7 @@ impl Editor {
                 "empty",
                 "",
                 &theme,
+                None,
             ))
         });
 
@@ -420,6 +435,7 @@ impl Editor {
             // plugins,
             empty_buffer,
             notify_idle,
+            backend: Box::new(backend),
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
@@ -507,6 +523,7 @@ impl Editor {
         self.check_open(&mut path, open_flags)?;
 
         let ft = FileType::detect(&path);
+        let syntax = self.backend.new_syntax(ft)?;
 
         let existing_buf = self.buffer_at_path(&path);
 
@@ -543,18 +560,20 @@ impl Editor {
                 text: T,
                 theme: Theme,
                 flags: BufferFlags,
+                syntax: Option<Box<dyn Syntax>>,
             ) -> BufferId {
                 let path = path.to_path_buf();
                 client
                     .with(move |editor| match plan {
                         Plan::Replace(id) => {
-                            let buf =
-                                Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme));
+                            let buf = Buffer::new(TextBuffer::new(
+                                id, flags, ft, &path, text, &theme, syntax,
+                            ));
                             editor.buffers[id] = buf;
                             id
                         }
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
-                            Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme))
+                            Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme, syntax))
                         }),
                         Plan::Existing(_) => unreachable!(),
                     })
@@ -568,14 +587,14 @@ impl Editor {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
-                execute(&client, plan, ft, &path, text, theme, BufferFlags::READONLY).await
+                execute(&client, plan, ft, &path, text, theme, BufferFlags::READONLY, syntax).await
             } else {
                 let rope = if path.exists() {
                     rope_from_reader(tokio::fs::File::open(&path).await?).await?
                 } else {
                     Rope::new()
                 };
-                execute(&client, plan, ft, &path, rope, theme, BufferFlags::empty()).await
+                execute(&client, plan, ft, &path, rope, theme, BufferFlags::empty(), syntax).await
             };
 
             client
@@ -1743,6 +1762,7 @@ impl Editor {
                 path,
                 ReadonlyText::new(s),
                 &self.theme,
+                None,
             ))
         })
     }

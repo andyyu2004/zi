@@ -134,6 +134,7 @@ impl Editor {
                 path,
                 Rope::new(),
                 &self.theme,
+                None,
             ))
         }));
 

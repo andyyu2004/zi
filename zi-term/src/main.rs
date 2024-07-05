@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
 
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
-    let (mut editor, tasks) = zi::Editor::new(term.size()?);
+    let (mut editor, tasks) = zi::Editor::new(zi::WasmBackend::default(), term.size()?);
 
     let init_path = zi::dirs::config().join("init.zi");
     if init_path.exists() {

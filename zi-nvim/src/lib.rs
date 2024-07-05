@@ -63,7 +63,7 @@ impl Fixture {
     }
 
     pub async fn nvim_vs_zi_with(self, nvim: &Nvim, flags: CompareFlags) -> zi::Result<()> {
-        let (mut editor, _tasks) = zi::Editor::new(self.size);
+        let (mut editor, _tasks) = zi::Editor::new(zi::DummyBackend, self.size);
 
         for case in &self.cases[..] {
             nvim.run(&mut editor, case, flags).await?;

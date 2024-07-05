@@ -38,7 +38,7 @@ pub use tui::Constraint;
 pub use zi_core::{Col, Direction, Line, Mode, Offset, Operator, Point, PointRange, Size};
 pub use zi_lsp::lsp_types::Url;
 pub use zi_lsp::PositionEncoding;
-pub use zi_text::{Delta, Deltas};
+pub use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
 pub use zi_textobject::motion;
 
 pub use self::buffer::{
@@ -46,10 +46,13 @@ pub use self::buffer::{
 };
 pub use self::command::{Command, Commands};
 pub use self::config::Setting;
-pub use self::editor::{Active, Client, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks};
+pub use self::editor::{
+    Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks,
+};
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServerId};
 pub use self::namespace::{Namespace, NamespaceId};
+pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View, ViewId};
 // pub use self::wit::zi::api::editor::{Mode, Operator};
 

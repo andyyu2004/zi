@@ -15,7 +15,7 @@ pub struct TextBuffer<X> {
     file_url: Option<Url>,
     text: X,
     language_id: FileType,
-    syntax: Option<Syntax>,
+    syntax: Option<Box<dyn Syntax>>,
     highlight_map: HighlightMap,
     version: u32,
     config: Settings,
@@ -108,8 +108,8 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
     }
 
     #[inline]
-    fn syntax(&self) -> Option<&Syntax> {
-        self.syntax.as_ref()
+    fn syntax(&self) -> Option<&dyn Syntax> {
+        self.syntax.as_deref()
     }
 
     fn edit_flags(&mut self, _: Internal, deltas: &Deltas<'_>, flags: EditFlags) {
@@ -200,6 +200,7 @@ impl<X: Text + Clone> TextBuffer<X> {
         path: impl AsRef<Path>,
         mut text: X,
         theme: &Theme,
+        mut syntax: Option<Box<dyn Syntax>>,
     ) -> Self {
         let flags = flags | BufferFlags::ENSURE_TRAILING_NEWLINE;
         let path = path.as_ref();
@@ -216,16 +217,17 @@ impl<X: Text + Clone> TextBuffer<X> {
             panic!("must set readonly buffer flag for readonly text implementations")
         }
 
-        let mut syntax = match Syntax::for_file_type(ft) {
-            Ok(syntax) => syntax,
-            Err(err) => {
-                // TODO show the error somewhere
-                tracing::error!("failed to load syntax for {ft}: {err}");
-                None
-            }
-        };
+        // let mut syntax = match Syntax::for_file_type(ft) {
+        //     Ok(syntax) => syntax,
+        //     Err(err) => {
+        //         // TODO show the error somewhere
+        //         tracing::error!("failed to load syntax for {ft}: {err}");
+        //         None
+        //     }
+        // };
 
         if let Some(syntax) = &mut syntax {
+            assert_eq!(syntax.file_type(), ft);
             syntax.set(&text);
         }
 
