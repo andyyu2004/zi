@@ -5,22 +5,24 @@ members = [
     "plugins/*",
     "stdx",
     "zi",
-    "zi-term",
-    "zi-tui",
-    "zi-lsp",
-    "zi-nvim",
-    "zi-text",
-    "zi-textobject",
     "zi-core",
     "zi-indent",
-    "asciicast", "zi-marktree", "zi-editor",
+    "zi-lsp",
+    "zi-marktree",
+    "zi-nvim",
+    "zi-term",
+    "zi-text",
+    "zi-textobject",
+    "zi-tui",
+    "zi-wasm",
+    "asciicast",
 ]
 
 [workspace.dependencies]
 asciicast = { path = "asciicast" }
 zi = { path = "zi" }
 zi-core = { path = "zi-core" }
-zi-editor = { path = "zi-editor" }
+zi-wasm = { path = "zi-wasm" }
 zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }

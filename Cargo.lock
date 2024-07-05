@@ -3683,31 +3683,6 @@ name = "zi"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "parking_lot",
- "tracing",
- "tree-sitter",
- "wasmtime",
- "zi-editor",
-]
-
-[[package]]
-name = "zi-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arbitrary",
- "expect-test",
- "parking_lot",
- "stdx",
- "tree-sitter",
- "zi-tui",
-]
-
-[[package]]
-name = "zi-editor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
  "arbitrary",
  "async-trait",
  "bitflags 2.6.0",
@@ -3758,6 +3733,19 @@ dependencies = [
  "zi-nvim",
  "zi-text",
  "zi-textobject",
+ "zi-tui",
+]
+
+[[package]]
+name = "zi-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "expect-test",
+ "parking_lot",
+ "stdx",
+ "tree-sitter",
  "zi-tui",
 ]
 
@@ -3836,6 +3824,7 @@ dependencies = [
  "tracing-subscriber",
  "zi",
  "zi-tui",
+ "zi-wasm",
 ]
 
 [[package]]
@@ -3869,6 +3858,18 @@ dependencies = [
  "anyhow",
  "ratatui",
  "tracing",
+]
+
+[[package]]
+name = "zi-wasm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parking_lot",
+ "tracing",
+ "tree-sitter",
+ "wasmtime",
+ "zi",
 ]
 
 [[package]]

@@ -93,7 +93,7 @@ where
     Fut: Future<Output = zi::Result<()>>,
 {
     let (width, height) = (150, 32);
-    let (mut editor, tasks) = zi::Editor::new(zi::WasmBackend::default(), (width, height));
+    let (mut editor, tasks) = zi::Editor::new(zi_wasm::WasmBackend::default(), (width, height));
 
     let client = editor.client();
     tokio::spawn(async move {
