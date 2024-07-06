@@ -250,7 +250,7 @@ impl<P: Picker> PickerBuffer<P> {
     fn select_current(buf_id: BufferId, editor: &mut Editor) {
         let picker_buf = editor[buf_id].as_any().downcast_ref::<Self>().unwrap();
         let display_view = picker_buf.display_view;
-        let cursor = editor.get_cursor(display_view);
+        let cursor = editor.cursor(display_view);
 
         let picker = picker_buf.picker;
         if let Some(item) = picker_buf.item(cursor.line() as u32) {

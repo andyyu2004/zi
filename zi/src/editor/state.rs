@@ -67,6 +67,7 @@ pub(super) enum CompletionState {
 #[derive(Debug, Default)]
 pub(super) struct ActiveCompletionState {
     pub widget_state: RefCell<tui::ListState>,
+    requested_at_byte: usize,
     options: Vec<CompletionItem>,
     matches: Vec<nucleo::Match>,
     matcher: nucleo::Matcher,
@@ -95,8 +96,13 @@ impl CompletionState {
 }
 
 impl ActiveCompletionState {
-    pub(super) fn set_items(&mut self, options: Vec<CompletionItem>) {
+    pub fn start_byte(&self) -> usize {
+        self.requested_at_byte
+    }
+
+    pub(super) fn set_items(&mut self, requested_at_byte: usize, options: Vec<CompletionItem>) {
         self.options = options;
+        self.requested_at_byte = requested_at_byte;
         self.compute_matches();
     }
 
@@ -132,12 +138,19 @@ impl ActiveCompletionState {
         self.matches.clear();
         let matches = self.options.iter().enumerate().filter_map(|(idx, item)| {
             pattern
-                .score(Utf32Str::new(&item.label, &mut buf), &mut self.matcher)
+                .score(
+                    Utf32Str::new(item.filter_text.as_ref().unwrap_or(&item.label), &mut buf),
+                    &mut self.matcher,
+                )
                 .map(|score| nucleo::Match { idx: idx as u32, score: score as u32 })
         });
         self.matches.extend(matches);
 
         self.widget_state.borrow_mut().select(None);
+    }
+
+    pub(super) fn selected_item(&self) -> Option<&CompletionItem> {
+        self.widget_state.borrow().selected().map(|idx| &self.options[idx])
     }
 }
 

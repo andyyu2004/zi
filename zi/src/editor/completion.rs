@@ -7,6 +7,7 @@ use futures_util::{stream, StreamExt, TryFutureExt, TryStreamExt};
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use zi_core::CompletionItem;
+use zi_text::Deltas;
 
 use super::state::CompletionState;
 use super::{active_servers_of, Selector, State};
@@ -36,24 +37,31 @@ impl Editor {
         }
     }
 
-    pub fn complete(&mut self, item: CompletionItem) {
-        todo!()
-    }
-
     pub fn trigger_completion(&mut self) {
         let fut = self.request_completions(Active);
+        let at = self.cursor_byte(Active);
 
         let State::Insert(state) = &mut self.state else { return };
         state.completion.activate();
 
-        self.callback("completions", fut.map_err(Into::into), |editor, items| {
+        self.callback("completions", fut.map_err(Into::into), move |editor, items| {
             let State::Insert(state) = &mut editor.state else { return Ok(()) };
             if let CompletionState::Active(state) = &mut state.completion {
-                state.set_items(items);
+                state.set_items(at, items);
             }
 
             return Ok(());
         });
+    }
+
+    pub(super) fn apply_selected_completion(&mut self) {
+        let end_byte = self.cursor_byte(Active);
+        let State::Insert(state) = &mut self.state else { return };
+        let CompletionState::Active(state) = &mut state.completion else { return };
+        let Some(item) = state.selected_item() else { return };
+        let replacement_text = item.insert_text.as_deref().unwrap_or(&item.label).to_owned();
+        let deltas = Deltas::single(state.start_byte()..end_byte, replacement_text);
+        self.edit(Active, &deltas).expect("valid delta");
     }
 
     #[doc(hidden)]

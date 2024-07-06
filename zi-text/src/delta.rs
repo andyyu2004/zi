@@ -62,6 +62,10 @@ impl<'a> Deltas<'a> {
         Self { deltas }
     }
 
+    pub fn single(range: impl Into<DeltaRange>, text: impl Into<Cow<'a, str>>) -> Self {
+        Deltas::new([Delta::new(range, text)])
+    }
+
     #[inline]
     pub fn len(&self) -> usize {
         self.deltas.len()

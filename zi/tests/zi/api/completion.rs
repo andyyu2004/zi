@@ -6,8 +6,8 @@ struct Completions;
 
 fn items() -> Vec<zi::CompletionItem> {
     vec![
-        zi::CompletionItem { label: "foo".to_string() },
-        zi::CompletionItem { label: "bar".to_string() },
+        zi::CompletionItem { label: "foo".to_string(), ..Default::default() },
+        zi::CompletionItem { label: "bar".to_string(), ..Default::default() },
     ]
 }
 
@@ -38,28 +38,54 @@ async fn request_completion() -> zi::Result<()> {
     Ok(())
 }
 
+fn completions(editor: &mut zi::Editor) -> Vec<zi::CompletionItem> {
+    editor.completions().unwrap().cloned().collect()
+}
+
 #[tokio::test]
 async fn trigger_completions() -> zi::Result<()> {
     let cx = new("").await;
-    cx.with(|editor| editor.register_completion_provider(Completions)).await;
     cx.with(|editor| {
+        editor.register_completion_provider(Completions);
         editor.set_mode(zi::Mode::Insert);
         editor.trigger_completion();
     })
     .await;
 
-    fn completions(editor: &mut zi::Editor) -> Vec<zi::CompletionItem> {
-        editor.completions().unwrap().cloned().collect()
-    }
-
     cx.with(|editor| {
         assert_eq!(completions(editor), items());
         editor.insert_char(zi::Active, 'f').unwrap();
 
-        assert_eq!(completions(editor), vec![zi::CompletionItem { label: "foo".to_string() }]);
+        assert_eq!(
+            completions(editor),
+            vec![zi::CompletionItem { label: "foo".to_string(), ..Default::default() }]
+        );
 
         editor.delete_char(zi::Active).unwrap();
         assert_eq!(completions(editor), items());
+    })
+    .await;
+
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn tab_completion() -> zi::Result<()> {
+    let cx = new("").await;
+    cx.with(|editor| {
+        editor.register_completion_provider(Completions);
+        editor.set_mode(zi::Mode::Insert);
+        editor.trigger_completion();
+    })
+    .await;
+
+    cx.with(|editor| {
+        editor.insert_char(zi::Active, 'f').unwrap();
+
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), "f\n");
+        editor.tab().unwrap();
+        assert_eq!(editor.buffer(zi::Active).text().to_string(), "foo\n");
     })
     .await;
 

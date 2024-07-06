@@ -1163,14 +1163,8 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let CompletionState::Active(state) = &mut state.completion {
-                    let mut widget_state = state.widget_state.borrow_mut();
-                    widget_state.select_next();
-                    if let Some(item) =
-                        widget_state.selected().and_then(|idx| state.matches().nth(idx)).cloned()
-                    {
-                        drop(widget_state);
-                        self.complete(item)
-                    }
+                    state.widget_state.borrow_mut().select_next();
+                    self.apply_selected_completion();
                 } else {
                     let (view, buf) = self.get(Active);
                     let indent = *self[buf].settings().indent.read();
@@ -1195,14 +1189,8 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let CompletionState::Active(state) = &mut state.completion {
-                    let mut widget_state = state.widget_state.borrow_mut();
-                    widget_state.select_previous();
-                    if let Some(item) =
-                        widget_state.selected().and_then(|idx| state.matches().nth(idx)).cloned()
-                    {
-                        drop(widget_state);
-                        self.complete(item)
-                    }
+                    state.widget_state.borrow_mut().select_previous();
+                    self.apply_selected_completion();
                 } else {
                     // TODO
                 }

@@ -10,7 +10,14 @@ use crate::Point;
 pub fn completions(
     items: impl IntoIterator<Item = lsp_types::CompletionItem>,
 ) -> impl Iterator<Item = CompletionItem> {
-    items.into_iter().map(|item| CompletionItem { label: item.label })
+    items.into_iter().map(|item| {
+        tracing::debug!("completion item: {:#?}", item);
+        CompletionItem {
+            label: item.label,
+            filter_text: item.filter_text,
+            insert_text: item.insert_text,
+        }
+    })
 }
 
 pub fn point(
