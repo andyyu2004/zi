@@ -248,7 +248,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn tab(editor: &mut Editor) {
-        set_error_if!(editor, editor.tab(Active))
+        set_error_if!(editor, editor.tab())
+    }
+
+    fn backtab(editor: &mut Editor) {
+        set_error_if!(editor, editor.backtab())
     }
 
     fn trigger_completion(editor: &mut Editor) {
@@ -305,6 +309,7 @@ pub(super) fn new() -> Keymap {
                     "<CR>" => insert_newline,
                     "<BS>" => backspace,
                     "<Tab>" => tab,
+                    "<S-Tab>" => backtab,
                     "f" => {
                         "d" => normal_mode,
                     },

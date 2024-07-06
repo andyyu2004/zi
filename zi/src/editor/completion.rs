@@ -36,6 +36,10 @@ impl Editor {
         }
     }
 
+    pub fn complete(&mut self, item: CompletionItem) {
+        todo!()
+    }
+
     pub fn trigger_completion(&mut self) {
         let fut = self.request_completions(Active);
 

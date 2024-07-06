@@ -1155,9 +1155,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn tab(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
-        let (view, buf) = self.get(selector);
-        let indent = *self[buf].settings().indent.read();
+    pub fn tab(&mut self) -> Result<(), EditError> {
         match &mut self.state {
             State::Normal(..) => {
                 // TODO
@@ -1167,13 +1165,46 @@ impl Editor {
                 if let CompletionState::Active(state) = &mut state.completion {
                     let mut widget_state = state.widget_state.borrow_mut();
                     widget_state.select_next();
-                    widget_state.selected().and_then(|idx| state.matches().nth(idx));
+                    if let Some(item) =
+                        widget_state.selected().and_then(|idx| state.matches().nth(idx)).cloned()
+                    {
+                        drop(widget_state);
+                        self.complete(item)
+                    }
                 } else {
+                    let (view, buf) = self.get(Active);
+                    let indent = *self[buf].settings().indent.read();
                     match indent {
                         // Should probably align to a multiple of `n`
                         IndentSettings::Spaces(n) => self.insert(view, &" ".repeat(n as usize))?,
                         IndentSettings::Tabs => self.insert_char(view, '\t')?,
                     }
+                }
+                Ok(())
+            }
+            // TODO
+            State::Visual(..) | State::Command(..) | State::OperatorPending(_) => Ok(()),
+        }
+    }
+
+    pub fn backtab(&mut self) -> Result<(), EditError> {
+        match &mut self.state {
+            State::Normal(..) => {
+                // TODO
+                Ok(())
+            }
+            State::Insert(state) => {
+                if let CompletionState::Active(state) = &mut state.completion {
+                    let mut widget_state = state.widget_state.borrow_mut();
+                    widget_state.select_previous();
+                    if let Some(item) =
+                        widget_state.selected().and_then(|idx| state.matches().nth(idx)).cloned()
+                    {
+                        drop(widget_state);
+                        self.complete(item)
+                    }
+                } else {
+                    // TODO
                 }
                 Ok(())
             }

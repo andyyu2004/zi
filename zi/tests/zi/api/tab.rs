@@ -10,9 +10,9 @@ async fn tab_insert() {
 
         editor.set_mode(zi::Mode::Insert);
         assert_eq!(editor.cursor_line(), "");
-        editor.tab(zi::Active).unwrap();
+        editor.tab().unwrap();
         assert_eq!(editor.cursor_line(), "    ");
-        editor.tab(zi::Active).unwrap();
+        editor.tab().unwrap();
         assert_eq!(editor.cursor_line(), "        ");
     })
     .await;
