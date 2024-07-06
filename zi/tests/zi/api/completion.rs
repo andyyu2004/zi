@@ -48,7 +48,7 @@ async fn trigger_completions() -> zi::Result<()> {
     cx.with(|editor| {
         editor.register_completion_provider(Completions);
         editor.set_mode(zi::Mode::Insert);
-        editor.trigger_completion();
+        editor.trigger_completion(None);
     })
     .await;
 
@@ -76,7 +76,7 @@ async fn tab_completion() -> zi::Result<()> {
     cx.with(|editor| {
         editor.register_completion_provider(Completions);
         editor.set_mode(zi::Mode::Insert);
-        editor.trigger_completion();
+        editor.trigger_completion(None);
     })
     .await;
 

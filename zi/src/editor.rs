@@ -45,13 +45,14 @@ use self::diagnostics::LspDiagnostics;
 pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
-use self::state::{CompletionState, OperatorPendingState, State};
+use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry, DynamicHandler, Picker};
 use crate::buffer::{
     Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector, InspectorBuffer,
     PickerBuffer, SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
+use crate::completion::Completion;
 use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
@@ -1162,7 +1163,7 @@ impl Editor {
                 Ok(())
             }
             State::Insert(state) => {
-                if let CompletionState::Active(state) = &mut state.completion {
+                if let Completion::Active(state) = &mut state.completion {
                     state.widget_state.borrow_mut().select_next();
                     self.apply_selected_completion();
                 } else {
@@ -1188,7 +1189,7 @@ impl Editor {
                 Ok(())
             }
             State::Insert(state) => {
-                if let CompletionState::Active(state) = &mut state.completion {
+                if let Completion::Active(state) = &mut state.completion {
                     state.widget_state.borrow_mut().select_previous();
                     self.apply_selected_completion();
                 } else {

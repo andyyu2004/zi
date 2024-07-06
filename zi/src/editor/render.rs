@@ -7,8 +7,8 @@ use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
-use super::state::CompletionState;
 use super::{get_ref, Editor, State};
+use crate::completion::Completion;
 use crate::editor::Resource;
 use crate::syntax::HighlightName;
 use crate::{Active, ViewId};
@@ -124,7 +124,7 @@ impl Editor {
 
     fn render_completion(&self, view_area: Rect, surface: &mut tui::Buffer, view: ViewId) {
         let State::Insert(state) = &self.state else { return };
-        let CompletionState::Active(state) = &state.completion else { return };
+        let Completion::Active(state) = &state.completion else { return };
 
         if state.matches().len() == 0 {
             return;
@@ -132,9 +132,11 @@ impl Editor {
 
         let height = state.matches().take(20).len() as u16;
         let cursor = self[view].cursor();
+        let offset = self[view].offset();
         let area = Rect {
-            x: view_area.x + self[view].number_width.get() + cursor.col() as u16,
-            y: view_area.y + cursor.line() as u16 + 1,
+            x: view_area.x + self[view].number_width.get() + cursor.col() as u16
+                - offset.col as u16,
+            y: view_area.y + cursor.line() as u16 - offset.line as u16 + 1,
             height,
             width: 50,
         }

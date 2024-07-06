@@ -34,10 +34,14 @@ impl Editor {
             let State::Insert(state) = &mut editor.state else { return HandlerResult::Continue };
 
             match event.char {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' => match &mut state.completion {
-                    CompletionState::Active(state) => state.update_query(Some(event.char)),
-                    CompletionState::Inactive => editor.trigger_completion(),
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => match &mut state.completion {
+                    Completion::Active(state) => state.update_query(Some(event.char)),
+                    Completion::Inactive => editor.trigger_completion(Some(event.char)),
                 },
+                '.' | ':' => {
+                    state.completion.deactivate();
+                    editor.trigger_completion(Some(event.char));
+                }
                 _ => state.completion.deactivate(),
             }
 
@@ -53,7 +57,7 @@ impl Editor {
                 return HandlerResult::Continue;
             };
 
-            if let CompletionState::Active(state) = &mut state.completion {
+            if let Completion::Active(state) = &mut state.completion {
                 state.update_query(None)
             }
 

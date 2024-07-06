@@ -256,7 +256,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn trigger_completion(editor: &mut Editor) {
-        editor.trigger_completion()
+        editor.trigger_completion(None)
     }
 
     fn execute_buffered_command(editor: &mut Editor) {

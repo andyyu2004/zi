@@ -64,7 +64,7 @@ impl Editor {
     }
 
     #[inline]
-    fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
+    pub fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
         let view_id = selector.select(self);
         let (view, buf) = get!(self: view_id);
         let area = self.tree.view_area(view.id());
