@@ -157,7 +157,7 @@ impl Editor {
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88)),
         );
 
-        StatefulWidget::render(list, area, surface, &mut state.widget_state.borrow_mut());
+        StatefulWidget::render(list, area, surface, &mut state.widget_state());
     }
 
     fn render_view_content(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) -> usize {

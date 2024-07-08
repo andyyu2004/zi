@@ -7,7 +7,7 @@ use futures_util::{stream, StreamExt, TryFutureExt, TryStreamExt};
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use zi_core::CompletionItem;
-use zi_text::Deltas;
+use zi_text::{Delta, Deltas};
 
 use super::{active_servers_of, Selector, State};
 use crate::completion::{Completion, CompletionParams, CompletionProvider};
@@ -41,22 +41,19 @@ impl Editor {
         let at = self.cursor_byte(Active);
 
         let State::Insert(state) = &mut self.state else { return };
-        state.completion.activate(trigger);
+        state.completion.activate(at, trigger);
 
         self.callback("completions", fut.map_err(Into::into), move |editor, items| {
             let State::Insert(state) = &mut editor.state else { return Ok(()) };
             if let Completion::Active(state) = &mut state.completion {
-                state.set_items(at, items);
+                state.set_items(items);
             }
 
             return Ok(());
         });
     }
 
-    pub(super) fn apply_selected_completion(&mut self) {
-        let State::Insert(state) = &mut self.state else { return };
-        let Completion::Active(state) = &mut state.completion else { return };
-        let Some(delta) = state.select() else { return };
+    pub(super) fn apply_completion_delta(&mut self, delta: Delta<'_>) {
         let delta = delta.to_owned();
         let new_cursor = delta.range().start + delta.text().len();
         self.edit(Active, &Deltas::new([delta])).expect("valid delta");

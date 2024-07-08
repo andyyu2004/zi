@@ -9,9 +9,9 @@ mod lsp_requests;
 mod marks;
 mod pickers;
 mod render;
-
 mod search;
 mod state;
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
@@ -895,7 +895,7 @@ impl Editor {
         let (_, buf) = get!(self);
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
-        tracing::debug!(%key, "handling key");
+        tracing::trace!(%key, "handling key");
         match key.code() {
             KeyCode::Char(_c) if matches!(mode, Mode::Insert | Mode::Command) => {
                 let (res, buffered) = keymap.on_key(mode, key);
@@ -1168,8 +1168,9 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
-                    state.widget_state.borrow_mut().select_next();
-                    self.apply_selected_completion();
+                    if let Some(delta) = state.select_next().map(|d| d.to_owned()) {
+                        self.apply_completion_delta(delta);
+                    }
                 } else {
                     let (view, buf) = self.get(Active);
                     let indent = *self[buf].settings().indent.read();
@@ -1194,8 +1195,9 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
-                    state.widget_state.borrow_mut().select_previous();
-                    self.apply_selected_completion();
+                    if let Some(delta) = state.select_prev().map(|d| d.to_owned()) {
+                        self.apply_completion_delta(delta);
+                    }
                 } else {
                     // TODO
                 }
