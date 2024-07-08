@@ -48,9 +48,9 @@ impl Bitbag {
     pub fn iter(&self) -> impl Iterator<Item = (u32, usize)> + '_ {
         // Only used for debugging for now, so naive impl
         let mut values = self.values().map(|v| (v, 1)).collect::<Vec<_>>();
-        for i in 0..values.len() {
-            if self.0[1].contains(values[i].0) {
-                values[i].1 += 1;
+        for (k, c) in &mut values {
+            if self.0[1].contains(*k) {
+                *c += 1;
             }
         }
         values.into_iter()

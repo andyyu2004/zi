@@ -100,6 +100,12 @@ async fn tab_completion() -> zi::Result<()> {
 
         editor.backtab().unwrap();
         assert_eq!(editor.text(zi::Active), "b\n");
+
+        editor.backtab().unwrap();
+        assert_eq!(editor.text(zi::Active), "b\n");
+
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bar\n");
     })
     .await;
 

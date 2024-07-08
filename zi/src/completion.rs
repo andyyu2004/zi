@@ -72,19 +72,24 @@ impl Completion {
 }
 
 impl ActiveCompletionState {
-    pub fn select_next(&mut self) -> Option<Delta<'_>> {
+    pub fn select_next(&mut self) -> Option<Delta<'static>> {
         let idx = self.widget_state.borrow().selected().map_or(0, |idx| idx + 1);
         if idx >= self.matches.len() {
             return None;
         }
+
         self.widget_state.borrow_mut().select(Some(idx));
         self.select()
     }
 
-    pub fn select_prev(&mut self) -> Option<Delta<'_>> {
+    pub fn select_prev(&mut self) -> Option<Delta<'static>> {
         let mut state = self.widget_state.borrow_mut();
         match state.selected().and_then(|idx| idx.checked_sub(1)) {
-            None => return Some(Delta::new(self.replacement_range.clone(), self.query.as_str())),
+            None => {
+                state.select(None);
+                drop(state);
+                Some(self.generate_delta(self.query.to_owned()))
+            }
             Some(idx) => {
                 state.select(Some(idx));
                 drop(state);
@@ -97,7 +102,7 @@ impl ActiveCompletionState {
         self.widget_state.borrow_mut()
     }
 
-    fn select(&mut self) -> Option<Delta<'_>> {
+    fn select(&mut self) -> Option<Delta<'static>> {
         let item = self
             .widget_state
             .borrow()
@@ -106,10 +111,15 @@ impl ActiveCompletionState {
             .and_then(|m| self.options.get(m.idx as usize))?;
 
         let replacement_text = item.insert_text.as_deref().unwrap_or(&item.label);
-        let n = replacement_text.len();
-        let delta = Delta::new(self.replacement_range.clone(), replacement_text);
+        Some(self.generate_delta(replacement_text.to_owned()))
+    }
+
+    fn generate_delta<'a>(&mut self, replacement: impl Into<String>) -> Delta<'static> {
+        let replacement = replacement.into();
+        let n = replacement.len();
+        let delta = Delta::new(self.replacement_range.clone(), replacement);
         self.replacement_range.end = self.replacement_range.start + n;
-        Some(delta)
+        delta
     }
 
     pub fn start_byte(&self) -> usize {

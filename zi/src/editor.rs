@@ -1168,7 +1168,7 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
-                    if let Some(delta) = state.select_next().map(|d| d.to_owned()) {
+                    if let Some(delta) = state.select_next() {
                         self.apply_completion_delta(delta);
                     }
                 } else {
@@ -1195,7 +1195,7 @@ impl Editor {
             }
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
-                    if let Some(delta) = state.select_prev().map(|d| d.to_owned()) {
+                    if let Some(delta) = state.select_prev() {
                         self.apply_completion_delta(delta);
                     }
                 } else {
