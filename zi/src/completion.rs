@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ops::DerefMut;
 
 use futures_core::future::BoxFuture;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching, Normalization};
@@ -31,7 +32,7 @@ pub(crate) enum Completion {
 
 #[derive(Debug, Default)]
 pub(crate) struct ActiveCompletionState {
-    pub widget_state: RefCell<tui::ListState>,
+    widget_state: RefCell<tui::ListState>,
     replacement_range: DeltaRange,
     options: Vec<CompletionItem>,
     matches: Vec<nucleo::Match>,
@@ -47,9 +48,10 @@ impl Completion {
     pub(super) fn activate(&mut self, trigger: Option<char>) {
         if let Completion::Inactive = self {
             let query = match trigger {
-                Some(c) if c.is_alphanumeric() => c.to_string(),
+                Some(c) if c.is_alphabetic() => c.to_string(),
                 _ => String::new(),
             };
+            tracing::debug!(initial_query = ?query, trigger = ?trigger, "activating completion");
             *self = Completion::Active(ActiveCompletionState { query, ..Default::default() });
         }
     }
@@ -65,7 +67,32 @@ impl Completion {
 }
 
 impl ActiveCompletionState {
-    pub fn select(&mut self) -> Option<Delta<'_>> {
+    pub fn select_next(&mut self) -> Option<Delta<'_>> {
+        let idx = self.widget_state.borrow().selected().map_or(0, |idx| idx + 1);
+        if idx >= self.matches.len() {
+            return None;
+        }
+        self.widget_state.borrow_mut().select(Some(idx));
+        self.select()
+    }
+
+    pub fn select_prev(&mut self) -> Option<Delta<'_>> {
+        let mut state = self.widget_state.borrow_mut();
+        match state.selected().and_then(|idx| idx.checked_sub(1)) {
+            None => return Some(Delta::new(self.replacement_range.clone(), self.query.as_str())),
+            Some(idx) => {
+                state.select(Some(idx));
+                drop(state);
+                self.select()
+            }
+        }
+    }
+
+    pub fn widget_state(&self) -> impl DerefMut<Target = tui::ListState> + '_ {
+        self.widget_state.borrow_mut()
+    }
+
+    fn select(&mut self) -> Option<Delta<'_>> {
         let item = self
             .widget_state
             .borrow()
@@ -86,8 +113,7 @@ impl ActiveCompletionState {
 
     pub fn set_items(&mut self, start_byte: usize, options: Vec<CompletionItem>) {
         self.options = options;
-        self.replacement_range = start_byte..start_byte;
-        self.query.clear();
+        self.replacement_range = start_byte..start_byte + self.query.len();
         self.compute_matches();
     }
 
@@ -108,11 +134,7 @@ impl ActiveCompletionState {
     }
 
     pub fn matches(&self) -> impl ExactSizeIterator<Item = &CompletionItem> {
-        if self.matches.is_empty() {
-            Box::new(self.options.iter()) as Box<dyn ExactSizeIterator<Item = &CompletionItem>>
-        } else {
-            Box::new(self.matches.iter().map(|m| &self.options[m.idx as usize]))
-        }
+        Box::new(self.matches.iter().map(|m| &self.options[m.idx as usize]))
     }
 
     fn compute_matches(&mut self) {
