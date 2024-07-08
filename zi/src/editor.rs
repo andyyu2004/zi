@@ -35,6 +35,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{oneshot, Notify};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
+use zi_indent::Indent;
 use zi_lsp::lsp_types;
 use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
@@ -1212,20 +1213,21 @@ impl Editor {
         let (view, buf) = self.get(selector);
         let text = self[buf].text();
         let cursor = self[view].cursor();
-        let line = text.line(cursor.line()).unwrap();
-        if cursor.col() > 0 || !line.is_empty() {
+        if cursor.col() > 0 || !text.line(cursor.line()).unwrap().is_empty() {
             // Simple heuristics to determine if we should indent the new line
             return Ok(());
         }
 
-        let indent = zi_indent::indent(text, cursor.line());
-        let start_byte = text.line_to_byte(cursor.line());
-
-        let deltas = Deltas::insert_at(start_byte, " ".repeat(indent.bytes));
-        drop(line);
-        self.edit(buf, &deltas)?;
-        self.set_cursor(view, cursor.right(indent.bytes));
-        Ok(())
+        let tab_width = *self[buf].settings().tab_width.read();
+        match zi_indent::indent(zi_indent::Config { tab_width }, text, cursor.line()) {
+            Indent::Bytes(bytes) => {
+                let start_byte = text.line_to_byte(cursor.line());
+                let deltas = Deltas::insert_at(start_byte, " ".repeat(bytes));
+                self.edit(buf, &deltas)?;
+                self.set_cursor(view, cursor.right(bytes));
+                Ok(())
+            }
+        }
     }
 
     fn get(&self, selector: impl Selector<ViewId>) -> (ViewId, BufferId) {
