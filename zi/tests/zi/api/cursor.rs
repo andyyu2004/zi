@@ -180,7 +180,7 @@ async fn cursor_newline() {
 async fn cursor_trailing_newline() {
     let cx = new("\n").await;
     cx.with(|editor| {
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n");
+        assert_eq!(editor.text(zi::Active), "\n\n");
         editor.set_cursor(zi::Active, (0, 0));
         editor.move_cursor(zi::Active, Down, 1);
         assert_eq!(editor.cursor(zi::Active), (1, 0));

@@ -43,9 +43,9 @@ async fn undo_does_not_insert_extra_newlines() {
     let cx = new("a").await;
     cx.with(|editor| {
         editor.input("dwdw").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+        assert_eq!(editor.text(zi::Active), "");
         editor.undo(zi::Active).unwrap();
-        assert!(!editor.buffer(zi::Active).text().to_string().ends_with("\n\n"));
+        assert!(!editor.text(zi::Active).to_string().ends_with("\n\n"));
     })
     .await;
     cx.cleanup().await;
@@ -56,9 +56,9 @@ async fn undo_dwdwdd() {
     let cx = new("a").await;
     cx.with(|editor| {
         editor.input("dwdw").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+        assert_eq!(editor.text(zi::Active), "");
         editor.input("dd").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+        assert_eq!(editor.text(zi::Active), "");
     })
     .await;
     cx.cleanup().await;
@@ -70,15 +70,15 @@ async fn undo_uncommitted_changes() {
     cx.with(|editor| {
         editor.set_mode(zi::Mode::Insert);
         editor.insert(zi::Active, "ab").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab\n");
+        assert_eq!(editor.text(zi::Active), "ab\n");
 
         // These changes usually won't be committed to the undo history until we exit insert mode.
         // However, calling undo should commit them, then undo them.
         editor.undo(zi::Active).unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "");
+        assert_eq!(editor.text(zi::Active), "");
 
         editor.redo(zi::Active).unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab\n");
+        assert_eq!(editor.text(zi::Active), "ab\n");
     })
     .await;
     cx.cleanup().await;
@@ -95,7 +95,7 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
 
     cx.with(move |editor| {
         editor.set_cursor(zi::Active, (0, 0));
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "test");
+        assert_eq!(editor.text(zi::Active), "test");
         assert!(!is_dirty(editor));
         editor.insert_char(zi::Active, 'a').unwrap();
         assert!(is_dirty(editor));
@@ -106,9 +106,9 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
 
     cx.with(move |editor| {
         assert!(!is_dirty(editor));
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "atest\n");
+        assert_eq!(editor.text(zi::Active), "atest\n");
         editor.undo(zi::Active).unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "test");
+        assert_eq!(editor.text(zi::Active), "test");
         assert!(is_dirty(editor));
     })
     .await;

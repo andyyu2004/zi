@@ -174,7 +174,7 @@ async fn insert_into_readonly() -> zi::Result<()> {
 
         assert!(matches!(editor.insert(zi::Active, "def"), Err(zi::EditError::Readonly)));
 
-        assert_eq!(editor.buffer(buf).text().to_string(), "");
+        assert_eq!(editor.text(buf), "");
     })
     .await;
     cx.cleanup().await;
@@ -186,7 +186,7 @@ async fn enter_normal_mode_on_last_line() {
     let cx = new("").await;
     cx.with(|editor| {
         editor.input("iabc<ESC>o").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc\n\n");
+        assert_eq!(editor.text(zi::Active), "abc\n\n");
         assert_eq!(editor.cursor(zi::Active), (1, 0));
         editor.input("<ESC>").unwrap();
         assert_eq!(editor.cursor(zi::Active), (1, 0));
@@ -200,9 +200,9 @@ async fn delete_last_line() {
     let cx = new("").await;
     cx.with(|editor| {
         editor.input("i<CR><CR><ESC>").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n\n");
+        assert_eq!(editor.text(zi::Active), "\n\n\n");
         editor.input("jjdd").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "\n\n");
+        assert_eq!(editor.text(zi::Active), "\n\n");
         assert_eq!(editor.cursor(zi::Active), (1, 0));
     })
     .await;

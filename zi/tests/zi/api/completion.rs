@@ -8,6 +8,7 @@ fn items() -> Vec<zi::CompletionItem> {
     vec![
         zi::CompletionItem { label: "foo".to_string(), ..Default::default() },
         zi::CompletionItem { label: "bar".to_string(), ..Default::default() },
+        zi::CompletionItem { label: "bazz".to_string(), ..Default::default() },
     ]
 }
 
@@ -81,11 +82,17 @@ async fn tab_completion() -> zi::Result<()> {
     .await;
 
     cx.with(|editor| {
-        editor.insert_char(zi::Active, 'f').unwrap();
+        editor.insert_char(zi::Active, 'b').unwrap();
 
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "f\n");
+        assert_eq!(editor.text(zi::Active), "b\n");
         editor.tab().unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "foo\n");
+        assert_eq!(editor.text(zi::Active), "bar\n");
+
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bazz\n");
+
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bazz\n");
     })
     .await;
 

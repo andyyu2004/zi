@@ -36,7 +36,7 @@ use tokio::sync::{oneshot, Notify};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_lsp::lsp_types;
-use zi_text::{Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
+use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -1023,6 +1023,10 @@ impl Editor {
     #[inline]
     pub(crate) fn view_mut(&mut self, selector: impl Selector<ViewId>) -> &mut View {
         self.views.get_mut(selector.select(self)).expect("bad view id")
+    }
+
+    pub fn text(&self, selector: impl Selector<BufferId>) -> &dyn AnyText {
+        self.buffer(selector).text()
     }
 
     #[inline]

@@ -47,11 +47,11 @@ async fn picker_input() {
     cx.with(|editor| {
         editor.open_jump_list(zi::Active);
         editor.input("abc").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "abc");
+        assert_eq!(editor.text(zi::Active), "abc");
         assert_eq!(editor.cursor(zi::Active), (0, 3));
 
         editor.input("<BS>").unwrap();
-        assert_eq!(editor.buffer(zi::Active).text().to_string(), "ab");
+        assert_eq!(editor.text(zi::Active), "ab");
         assert_eq!(editor.cursor(zi::Active), (0, 2));
     })
     .await;

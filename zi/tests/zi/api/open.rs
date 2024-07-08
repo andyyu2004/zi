@@ -24,7 +24,7 @@ async fn test_open() -> zi::Result<()> {
         .await
         .expect("should be allowed to open new files");
 
-    cx.with(move |editor| assert_eq!(editor.buffer(buf).text().to_string(), "")).await;
+    cx.with(move |editor| assert_eq!(editor.text(buf), "")).await;
     assert!(!non_existing_path.exists(), "should not create new file until saved");
 
     cx.cleanup().await;

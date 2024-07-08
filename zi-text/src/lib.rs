@@ -234,6 +234,22 @@ pub trait AnyTextSlice<'a>: TextBase {
 
 dyn_clone::clone_trait_object!(AnyText);
 
+// FIXME this is a very inefficient implementation, should probably require the underlying type to implement this.
+// This is just a primarily a convenience for tests.
+impl PartialEq<str> for dyn AnyText + '_ {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.to_string() == other
+    }
+}
+
+impl PartialEq<dyn AnyText + '_> for dyn AnyText + '_ {
+    #[inline]
+    fn eq(&self, other: &(dyn AnyText + '_)) -> bool {
+        self.to_string() == other.to_string()
+    }
+}
+
 pub trait AnyText: DynClone + TextBase + fmt::Display {
     fn dyn_byte_slice(
         &self,

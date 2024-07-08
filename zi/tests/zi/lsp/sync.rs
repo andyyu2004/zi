@@ -126,13 +126,13 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
 
     cx.with(move |editor| {
         editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))?;
-        assert_eq!(editor.buffer(buf).text().to_string(), "abc\n");
+        assert_eq!(editor.text(buf), "abc\n");
 
         editor.edit(buf, &deltas![3..3 => "de"])?;
-        assert_eq!(editor.buffer(buf).text().to_string(), "abcde\n");
+        assert_eq!(editor.text(buf), "abcde\n");
 
         editor.edit(buf, &deltas![0..0 => "©", 2..2 => "z"])?;
-        assert_eq!(editor.buffer(buf).text().to_string(), "©abzcde\n");
+        assert_eq!(editor.text(buf), "©abzcde\n");
 
         Ok::<_, zi::EditError>(())
     })
@@ -246,7 +246,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
 
     assert_eq!(
         *rx.borrow(),
-        cx.with(move |editor| editor.buffer(buf).text().to_string()).await,
+        cx.with(move |editor| editor.text(buf).to_string()).await,
         "editor state and lsp state have diverged"
     );
 
