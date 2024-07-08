@@ -131,12 +131,12 @@ impl Editor {
         }
 
         let height = state.matches().take(20).len() as u16;
-        let cursor = self[view].cursor();
+        let start_point = self.text(view).byte_to_point(state.start_byte());
         let offset = self[view].offset();
         let area = Rect {
-            x: view_area.x + self[view].number_width.get() + cursor.col() as u16
+            x: view_area.x + self[view].number_width.get() + start_point.col() as u16
                 - offset.col as u16,
-            y: view_area.y + cursor.line() as u16 - offset.line as u16 + 1,
+            y: view_area.y + start_point.line() as u16 - offset.line as u16 + 1,
             height,
             width: 50,
         }

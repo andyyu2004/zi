@@ -65,7 +65,7 @@ impl Completion {
 }
 
 impl ActiveCompletionState {
-    pub(super) fn select(&mut self) -> Option<Delta<'_>> {
+    pub fn select(&mut self) -> Option<Delta<'_>> {
         let item = self
             .widget_state
             .borrow()
@@ -78,6 +78,10 @@ impl ActiveCompletionState {
         let delta = Delta::new(self.replacement_range.clone(), replacement_text);
         self.replacement_range.end = self.replacement_range.start + n;
         Some(delta)
+    }
+
+    pub fn start_byte(&self) -> usize {
+        self.replacement_range.start
     }
 
     pub fn set_items(&mut self, start_byte: usize, options: Vec<CompletionItem>) {

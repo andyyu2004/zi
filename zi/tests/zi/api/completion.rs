@@ -91,8 +91,15 @@ async fn tab_completion() -> zi::Result<()> {
         editor.tab().unwrap();
         assert_eq!(editor.text(zi::Active), "bazz\n");
 
+        // No cycling behaviour
         editor.tab().unwrap();
         assert_eq!(editor.text(zi::Active), "bazz\n");
+
+        editor.backtab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bar\n");
+
+        editor.backtab().unwrap();
+        assert_eq!(editor.text(zi::Active), "b\n");
     })
     .await;
 
