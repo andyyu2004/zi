@@ -48,11 +48,11 @@ impl Completion {
     pub(super) fn activate(&mut self, at: usize, trigger: Option<char>) {
         if let Completion::Inactive = self {
             let (query, replacement_range) = match trigger {
-                Some(c) if c.is_alphabetic() => (c.to_string(), at..at + c.len_utf8()),
+                Some(c) if c.is_alphabetic() => (c.to_string(), at - c.len_utf8()..at),
                 _ => (String::new(), at..at),
             };
 
-            tracing::debug!(initial_query = ?query, trigger = ?trigger, "activating completion");
+            tracing::debug!(initial_query = ?query, trigger = ?trigger, range = ?replacement_range, "activating completion");
             *self = Completion::Active(ActiveCompletionState {
                 query,
                 replacement_range,
@@ -152,7 +152,7 @@ impl ActiveCompletionState {
     }
 
     fn compute_matches(&mut self) {
-        tracing::debug!(query = self.query, "completion matches");
+        tracing::debug!(query = self.query, range = ?self.replacement_range, "completion matches");
         let pattern = Atom::new(
             &self.query,
             CaseMatching::Ignore,
