@@ -1,4 +1,5 @@
 mod completion;
+
 mod config;
 pub(crate) mod cursor;
 mod default_keymap;
@@ -77,6 +78,8 @@ bitflags::bitflags! {
         const SPAWN_LANGUAGE_SERVERS = 1 << 1;
         /// Don't open the buffer in the active view
         const BACKGROUND = 1 << 2;
+        /// Reload the buffer from disk even if it's already open discarding any unsaved changes.
+        const FORCE = 1 << 3;
     }
 
     pub struct SaveFlags: u32 {
@@ -545,6 +548,7 @@ impl Editor {
             // losing any data due to it being readonly.
             if self[buf].flags().contains(BufferFlags::READONLY)
                 && !open_flags.contains(OpenFlags::READONLY)
+                || open_flags.contains(OpenFlags::FORCE)
             {
                 Plan::Replace(buf)
             } else {

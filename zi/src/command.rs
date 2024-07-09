@@ -3,6 +3,7 @@ use std::fmt;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
 
+use anyhow::bail;
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
@@ -11,7 +12,7 @@ use smol_str::SmolStr;
 use crate::editor::SaveFlags;
 // use crate::plugin::PluginId;
 // use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
-use crate::{Active, Editor, Error};
+use crate::{Active, BufferFlags, Editor, Error, OpenFlags};
 
 pub struct Commands(Box<[Command]>);
 
@@ -361,6 +362,34 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.is_empty());
                 let save_fut = editor.save(Active, SaveFlags::empty());
                 editor.schedule("save", save_fut);
+                Ok(())
+            })
+            .into(),
+        },
+        Handler {
+            name: "e".try_into().unwrap(),
+            arity: Arity::ZERO,
+            opts: CommandFlags::empty(),
+            handler: LocalHandler(|editor, range, args| {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                let buf = editor.buffer(Active);
+                let Some(path) = buf.path() else { return Ok(()) };
+                if buf.flags().contains(BufferFlags::DIRTY) {
+                    bail!("buffer is dirty")
+                }
+
+                let mut open_flags = OpenFlags::FORCE;
+                if buf.flags().contains(BufferFlags::READONLY) {
+                    open_flags |= OpenFlags::READONLY;
+                }
+
+                let open_fut = editor.open(path, open_flags)?;
+                editor.schedule("open", async move {
+                    open_fut.await?;
+                    Ok(())
+                });
+
                 Ok(())
             })
             .into(),

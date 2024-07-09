@@ -210,9 +210,11 @@ impl View {
 
     #[inline]
     pub(crate) fn set_buffer(&mut self, buf: BufferId) {
-        self.buf = buf;
-        self.cursor = Cursor::default();
-        self.offset = Offset::default();
+        if self.buf != buf {
+            self.buf = buf;
+            self.cursor = Cursor::default();
+            self.offset = Offset::default();
+        }
     }
 
     pub(crate) fn align(
