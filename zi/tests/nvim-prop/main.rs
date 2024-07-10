@@ -55,6 +55,7 @@ t!(I, "[dWBhjkl]+", nvim_delete_operator);
 // TODO add hjkl motions to undo tests
 t!(I, "d([uWB]|(<ESC>))+<ESC>", nvim_undo_delete_word);
 t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
+t!(I, "[CDWBhjkl]", nvim_big_cd);
 
 /// Useful to test a particular case
 #[test]

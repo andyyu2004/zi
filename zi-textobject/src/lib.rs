@@ -1,12 +1,14 @@
 #![feature(iter_map_windows)]
 
 pub mod motion;
+mod until;
 use std::ops;
 
 use zi_core::PointOrByte;
 use zi_text::{AnyText, Text as _, TextSlice};
 
-pub use self::motion::Motion;
+pub use self::motion::{Motion, MotionFlags};
+pub use self::until::Until;
 
 /// Charwise textobjects affect a [start, end) byte-range where `start` is inclusive and `end` is exclusive.
 /// Linewise ranges will NOT be expanded to include the full start and end lines.

@@ -12,8 +12,7 @@ use crate::{
 pub(super) fn new() -> Keymap {
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
-    // maybe should rewrite all as functions
-    fn delete_operator(editor: &mut Editor) {
+    fn delete_operator_pending(editor: &mut Editor) {
         editor.set_mode(Mode::OperatorPending(Operator::Delete));
     }
 
@@ -23,6 +22,16 @@ pub(super) fn new() -> Keymap {
 
     fn yank_operator_pending(editor: &mut Editor) {
         editor.set_mode(Mode::OperatorPending(Operator::Yank));
+    }
+
+    fn delete_till_end_of_line(editor: &mut Editor) {
+        delete_operator_pending(editor);
+        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
+    }
+
+    fn change_till_end_of_line(editor: &mut Editor) {
+        change_operator_pending(editor);
+        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
     }
 
     fn insert_mode(editor: &mut Editor) {
@@ -333,9 +342,11 @@ pub(super) fn new() -> Keymap {
                     "<C-y>" => scroll_line_up,
                     "<Tab>" => tab,
                     "m" => tmp_create_mark_test,
-                    "d" => delete_operator,
+                    "d" => delete_operator_pending,
                     "c" => change_operator_pending,
                     "y" => yank_operator_pending,
+                    "C" => change_till_end_of_line,
+                    "D" => delete_till_end_of_line,
                     ":" => command_mode,
                     "/" => search,
                     "i" => insert_mode,
