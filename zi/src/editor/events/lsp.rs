@@ -251,14 +251,21 @@ impl Editor {
                 };
 
                 tracing::debug!(%uri, ?server_id, "lsp did_change");
-                let text_document = lsp_types::VersionedTextDocumentIdentifier {
-                    uri,
-                    version: buf.version() as i32,
-                };
+                let version = buf.version() as i32;
+                let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
                 let content_changes = match *kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
+                        if server.last_version_sync == version.checked_sub(1) {
+                            to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
+                        } else {
+                            // If a version is skipped somehow, send the full text.
+                            vec![lsp_types::TextDocumentContentChangeEvent {
+                                range: None,
+                                range_length: None,
+                                text: buf.text().to_string(),
+                            }]
+                        }
                     }
                     lsp_types::TextDocumentSyncKind::FULL => {
                         vec![lsp_types::TextDocumentContentChangeEvent {
@@ -271,11 +278,12 @@ impl Editor {
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
                 };
 
-                if let Err(err) = server.did_change(lsp_types::DidChangeTextDocumentParams {
+                match server.did_change(lsp_types::DidChangeTextDocumentParams {
                     text_document,
                     content_changes,
                 }) {
-                    tracing::error!(?err, "lsp did_change notification failed")
+                    Ok(_) => server.last_version_sync = Some(version),
+                    Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
                 }
             }
 
