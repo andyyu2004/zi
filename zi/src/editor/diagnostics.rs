@@ -1,29 +1,27 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use zi_core::Severity;
-use zi_lsp::lsp_types;
+use zi_core::{Diagnostic, Severity};
 use zi_text::PointRangeExt;
 
 use super::request_redraw;
-use crate::lsp::from_proto;
+use crate::lsp::{self};
 use crate::syntax::HighlightName;
-use crate::{BufferId, Editor, LanguageServerId, Mark, Setting};
+use crate::{BufferId, Editor, Mark, Setting};
 
-pub(super) type LspDiagnostics = Setting<(u32, Box<[lsp_types::Diagnostic]>)>;
+pub(super) type BufferDiagnostics = Setting<(u32, Box<[Diagnostic]>)>;
 
 impl Editor {
     /// Return the current state of the raw diagnostics returned by the language servers.
-    pub fn lsp_diagnostics(&self) -> &HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>> {
-        &self.lsp_diagnostics
+    pub fn diagnostics(&self) -> &HashMap<PathBuf, BufferDiagnostics> {
+        &self.diagnostics
     }
 
     pub(crate) fn update_diagnostics(
         &mut self,
-        server: LanguageServerId,
         path: PathBuf,
         version: Option<u32>,
-        diagnostics: impl Into<Box<[lsp_types::Diagnostic]>>,
+        diagnostics: impl Into<Box<[Diagnostic]>>,
     ) {
         let buf = self.buffers.values().find(|b| {
             b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(&path)
@@ -34,28 +32,20 @@ impl Editor {
         });
 
         let mut diagnostics: Box<[_]> = diagnostics.into();
-        diagnostics.sort_unstable_by_key(|d| d.range.start);
-        self.lsp_diagnostics
-            .entry(path)
-            .or_default()
-            .entry(server)
-            .or_default()
-            .write((version, diagnostics));
+        diagnostics.sort_unstable_by_key(|d| d.range.range.start());
+        self.diagnostics.entry(path).or_default().write((version, diagnostics));
 
         if let Some(buf) = buf {
-            self.refresh_diagnostic_marks(server, buf.id());
+            self.refresh_diagnostic_marks(buf.id());
             request_redraw();
         }
     }
 
-    fn refresh_diagnostic_marks(&mut self, server: LanguageServerId, buf: BufferId) {
-        let ns = self.create_namespace(format!("lsp-diagnostics-{server}"));
+    fn refresh_diagnostic_marks(&mut self, buf: BufferId) {
+        let ns = self.create_namespace(format!("lsp-diagnostics"));
 
-        let Some(diagnostics) = self
-            .buffer(buf)
-            .path()
-            .and_then(|path| self.lsp_diagnostics.get(&path))
-            .and_then(|diagnostics| diagnostics.get(&server))
+        let Some(diagnostics) =
+            self.buffer(buf).path().and_then(|path| self.diagnostics.get(&path))
         else {
             return;
         };
@@ -80,13 +70,17 @@ impl Editor {
         }
 
         let text = self[buf].text();
-        let encoding = self.active_language_servers[&server].position_encoding();
         let marks = diags
             .iter()
             .cloned()
-            .map(|diag| from_proto::diagnostic(encoding, text, diag))
             .filter_map(|diag| {
-                let diag = diag?;
+                // FIXME temporary hack by converting to lsp range and back
+                let range = lsp::from_proto::range(
+                    diag.range.encoding,
+                    text,
+                    // passing utf8 to make this a noop effectively
+                    lsp::to_proto::range(zi_core::PositionEncoding::Utf8, text, diag.range.range),
+                )?;
                 let hl_name = match diag.severity {
                     Severity::Error => HighlightName::ERROR,
                     Severity::Warning => HighlightName::WARNING,
@@ -95,7 +89,7 @@ impl Editor {
                 };
                 let hl = self.highlight_id_by_name(hl_name);
                 // Need to explode out multi-line ranges into multiple single-line ranges.
-                Some(diag.range.explode(text).map(move |range| (range, hl)))
+                Some(range.explode(text).map(move |range| (range, hl)))
             })
             .flatten()
             .map(|(point_range, style)| {

@@ -567,7 +567,7 @@ impl Editor {
 
         async fn update_related_docs(
             client: &Client,
-            server_id: LanguageServerId,
+            encoding: PositionEncoding,
             related_documents: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
         ) {
             for (url, related) in related_documents.into_iter().flatten() {
@@ -580,7 +580,15 @@ impl Editor {
                     lsp_types::DocumentDiagnosticReportKind::Full(report) => {
                         client
                             .with(move |editor| {
-                                editor.update_diagnostics(server_id, path, None, report.items)
+                                editor.update_diagnostics(
+                                    path,
+                                    None,
+                                    report
+                                        .items
+                                        .into_iter()
+                                        .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
+                                        .collect::<Box<_>>(),
+                                )
                             })
                             .await;
                     }
@@ -600,6 +608,7 @@ impl Editor {
                 };
                 let uri = self.buffers[buf].file_url()?.clone();
                 let server = self.active_language_servers.get_mut(&server_id).unwrap();
+                let encoding = server.position_encoding();
                 let fut = server.document_diagnostic(lsp_types::DocumentDiagnosticParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },
                     identifier: None,
@@ -607,7 +616,7 @@ impl Editor {
                     work_done_progress_params: Default::default(),
                     partial_result_params: Default::default(),
                 });
-                Some((server_id, fut))
+                Some(((server_id, encoding), fut))
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
@@ -626,7 +635,7 @@ impl Editor {
             }
 
             let responses = futures_util::future::try_join_all(futs).await?;
-            for (server_id, res) in server_ids.into_iter().zip(responses) {
+            for ((server_id, encoding), res) in server_ids.into_iter().zip(responses) {
                 tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
 
                 let path = path.clone();
@@ -636,20 +645,24 @@ impl Editor {
                             client
                                 .with(move |editor| {
                                     editor.update_diagnostics(
-                                        server_id,
                                         path,
                                         None,
-                                        report.full_document_diagnostic_report.items,
+                                        report
+                                            .full_document_diagnostic_report
+                                            .items
+                                            .into_iter()
+                                            .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
+                                            .collect::<Box<_>>(),
                                     )
                                 })
                                 .await;
 
-                            update_related_docs(&client, server_id, report.related_documents).await;
+                            update_related_docs(&client, encoding, report.related_documents).await;
                         }
                         lsp_types::DocumentDiagnosticReport::Unchanged(_) => {}
                     },
                     lsp_types::DocumentDiagnosticReportResult::Partial(report) => {
-                        update_related_docs(&client, server_id, report.related_documents).await;
+                        update_related_docs(&client, encoding, report.related_documents).await;
                     }
                 }
             }

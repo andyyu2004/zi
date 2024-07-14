@@ -1,3 +1,5 @@
+use zi_core::EncodedPointRange;
+
 use super::*;
 use crate::Mark;
 
@@ -316,7 +318,7 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct DiagnosticEntry {
             path: PathBuf,
-            range: lsp_types::Range,
+            range: EncodedPointRange,
             message: String,
         }
 
@@ -324,14 +326,11 @@ impl Editor {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(
                     f,
-                    "{}:{}:{}..{}:{}: {}",
+                    "{}:{}: {}",
                     self.path.display(),
-                    // We're displaying the ranges in the server encoding which is wrong.
+                    // We're displaying the ranges in the encoded form which is wrong.
                     // However, this is just for display purposes so it's not a big deal (and still useful)
-                    self.range.start.line,
-                    self.range.start.character,
-                    self.range.end.line,
-                    self.range.end.character,
+                    self.range.range,
                     self.message
                 )
             }
@@ -345,10 +344,7 @@ impl Editor {
 
             #[inline]
             fn point(&self) -> Option<Point> {
-                Some(Point::new(
-                    self.range.start.line as usize,
-                    self.range.start.character as usize,
-                ))
+                Some(self.range.range.start())
             }
         }
 
@@ -358,17 +354,14 @@ impl Editor {
             "diagnostics",
             split_ratio,
             |editor, injector| {
-                for (path, server_diags) in editor.lsp_diagnostics.iter() {
-                    for diags in server_diags.values() {
-                        // TODO could spawn a task which listens to changes in the diagnostics
-                        for diag in diags.read().1.iter() {
-                            if let Err(()) = injector.push(DiagnosticEntry {
-                                path: path.clone(),
-                                range: diag.range,
-                                message: diag.message.clone(),
-                            }) {
-                                break;
-                            }
+                for (path, server_diags) in editor.diagnostics.iter() {
+                    for diag in &server_diags.read().1 {
+                        if let Err(()) = injector.push(DiagnosticEntry {
+                            path: path.clone(),
+                            range: diag.range,
+                            message: diag.message.clone(),
+                        }) {
+                            break;
                         }
                     }
                 }

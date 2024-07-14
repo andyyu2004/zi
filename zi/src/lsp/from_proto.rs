@@ -1,7 +1,9 @@
 //! Boring impls converting zi to lsp types
 //! We always return an `Option` since we don't want to panic if the server is buggy
 
-use zi_core::{CompletionItem, Diagnostic, PointRange, PositionEncoding, Severity};
+use zi_core::{
+    CompletionItem, Diagnostic, EncodedPointRange, PointRange, PositionEncoding, Severity,
+};
 use zi_lsp::lsp_types;
 use zi_text::{Delta, Deltas, Text};
 
@@ -65,13 +67,15 @@ pub fn deltas(
     if deltas.len() < n { None } else { Some(deltas) }
 }
 
-pub fn diagnostic(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
-    diag: lsp_types::Diagnostic,
-) -> Option<Diagnostic> {
-    Some(zi_core::Diagnostic {
-        range: range(encoding, text, diag.range)?,
+pub fn diagnostic(encoding: PositionEncoding, diag: lsp_types::Diagnostic) -> Diagnostic {
+    zi_core::Diagnostic {
+        range: EncodedPointRange {
+            encoding,
+            range: PointRange::new(
+                Point::new(diag.range.start.line as usize, diag.range.start.character as usize),
+                Point::new(diag.range.end.line as usize, diag.range.end.character as usize),
+            ),
+        },
         severity: match diag.severity {
             Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
             Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
@@ -81,5 +85,5 @@ pub fn diagnostic(
             _ => Severity::Error,
         },
         message: diag.message,
-    })
+    }
 }

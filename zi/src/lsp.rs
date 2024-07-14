@@ -15,7 +15,7 @@ use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, ResponseError, Result};
 
-use crate::{Client, LanguageServerId};
+use crate::{lsp, Client, LanguageServerId};
 
 pub(crate) struct LanguageServer {
     pub capabilities: lsp_types::ServerCapabilities,
@@ -280,11 +280,16 @@ impl zi_lsp::LanguageClient for LanguageClient {
                 "received push diagnostics"
             );
 
+            let encoding = editor.active_language_servers.get(&server).unwrap().position_encoding();
+
             editor.update_diagnostics(
-                server,
                 path,
                 params.version.map(|i| i as u32),
-                params.diagnostics,
+                params
+                    .diagnostics
+                    .into_iter()
+                    .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
+                    .collect::<Box<_>>(),
             );
 
             Ok(())

@@ -88,8 +88,6 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
 
     let (buf, path) = setup(&cx, lsp_types::PositionEncodingKind::UTF8, "\n", res).await?;
 
-    let server = zi::LanguageServerId::new("test-server");
-
     cx.with(move |editor| {
         // edit the buffer to bump the version
         assert_eq!(editor.buffer(buf).version(), 0);
@@ -99,15 +97,22 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
     })
     .await
     .await?;
+
+    let expected_main_diagnostics = main_diagnostics
+        .into_iter()
+        .map(|diag| zi::lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, diag))
+        .collect();
+
+    let expected_related_diagnostics = related_diagnostics
+        .into_iter()
+        .map(|diag| zi::lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, diag))
+        .collect();
+
     assert_eq!(
-        cx.with(move |editor| editor.lsp_diagnostics().clone()).await,
+        cx.with(move |editor| editor.diagnostics().clone()).await,
         zi::hashmap! {
-            path => zi::hashmap! {
-                server => zi::Setting::new((1, main_diagnostics.into())),
-            },
-            PathBuf::from("/related") => zi::hashmap! {
-                server => zi::Setting::new((0, related_diagnostics.into())),
-            }
+            path => zi::Setting::new((1, expected_main_diagnostics)),
+            PathBuf::from("/related") => zi::Setting::new((0, expected_related_diagnostics)),
         }
     );
 

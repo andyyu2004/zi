@@ -77,6 +77,13 @@ impl PartialEq<(usize, usize)> for Offset {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct EncodedPointRange {
+    pub encoding: PositionEncoding,
+    pub range: PointRange,
+}
+
+/// A point range encoded in utf-8
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct PointRange {
     // TODO these should maybe each be Bound<Point> to be more flexible
@@ -391,7 +398,7 @@ impl From<Direction> for tui::Direction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PositionEncoding {
     /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
     Utf8,

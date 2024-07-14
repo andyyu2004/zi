@@ -43,7 +43,7 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
-use self::diagnostics::LspDiagnostics;
+use self::diagnostics::BufferDiagnostics;
 pub use self::errors::EditError;
 pub use self::search::Match;
 use self::search::SearchState;
@@ -119,11 +119,12 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Buffer>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    pub(super) active_language_servers: HashMap<LanguageServerId, LanguageServer>,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
-    // The per-server diagnostics are sorted by range.
-    lsp_diagnostics: HashMap<PathBuf, HashMap<LanguageServerId, LspDiagnostics>>,
+    // The per-buffer diagnostics are sorted by range.
+    diagnostics: HashMap<PathBuf, BufferDiagnostics>,
     semantic_tokens: HashMap<BufferId, SemanticTokens>,
     empty_buffer: BufferId,
     settings: Settings,
@@ -131,7 +132,6 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
-    active_language_servers: HashMap<LanguageServerId, LanguageServer>,
     active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
@@ -447,7 +447,7 @@ impl Editor {
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
             semantic_tokens: Default::default(),
-            lsp_diagnostics: Default::default(),
+            diagnostics: Default::default(),
             is_idle: Default::default(),
             notify_quit: Default::default(),
             settings: Default::default(),
