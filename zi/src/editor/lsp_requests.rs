@@ -7,9 +7,8 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
-use zi_core::Point;
+use zi_core::{Point, PositionEncoding};
 use zi_lsp::lsp_types::{self, OneOf, Url};
-use zi_lsp::PositionEncoding;
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};

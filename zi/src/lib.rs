@@ -37,10 +37,10 @@ pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::Constraint;
 pub use zi_core::{
-    Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange, Size,
+    Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange,
+    PositionEncoding, Size,
 };
 pub use zi_lsp::lsp_types::Url;
-pub use zi_lsp::PositionEncoding;
 pub use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
 pub use zi_textobject::motion;
 

@@ -1,8 +1,8 @@
 //! Boring impls converting zi to lsp types
 //! We always return an `Option` since we don't want to panic if the server is buggy
 
-use zi_core::{CompletionItem, Diagnostic, PointRange, Severity};
-use zi_lsp::{lsp_types, PositionEncoding};
+use zi_core::{CompletionItem, Diagnostic, PointRange, PositionEncoding, Severity};
+use zi_lsp::lsp_types;
 use zi_text::{Delta, Deltas, Text};
 
 use crate::Point;

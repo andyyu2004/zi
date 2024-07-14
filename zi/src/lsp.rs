@@ -9,10 +9,11 @@ use std::ops::{ControlFlow, Deref, DerefMut};
 use std::time::Duration;
 
 use futures_core::future::BoxFuture;
+use zi_core::PositionEncoding;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
-use zi_lsp::{ErrorCode, PositionEncoding, ResponseError, Result};
+use zi_lsp::{ErrorCode, ResponseError, Result};
 
 use crate::{Client, LanguageServerId};
 

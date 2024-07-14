@@ -391,6 +391,15 @@ impl From<Direction> for tui::Direction {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PositionEncoding {
+    /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
+    Utf8,
+    /// UTF-16 code units
+    #[default]
+    Utf16,
+}
+
 pub trait IteratorRangeExt {
     fn range_merge<J, T>(self, other: J) -> RangeMergeIter<Self, J, T>
     where
