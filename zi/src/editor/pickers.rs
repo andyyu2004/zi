@@ -330,7 +330,7 @@ impl Editor {
                     self.path.display(),
                     // We're displaying the ranges in the encoded form which is wrong.
                     // However, this is just for display purposes so it's not a big deal (and still useful)
-                    self.range.range,
+                    self.range.encoded_range(),
                     self.message
                 )
             }
@@ -344,7 +344,7 @@ impl Editor {
 
             #[inline]
             fn point(&self) -> Option<Point> {
-                Some(self.range.range.start())
+                Some(self.range.encoded_range().start())
             }
         }
 

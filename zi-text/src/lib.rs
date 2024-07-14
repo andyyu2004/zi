@@ -23,7 +23,9 @@ use std::{fmt, iter, ops};
 pub use crop::{Rope, RopeBuilder, RopeSlice};
 pub use cursor::RopeCursor;
 use dyn_clone::DynClone;
-use zi_core::{Line, Point, PointOrByte, PointRange};
+use zi_core::{
+    EncodedPoint, EncodedPointRange, Line, Point, PointOrByte, PointRange, PositionEncoding,
+};
 
 pub use self::delta::{Delta, DeltaRange, Deltas};
 pub use self::ext::*;
@@ -80,6 +82,34 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
 
     fn try_line_to_byte(&self, line_idx: usize) -> Option<usize> {
         if line_idx < self.len_lines() { Some(self.line_to_byte(line_idx)) } else { None }
+    }
+
+    #[inline]
+    fn decode_point_range(&self, range: EncodedPointRange) -> Option<PointRange> {
+        Some(PointRange::new(self.decode_point(range.start())?, self.decode_point(range.end())?))
+    }
+
+    #[inline]
+    fn decode_point(&self, point: EncodedPoint) -> Option<Point> {
+        let encoding = point.encoding();
+        let point = point.encoded_point();
+        if point.line() > self.len_lines() {
+            return None;
+        }
+
+        match encoding {
+            PositionEncoding::Utf8 => Some(point),
+            PositionEncoding::Utf16 => {
+                let line_start_byte = self.line_to_byte(point.line());
+                let line_start_cu = self.byte_to_utf16_cu(line_start_byte);
+                if line_start_cu + point.col() > self.len_utf16_cu() {
+                    return None;
+                }
+
+                let byte = self.utf16_cu_to_byte(line_start_cu + point.col());
+                Some(self.byte_to_point(byte))
+            }
+        }
     }
 
     #[inline]

@@ -69,13 +69,13 @@ pub fn deltas(
 
 pub fn diagnostic(encoding: PositionEncoding, diag: lsp_types::Diagnostic) -> Diagnostic {
     zi_core::Diagnostic {
-        range: EncodedPointRange {
+        range: EncodedPointRange::new(
             encoding,
-            range: PointRange::new(
+            PointRange::new(
                 Point::new(diag.range.start.line as usize, diag.range.start.character as usize),
                 Point::new(diag.range.end.line as usize, diag.range.end.character as usize),
             ),
-        },
+        ),
         severity: match diag.severity {
             Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
             Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,

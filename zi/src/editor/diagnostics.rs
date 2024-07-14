@@ -5,7 +5,6 @@ use zi_core::{Diagnostic, Severity};
 use zi_text::PointRangeExt;
 
 use super::request_redraw;
-use crate::lsp::{self};
 use crate::syntax::HighlightName;
 use crate::{BufferId, Editor, Mark, Setting};
 
@@ -32,7 +31,7 @@ impl Editor {
         });
 
         let mut diagnostics: Box<[_]> = diagnostics.into();
-        diagnostics.sort_unstable_by_key(|d| d.range.range.start());
+        diagnostics.sort_unstable_by_key(|d| d.range.encoded_range().start());
         self.diagnostics.entry(path).or_default().write((version, diagnostics));
 
         if let Some(buf) = buf {
@@ -74,13 +73,7 @@ impl Editor {
             .iter()
             .cloned()
             .filter_map(|diag| {
-                // FIXME temporary hack by converting to lsp range and back
-                let range = lsp::from_proto::range(
-                    diag.range.encoding,
-                    text,
-                    // passing utf8 to make this a noop effectively
-                    lsp::to_proto::range(zi_core::PositionEncoding::Utf8, text, diag.range.range),
-                )?;
+                let range = text.decode_point_range(diag.range)?;
                 let hl_name = match diag.severity {
                     Severity::Error => HighlightName::ERROR,
                     Severity::Warning => HighlightName::WARNING,
