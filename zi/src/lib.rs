@@ -7,8 +7,6 @@
     iter_from_coroutine
 )]
 
-pub use tui::LineNumberStyle;
-pub use zi_text::deltas;
 pub mod buffer;
 mod command;
 mod completion;
@@ -20,6 +18,7 @@ pub mod input;
 mod jump;
 mod keymap;
 mod language;
+mod language_service;
 mod layout;
 mod location;
 #[doc(hidden)]
@@ -35,13 +34,15 @@ pub mod view;
 pub use location::Location;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
-pub use tui::Constraint;
+pub use tui::{Constraint, LineNumberStyle};
 pub use zi_core::{
     Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange,
     PositionEncoding, Size,
 };
 pub use zi_lsp::lsp_types::Url;
-pub use zi_text::{AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice};
+pub use zi_text::{
+    deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice,
+};
 pub use zi_textobject::motion;
 
 pub use self::buffer::{
@@ -54,7 +55,7 @@ pub use self::editor::{
     Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks,
 };
 pub(crate) use self::jump::JumpList;
-pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServerId};
+pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServiceId};
 pub use self::namespace::{Namespace, NamespaceId};
 pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View, ViewId};

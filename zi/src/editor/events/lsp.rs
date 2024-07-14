@@ -22,7 +22,7 @@ impl Editor {
                             editor[event.buf].file_url().cloned().and_then(|uri| {
                                 active_servers_of!(editor, event.buf).find_map(|server_id| {
                                     let server =
-                                        editor.active_language_servers.get_mut(server_id).unwrap();
+                                        editor.active_language_services.get_mut(server_id).unwrap();
                                     match server.capabilities.document_formatting_provider {
                                         Some(
                                             lsp_types::OneOf::Left(true)
@@ -91,12 +91,12 @@ impl Editor {
     }
 
     pub(crate) fn lsp_did_open(
-        server_id: LanguageServerId,
+        server_id: LanguageServiceId,
     ) -> impl EventHandler<Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
-                (editor.active_language_servers.get_mut(&server_id), buf.file_url())
+                (editor.active_language_services.get_mut(&server_id), buf.file_url())
             {
                 tracing::debug!(?event, ?server_id, "lsp buffer did open");
                 server
@@ -168,7 +168,7 @@ impl Editor {
                 let ns = editor.create_namespace("semantic-tokens");
 
                 let Some(cache) = &editor.semantic_tokens.get(&buf) else { return Ok(()) };
-                let Some(server) = editor.active_language_servers.get(&cache.server) else {
+                let Some(server) = editor.active_language_services.get(&cache.server) else {
                     return Ok(());
                 };
 
@@ -215,7 +215,7 @@ impl Editor {
     }
 
     pub(crate) fn lsp_did_change_sync(
-        server_id: LanguageServerId,
+        server_id: LanguageServiceId,
     ) -> impl EventHandler<Event = event::DidChangeBuffer> {
         // Sync event handler
         event::handler::<event::DidChangeBuffer>(move |editor, event| {
@@ -223,13 +223,13 @@ impl Editor {
 
             let buf = &editor.buffers[event.buf];
             if let (Some(server), Some(uri)) =
-                (editor.active_language_servers.get_mut(&server_id), buf.file_url().cloned())
+                (editor.active_language_services.get_mut(&server_id), buf.file_url().cloned())
             {
                 if !editor
                     .language_config
                     .languages
                     .get(&buf.file_type())
-                    .map(|c| &c.language_servers)
+                    .map(|c| &c.language_services)
                     .map_or(false, |servers| servers.contains(&server_id))
                 {
                     return event::HandlerResult::Continue;

@@ -15,7 +15,7 @@ use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, ResponseError, Result};
 
-use crate::{lsp, Client, LanguageServerId};
+use crate::{lsp, Client, LanguageServiceId};
 
 pub(crate) struct LanguageServer {
     pub capabilities: lsp_types::ServerCapabilities,
@@ -81,12 +81,12 @@ impl DerefMut for LanguageServer {
 }
 
 pub struct LanguageClient {
-    for_server: LanguageServerId,
+    for_server: LanguageServiceId,
     client: Client,
 }
 
 impl LanguageClient {
-    pub fn new(for_server: LanguageServerId, client: Client) -> Self {
+    pub fn new(for_server: LanguageServiceId, client: Client) -> Self {
         Self { client, for_server }
     }
 }
@@ -280,7 +280,8 @@ impl zi_lsp::LanguageClient for LanguageClient {
                 "received push diagnostics"
             );
 
-            let encoding = editor.active_language_servers.get(&server).unwrap().position_encoding();
+            let encoding =
+                editor.active_language_services.get(&server).unwrap().position_encoding();
 
             editor.update_diagnostics(
                 path,

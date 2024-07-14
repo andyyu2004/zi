@@ -91,7 +91,7 @@ impl TestContext {
     pub async fn setup_lang_server<St: Send + Clone + 'static>(
         &self,
         ft: zi::FileType,
-        server_id: impl Into<zi::LanguageServerId>,
+        server_id: impl Into<zi::LanguageServiceId>,
         st: St,
         f: impl FnOnce(FakeLanguageServerBuilder<St>) -> FakeLanguageServerBuilder<St>,
     ) {

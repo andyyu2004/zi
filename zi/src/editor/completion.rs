@@ -12,7 +12,7 @@ use zi_text::{Delta, Deltas};
 use super::{active_servers_of, Selector, State};
 use crate::completion::{Completion, CompletionParams, CompletionProvider};
 use crate::lsp::{from_proto, to_proto};
-use crate::{Active, Editor, LanguageServerId, ViewId};
+use crate::{Active, Editor, LanguageServiceId, ViewId};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
     OnceLock::new();
@@ -87,7 +87,7 @@ impl Editor {
         let buf = self[view].buffer();
         let providers = active_servers_of!(self, buf)
             .filter_map(|&server| {
-                self.active_language_servers[&server].capabilities.completion_provider.clone()?;
+                self.active_language_services[&server].capabilities.completion_provider.clone()?;
                 Some(Provider::Lsp(LspCompletionProvider { server }))
             })
             .chain(
@@ -119,7 +119,7 @@ impl Editor {
 }
 
 struct LspCompletionProvider {
-    server: LanguageServerId,
+    server: LanguageServiceId,
 }
 
 impl CompletionProvider for LspCompletionProvider {
@@ -134,7 +134,7 @@ impl CompletionProvider for LspCompletionProvider {
         let Some(uri) = editor[buf].file_url().cloned() else {
             return Box::pin(async move { Ok(vec![]) });
         };
-        let s = editor.active_language_servers.get_mut(&self.server).unwrap();
+        let s = editor.active_language_services.get_mut(&self.server).unwrap();
         let text = editor.buffers[buf].text();
         let encoding = s.position_encoding();
 

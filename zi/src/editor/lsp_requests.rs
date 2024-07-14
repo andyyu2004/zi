@@ -13,7 +13,7 @@ use zi_lsp::lsp_types::{self, OneOf, Url};
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::lsp::{self, from_proto, to_proto, LanguageClient, LanguageServer};
-use crate::{BufferId, Editor, FileType, LanguageServerId, Location, OpenFlags, ViewId};
+use crate::{BufferId, Editor, FileType, LanguageServiceId, Location, OpenFlags, ViewId};
 
 impl Editor {
     pub fn goto_definition(
@@ -174,11 +174,11 @@ impl Editor {
         Fut: Future<Output = zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
     {
         let res = active_servers_of!(self, view)
-            .find(|server_id| has_cap(&self.active_language_servers[server_id].capabilities))
+            .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
                 let uri = buf.file_url()?;
-                let server = self.active_language_servers.get_mut(server_id).unwrap();
+                let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 let encoding = server.position_encoding();
                 tracing::debug!(%uri, %point, "lsp request definition");
@@ -216,12 +216,12 @@ impl Editor {
         }
     }
 
-    fn lsp_root_path(&self, _server: LanguageServerId) -> PathBuf {
+    fn lsp_root_path(&self, _server: LanguageServiceId) -> PathBuf {
         // TODO this should be configurable per language server
         std::env::current_dir().unwrap()
     }
 
-    fn lsp_workspace_root(&self, server: LanguageServerId) -> lsp_types::WorkspaceFolder {
+    fn lsp_workspace_root(&self, server: LanguageServiceId) -> lsp_types::WorkspaceFolder {
         let uri = Url::from_file_path(self.lsp_root_path(server)).unwrap();
         lsp_types::WorkspaceFolder {
             name: uri
@@ -238,8 +238,8 @@ impl Editor {
         ft: FileType,
     ) -> zi_lsp::Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
-            for server_id in config.language_servers.iter().cloned() {
-                if self.active_language_servers.contains_key(&server_id) {
+            for server_id in config.language_services.iter().cloned() {
+                if self.active_language_services.contains_key(&server_id) {
                     // Language server already running
                     continue;
                 }
@@ -247,15 +247,15 @@ impl Editor {
                 let client = LanguageClient::new(server_id, self.client());
                 let root_path = self.lsp_root_path(server_id);
                 let workspace_root = self.lsp_workspace_root(server_id);
-                let (mut server, fut) =
-                    self.language_config.language_servers[&server_id].spawn(&root_path, client)?;
+                let (mut service, fut) =
+                    self.language_config.language_services[&server_id].spawn(&root_path, client)?;
                 let handle = tokio::spawn(fut);
 
                 callback(
                     &self.callbacks_tx,
                     "initializing language server",
                     async move {
-                        let res = server
+                        let res = service
                             .initialize(lsp_types::InitializeParams {
                                 process_id: Some(std::process::id()),
                                 capabilities: lsp::client_capabilities(),
@@ -264,7 +264,7 @@ impl Editor {
                             })
                             .await?;
 
-                        Ok((res, server))
+                        Ok((res, service))
                     },
                     move |editor, (res, mut server)| {
                         let span = tracing::info_span!("lsp initialized", %server_id);
@@ -275,7 +275,7 @@ impl Editor {
                         tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
 
                         assert!(
-                            editor.active_language_servers.insert(server_id, server).is_none(),
+                            editor.active_language_services.insert(server_id, server).is_none(),
                             "inserted duplicate language server"
                         );
 
@@ -411,7 +411,7 @@ impl Editor {
         };
 
         let Some((server, caps)) = active_servers_of!(self, buf).find_map(|&server| {
-            let caps = self.active_language_servers[&server]
+            let caps = self.active_language_services[&server]
                 .capabilities
                 .semantic_tokens_provider
                 .clone()?;
@@ -467,7 +467,7 @@ impl Editor {
             ),
         }
 
-        let s = self.active_language_servers.get_mut(&server).unwrap();
+        let s = self.active_language_services.get_mut(&server).unwrap();
         let res = match (caps.full, tokens.last_request_id.clone()) {
             (
                 Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
@@ -599,7 +599,7 @@ impl Editor {
 
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
-                let true = self.active_language_servers[&server_id]
+                let true = self.active_language_services[&server_id]
                     .capabilities
                     .diagnostic_provider
                     .is_some()
@@ -607,7 +607,7 @@ impl Editor {
                     return None;
                 };
                 let uri = self.buffers[buf].file_url()?.clone();
-                let server = self.active_language_servers.get_mut(&server_id).unwrap();
+                let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let encoding = server.position_encoding();
                 let fut = server.document_diagnostic(lsp_types::DocumentDiagnosticParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -672,7 +672,7 @@ impl Editor {
     }
 }
 
-fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServerId) {
+fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServiceId) {
     // TODO check capabilities
     event::subscribe::<event::DidChangeBuffer>(Editor::lsp_did_change_sync(server_id));
     event::subscribe::<event::DidOpenBuffer>(Editor::lsp_did_open(server_id));

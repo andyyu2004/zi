@@ -102,30 +102,30 @@ impl AsRef<Path> for FileType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LanguageServerId(Ustr);
+pub struct LanguageServiceId(Ustr);
 
 #[doc(hidden)]
 struct KnownLanguageServers {
-    pub rust_analyzer: LanguageServerId,
-    pub tsserver: LanguageServerId,
-    pub gopls: LanguageServerId,
-    pub gqlt: LanguageServerId,
-    pub clangd: LanguageServerId,
+    pub rust_analyzer: LanguageServiceId,
+    pub tsserver: LanguageServiceId,
+    pub gopls: LanguageServiceId,
+    pub gqlt: LanguageServiceId,
+    pub clangd: LanguageServiceId,
 }
 
 macro_rules! language_server_id {
     ($id:ident) => {
-        $crate::LanguageServerId::known().$id
+        $crate::LanguageServiceId::known().$id
     };
 }
 
-impl From<&str> for LanguageServerId {
+impl From<&str> for LanguageServiceId {
     fn from(id: &str) -> Self {
         Self(ustr(id))
     }
 }
 
-impl LanguageServerId {
+impl LanguageServiceId {
     pub fn new(id: impl Into<Ustr>) -> Self {
         Self(id.into())
     }
@@ -134,11 +134,11 @@ impl LanguageServerId {
     fn known() -> &'static KnownLanguageServers {
         static KNOWN_LANGUAGE_SERVERS: OnceLock<KnownLanguageServers> = OnceLock::new();
         KNOWN_LANGUAGE_SERVERS.get_or_init(|| KnownLanguageServers {
-            rust_analyzer: LanguageServerId::new("rust-analyzer"),
-            tsserver: LanguageServerId::new("tsserver"),
-            gopls: LanguageServerId::new("gopls"),
-            gqlt: LanguageServerId::new("gqlt"),
-            clangd: LanguageServerId::new("clangd"),
+            rust_analyzer: LanguageServiceId::new("rust-analyzer"),
+            tsserver: LanguageServiceId::new("tsserver"),
+            gopls: LanguageServiceId::new("gopls"),
+            gqlt: LanguageServiceId::new("gqlt"),
+            clangd: LanguageServiceId::new("clangd"),
         })
     }
 
@@ -147,7 +147,7 @@ impl LanguageServerId {
     }
 }
 
-impl fmt::Display for LanguageServerId {
+impl fmt::Display for LanguageServiceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -169,23 +169,23 @@ pub trait LanguageServerConfig {
 
 pub struct Config {
     pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
-    pub(crate) language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
+    pub(crate) language_services: BTreeMap<LanguageServiceId, Box<dyn LanguageServerConfig + Send>>,
 }
 
 impl Config {
     pub fn new(
         languages: BTreeMap<FileType, LanguageConfig>,
-        language_servers: BTreeMap<LanguageServerId, Box<dyn LanguageServerConfig + Send>>,
+        language_servers: BTreeMap<LanguageServiceId, Box<dyn LanguageServerConfig + Send>>,
     ) -> Result<Self> {
         for (lang, config) in &languages {
-            for server in &*config.language_servers {
+            for server in &*config.language_services {
                 if !language_servers.contains_key(server) {
                     bail!("language server `{server}` for language `{lang}` is not defined",)
                 }
             }
         }
 
-        Ok(Self { languages, language_servers })
+        Ok(Self { languages, language_services: language_servers })
     }
 
     pub fn add_language(
@@ -199,10 +199,10 @@ impl Config {
 
     pub fn add_language_server(
         &mut self,
-        id: impl Into<LanguageServerId>,
+        id: impl Into<LanguageServiceId>,
         config: impl LanguageServerConfig + Send + 'static,
     ) -> &mut Self {
-        self.language_servers.insert(id.into(), Box::new(config));
+        self.language_services.insert(id.into(), Box::new(config));
         self
     }
 }
@@ -212,31 +212,33 @@ impl Default for Config {
         let languages = BTreeMap::from([
             (
                 filetype!(rust),
-                LanguageConfig { language_servers: Box::new([language_server_id!(rust_analyzer)]) },
+                LanguageConfig {
+                    language_services: Box::new([language_server_id!(rust_analyzer)]),
+                },
             ),
             (
                 filetype!(go),
-                LanguageConfig { language_servers: Box::new([language_server_id!(gopls)]) },
+                LanguageConfig { language_services: Box::new([language_server_id!(gopls)]) },
             ),
             (
                 filetype!(gqlt),
-                LanguageConfig { language_servers: Box::new([language_server_id!(gqlt)]) },
+                LanguageConfig { language_services: Box::new([language_server_id!(gqlt)]) },
             ),
             (
                 filetype!(c),
-                LanguageConfig { language_servers: Box::new([language_server_id!(clangd)]) },
+                LanguageConfig { language_services: Box::new([language_server_id!(clangd)]) },
             ),
             (
                 filetype!(javascript),
-                LanguageConfig { language_servers: Box::new([language_server_id!(tsserver)]) },
+                LanguageConfig { language_services: Box::new([language_server_id!(tsserver)]) },
             ),
             (
                 filetype!(typescript),
-                LanguageConfig { language_servers: Box::new([language_server_id!(tsserver)]) },
+                LanguageConfig { language_services: Box::new([language_server_id!(tsserver)]) },
             ),
-            (filetype!(text), LanguageConfig { language_servers: Box::new([]) }),
-            (filetype!(toml), LanguageConfig { language_servers: Box::new([]) }),
-            (filetype!(json), LanguageConfig { language_servers: Box::new([]) }),
+            (filetype!(text), LanguageConfig { language_services: Box::new([]) }),
+            (filetype!(toml), LanguageConfig { language_services: Box::new([]) }),
+            (filetype!(json), LanguageConfig { language_services: Box::new([]) }),
         ]);
 
         let language_servers = BTreeMap::from(
@@ -266,12 +268,12 @@ impl Default for Config {
 
 #[derive(Debug, Default)]
 pub struct LanguageConfig {
-    pub(crate) language_servers: Box<[LanguageServerId]>,
+    pub(crate) language_services: Box<[LanguageServiceId]>,
 }
 
 impl LanguageConfig {
-    pub fn new(language_servers: impl IntoIterator<Item = LanguageServerId>) -> Self {
-        Self { language_servers: language_servers.into_iter().collect() }
+    pub fn new(language_servers: impl IntoIterator<Item = LanguageServiceId>) -> Self {
+        Self { language_services: language_servers.into_iter().collect() }
     }
 }
 

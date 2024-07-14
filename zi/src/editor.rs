@@ -65,7 +65,7 @@ use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
-    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServerId,
+    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServiceId,
     Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url, VerticalAlignment, View,
     ViewId,
 };
@@ -96,7 +96,7 @@ fn pool() -> &'static rayon::ThreadPool {
 struct SemanticTokens {
     last_request_id: Option<String>,
     buf_version: u32,
-    server: LanguageServerId,
+    server: LanguageServiceId,
     legend: lsp_types::SemanticTokensLegend,
     tokens: Vec<lsp_types::SemanticToken>,
 }
@@ -119,7 +119,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Buffer>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    pub(super) active_language_servers: HashMap<LanguageServerId, LanguageServer>,
+    pub(super) active_language_services: HashMap<LanguageServiceId, LanguageServer>,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -132,7 +132,7 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
-    active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServerId>>,
+    active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServiceId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     language_config: language::Config,
@@ -453,7 +453,7 @@ impl Editor {
             settings: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
-            active_language_servers: Default::default(),
+            active_language_services: Default::default(),
             active_language_servers_for_ft: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
@@ -647,7 +647,7 @@ impl Editor {
     }
 
     async fn shutdown(&mut self) {
-        for mut server in mem::take(&mut self.active_language_servers).into_values() {
+        for mut server in mem::take(&mut self.active_language_services).into_values() {
             // TODO shutdown concurrenly
             if let Err(err) = server.shutdown(()).await {
                 tracing::error!("language server shutdown failed: {err}");
