@@ -1,4 +1,4 @@
-use zi_core::EncodedPointRange;
+use zi_core::{EncodedPoint, EncodedPointRange};
 
 use super::*;
 use crate::Mark;
@@ -196,8 +196,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.point)
+            fn point(&self) -> Option<EncodedPoint> {
+                Some(self.point.into())
             }
         }
 
@@ -284,8 +284,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.range.start())
+            fn point(&self) -> Option<EncodedPoint> {
+                Some(self.range.start().into())
             }
         }
 
@@ -343,8 +343,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.range.encoded_range().start())
+            fn point(&self) -> Option<EncodedPoint> {
+                Some(self.range.start())
             }
         }
 
@@ -387,8 +387,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(Point::new(self.line, 0))
+            fn point(&self) -> Option<EncodedPoint> {
+                Some(Point::new(self.line, 0).into())
             }
         }
 

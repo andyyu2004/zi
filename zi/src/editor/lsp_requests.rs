@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
-use zi_core::{Point, PositionEncoding};
+use zi_core::{EncodedPoint, Point, PositionEncoding};
 use zi_lsp::lsp_types::{self, OneOf, Url};
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
@@ -330,8 +330,8 @@ impl Editor {
                 Err(&self.path)
             }
 
-            fn point(&self) -> Option<Point> {
-                Some(Point::new(self.line, 0))
+            fn point(&self) -> Option<EncodedPoint> {
+                Some(Point::new(self.line, 0).into())
             }
         }
 

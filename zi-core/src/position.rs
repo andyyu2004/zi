@@ -116,6 +116,13 @@ pub struct EncodedPoint {
     point: Point,
 }
 
+impl From<Point> for EncodedPoint {
+    #[inline]
+    fn from(point: Point) -> Self {
+        Self::new(PositionEncoding::Utf8, point)
+    }
+}
+
 impl EncodedPoint {
     #[inline]
     pub fn new(encoding: PositionEncoding, point: Point) -> Self {

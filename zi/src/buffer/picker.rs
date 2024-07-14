@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
+use zi_core::EncodedPoint;
 use zi_text::TextMut;
 
 use super::*;
@@ -46,7 +47,7 @@ pub trait BufferPickerEntry: Entry {
     /// Return an open buffer id or a path to open
     fn buffer_or_path(&self) -> Result<BufferId, &Path>;
 
-    fn point(&self) -> Option<Point>;
+    fn point(&self) -> Option<EncodedPoint>;
 }
 
 impl<P> BufferPickerEntry for P
@@ -59,7 +60,7 @@ where
     }
 
     #[inline]
-    fn point(&self) -> Option<Point> {
+    fn point(&self) -> Option<EncodedPoint> {
         None
     }
 }
@@ -98,7 +99,9 @@ where
         let preview = move |editor: &mut Editor, buf: BufferId| {
             editor.set_buffer(self.preview, buf);
             if let Some(point) = point {
-                editor.reveal(self.preview, point, VerticalAlignment::Center)
+                if let Some(point) = editor[buf].text().decode_point(point) {
+                    editor.reveal(self.preview, point, VerticalAlignment::Center)
+                }
             }
         };
 
@@ -134,7 +137,9 @@ where
                 editor.close_view(self.preview);
                 editor.set_buffer(Active, buffer);
                 if let Some(point) = point {
-                    editor.reveal(Active, point, VerticalAlignment::Center);
+                    if let Some(point) = editor[buffer].text().decode_point(point) {
+                        editor.reveal(Active, point, VerticalAlignment::Center);
+                    }
                 }
                 return;
             }
@@ -147,9 +152,11 @@ where
         editor.close_view(self.preview);
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS);
-        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, _buf| {
+        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
             if let Some(point) = entry.point() {
-                editor.reveal(Active, point, VerticalAlignment::Center);
+                if let Some(point) = editor[buf].text().decode_point(point) {
+                    editor.reveal(Active, point, VerticalAlignment::Center);
+                }
             }
             Ok(())
         })
