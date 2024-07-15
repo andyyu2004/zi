@@ -3702,6 +3702,7 @@ dependencies = [
  "grep",
  "ignore",
  "itertools 0.13.0",
+ "lsp-types",
  "mimalloc",
  "mutants",
  "nucleo",
@@ -3730,7 +3731,6 @@ dependencies = [
  "zi-core",
  "zi-event",
  "zi-indent",
- "zi-language-service",
  "zi-lsp",
  "zi-marktree",
  "zi-nvim",
@@ -3781,16 +3781,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zi-language-service"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures-core",
- "lsp-types",
- "zi-core",
-]
-
-[[package]]
 name = "zi-lsp"
 version = "0.1.0"
 dependencies = [
@@ -3802,8 +3792,8 @@ dependencies = [
  "tokio-util",
  "tower",
  "tracing",
+ "zi",
  "zi-event",
- "zi-language-service",
 ]
 
 [[package]]

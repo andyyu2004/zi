@@ -18,6 +18,7 @@ pub mod input;
 mod jump;
 mod keymap;
 mod language;
+mod language_service;
 mod layout;
 mod location;
 #[doc(hidden)]
@@ -31,6 +32,7 @@ mod undo;
 pub mod view;
 
 pub use location::Location;
+pub use lsp_types::Url;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
@@ -38,8 +40,6 @@ pub use zi_core::{
     BufferId, Col, CompletionItem, Direction, Line, Mode, NamespaceId, Offset, Operator, Point,
     PointRange, PositionEncoding, Size, ViewGroupId, ViewId,
 };
-pub use zi_language_service::lsp_types::Url;
-pub use zi_language_service::LanguageService;
 pub use zi_text::{
     deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice,
 };
@@ -54,6 +54,7 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
+pub use self::language_service::{LanguageClient, LanguageService, LanguageServiceConfig};
 pub use self::namespace::Namespace;
 pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View};

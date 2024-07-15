@@ -37,7 +37,7 @@ where
 
 impl<C, E> LanguageClient for ToLanguageClient<C, E>
 where
-    C: zi_language_service::LanguageClient<E>,
+    C: zi::LanguageClient<E>,
 {
     type Error = ResponseError;
 

@@ -5,9 +5,8 @@ use std::sync::OnceLock;
 
 use anyhow::bail;
 use ustr::{ustr, Ustr};
-use zi_language_service::LanguageServiceConfig;
 
-use crate::{Editor, Result};
+use crate::{Editor, LanguageServiceConfig, Result};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileType(Ustr);

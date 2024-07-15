@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use futures_core::future::BoxFuture;
 use futures_core::Future;
+use lsp_types::notification::Notification;
+use lsp_types::request::Request;
+use lsp_types::{lsp_notification, lsp_request};
 use serde_json::Value;
-use zi_language_service::lsp_types::notification::Notification;
-use zi_language_service::lsp_types::request::Request;
-use zi_language_service::lsp_types::{lsp_notification, lsp_request};
-use zi_language_service::LanguageClient;
+use zi::LanguageClient;
 use zi_lsp::{ErrorCode, LanguageServer, ResponseError, Result};
 
 pub struct FakeLanguageServerBuilder<St> {
@@ -34,7 +34,7 @@ impl<St: Default> Default for FakeLanguageServerTemplate<St> {
     }
 }
 
-impl<St: Clone + Send + 'static> zi_language_service::LanguageServiceConfig<zi::Editor>
+impl<St: Clone + Send + 'static> zi::LanguageServiceConfig<zi::Editor>
     for FakeLanguageServerTemplate<St>
 {
     fn spawn(

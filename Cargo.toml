@@ -7,7 +7,6 @@ members = [
     "zi",
     "zi-core",
     "zi-indent",
-    "zi-language-service",
     "zi-lsp",
     "zi-marktree",
     "zi-nvim",
@@ -26,7 +25,6 @@ zi-core = { path = "zi-core" }
 zi-wasm = { path = "zi-wasm" }
 zi-event = { path = "zi-event" }
 zi-indent = { path = "zi-indent" }
-zi-language-service = { path = "zi-language-service" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }
 zi-nvim = { path = "zi-nvim" }

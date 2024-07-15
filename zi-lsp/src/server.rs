@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
+use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
+use zi::{LanguageService, PositionEncoding};
 use zi_event::{event, HandlerResult, Registry};
-use zi_language_service::{LanguageService, PositionEncoding, ResponseFuture};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
 pub struct ToLanguageService<S, E> {
@@ -24,6 +25,8 @@ impl<S, E> ToLanguageService<S, E> {
         }
     }
 }
+
+type ResponseFuture<T> = BoxFuture<'static, zi::Result<T>>;
 
 impl<S, E> LanguageService<E> for ToLanguageService<S, E>
 where

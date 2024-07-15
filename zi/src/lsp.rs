@@ -5,7 +5,7 @@ pub mod to_proto;
 
 use std::fmt;
 
-use zi_language_service::lsp_types::{self, ClientCapabilities};
+use lsp_types::{self, ClientCapabilities};
 
 use crate::{lsp, Client, Editor, LanguageServiceId};
 
@@ -26,7 +26,7 @@ impl fmt::Debug for LanguageClient {
     }
 }
 
-impl zi_language_service::LanguageClient<Editor> for LanguageClient {
+impl crate::LanguageClient<Editor> for LanguageClient {
     fn log_message(&mut self, params: lsp_types::LogMessageParams) {
         self.client.send(move |editor| {
             tracing::info!("received log message");
