@@ -275,7 +275,7 @@ impl Editor {
                     move |editor, mut service| {
                         let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
-                        service.initialized();
+                        service.initialized()?;
 
                         tracing::info!(encoding = ?service.position_encoding(), "lsp initialized");
 

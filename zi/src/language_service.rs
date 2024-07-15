@@ -19,7 +19,7 @@ pub trait LanguageService {
     /// This must be called before any other method and should only be called exactly once.
     fn initialize(&mut self, params: lsp_types::InitializeParams) -> ResponseFuture<()>;
 
-    fn initialized(&mut self);
+    fn initialized(&mut self) -> Result<()>;
 
     fn formatting(
         &mut self,

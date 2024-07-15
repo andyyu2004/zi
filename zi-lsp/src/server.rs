@@ -52,7 +52,9 @@ where
         })
     }
 
-    fn initialized(&mut self) {
+    fn initialized(&mut self) -> zi::Result<()> {
+        self.server.initialized(lsp_types::InitializedParams {})?;
+
         // Setup relevant event handlers to create notifications to the language server.
         let service_id = self.service_id;
 
@@ -156,6 +158,8 @@ where
 
             HandlerResult::Continue
         });
+
+        Ok(())
     }
 
     fn formatting(
