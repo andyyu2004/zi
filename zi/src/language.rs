@@ -7,7 +7,7 @@ use anyhow::bail;
 use ustr::{ustr, Ustr};
 use zi_language_service::LanguageServiceConfig;
 
-use crate::Result;
+use crate::{Editor, Result};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileType(Ustr);
@@ -127,13 +127,16 @@ impl fmt::Display for LanguageServiceId {
 pub struct Config {
     pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
     pub(crate) language_services:
-        BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig + Send>>,
+        BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig<Editor> + Send>>,
 }
 
 impl Config {
     pub fn new(
         languages: BTreeMap<FileType, LanguageConfig>,
-        language_servers: BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig + Send>>,
+        language_servers: BTreeMap<
+            LanguageServiceId,
+            Box<dyn LanguageServiceConfig<Editor> + Send>,
+        >,
     ) -> Result<Self> {
         for (lang, config) in &languages {
             for server in &*config.language_services {
@@ -158,7 +161,7 @@ impl Config {
     pub fn add_language_server(
         &mut self,
         id: impl Into<LanguageServiceId>,
-        config: impl LanguageServiceConfig + Send + 'static,
+        config: impl LanguageServiceConfig<Editor> + Send + 'static,
     ) -> &mut Self {
         self.language_services.insert(id.into(), Box::new(config));
         self

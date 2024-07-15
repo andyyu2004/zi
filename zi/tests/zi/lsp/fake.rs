@@ -34,15 +34,17 @@ impl<St: Default> Default for FakeLanguageServerTemplate<St> {
     }
 }
 
-impl<St: Clone + Send + 'static> zi_language_service::LanguageServiceConfig
+impl<St: Clone + Send + 'static> zi_language_service::LanguageServiceConfig<zi::Editor>
     for FakeLanguageServerTemplate<St>
 {
     fn spawn(
         &self,
         _cwd: &Path,
-        _client: Box<dyn LanguageClient>,
-    ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
-    {
+        _client: Box<dyn LanguageClient<zi::Editor>>,
+    ) -> anyhow::Result<(
+        Box<dyn zi::LanguageService<zi::Editor> + Send>,
+        BoxFuture<'static, anyhow::Result<()>>,
+    )> {
         let server = FakeLanguageServer {
             handlers: Arc::clone(&self.handlers),
             state: self.init_state.clone(),

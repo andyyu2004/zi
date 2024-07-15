@@ -7,7 +7,7 @@ use std::fmt;
 
 use zi_language_service::lsp_types::{self, ClientCapabilities};
 
-use crate::{lsp, Client, LanguageServiceId};
+use crate::{lsp, Client, Editor, LanguageServiceId};
 
 pub struct LanguageClient {
     for_server: LanguageServiceId,
@@ -26,7 +26,7 @@ impl fmt::Debug for LanguageClient {
     }
 }
 
-impl zi_language_service::LanguageClient for LanguageClient {
+impl zi_language_service::LanguageClient<Editor> for LanguageClient {
     fn log_message(&mut self, params: lsp_types::LogMessageParams) {
         self.client.send(move |editor| {
             tracing::info!("received log message");

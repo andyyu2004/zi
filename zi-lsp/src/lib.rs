@@ -89,12 +89,12 @@ impl LanguageServerConfig {
     }
 }
 
-impl LanguageServiceConfig for LanguageServerConfig {
+impl<E: Send + 'static> LanguageServiceConfig<E> for LanguageServerConfig {
     fn spawn(
         &self,
         cwd: &Path,
-        client: Box<dyn zi_language_service::LanguageClient>,
-    ) -> anyhow::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
+        client: Box<dyn zi_language_service::LanguageClient<E>>,
+    ) -> anyhow::Result<(Box<dyn LanguageService<E> + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
         let (server, fut) =

@@ -120,7 +120,7 @@ pub struct Editor {
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     pub(super) active_language_services:
-        HashMap<LanguageServiceId, Box<dyn LanguageService + Send>>,
+        HashMap<LanguageServiceId, Box<dyn LanguageService<Self> + Send>>,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.

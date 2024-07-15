@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
@@ -5,40 +6,28 @@ use futures_util::{FutureExt, TryFutureExt};
 use zi_language_service::{LanguageService, PositionEncoding, ResponseFuture};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
-pub struct ToLanguageService<S> {
+pub struct ToLanguageService<S, E> {
     server: S,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
     position_encoding: OnceLock<PositionEncoding>,
+    _editor: PhantomData<E>,
 }
 
-impl<S> ToLanguageService<S> {
+impl<S, E> ToLanguageService<S, E> {
     pub fn new(server: S) -> Self {
-        Self { server, capabilities: Default::default(), position_encoding: Default::default() }
+        Self {
+            server,
+            capabilities: Default::default(),
+            position_encoding: Default::default(),
+            _editor: PhantomData,
+        }
     }
 }
 
-impl<S: LanguageServer<Error = async_lsp::Error>> LanguageService for ToLanguageService<S> {
-    fn capabilities(&self) -> &lsp_types::ServerCapabilities {
-        self.capabilities.get().expect("capabilities not initialized")
-    }
-
-    fn position_encoding(&self) -> PositionEncoding {
-        *self.position_encoding.get_or_init(|| match &self.capabilities().position_encoding {
-            Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
-                _ => {
-                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
-                    PositionEncoding::default()
-                }
-            },
-            None => {
-                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
-                PositionEncoding::default()
-            }
-        })
-    }
-
+impl<S, E> LanguageService<E> for ToLanguageService<S, E>
+where
+    S: LanguageServer<Error = async_lsp::Error>,
+{
     fn initialize(
         &mut self,
         params: lsp_types::InitializeParams,
@@ -113,5 +102,26 @@ impl<S: LanguageServer<Error = async_lsp::Error>> LanguageService for ToLanguage
         params: lsp_types::DocumentDiagnosticParams,
     ) -> ResponseFuture<lsp_types::DocumentDiagnosticReportResult> {
         self.server.document_diagnostic(params).map_err(Into::into).boxed()
+    }
+
+    fn capabilities(&self) -> &lsp_types::ServerCapabilities {
+        self.capabilities.get().expect("capabilities not initialized")
+    }
+
+    fn position_encoding(&self) -> PositionEncoding {
+        *self.position_encoding.get_or_init(|| match &Self::capabilities(self).position_encoding {
+            Some(encoding) => match encoding {
+                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
+                _ => {
+                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+                    PositionEncoding::default()
+                }
+            },
+            None => {
+                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
+                PositionEncoding::default()
+            }
+        })
     }
 }

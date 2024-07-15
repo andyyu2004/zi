@@ -9,7 +9,7 @@ pub use zi_core::PositionEncoding;
 pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
 
 /// An abstraction of language server requests. Notifications are handled via the event system.
-pub trait LanguageService {
+pub trait LanguageService<E> {
     /// Initialize the language server.
     /// This must be called before any other method and should only be called exactly once.
     fn initialize(
@@ -68,13 +68,13 @@ pub trait LanguageService {
 }
 
 /// A client to the editor for the language server.
-pub trait LanguageClient: Send {
+pub trait LanguageClient<E>: Send {
     fn log_message(&mut self, message: lsp_types::LogMessageParams);
 
     fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams);
 }
 
-impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
+impl<E, C: LanguageClient<E> + ?Sized> LanguageClient<E> for Box<C> {
     #[inline]
     fn log_message(&mut self, message: lsp_types::LogMessageParams) {
         self.as_mut().log_message(message)
@@ -86,13 +86,13 @@ impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
     }
 }
 
-pub trait LanguageServiceConfig {
+pub trait LanguageServiceConfig<E> {
     /// Spawn a new language service instance.
     /// Returns a boxed language service and a future to spawn to run the service.
     #[allow(clippy::type_complexity)]
     fn spawn(
         &self,
         cwd: &Path,
-        client: Box<dyn LanguageClient>,
-    ) -> Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, Result<()>>)>;
+        client: Box<dyn LanguageClient<E>>,
+    ) -> Result<(Box<dyn LanguageService<E> + Send>, BoxFuture<'static, Result<()>>)>;
 }

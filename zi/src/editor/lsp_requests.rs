@@ -170,7 +170,7 @@ impl Editor {
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        f: impl FnOnce(&mut dyn LanguageService, lsp_types::GotoDefinitionParams) -> Fut,
+        f: impl FnOnce(&mut dyn LanguageService<Self>, lsp_types::GotoDefinitionParams) -> Fut,
     ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
     where
         Fut: Future<Output = Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
