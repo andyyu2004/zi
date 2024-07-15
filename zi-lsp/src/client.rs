@@ -6,6 +6,9 @@ use async_lsp::lsp_types::request::Request;
 use async_lsp::lsp_types::{lsp_notification, lsp_request};
 use async_lsp::{ErrorCode, LanguageClient, ResponseError};
 use futures_util::future::BoxFuture;
+use zi::lstypes;
+
+use crate::from_proto;
 
 /// zi_language_service::LanguageClient -> async_lsp::LanguageClient
 pub struct ToLanguageClient<C> {
@@ -182,7 +185,13 @@ where
         &mut self,
         params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
     ) -> Self::NotifyResult {
-        self.client.publish_diagnostics(params);
+        let encoding = self.client.position_encoding();
+        let text = self.client.service_id();
+        self.client.publish_diagnostics(lstypes::PublishDiagnosticsParams {
+            url: params.uri,
+            version: params.version,
+            diagnostics: from_proto::diagnostics(encoding, text, params.diagnostics),
+        });
         ControlFlow::Continue(())
     }
 

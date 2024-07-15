@@ -57,3 +57,10 @@ pub struct DocumentDiagnosticParams {
     pub url: Url,
     // pub previous_result_id: Option<String>,
 }
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct PublishDiagnosticsParams {
+    pub url: Url,
+    pub diagnostics: Vec<Diagnostic>,
+    pub version: Option<i32>,
+}

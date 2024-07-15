@@ -123,7 +123,7 @@ pub trait LanguageClient: Send {
 
     fn log_message(&mut self, message: lsp_types::LogMessageParams);
 
-    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams);
+    fn publish_diagnostics(&mut self, params: lstypes::PublishDiagnosticsParams);
 }
 
 impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
@@ -138,7 +138,7 @@ impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
     }
 
     #[inline]
-    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams) {
+    fn publish_diagnostics(&mut self, params: lstypes::PublishDiagnosticsParams) {
         self.as_mut().publish_diagnostics(params)
     }
 }

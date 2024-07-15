@@ -1,5 +1,7 @@
 mod client;
+mod from_proto;
 mod server;
+mod to_proto;
 
 use std::ffi::{OsStr, OsString};
 use std::future::Future;

@@ -7,7 +7,7 @@ use std::fmt;
 
 use lsp_types::{self, ClientCapabilities};
 
-use crate::{lsp, Client, LanguageServiceId};
+use crate::{lsp, lstypes, Client, LanguageServiceId};
 
 pub struct LanguageClient {
     for_server: LanguageServiceId,
@@ -41,11 +41,11 @@ impl crate::LanguageClient for LanguageClient {
         });
     }
 
-    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams) {
+    fn publish_diagnostics(&mut self, params: lstypes::PublishDiagnosticsParams) {
         let server = self.for_server;
         self.client.send(move |editor| {
-            let Ok(path) = params.uri.to_file_path() else {
-                tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
+            let Ok(path) = params.url.to_file_path() else {
+                tracing::warn!("received diagnostics for non-file URI: {}", params.url);
                 return Ok(());
             };
 
@@ -57,19 +57,11 @@ impl crate::LanguageClient for LanguageClient {
                 "received push diagnostics"
             );
 
-            if let Some(server) = editor.active_language_services.get(&server) {
-                let encoding = server.position_encoding();
-
-                editor.update_diagnostics(
-                    path,
-                    params.version.map(|i| i as u32),
-                    params
-                        .diagnostics
-                        .into_iter()
-                        .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
-                        .collect::<Box<_>>(),
-                );
-            }
+            editor.update_diagnostics(
+                path,
+                params.version.map(|i| i as u32),
+                params.diagnostics.into_boxed_slice(),
+            );
 
             Ok(())
         })
