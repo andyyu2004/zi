@@ -3,7 +3,7 @@ use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::{FutureExt, TryFutureExt};
-use zi_event::Registry;
+use zi_event::{event, HandlerResult, Registry};
 use zi_language_service::{LanguageService, PositionEncoding, ResponseFuture};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
@@ -28,7 +28,7 @@ impl<S, E> ToLanguageService<S, E> {
 impl<S, E> LanguageService<E> for ToLanguageService<S, E>
 where
     S: LanguageServer<Error = async_lsp::Error>,
-    E: Registry<E>,
+    E: Registry<E> + Send + 'static,
 {
     fn initialize(
         &mut self,
@@ -44,7 +44,26 @@ where
     }
 
     fn initialized(&mut self, registry: &mut E) {
-        // registry.subscribe()
+        registry.subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
+            // let buf = &editor.buffers[event.buf];
+            // if let (Some(server), Some(uri)) =
+            //     (editor.active_language_services.get_mut(&server_id), buf.file_url())
+            // {
+            //     tracing::debug!(?event, ?server_id, "lsp buffer did open");
+            // server
+            //     .did_open(lsp_types::DidOpenTextDocumentParams {
+            //         text_document: lsp_types::TextDocumentItem {
+            //             uri: uri.clone(),
+            //             language_id: buf.file_type().to_string(),
+            //             version: buf.version() as i32,
+            //             text: buf.text().to_string(),
+            //         },
+            //     })
+            //     .expect("lsp did_open failed");
+            // }
+
+            HandlerResult::Continue
+        })
     }
 
     fn formatting(

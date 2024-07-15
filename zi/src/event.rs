@@ -7,10 +7,11 @@ use std::sync::{Arc, OnceLock};
 
 use crossbeam_queue::SegQueue;
 use rustc_hash::FxHashMap;
+pub use zi_event::event::*;
 pub use zi_event::{Event, EventHandler, HandlerResult};
 
 pub use self::events::*;
-pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler};
+pub(crate) use self::handler::{async_handler, AsyncEventHandler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
 use crate::{Client, Editor, Result};
 
@@ -53,7 +54,7 @@ pub fn subscribe<E: Event>(handler: impl EventHandler<Editor, Event = E>) {
 pub fn subscribe_with<E: Event>(
     f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
 ) {
-    subscribe(handler(f));
+    subscribe(zi_event::handler(f));
 }
 
 pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Event = E> + Sync) {

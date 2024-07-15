@@ -101,28 +101,3 @@ where
         HandlerResult::Continue
     }
 }
-
-struct HandlerFunc<F, E> {
-    f: F,
-    _marker: PhantomData<E>,
-}
-
-impl<F, E> EventHandler<Editor> for HandlerFunc<F, E>
-where
-    F: Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
-    E: Event,
-{
-    type Event = E;
-
-    fn on_event(&self, editor: &mut Editor, event: &E) -> HandlerResult {
-        (self.f)(editor, event)
-    }
-}
-
-/// Create a new event handler from a closure.
-// Can't find a way to implement this as a blanket impl
-pub(crate) fn handler<E: Event>(
-    f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
-) -> impl EventHandler<Editor, Event = E> {
-    HandlerFunc { f, _marker: PhantomData }
-}

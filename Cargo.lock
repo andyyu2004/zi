@@ -3756,6 +3756,10 @@ dependencies = [
 [[package]]
 name = "zi-event"
 version = "0.1.0"
+dependencies = [
+ "zi-core",
+ "zi-text",
+]
 
 [[package]]
 name = "zi-fuzz"
