@@ -42,23 +42,20 @@ where
         self
     }
 
-    fn initialize(
-        &mut self,
-        params: lsp_types::InitializeParams,
-    ) -> ResponseFuture<lsp_types::InitializeResult> {
+    fn initialize(&mut self, params: lsp_types::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
         let fut = self.server.initialize(params);
         Box::pin(async move {
             let result = fut.await?;
-            caps.set(result.capabilities.clone()).expect("capabilities already initialized");
-            Ok(result)
+            caps.set(result.capabilities).expect("capabilities already initialized");
+            Ok(())
         })
     }
 
     fn initialized(&mut self) {
-        let service_id = self.service_id;
         // Setup relevant event handlers to create notifications to the language server.
-        //
+        let service_id = self.service_id;
+
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
             let Some(uri) = editor[buf].file_url() else { return HandlerResult::Continue };
@@ -73,11 +70,14 @@ where
 
             // TODO should ignore any open events not related to this language server.
             // See below
+            //
 
             if let Some(server) = editor.language_service(service_id) {
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
                 let server = downcast::<S>(server);
-                server.server.did_open(params).expect("lsp did_open failed");
+                if let Err(err) = server.server.did_open(params) {
+                    tracing::error!(?err, "lsp did_open notification failed");
+                }
             }
 
             HandlerResult::Continue

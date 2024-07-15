@@ -76,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
                 std::env::set_current_dir(&path)?;
                 client.with(|editor| editor.open_file_explorer(".")).await;
             } else {
-                let mut flags = zi::OpenFlags::SPAWN_LANGUAGE_SERVERS;
+                let mut flags = zi::OpenFlags::SPAWN_LANGUAGE_SERVICES;
 
                 if opts.readonly {
                     flags.insert(zi::OpenFlags::READONLY);
@@ -107,9 +107,9 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
         .add_language(filetype!(javascript), LanguageConfig::new(["tsserver".into()]))
         .add_language(filetype!(typescript), LanguageConfig::new(["tsserver".into()]))
-        .add_language_server("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
-        .add_language_server("gopls", LanguageServerConfig::new("gopls", []))
-        .add_language_server("gqlt", LanguageServerConfig::new("gqlt", []))
-        .add_language_server("clangd", LanguageServerConfig::new("clangd", []))
-        .add_language_server("tsserver", LanguageServerConfig::new("tsserver", []));
+        .add_language_service("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
+        .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
+        .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
+        .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
+        .add_language_service("tsserver", LanguageServerConfig::new("tsserver", []));
 }

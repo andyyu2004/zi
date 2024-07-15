@@ -151,7 +151,7 @@ where
         // We can close any of the views, they are all in the same group
         editor.close_view(self.preview);
 
-        let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS);
+        let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES);
         editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
             if let Some(point) = entry.point() {
                 if let Some(point) = editor[buf].text().decode_point(point) {

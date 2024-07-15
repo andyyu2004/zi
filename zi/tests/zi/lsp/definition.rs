@@ -38,7 +38,7 @@ async fn setup(
     })
     .await;
 
-    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
     cx.with(move |editor| {
         assert_eq!(editor.buffer(zi::Active).id(), buf);
         assert_eq!(editor[buf].text().to_string(), text);

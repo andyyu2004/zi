@@ -110,7 +110,7 @@ impl TestContext {
             editor
                 .language_config_mut()
                 .add_language(ft, zi::LanguageConfig::new([server_id]))
-                .add_language_server(server_id, server.finish(st));
+                .add_language_service(server_id, server.finish(st));
         })
         .await
     }

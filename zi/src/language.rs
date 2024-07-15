@@ -154,7 +154,7 @@ impl Config {
         self
     }
 
-    pub fn add_language_server(
+    pub fn add_language_service(
         &mut self,
         id: impl Into<LanguageServiceId>,
         config: impl LanguageServiceConfig + Send + 'static,

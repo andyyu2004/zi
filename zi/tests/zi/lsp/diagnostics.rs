@@ -45,7 +45,7 @@ async fn setup(
     })
     .await;
 
-    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open(&path, zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
     cx.with(move |editor| editor.request_diagnostics(buf)).await.await?;
     Ok((buf, path))
 }

@@ -234,7 +234,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn spawn_language_servers_for_ft(
+    pub(super) fn spawn_language_services_for_ft(
         &mut self,
         buf: BufferId,
         ft: FileType,
@@ -261,7 +261,7 @@ impl Editor {
                     &self.callbacks_tx,
                     "initializing language service",
                     async move {
-                        let res = service
+                        service
                             .initialize(lsp_types::InitializeParams {
                                 process_id: Some(std::process::id()),
                                 capabilities: lsp::client_capabilities(),
@@ -270,9 +270,9 @@ impl Editor {
                             })
                             .await?;
 
-                        Ok((res, service))
+                        Ok(service)
                     },
-                    move |editor, (_res, mut service)| {
+                    move |editor, mut service| {
                         let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
                         service.initialized();
@@ -291,6 +291,7 @@ impl Editor {
                             .push(server_id);
 
                         editor.dispatch(event::DidOpenBuffer { buf });
+
                         Ok(())
                     },
                 );
@@ -374,7 +375,7 @@ impl Editor {
 
         let from = self.current_location();
         let open_fut =
-            self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS | OpenFlags::BACKGROUND)?;
+            self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES | OpenFlags::BACKGROUND)?;
         let client = self.client();
         Ok(async move {
             let buf = open_fut.await?;

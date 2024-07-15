@@ -17,10 +17,7 @@ pub trait LanguageService {
 
     /// Initialize the language server.
     /// This must be called before any other method and should only be called exactly once.
-    fn initialize(
-        &mut self,
-        params: lsp_types::InitializeParams,
-    ) -> ResponseFuture<lsp_types::InitializeResult>;
+    fn initialize(&mut self, params: lsp_types::InitializeParams) -> ResponseFuture<()>;
 
     fn initialized(&mut self);
 

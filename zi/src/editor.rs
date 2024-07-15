@@ -71,7 +71,7 @@ bitflags::bitflags! {
     pub struct OpenFlags: u32 {
         const NONE = 0;
         const READONLY = 1 << 0;
-        const SPAWN_LANGUAGE_SERVERS = 1 << 1;
+        const SPAWN_LANGUAGE_SERVICES = 1 << 1;
         /// Don't open the buffer in the active view
         const BACKGROUND = 1 << 2;
         /// Reload the buffer from disk even if it's already open discarding any unsaved changes.
@@ -614,8 +614,8 @@ impl Editor {
                         editor.set_buffer(Active, buf);
                     }
 
-                    if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVERS) {
-                        editor.spawn_language_servers_for_ft(buf, ft)?;
+                    if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVICES) {
+                        editor.spawn_language_services_for_ft(buf, ft)?;
                     }
 
                     Ok::<_, Error>(())

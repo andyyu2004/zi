@@ -19,7 +19,7 @@ impl Editor {
                         if path.is_dir() {
                             editor.open_file_explorer(path);
                         } else {
-                            match editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVERS) {
+                            match editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES) {
                                 Ok(fut) => editor.schedule("explorer open", async move {
                                     let _ = fut.await?;
                                     Ok(())

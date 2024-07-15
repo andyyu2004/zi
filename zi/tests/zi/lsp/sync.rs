@@ -23,7 +23,7 @@ async fn lsp_change_no_sync() -> zi::Result<()> {
     })
     .await;
 
-    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
     cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))).await.unwrap();
 
     cx.cleanup().await;
@@ -78,7 +78,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
 
     let text = "abc";
     let deltas = zi::lsp::from_proto::deltas(PositionEncoding::Utf8, text, edits).unwrap();
-    let buf = cx.open_tmp(text, zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open_tmp(text, zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
     cx.with(move |editor| editor.edit(buf, &deltas)).await.unwrap();
 
     assert!(cx.with(move |editor| editor.undo(buf)).await.unwrap());
@@ -123,7 +123,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     })
     .await;
 
-    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
 
     cx.with(move |editor| {
         editor.edit(buf, &zi::Deltas::insert_at(0, "abc"))?;
@@ -178,7 +178,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
     })
     .await;
 
-    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
 
     cx.with(move |editor| {
         editor.edit(buf, &deltas![0..0 => "©"])?;
@@ -235,7 +235,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
     })
     .await;
 
-    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVERS).await?;
+    let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
 
     let mut any_non_empty = false;
     for _ in 0..rand::thread_rng().gen_range(0..400) {
