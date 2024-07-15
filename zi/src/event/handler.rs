@@ -1,4 +1,7 @@
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
+use zi_event::EventHandler;
 
 use super::*;
 use crate::Client;
@@ -39,7 +42,7 @@ where
 
 struct AsyncHandlerFunc<F, Fut, E> {
     f: F,
-    _marker: std::marker::PhantomData<(fn() -> Fut, fn() -> E)>,
+    _marker: PhantomData<(fn() -> Fut, fn() -> E)>,
 }
 
 /// `Fut` shouldn't need to be sync for the handler to be sync
@@ -73,14 +76,14 @@ where
     E: AsyncEvent,
     Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
-    AsyncHandlerFunc::<_, Fut, E> { f, _marker: std::marker::PhantomData }
+    AsyncHandlerFunc::<_, Fut, E> { f, _marker: PhantomData }
 }
 
-pub trait EventHandler: Send + Sync + 'static {
-    type Event: Event;
-
-    fn on_event(&self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
-}
+// pub trait EventHandler: Send + Sync + 'static {
+//     type Event: Event;
+//
+//     fn on_event(&self, editor: &mut Editor, event: &Self::Event) -> HandlerResult;
+// }
 
 pub(super) trait ErasedEventHandler: Send + 'static {
     fn dyn_on_event(&self, editor: &mut Editor, event: &dyn Event) -> HandlerResult;
@@ -88,7 +91,7 @@ pub(super) trait ErasedEventHandler: Send + 'static {
 
 impl<H> ErasedEventHandler for H
 where
-    H: EventHandler,
+    H: EventHandler<Editor>,
 {
     fn dyn_on_event(&self, editor: &mut Editor, event: &dyn Event) -> HandlerResult {
         if let Some(event) = (event as &dyn Any).downcast_ref::<H::Event>() {
@@ -101,10 +104,10 @@ where
 
 struct HandlerFunc<F, E> {
     f: F,
-    _marker: std::marker::PhantomData<E>,
+    _marker: PhantomData<E>,
 }
 
-impl<F, E> EventHandler for HandlerFunc<F, E>
+impl<F, E> EventHandler<Editor> for HandlerFunc<F, E>
 where
     F: Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
     E: Event,
@@ -120,6 +123,6 @@ where
 // Can't find a way to implement this as a blanket impl
 pub(crate) fn handler<E: Event>(
     f: impl Fn(&mut Editor, &E) -> HandlerResult + Send + Sync + 'static,
-) -> impl EventHandler<Event = E> {
-    HandlerFunc { f, _marker: std::marker::PhantomData }
+) -> impl EventHandler<Editor, Event = E> {
+    HandlerFunc { f, _marker: PhantomData }
 }

@@ -92,7 +92,7 @@ impl Editor {
 
     pub(crate) fn lsp_did_open(
         server_id: LanguageServiceId,
-    ) -> impl EventHandler<Event = event::DidOpenBuffer> {
+    ) -> impl EventHandler<Self, Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
             // let buf = &editor.buffers[event.buf];
             // if let (Some(server), Some(uri)) =
@@ -116,7 +116,7 @@ impl Editor {
     }
 
     pub(super) fn lsp_did_open_refresh_semantic_tokens()
-    -> impl EventHandler<Event = event::DidOpenBuffer> {
+    -> impl EventHandler<Self, Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
             editor.schedule_semantic_tokens(event.buf);
             event::HandlerResult::Continue
@@ -216,7 +216,7 @@ impl Editor {
 
     pub(crate) fn lsp_did_change_sync(
         server_id: LanguageServiceId,
-    ) -> impl EventHandler<Event = event::DidChangeBuffer> {
+    ) -> impl EventHandler<Self, Event = event::DidChangeBuffer> {
         // Sync event handler
         event::handler::<event::DidChangeBuffer>(move |editor, event| {
             tracing::trace!(buf = ?event.buf, "buffer did change");

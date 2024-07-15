@@ -268,13 +268,11 @@ impl Editor {
 
                         Ok((res, service))
                     },
-                    move |editor, (res, mut server)| {
+                    move |editor, (_res, mut server)| {
                         let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
-                        // TODO dispatch event for this
-                        // server.initialized(lsp_types::InitializedParams {})?;
+                        server.initialized(editor);
 
-                        // let server = LanguageServer::new(res.capabilities, handle, server);
                         tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
 
                         assert!(

@@ -7,9 +7,10 @@ use std::sync::{Arc, OnceLock};
 
 use crossbeam_queue::SegQueue;
 use rustc_hash::FxHashMap;
+pub use zi_event::{Event, EventHandler, HandlerResult};
 
 pub use self::events::*;
-pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler, EventHandler};
+pub(crate) use self::handler::{async_handler, handler, AsyncEventHandler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
 use crate::{Client, Editor, Result};
 
@@ -45,7 +46,7 @@ pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) -> Result<(
     registry().dispatch_async(client, &event).await
 }
 
-pub fn subscribe<T: Event>(handler: impl EventHandler<Event = T>) {
+pub fn subscribe<E: Event>(handler: impl EventHandler<Editor, Event = E>) {
     registry().subscribe(handler)
 }
 
@@ -71,7 +72,7 @@ impl Registry {
     pub fn subscribe<T, H>(&self, handler: H)
     where
         T: Event,
-        H: EventHandler<Event = T>,
+        H: EventHandler<Editor, Event = T>,
     {
         let mut handlers = self.handlers.write();
         while let Some((event_type, handler_type)) = self.garbage.pop() {
@@ -118,17 +119,10 @@ impl Registry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HandlerResult {
-    Continue,
-    /// Queue the handler for removal.
-    Unsubscribe,
-}
-
 pub type AsyncHandlerResult = Result<HandlerResult>;
 
 /// Marker trait for a synchronous event.
-pub trait Event: Any + Send + Sync {}
+// pub trait Event: Any + Send + Sync {}
 
 /// Marker trait for an asynchronous event.
 pub trait AsyncEvent: Any + Clone + Send + Sync {}

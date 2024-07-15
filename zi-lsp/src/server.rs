@@ -3,6 +3,7 @@ use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::{FutureExt, TryFutureExt};
+use zi_event::Registry;
 use zi_language_service::{LanguageService, PositionEncoding, ResponseFuture};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
@@ -27,6 +28,7 @@ impl<S, E> ToLanguageService<S, E> {
 impl<S, E> LanguageService<E> for ToLanguageService<S, E>
 where
     S: LanguageServer<Error = async_lsp::Error>,
+    E: Registry<E>,
 {
     fn initialize(
         &mut self,
@@ -39,6 +41,10 @@ where
             caps.set(result.capabilities.clone()).expect("capabilities already initialized");
             Ok(result)
         })
+    }
+
+    fn initialized(&mut self, registry: &mut E) {
+        // registry.subscribe()
     }
 
     fn formatting(

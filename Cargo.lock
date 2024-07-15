@@ -3728,6 +3728,7 @@ dependencies = [
  "ustr",
  "zi",
  "zi-core",
+ "zi-event",
  "zi-indent",
  "zi-language-service",
  "zi-lsp",
@@ -3750,6 +3751,10 @@ dependencies = [
  "tree-sitter",
  "zi-tui",
 ]
+
+[[package]]
+name = "zi-event"
+version = "0.1.0"
 
 [[package]]
 name = "zi-fuzz"
@@ -3792,6 +3797,7 @@ dependencies = [
  "tokio-util",
  "tower",
  "tracing",
+ "zi-event",
  "zi-language-service",
 ]
 

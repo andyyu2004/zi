@@ -17,6 +17,10 @@ pub trait LanguageService<E> {
         params: lsp_types::InitializeParams,
     ) -> ResponseFuture<lsp_types::InitializeResult>;
 
+    /// A hook to perform any initialization after the language server has been initialized.
+    /// This provides synchronous access to the registry to subscribe to events.
+    fn initialized(&mut self, registry: &mut E);
+
     fn formatting(
         &mut self,
         params: lsp_types::DocumentFormattingParams,

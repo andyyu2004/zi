@@ -1,8 +1,16 @@
+use zi_event::{Event, Registry};
+
 use super::*;
 use crate::event::{self, HandlerResult};
 use crate::Editor;
 
 mod lsp;
+
+impl Registry<Editor> for Editor {
+    fn subscribe<E: Event>(&self, handler: impl EventHandler<Editor, Event = E>) {
+        event::subscribe::<E>(handler);
+    }
+}
 
 impl Editor {
     pub(super) fn subscribe_sync_hooks() {

@@ -21,6 +21,7 @@ use futures_util::TryFutureExt;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
+use zi_event::Registry;
 use zi_language_service::{LanguageService, LanguageServiceConfig};
 
 use self::client::ToLanguageClient;
@@ -89,7 +90,7 @@ impl LanguageServerConfig {
     }
 }
 
-impl<E: Send + 'static> LanguageServiceConfig<E> for LanguageServerConfig {
+impl<E: Registry<E> + Send + 'static> LanguageServiceConfig<E> for LanguageServerConfig {
     fn spawn(
         &self,
         cwd: &Path,
