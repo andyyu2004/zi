@@ -131,7 +131,7 @@ impl CompletionProvider for LspCompletionProvider {
         editor: &mut Editor,
         params: CompletionParams,
     ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
-        use zi_lsp::lsp_types;
+        use zi_language_service::lsp_types;
 
         let buf = params.buf;
         let Some(uri) = editor[buf].file_url().cloned() else {

@@ -41,8 +41,6 @@ zi-core = { workspace = true, features = ["tree-sitter"] }
 zi-language-service = { workspace = true }
 zi-marktree = { workspace = true }
 zi-indent = { workspace = true }
-# TODO this shouldn't need to depend directly on this (only on zi-language-service)
-zi-lsp = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }
 dyn-clone = { workspace = true }
@@ -58,6 +56,7 @@ serde_json = { workspace = true}
 proptest = { workspace = true}
 test-strategy = { workspace = true }
 zi = { workspace = true, features = ["arbitrary", "rand"] }
+zi-lsp = { workspace = true }
 zi-nvim = { workspace = true }
 regex = { workspace = true }
 mimalloc = { workspace = true }

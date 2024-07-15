@@ -6,7 +6,6 @@ use std::sync::OnceLock;
 use anyhow::bail;
 use ustr::{ustr, Ustr};
 use zi_language_service::LanguageServiceConfig;
-use zi_lsp::LanguageServerConfig;
 
 use crate::Result;
 
