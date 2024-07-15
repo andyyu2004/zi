@@ -102,21 +102,6 @@ impl AsRef<Path> for FileType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LanguageServiceId(Ustr);
 
-#[doc(hidden)]
-struct KnownLanguageServers {
-    pub rust_analyzer: LanguageServiceId,
-    pub tsserver: LanguageServiceId,
-    pub gopls: LanguageServiceId,
-    pub gqlt: LanguageServiceId,
-    pub clangd: LanguageServiceId,
-}
-
-macro_rules! language_server_id {
-    ($id:ident) => {
-        $crate::LanguageServiceId::known().$id
-    };
-}
-
 impl From<&str> for LanguageServiceId {
     fn from(id: &str) -> Self {
         Self(ustr(id))
@@ -126,18 +111,6 @@ impl From<&str> for LanguageServiceId {
 impl LanguageServiceId {
     pub fn new(id: impl Into<Ustr>) -> Self {
         Self(id.into())
-    }
-
-    #[doc(hidden)]
-    fn known() -> &'static KnownLanguageServers {
-        static KNOWN_LANGUAGE_SERVERS: OnceLock<KnownLanguageServers> = OnceLock::new();
-        KNOWN_LANGUAGE_SERVERS.get_or_init(|| KnownLanguageServers {
-            rust_analyzer: LanguageServiceId::new("rust-analyzer"),
-            tsserver: LanguageServiceId::new("tsserver"),
-            gopls: LanguageServiceId::new("gopls"),
-            gqlt: LanguageServiceId::new("gqlt"),
-            clangd: LanguageServiceId::new("clangd"),
-        })
     }
 
     pub fn as_str(&self) -> &str {
@@ -151,6 +124,7 @@ impl fmt::Display for LanguageServiceId {
     }
 }
 
+#[derive(Default)]
 pub struct Config {
     pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
     pub(crate) language_services:
@@ -189,62 +163,6 @@ impl Config {
     ) -> &mut Self {
         self.language_services.insert(id.into(), Box::new(config));
         self
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        let languages = BTreeMap::from([
-            (
-                filetype!(rust),
-                LanguageConfig {
-                    language_services: Box::new([language_server_id!(rust_analyzer)]),
-                },
-            ),
-            (
-                filetype!(go),
-                LanguageConfig { language_services: Box::new([language_server_id!(gopls)]) },
-            ),
-            (
-                filetype!(gqlt),
-                LanguageConfig { language_services: Box::new([language_server_id!(gqlt)]) },
-            ),
-            (
-                filetype!(c),
-                LanguageConfig { language_services: Box::new([language_server_id!(clangd)]) },
-            ),
-            (
-                filetype!(javascript),
-                LanguageConfig { language_services: Box::new([language_server_id!(tsserver)]) },
-            ),
-            (
-                filetype!(typescript),
-                LanguageConfig { language_services: Box::new([language_server_id!(tsserver)]) },
-            ),
-            (filetype!(text), LanguageConfig { language_services: Box::new([]) }),
-            (filetype!(toml), LanguageConfig { language_services: Box::new([]) }),
-            (filetype!(json), LanguageConfig { language_services: Box::new([]) }),
-        ]);
-
-        let language_servers = BTreeMap::from(
-            [
-                (
-                    language_server_id!(rust_analyzer),
-                    LanguageServerConfig::new("ra-multiplex", []),
-                    // ExecutableLanguageServerConfig::new("rust-analyzer", []),
-                ),
-                (
-                    language_server_id!(tsserver),
-                    LanguageServerConfig::new("typescript-language-server", ["--stdio".into()]),
-                ),
-                (language_server_id!(gopls), LanguageServerConfig::new("gopls", [])),
-                (language_server_id!(gqlt), LanguageServerConfig::new("gqlt", [])),
-                (language_server_id!(clangd), LanguageServerConfig::new("clangd", [])),
-            ]
-            .map(|(k, v)| (k, Box::new(v) as _)),
-        );
-
-        Self::new(languages, language_servers).expect("invalid default config")
     }
 }
 

@@ -11,6 +11,8 @@ use tracing_subscriber::EnvFilter;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use zi::input::Event;
+use zi::{filetype, LanguageConfig};
+use zi_lsp::LanguageServerConfig;
 
 #[derive(Parser)]
 struct Opts {
@@ -44,6 +46,8 @@ async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
     let (mut editor, tasks) = zi::Editor::new(zi_wasm::WasmBackend::default(), term.size()?);
+
+    configure(&mut editor);
 
     let init_path = zi::dirs::config().join("init.zi");
     if init_path.exists() {
@@ -89,4 +93,23 @@ async fn main() -> anyhow::Result<()> {
     app.run(&mut editor, events, tasks).await?;
 
     Ok(())
+}
+
+fn configure(editor: &mut zi::Editor) {
+    editor
+        .language_config_mut()
+        .add_language(filetype!(rust), LanguageConfig::new(["rust-analyzer".into()]))
+        .add_language(filetype!(text), LanguageConfig::new([]))
+        .add_language(filetype!(toml), LanguageConfig::new([]))
+        .add_language(filetype!(json), LanguageConfig::new([]))
+        .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
+        .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
+        .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
+        .add_language(filetype!(javascript), LanguageConfig::new(["tsserver".into()]))
+        .add_language(filetype!(typescript), LanguageConfig::new(["tsserver".into()]))
+        .add_language_server("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
+        .add_language_server("gopls", LanguageServerConfig::new("gopls", []))
+        .add_language_server("gqlt", LanguageServerConfig::new("gqlt", []))
+        .add_language_server("clangd", LanguageServerConfig::new("clangd", []))
+        .add_language_server("tsserver", LanguageServerConfig::new("tsserver", []));
 }

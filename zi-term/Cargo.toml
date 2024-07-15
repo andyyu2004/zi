@@ -28,6 +28,7 @@ tokio = { workspace = true, default-features = false, features = [
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 zi = { workspace = true, features = ["crossterm"] }
+zi-lsp = { workspace = true }
 zi-wasm = { workspace = true }
 tui = { path = "../zi-tui", package = "zi-tui" }
 

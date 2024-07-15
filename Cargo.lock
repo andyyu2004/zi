@@ -3837,6 +3837,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zi",
+ "zi-lsp",
  "zi-tui",
  "zi-wasm",
 ]
