@@ -2,7 +2,7 @@ use futures_util::TryFutureExt;
 
 use super::*;
 use crate::event::AsyncEventHandler;
-use crate::lsp::{from_proto, to_proto};
+use crate::lsp::from_proto;
 use crate::syntax::HighlightName;
 use crate::{event, Editor, Mark};
 

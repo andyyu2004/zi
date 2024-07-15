@@ -1,12 +1,13 @@
+mod adaptor;
+
 use std::ffi::OsStr;
 use std::future::Future;
 use std::io;
-use std::ops::{ControlFlow, Deref, DerefMut};
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::process::Stdio;
 
 use async_lsp::concurrency::ConcurrencyLayer;
-use async_lsp::lsp_types::request::Request;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
@@ -14,86 +15,59 @@ pub use async_lsp::{
     lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
     ServerSocket,
 };
-use futures_util::future::BoxFuture;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 
-pub struct Server {
-    // Storing child with `kill_on_drop` set so that it gets killed when this struct is dropped
-    #[allow(dead_code)]
-    child: async_process::Child,
-    server: ServerSocket,
-}
+pub use self::adaptor::ToLanguageService;
 
-pub type DynLanguageServer =
-    dyn LanguageServer<Error = async_lsp::Error, NotifyResult = Result<(), async_lsp::Error>>;
+pub fn start<C>(
+    client: C,
+    cwd: impl AsRef<Path>,
+    cmd: impl AsRef<OsStr>,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> Result<(ServerSocket, impl Future<Output = Result<()>> + 'static)>
+where
+    C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
+        + Send
+        + 'static,
+{
+    let (main_loop, server) = async_lsp::MainLoop::new_client(|_server| {
+        ServiceBuilder::new()
+            .layer(TracingLayer::default())
+            .layer(CatchUnwindLayer::default())
+            .layer(ConcurrencyLayer::default())
+            .service(Router::from_language_client(client))
+    });
 
-pub type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
+    let cmd = cmd.as_ref();
+    let cwd = cwd.as_ref();
+    let mut child = async_process::Command::new(cmd)
+        .args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(false)
+        .spawn()?;
 
-impl Server {
-    pub fn start<C>(
-        client: C,
-        cwd: impl AsRef<Path>,
-        cmd: impl AsRef<OsStr>,
-        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
-    ) -> Result<(Server, impl Future<Output = Result<()>> + 'static)>
-    where
-        C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
-            + Send
-            + 'static,
-    {
-        let (main_loop, server) = async_lsp::MainLoop::new_client(|_server| {
-            ServiceBuilder::new()
-                .layer(TracingLayer::default())
-                .layer(CatchUnwindLayer::default())
-                .layer(ConcurrencyLayer::default())
-                .service(Router::from_language_client(client))
+    tracing::info!(?cmd, ?cwd, pid = child.id(), "spawned language server");
+
+    let stdout = child.stdout.take().unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    Ok((server, async move {
+        // write stderr to a file /tmp/zi-lsp-log
+        tokio::spawn(async move {
+            let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
+            let mut writer = tokio::io::BufWriter::new(file);
+            let mut reader = tokio::io::BufReader::new(stderr.compat());
+            tokio::io::copy(&mut reader, &mut writer).await?;
+            writer.flush().await?;
+            Ok::<_, io::Error>(())
         });
 
-        let cmd = cmd.as_ref();
-        let cwd = cwd.as_ref();
-        let mut child = async_process::Command::new(cmd)
-            .args(args)
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()?;
-
-        tracing::info!(?cmd, ?cwd, pid = child.id(), "spawned language server");
-
-        let stdout = child.stdout.take().unwrap();
-        let stdin = child.stdin.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
-
-        Ok((Server { child, server }, async move {
-            // write stderr to a file /tmp/zi-lsp-log
-            tokio::spawn(async move {
-                let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
-                let mut writer = tokio::io::BufWriter::new(file);
-                let mut reader = tokio::io::BufReader::new(stderr.compat());
-                tokio::io::copy(&mut reader, &mut writer).await?;
-                writer.flush().await?;
-                Ok::<_, io::Error>(())
-            });
-
-            main_loop.run_buffered(stdout, stdin).await
-        }))
-    }
-}
-
-impl Deref for Server {
-    type Target = DynLanguageServer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.server
-    }
-}
-
-impl DerefMut for Server {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.server
-    }
+        main_loop.run_buffered(stdout, stdin).await
+    }))
 }

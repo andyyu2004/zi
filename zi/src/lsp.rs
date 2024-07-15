@@ -8,7 +8,6 @@ use std::future::ready;
 use std::ops::ControlFlow;
 
 use futures_core::future::BoxFuture;
-use zi_core::PositionEncoding;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};

@@ -10,6 +10,7 @@ futures-util = { workspace = true }
 tokio = { workspace = true, features = ["io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing = { workspace = true }
+zi-language-service = { workspace = true }
 tower = "0.4.13"
 
 [lints]

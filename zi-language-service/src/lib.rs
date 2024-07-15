@@ -1,12 +1,15 @@
+use anyhow::Result;
 use futures_core::future::BoxFuture;
-use zi_core::PositionEncoding;
-use zi_lsp::lsp_types;
+pub use zi_core::PositionEncoding;
 
-use crate::Result;
 // TODO using lsp_types for now, but should define our own interface to drop the dependency;
 
+pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
+
 /// An abstraction of language server requests. Notifications are handled via the event system.
-pub trait LanguageService: Send {
+pub trait LanguageService {
+    /// Initialize the language server.
+    /// This must be called before any other method and should only be called exactly once.
     fn initialize(
         &mut self,
         params: lsp_types::InitializeParams,
@@ -52,10 +55,7 @@ pub trait LanguageService: Send {
         params: lsp_types::DocumentDiagnosticParams,
     ) -> ResponseFuture<lsp_types::DocumentDiagnosticReportResult>;
 
-    // Probably not the ideal ultimate design
     fn capabilities(&self) -> &lsp_types::ServerCapabilities;
 
     fn position_encoding(&self) -> PositionEncoding;
 }
-
-pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;

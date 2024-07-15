@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::future::ready;
-use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -11,7 +10,7 @@ use serde_json::Value;
 use zi_lsp::lsp_types::notification::Notification;
 use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{lsp_notification, lsp_request};
-use zi_lsp::{DynLanguageServer, ErrorCode, LanguageServer, ResponseError, Result};
+use zi_lsp::{ErrorCode, LanguageServer, ResponseError, Result};
 
 pub struct FakeLanguageServerBuilder<St> {
     handlers: Handlers<St>,
@@ -39,14 +38,14 @@ impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServer
         &self,
         _cwd: &Path,
         _client: zi::lsp::LanguageClient,
-    ) -> zi_lsp::Result<(Box<dyn zi::LanguageService>, BoxFuture<'static, zi_lsp::Result<()>>)>
+    ) -> zi_lsp::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, zi_lsp::Result<()>>)>
     {
-        let server = Box::new(FakeLanguageServer {
+        let server = FakeLanguageServer {
             handlers: Arc::clone(&self.handlers),
             state: self.init_state.clone(),
-        });
+        };
 
-        Ok((server, Box::pin(async { Ok(()) })))
+        Ok((Box::new(zi_lsp::ToLanguageService::new(server)), Box::pin(async { Ok(()) })))
     }
 }
 
@@ -264,18 +263,4 @@ impl<St> LanguageServer for FakeLanguageServer<St> {
         "$/cancelRequest", cancel_request;
         "$/progress", progress;
     });
-}
-
-impl<St: 'static> Deref for FakeLanguageServer<St> {
-    type Target = DynLanguageServer;
-
-    fn deref(&self) -> &Self::Target {
-        self
-    }
-}
-
-impl<St: 'static> DerefMut for FakeLanguageServer<St> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self
-    }
 }

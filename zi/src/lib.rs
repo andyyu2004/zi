@@ -18,7 +18,6 @@ pub mod input;
 mod jump;
 mod keymap;
 mod language;
-mod language_service;
 mod layout;
 mod location;
 #[doc(hidden)]
@@ -39,6 +38,7 @@ pub use zi_core::{
     Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange,
     PositionEncoding, Size,
 };
+pub use zi_language_service::LanguageService;
 pub use zi_lsp::lsp_types::Url;
 pub use zi_text::{
     deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice,
@@ -56,7 +56,6 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServiceId};
-pub use self::language_service::LanguageService;
 pub use self::namespace::{Namespace, NamespaceId};
 pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View, ViewId};
