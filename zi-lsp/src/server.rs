@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{lstypes, LanguageService, LanguageServiceId, PositionEncoding};
+use zi::{lstypes, LanguageService, LanguageServiceId, PositionEncoding, Text, TextMut, TextSlice};
 use zi_event::{event, HandlerResult};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
@@ -13,7 +13,9 @@ pub struct ToLanguageService<S> {
     server: S,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
     position_encoding: OnceLock<PositionEncoding>,
-    last_version_sync: Option<i32>,
+    text_version: Option<i32>,
+    // Keeping track of this here for encoding conversions (and sanity checks)
+    text: zi::Rope,
 }
 
 impl<S> ToLanguageService<S> {
@@ -23,7 +25,8 @@ impl<S> ToLanguageService<S> {
             server,
             capabilities: Default::default(),
             position_encoding: Default::default(),
-            last_version_sync: None,
+            text_version: None,
+            text: Default::default(),
         }
     }
 }
@@ -81,6 +84,8 @@ where
             if let Some(server) = editor.language_service(service_id) {
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
                 let server = downcast::<S>(server);
+                server.text = zi::Rope::from(params.text_document.text.as_str());
+                server.text_version = Some(params.text_document.version);
                 if let Err(err) = server.server.did_open(params) {
                     tracing::error!(?err, "lsp did_open notification failed");
                 }
@@ -129,13 +134,24 @@ where
 
                 let content_changes = match *kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        if service.last_version_sync == version.checked_sub(1) {
+                        if service.text_version == version.checked_sub(1) {
+                            debug_assert_eq!(
+                                event.old_text.to_string(),
+                                service.text,
+                                "lsp text desynced"
+                            );
+                            service.text.edit(&event.deltas);
                             zi::lsp::to_proto::deltas(
                                 encoding,
                                 event.old_text.as_ref(),
                                 &event.deltas,
                             )
                         } else {
+                            let mut builder = zi::RopeBuilder::new();
+                            for chunk in buf.text().byte_slice(..).chunks() {
+                                builder.append(chunk);
+                            }
+                            service.text = builder.build();
                             // If a version is skipped somehow, send the full text.
                             vec![lsp_types::TextDocumentContentChangeEvent {
                                 range: None,
@@ -145,6 +161,11 @@ where
                         }
                     }
                     lsp_types::TextDocumentSyncKind::FULL => {
+                        let mut builder = zi::RopeBuilder::new();
+                        for chunk in buf.text().byte_slice(..).chunks() {
+                            builder.append(chunk);
+                        }
+                        service.text = builder.build();
                         vec![lsp_types::TextDocumentContentChangeEvent {
                             range: None,
                             range_length: None,
@@ -155,11 +176,12 @@ where
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
                 };
 
+                debug_assert_eq!(service.text, buf.text().to_string(), "lsp text desynced");
                 match service.server.did_change(lsp_types::DidChangeTextDocumentParams {
                     text_document,
                     content_changes,
                 }) {
-                    Ok(_) => service.last_version_sync = Some(version),
+                    Ok(_) => service.text_version = Some(version),
                     Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
                 }
             }

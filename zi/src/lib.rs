@@ -41,7 +41,8 @@ pub use zi_core::{
     PointRange, PositionEncoding, Size, ViewGroupId, ViewId,
 };
 pub use zi_text::{
-    deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice,
+    deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextMut,
+    TextSlice,
 };
 pub use zi_textobject::motion;
 

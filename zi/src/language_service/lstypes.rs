@@ -40,3 +40,4 @@ pub struct TextDocumentPointParams {
     /// The point inside the text document encoded in the service encoding.
     pub point: lsp_types::Position,
 }
+
