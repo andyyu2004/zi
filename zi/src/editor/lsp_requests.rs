@@ -255,7 +255,7 @@ impl Editor {
 
                 callback(
                     &self.callbacks_tx,
-                    "initializing language server",
+                    "initializing language service",
                     async move {
                         let res = service
                             .initialize(lsp_types::InitializeParams {
@@ -269,7 +269,7 @@ impl Editor {
                         Ok((res, service))
                     },
                     move |editor, (res, mut server)| {
-                        let span = tracing::info_span!("lsp initialized", %server_id);
+                        let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
                         // TODO dispatch event for this
                         // server.initialized(lsp_types::InitializedParams {})?;
@@ -469,16 +469,16 @@ impl Editor {
         let res = match (caps.full, tokens.last_request_id.clone()) {
             (
                 Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
-                Some(_previous_result_id),
+                Some(previous_result_id),
+                // TODO
                 // `if false` here to avoid taking this branch as it's incomplete since the editing is not implemented
             ) if false => {
-                todo!();
-                // Res::Delta(s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
-                //     text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                //     previous_result_id,
-                //     work_done_progress_params: Default::default(),
-                //     partial_result_params: Default::default(),
-                // }))
+                Res::Delta(s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+                    previous_result_id,
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                }))
             }
             _ => Res::Full(s.semantic_tokens_full(lsp_types::SemanticTokensParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },

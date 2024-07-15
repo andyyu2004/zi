@@ -161,13 +161,7 @@ impl<C: zi_language_service::LanguageClient> LanguageClient for ToLanguageClient
         &mut self,
         params: <lsp_notification!("window/logMessage") as Notification>::Params,
     ) -> Self::NotifyResult {
-        // self.client.send(move |editor| {
-        //     tracing::info!("received log message");
-        //     // TODO there are multiple levels of log messages
-        //     editor.set_error(params.message);
-        //     Ok(())
-        // });
-        // let _ = params;
+        self.client.log_message(params);
         ControlFlow::Continue(())
     }
 
@@ -185,37 +179,7 @@ impl<C: zi_language_service::LanguageClient> LanguageClient for ToLanguageClient
         &mut self,
         params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
     ) -> Self::NotifyResult {
-        // let server = self.for_server;
-        // self.client.send(move |editor| {
-        //     let Ok(path) = params.uri.to_file_path() else {
-        //         tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
-        //         return Ok(());
-        //     };
-        //
-        //     tracing::info!(
-        //         %server,
-        //         ?path,
-        //         version = params.version,
-        //         n = params.diagnostics.len(),
-        //         "received push diagnostics"
-        //     );
-        //
-        //     let encoding =
-        //         editor.active_language_services.get(&server).unwrap().position_encoding();
-        //
-        //     editor.update_diagnostics(
-        //         path,
-        //         params.version.map(|i| i as u32),
-        //         params
-        //             .diagnostics
-        //             .into_iter()
-        //             .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
-        //             .collect::<Box<_>>(),
-        //     );
-        //
-        //     Ok(())
-        // });
-
+        self.client.publish_diagnostics(params);
         ControlFlow::Continue(())
     }
 

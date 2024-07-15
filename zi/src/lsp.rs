@@ -5,11 +5,9 @@ pub mod to_proto;
 
 use std::fmt;
 
-use futures_core::future::BoxFuture;
-use zi_language_service::lsp_types::request::Request;
 use zi_language_service::lsp_types::{self, ClientCapabilities};
 
-use crate::{Client, LanguageServiceId};
+use crate::{lsp, Client, LanguageServiceId};
 
 pub struct LanguageClient {
     for_server: LanguageServiceId,
@@ -28,7 +26,50 @@ impl fmt::Debug for LanguageClient {
     }
 }
 
-impl zi_language_service::LanguageClient for LanguageClient {}
+impl zi_language_service::LanguageClient for LanguageClient {
+    fn log_message(&mut self, params: lsp_types::LogMessageParams) {
+        self.client.send(move |editor| {
+            tracing::info!("received log message");
+            // TODO there are multiple levels of log messages
+            editor.set_error(params.message);
+            Ok(())
+        });
+    }
+
+    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams) {
+        let server = self.for_server;
+        self.client.send(move |editor| {
+            let Ok(path) = params.uri.to_file_path() else {
+                tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
+                return Ok(());
+            };
+
+            tracing::info!(
+                %server,
+                ?path,
+                version = params.version,
+                n = params.diagnostics.len(),
+                "received push diagnostics"
+            );
+
+            if let Some(server) = editor.active_language_services.get(&server) {
+                let encoding = server.position_encoding();
+
+                editor.update_diagnostics(
+                    path,
+                    params.version.map(|i| i as u32),
+                    params
+                        .diagnostics
+                        .into_iter()
+                        .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
+                        .collect::<Box<_>>(),
+                );
+            }
+
+            Ok(())
+        })
+    }
+}
 
 pub fn client_capabilities() -> ClientCapabilities {
     const GOTO_CAPABILITY: Option<lsp_types::GotoCapability> = Some(lsp_types::GotoCapability {

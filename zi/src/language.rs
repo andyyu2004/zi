@@ -8,8 +8,7 @@ use ustr::{ustr, Ustr};
 use zi_language_service::LanguageServiceConfig;
 use zi_lsp::LanguageServerConfig;
 
-use crate::lsp::LanguageClient;
-use crate::{LanguageService, Result};
+use crate::Result;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileType(Ustr);

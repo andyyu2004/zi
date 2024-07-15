@@ -101,6 +101,13 @@ impl<S: LanguageServer<Error = async_lsp::Error>> LanguageService for ToLanguage
         self.server.semantic_tokens_full(params).map_err(Into::into).boxed()
     }
 
+    fn semantic_tokens_full_delta(
+        &mut self,
+        params: lsp_types::SemanticTokensDeltaParams,
+    ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>> {
+        self.server.semantic_tokens_full_delta(params).map_err(Into::into).boxed()
+    }
+
     fn document_diagnostic(
         &mut self,
         params: lsp_types::DocumentDiagnosticParams,

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use futures_core::future::BoxFuture;
-// TODO using lsp_types for now, but should define our own interface to drop the dependency;
+// TODO using lsp_types for now, but should define our own lsp-agnostic interface to drop the dependency;
 pub use lsp_types;
 pub use zi_core::PositionEncoding;
 
@@ -52,6 +52,11 @@ pub trait LanguageService {
         params: lsp_types::SemanticTokensParams,
     ) -> ResponseFuture<Option<lsp_types::SemanticTokensResult>>;
 
+    fn semantic_tokens_full_delta(
+        &mut self,
+        params: lsp_types::SemanticTokensDeltaParams,
+    ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>>;
+
     fn document_diagnostic(
         &mut self,
         params: lsp_types::DocumentDiagnosticParams,
@@ -63,9 +68,23 @@ pub trait LanguageService {
 }
 
 /// A client to the editor for the language server.
-pub trait LanguageClient: Send {}
+pub trait LanguageClient: Send {
+    fn log_message(&mut self, message: lsp_types::LogMessageParams);
 
-impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {}
+    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams);
+}
+
+impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
+    #[inline]
+    fn log_message(&mut self, message: lsp_types::LogMessageParams) {
+        self.as_mut().log_message(message)
+    }
+
+    #[inline]
+    fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams) {
+        self.as_mut().publish_diagnostics(params)
+    }
+}
 
 pub trait LanguageServiceConfig {
     /// Spawn a new language service instance.
