@@ -4,8 +4,7 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::lsp::to_proto;
-use zi::{LanguageService, LanguageServiceId, PositionEncoding};
+use zi::{lstypes, LanguageService, LanguageServiceId, PositionEncoding};
 use zi_event::{event, HandlerResult};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
@@ -42,9 +41,14 @@ where
         self
     }
 
-    fn initialize(&mut self, params: lsp_types::InitializeParams) -> ResponseFuture<()> {
+    fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
-        let fut = self.server.initialize(params);
+        let fut = self.server.initialize(lsp_types::InitializeParams {
+            process_id: Some(params.process_id),
+            capabilities: params.capabilities,
+            workspace_folders: Some(params.workspace_folders),
+            ..Default::default()
+        });
         Box::pin(async move {
             let result = fut.await?;
             caps.set(result.capabilities).expect("capabilities already initialized");
@@ -126,7 +130,11 @@ where
                 let content_changes = match *kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
                         if service.last_version_sync == version.checked_sub(1) {
-                            to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
+                            zi::lsp::to_proto::deltas(
+                                encoding,
+                                event.old_text.as_ref(),
+                                &event.deltas,
+                            )
                         } else {
                             // If a version is skipped somehow, send the full text.
                             vec![lsp_types::TextDocumentContentChangeEvent {
@@ -164,37 +172,76 @@ where
 
     fn formatting(
         &mut self,
-        params: lsp_types::DocumentFormattingParams,
+        params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<Vec<lsp_types::TextEdit>>> {
-        self.server.formatting(params).map_err(Into::into).boxed()
+        self.server
+            .formatting(lsp_types::DocumentFormattingParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+                options: params.options,
+                work_done_progress_params: Default::default(),
+            })
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn definition(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>> {
-        self.server.definition(params).map_err(Into::into).boxed()
-    }
-
-    fn references(
-        &mut self,
-        params: lsp_types::ReferenceParams,
-    ) -> ResponseFuture<Option<Vec<lsp_types::Location>>> {
-        self.server.references(params).map_err(Into::into).boxed()
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        self.server
+            .definition(to_proto::goto_definition(params))
+            .map(|res| res.map(from_proto::goto_definition))
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn type_definition(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>> {
-        self.server.type_definition(params).map_err(Into::into).boxed()
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        self.server
+            .type_definition(to_proto::goto_definition(params))
+            .map(|res| res.map(from_proto::goto_definition))
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn implementation(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>> {
-        self.server.implementation(params).map_err(Into::into).boxed()
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        self.server
+            .implementation(to_proto::goto_definition(params))
+            .map(|res| res.map(from_proto::goto_definition))
+            .map_err(Into::into)
+            .boxed()
+    }
+
+    fn references(
+        &mut self,
+        params: lstypes::ReferenceParams,
+    ) -> ResponseFuture<Vec<lstypes::Location>> {
+        self.server
+            .references(lsp_types::ReferenceParams {
+                text_document_position: lsp_types::TextDocumentPositionParams {
+                    text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
+                    position: params.at.point,
+                },
+                context: lsp_types::ReferenceContext { include_declaration: true },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .map(|res| {
+                res.map(|locs| match locs {
+                    None => vec![],
+                    Some(locs) => locs
+                        .into_iter()
+                        .map(|loc| lstypes::Location { uri: loc.uri, range: loc.range })
+                        .collect(),
+                })
+            })
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn completion(
@@ -258,4 +305,56 @@ where
 
 fn downcast<S: 'static>(service: &mut dyn LanguageService) -> &mut ToLanguageService<S> {
     service.as_any_mut().downcast_mut::<ToLanguageService<S>>().expect("failed to downcast")
+}
+
+mod from_proto {
+    use async_lsp::lsp_types;
+    use zi::lstypes;
+
+    pub fn goto_definition(
+        res: Option<lsp_types::GotoDefinitionResponse>,
+    ) -> lstypes::GotoDefinitionResponse {
+        match res {
+            None => lstypes::GotoDefinitionResponse::Array(vec![]),
+            Some(lsp_types::GotoDefinitionResponse::Scalar(loc)) => {
+                lstypes::GotoDefinitionResponse::Array(vec![location(loc)])
+            }
+            Some(lsp_types::GotoDefinitionResponse::Array(locs)) => {
+                lstypes::GotoDefinitionResponse::Array(locs.into_iter().map(location).collect())
+            }
+            Some(lsp_types::GotoDefinitionResponse::Link(links)) => {
+                lstypes::GotoDefinitionResponse::Array(
+                    links
+                        .into_iter()
+                        .map(|link| lstypes::Location {
+                            uri: link.target_uri,
+                            range: link.target_selection_range,
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+
+    pub fn location(loc: lsp_types::Location) -> lstypes::Location {
+        lstypes::Location { uri: loc.uri, range: loc.range }
+    }
+}
+
+mod to_proto {
+    use async_lsp::lsp_types;
+    use zi::lstypes;
+
+    pub fn goto_definition(
+        params: lstypes::GotoDefinitionParams,
+    ) -> lsp_types::GotoDefinitionParams {
+        lsp_types::GotoDefinitionParams {
+            text_document_position_params: lsp_types::TextDocumentPositionParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
+                position: params.at.point,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        }
+    }
 }

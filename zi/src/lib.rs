@@ -54,7 +54,7 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
-pub use self::language_service::{LanguageClient, LanguageService, LanguageServiceConfig};
+pub use self::language_service::{lstypes, LanguageClient, LanguageService, LanguageServiceConfig};
 pub use self::namespace::Namespace;
 pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View};

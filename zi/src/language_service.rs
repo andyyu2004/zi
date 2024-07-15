@@ -1,3 +1,5 @@
+pub mod lstypes;
+
 use std::any::Any;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -52,36 +54,36 @@ impl DerefMut for LanguageServiceInstance {
 pub trait LanguageService {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    /// Initialize the language server.
+    /// Initialize the language service.
     /// This must be called before any other method and should only be called exactly once.
-    fn initialize(&mut self, params: lsp_types::InitializeParams) -> ResponseFuture<()>;
+    fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()>;
 
     fn initialized(&mut self) -> Result<()>;
 
     fn formatting(
         &mut self,
-        params: lsp_types::DocumentFormattingParams,
+        params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<Vec<lsp_types::TextEdit>>>;
 
     fn definition(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>>;
-
-    fn references(
-        &mut self,
-        params: lsp_types::ReferenceParams,
-    ) -> ResponseFuture<Option<Vec<lsp_types::Location>>>;
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
 
     fn type_definition(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>>;
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
 
     fn implementation(
         &mut self,
-        params: lsp_types::GotoDefinitionParams,
-    ) -> ResponseFuture<Option<lsp_types::GotoDefinitionResponse>>;
+        params: lstypes::GotoDefinitionParams,
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
+
+    fn references(
+        &mut self,
+        params: lstypes::ReferenceParams,
+    ) -> ResponseFuture<Vec<lstypes::Location>>;
 
     fn completion(
         &mut self,

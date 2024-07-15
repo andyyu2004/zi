@@ -4,7 +4,7 @@ use super::*;
 use crate::event::AsyncEventHandler;
 use crate::lsp::from_proto;
 use crate::syntax::HighlightName;
-use crate::{event, Editor, Mark};
+use crate::{event, lstypes, Editor, Mark};
 
 impl Editor {
     pub(crate) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
@@ -19,7 +19,7 @@ impl Editor {
                     let buf_version = buffer.version();
                     let format_fut = format
                         .then(|| {
-                            editor[event.buf].file_url().cloned().and_then(|uri| {
+                            editor[event.buf].file_url().cloned().and_then(|url| {
                                 active_servers_of!(editor, event.buf).find_map(|server_id| {
                                     let server =
                                         editor.active_language_services.get_mut(server_id).unwrap();
@@ -27,11 +27,10 @@ impl Editor {
                                         Some(
                                             lsp_types::OneOf::Left(true)
                                             | lsp_types::OneOf::Right(_),
-                                        ) => Some((server.position_encoding(), server.formatting(
-                                            lsp_types::DocumentFormattingParams {
-                                                text_document: lsp_types::TextDocumentIdentifier {
-                                                    uri: uri.clone(),
-                                                },
+                                        ) => Some((
+                                            server.position_encoding(),
+                                            server.formatting(lstypes::DocumentFormattingParams {
+                                                url: url.clone(),
                                                 options: lsp_types::FormattingOptions {
                                                     tab_size,
                                                     insert_spaces: true,
@@ -40,10 +39,8 @@ impl Editor {
                                                     trim_final_newlines: Some(true),
                                                     properties: Default::default(),
                                                 },
-                                                work_done_progress_params:
-                                                    lsp_types::WorkDoneProgressParams::default(),
-                                            },
-                                        ))),
+                                            }),
+                                        )),
                                         _ => None,
                                     }
                                 })

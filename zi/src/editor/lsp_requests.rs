@@ -12,7 +12,7 @@ use zi_core::{EncodedPoint, Point, PositionEncoding};
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
-use crate::language_service::LanguageServiceInstance;
+use crate::language_service::{lstypes, LanguageServiceInstance};
 use crate::lsp::{self, from_proto, to_proto, LanguageClient};
 use crate::{
     BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
@@ -60,8 +60,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, ViewId) -> Fut,
     ) -> impl Future<Output = Result<()>>
     where
-        Fut: Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>>
-            + 'static,
+        Fut: Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static,
     {
         let view = selector.select(self);
         let fut = f(self, view);
@@ -76,7 +75,7 @@ impl Editor {
     pub fn find_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     {
         let view = selector.select(self);
         self.find_definitions_(
@@ -90,7 +89,7 @@ impl Editor {
     pub fn find_implementations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     {
         let view = selector.select(self);
         self.find_definitions_(
@@ -109,7 +108,7 @@ impl Editor {
     pub fn find_declarations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     {
         let view = selector.select(self);
         self.find_definitions_(
@@ -128,7 +127,7 @@ impl Editor {
     pub fn find_type_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     {
         let view = selector.select(self);
         self.find_definitions_(
@@ -147,7 +146,7 @@ impl Editor {
     pub fn find_references(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/references",
@@ -155,13 +154,8 @@ impl Editor {
             |cap| matches!(cap.references_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
             |server, params| {
                 server
-                    .references(lsp_types::ReferenceParams {
-                        text_document_position: params.text_document_position_params,
-                        context: lsp_types::ReferenceContext { include_declaration: true },
-                        partial_result_params: Default::default(),
-                        work_done_progress_params: Default::default(),
-                    })
-                    .map(|res| res.map(|opt| opt.map(lsp_types::GotoDefinitionResponse::Array)))
+                    .references(lstypes::ReferenceParams { at: params.at })
+                    .map(|res| res.map(lstypes::GotoDefinitionResponse::Array))
             },
         )
     }
@@ -171,32 +165,26 @@ impl Editor {
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        f: impl FnOnce(&mut dyn LanguageService, lsp_types::GotoDefinitionParams) -> Fut,
-    ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
+        f: impl FnOnce(&mut dyn LanguageService, lstypes::GotoDefinitionParams) -> Fut,
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     where
-        Fut: Future<Output = Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
+        Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
     {
         let res = active_servers_of!(self, view)
             .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities()))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
-                let uri = buf.file_url()?;
+                let url = buf.file_url()?.clone();
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 let encoding = server.position_encoding();
-                tracing::debug!(%uri, %point, "lsp request definition");
+                tracing::debug!(%url, %point, "language request definition");
                 let fut = f(
                     &mut **server,
-                    lsp_types::GotoDefinitionParams {
-                        text_document_position_params: lsp_types::TextDocumentPositionParams {
-                            text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                            position: to_proto::point(encoding, &buf.text(), point),
-                        },
-                        work_done_progress_params: lsp_types::WorkDoneProgressParams {
-                            work_done_token: None,
-                        },
-                        partial_result_params: lsp_types::PartialResultParams {
-                            partial_result_token: None,
+                    lstypes::GotoDefinitionParams {
+                        at: lstypes::TextDocumentPointParams {
+                            url,
+                            point: to_proto::point(encoding, &buf.text(), point),
                         },
                     },
                 );
@@ -209,10 +197,6 @@ impl Editor {
                 Some((encoding, fut)) => {
                     let res = fut.await?;
                     tracing::debug!(?res, "lsp definition response");
-                    let res = match res {
-                        None => lsp_types::GotoDefinitionResponse::Array(Default::default()),
-                        Some(res) => res,
-                    };
                     Ok((encoding, res))
                 }
             }
@@ -260,11 +244,10 @@ impl Editor {
                     "initializing language service",
                     async move {
                         service
-                            .initialize(lsp_types::InitializeParams {
-                                process_id: Some(std::process::id()),
+                            .initialize(lstypes::InitializeParams {
+                                process_id: std::process::id(),
                                 capabilities: lsp::client_capabilities(),
-                                workspace_folders: Some(vec![workspace_root]),
-                                ..Default::default()
+                                workspace_folders: vec![workspace_root],
                             })
                             .await?;
 
@@ -301,18 +284,10 @@ impl Editor {
 
     fn lsp_jump_to_definitions(
         &mut self,
-        (encoding, res): (PositionEncoding, lsp_types::GotoDefinitionResponse),
+        (encoding, res): (PositionEncoding, lstypes::GotoDefinitionResponse),
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let mut locations = match res {
-            lsp_types::GotoDefinitionResponse::Scalar(location) => vec![location],
-            lsp_types::GotoDefinitionResponse::Array(locations) => locations,
-            lsp_types::GotoDefinitionResponse::Link(links) => links
-                .into_iter()
-                .map(|link| lsp_types::Location {
-                    uri: link.target_uri,
-                    range: link.target_selection_range,
-                })
-                .collect(),
+            lstypes::GotoDefinitionResponse::Array(locations) => locations,
         };
 
         #[derive(Clone, Debug)]
@@ -364,7 +339,7 @@ impl Editor {
     fn lsp_jump_to_location(
         &mut self,
         encoding: PositionEncoding,
-        location: lsp_types::Location,
+        location: lstypes::Location,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let path = location
             .uri
