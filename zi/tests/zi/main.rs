@@ -89,7 +89,7 @@ impl TestContext {
         Ok(self.open(&path, flags).await?)
     }
 
-    pub async fn setup_lang_server<St: Send + Clone + 'static>(
+    pub async fn setup_lang_server<St: Send + Sync + Clone + 'static>(
         &self,
         ft: zi::FileType,
         server_id: impl Into<zi::LanguageServiceId>,

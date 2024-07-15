@@ -22,7 +22,6 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 use zi::{LanguageService, LanguageServiceConfig};
-use zi_event::Registry;
 
 use self::client::ToLanguageClient;
 pub use self::server::ToLanguageService;
@@ -90,16 +89,17 @@ impl LanguageServerConfig {
     }
 }
 
-impl<E: Registry<E> + Send + 'static> LanguageServiceConfig<E> for LanguageServerConfig {
+impl LanguageServiceConfig for LanguageServerConfig {
     fn spawn(
         &self,
         cwd: &Path,
-        client: Box<dyn zi::LanguageClient<E>>,
-    ) -> anyhow::Result<(Box<dyn LanguageService<E> + Send>, BoxFuture<'static, anyhow::Result<()>>)>
+        client: Box<dyn zi::LanguageClient>,
+    ) -> anyhow::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
+        let id = client.service_id();
         let (server, fut) =
             start(ToLanguageClient::new(client), cwd, &self.command, &self.args[..])?;
-        Ok((Box::new(ToLanguageService::new(server)), Box::pin(fut.map_err(Into::into))))
+        Ok((Box::new(ToLanguageService::new(id, server)), Box::pin(fut.map_err(Into::into))))
     }
 }

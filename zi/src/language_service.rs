@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::path::Path;
 
 use anyhow::Result;
@@ -6,10 +7,14 @@ use futures_core::future::BoxFuture;
 pub use lsp_types;
 pub use zi_core::PositionEncoding;
 
+use crate::LanguageServiceId;
+
 pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
 
 /// An abstraction of language server requests. Notifications are handled via the event system.
-pub trait LanguageService<E> {
+pub trait LanguageService {
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
     /// Initialize the language server.
     /// This must be called before any other method and should only be called exactly once.
     fn initialize(
@@ -17,9 +22,7 @@ pub trait LanguageService<E> {
         params: lsp_types::InitializeParams,
     ) -> ResponseFuture<lsp_types::InitializeResult>;
 
-    /// A hook to perform any initialization after the language server has been initialized.
-    /// This provides synchronous access to the registry to subscribe to events.
-    fn initialized(&mut self, registry: &mut E);
+    fn initialized(&mut self);
 
     fn formatting(
         &mut self,
@@ -72,13 +75,21 @@ pub trait LanguageService<E> {
 }
 
 /// A client to the editor for the language server.
-pub trait LanguageClient<E>: Send {
+pub trait LanguageClient: Send {
+    /// The service this client is associated with.
+    fn service_id(&self) -> LanguageServiceId;
+
     fn log_message(&mut self, message: lsp_types::LogMessageParams);
 
     fn publish_diagnostics(&mut self, params: lsp_types::PublishDiagnosticsParams);
 }
 
-impl<E, C: LanguageClient<E> + ?Sized> LanguageClient<E> for Box<C> {
+impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {
+    #[inline]
+    fn service_id(&self) -> LanguageServiceId {
+        self.as_ref().service_id()
+    }
+
     #[inline]
     fn log_message(&mut self, message: lsp_types::LogMessageParams) {
         self.as_mut().log_message(message)
@@ -90,13 +101,13 @@ impl<E, C: LanguageClient<E> + ?Sized> LanguageClient<E> for Box<C> {
     }
 }
 
-pub trait LanguageServiceConfig<E> {
+pub trait LanguageServiceConfig {
     /// Spawn a new language service instance.
     /// Returns a boxed language service and a future to spawn to run the service.
     #[allow(clippy::type_complexity)]
     fn spawn(
         &self,
         cwd: &Path,
-        client: Box<dyn LanguageClient<E>>,
-    ) -> Result<(Box<dyn LanguageService<E> + Send>, BoxFuture<'static, Result<()>>)>;
+        client: Box<dyn LanguageClient>,
+    ) -> Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, Result<()>>)>;
 }

@@ -116,7 +116,7 @@ pub struct Editor {
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
     pub(super) active_language_services:
-        HashMap<LanguageServiceId, Box<dyn LanguageService<Self> + Send>>,
+        HashMap<LanguageServiceId, Box<dyn LanguageService + Send>>,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -471,6 +471,13 @@ impl Editor {
                 notify_idle,
             },
         )
+    }
+
+    pub fn language_service(
+        &mut self,
+        id: LanguageServiceId,
+    ) -> Option<&mut (dyn LanguageService + Send + 'static)> {
+        self.active_language_services.get_mut(&id).map(|s| s.as_mut())
     }
 
     pub fn client(&self) -> Client {

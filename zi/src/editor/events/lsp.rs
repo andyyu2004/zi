@@ -90,31 +90,6 @@ impl Editor {
         })
     }
 
-    pub(crate) fn lsp_did_open(
-        server_id: LanguageServiceId,
-    ) -> impl EventHandler<Self, Event = event::DidOpenBuffer> {
-        zi_event::handler::<Editor, event::DidOpenBuffer>(move |editor, event| {
-            // let buf = &editor.buffers[event.buf];
-            // if let (Some(server), Some(uri)) =
-            //     (editor.active_language_services.get_mut(&server_id), buf.file_url())
-            // {
-            //     tracing::debug!(?event, ?server_id, "lsp buffer did open");
-            // server
-            //     .did_open(lsp_types::DidOpenTextDocumentParams {
-            //         text_document: lsp_types::TextDocumentItem {
-            //             uri: uri.clone(),
-            //             language_id: buf.file_type().to_string(),
-            //             version: buf.version() as i32,
-            //             text: buf.text().to_string(),
-            //         },
-            //     })
-            //     .expect("lsp did_open failed");
-            // }
-
-            event::HandlerResult::Continue
-        })
-    }
-
     pub(super) fn lsp_did_open_refresh_semantic_tokens()
     -> impl EventHandler<Self, Event = event::DidOpenBuffer> {
         zi_event::handler::<Editor, event::DidOpenBuffer>(move |editor, event| {

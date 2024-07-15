@@ -170,7 +170,7 @@ impl Editor {
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        f: impl FnOnce(&mut dyn LanguageService<Self>, lsp_types::GotoDefinitionParams) -> Fut,
+        f: impl FnOnce(&mut dyn LanguageService, lsp_types::GotoDefinitionParams) -> Fut,
     ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
     where
         Fut: Future<Output = Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
@@ -271,7 +271,7 @@ impl Editor {
                     move |editor, (_res, mut server)| {
                         let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
-                        server.initialized(editor);
+                        server.initialized();
 
                         tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
 
@@ -672,5 +672,4 @@ impl Editor {
 fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServiceId) {
     // TODO check capabilities
     event::subscribe::<event::DidChangeBuffer>(Editor::lsp_did_change_sync(server_id));
-    event::subscribe::<event::DidOpenBuffer>(Editor::lsp_did_open(server_id));
 }

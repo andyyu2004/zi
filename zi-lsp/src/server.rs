@@ -1,38 +1,44 @@
-use std::marker::PhantomData;
+use std::any::Any;
 use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{LanguageService, PositionEncoding};
-use zi_event::{event, HandlerResult, Registry};
+use zi::{LanguageService, LanguageServiceId, PositionEncoding};
+use zi_event::{event, HandlerResult};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
-pub struct ToLanguageService<S, E> {
+pub struct ToLanguageService<S> {
+    service_id: LanguageServiceId,
     server: S,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
     position_encoding: OnceLock<PositionEncoding>,
-    _editor: PhantomData<E>,
 }
 
-impl<S, E> ToLanguageService<S, E> {
-    pub fn new(server: S) -> Self {
+impl<S> ToLanguageService<S> {
+    pub fn new(id: LanguageServiceId, server: S) -> Self {
         Self {
+            service_id: id,
             server,
             capabilities: Default::default(),
             position_encoding: Default::default(),
-            _editor: PhantomData,
         }
     }
 }
 
 type ResponseFuture<T> = BoxFuture<'static, zi::Result<T>>;
 
-impl<S, E> LanguageService<E> for ToLanguageService<S, E>
+impl<S> LanguageService for ToLanguageService<S>
 where
-    S: LanguageServer<Error = async_lsp::Error>,
-    E: Registry<E> + Send + 'static,
+    S: LanguageServer<NotifyResult = async_lsp::Result<()>, Error = async_lsp::Error>
+        + Send
+        + Sync
+        + 'static,
 {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn initialize(
         &mut self,
         params: lsp_types::InitializeParams,
@@ -46,24 +52,25 @@ where
         })
     }
 
-    fn initialized(&mut self, registry: &mut E) {
-        registry.subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
-            // let buf = &editor.buffers[event.buf];
-            // if let (Some(server), Some(uri)) =
-            //     (editor.active_language_services.get_mut(&server_id), buf.file_url())
-            // {
-            //     tracing::debug!(?event, ?server_id, "lsp buffer did open");
-            // server
-            //     .did_open(lsp_types::DidOpenTextDocumentParams {
-            //         text_document: lsp_types::TextDocumentItem {
-            //             uri: uri.clone(),
-            //             language_id: buf.file_type().to_string(),
-            //             version: buf.version() as i32,
-            //             text: buf.text().to_string(),
-            //         },
-            //     })
-            //     .expect("lsp did_open failed");
-            // }
+    fn initialized(&mut self) {
+        let service_id = self.service_id;
+        zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
+            let buf = event.buf;
+            let Some(uri) = editor[buf].file_url() else { return HandlerResult::Continue };
+            let params = lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri: uri.clone(),
+                    language_id: editor[buf].file_type().to_string(),
+                    version: editor[buf].version() as i32,
+                    text: editor[buf].text().to_string(),
+                },
+            };
+
+            if let Some(server) = editor.language_service(service_id) {
+                tracing::debug!(?event, ?service_id, "lsp buffer did open");
+                let server = server.as_any_mut().downcast_mut::<ToLanguageService<S>>().unwrap();
+                server.server.did_open(params).expect("lsp did_open failed");
+            }
 
             HandlerResult::Continue
         })

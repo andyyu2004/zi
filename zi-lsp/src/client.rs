@@ -1,5 +1,4 @@
 use std::future::ready;
-use std::marker::PhantomData;
 use std::ops::ControlFlow;
 
 use async_lsp::lsp_types::notification::Notification;
@@ -9,14 +8,13 @@ use async_lsp::{ErrorCode, LanguageClient, ResponseError};
 use futures_util::future::BoxFuture;
 
 /// zi_language_service::LanguageClient -> async_lsp::LanguageClient
-pub struct ToLanguageClient<C, E> {
+pub struct ToLanguageClient<C> {
     client: C,
-    _editor: PhantomData<E>,
 }
 
-impl<C, E> ToLanguageClient<C, E> {
+impl<C> ToLanguageClient<C> {
     pub fn new(client: C) -> Self {
-        Self { client, _editor: PhantomData }
+        Self { client }
     }
 }
 
@@ -35,9 +33,9 @@ where
     .into())))
 }
 
-impl<C, E> LanguageClient for ToLanguageClient<C, E>
+impl<C> LanguageClient for ToLanguageClient<C>
 where
-    C: zi::LanguageClient<E>,
+    C: zi::LanguageClient,
 {
     type Error = ResponseError;
 

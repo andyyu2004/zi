@@ -3,17 +3,6 @@ pub mod event;
 use std::any::Any;
 use std::marker::PhantomData;
 
-pub trait Registry<X: Send + 'static> {
-    fn subscribe<E: Event>(&self, handler: impl EventHandler<X, Event = E>);
-
-    fn subscribe_with<E: Event>(
-        &self,
-        f: impl Fn(&mut X, &E) -> HandlerResult + Send + Sync + 'static,
-    ) {
-        self.subscribe(handler(f));
-    }
-}
-
 pub trait Event: Send + Sync + Any {}
 
 pub trait EventHandler<X>: Send + Sync + 'static {

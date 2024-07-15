@@ -7,7 +7,7 @@ use std::fmt;
 
 use lsp_types::{self, ClientCapabilities};
 
-use crate::{lsp, Client, Editor, LanguageServiceId};
+use crate::{lsp, Client, LanguageServiceId};
 
 pub struct LanguageClient {
     for_server: LanguageServiceId,
@@ -26,7 +26,12 @@ impl fmt::Debug for LanguageClient {
     }
 }
 
-impl crate::LanguageClient<Editor> for LanguageClient {
+impl crate::LanguageClient for LanguageClient {
+    #[inline]
+    fn service_id(&self) -> LanguageServiceId {
+        self.for_server
+    }
+
     fn log_message(&mut self, params: lsp_types::LogMessageParams) {
         self.client.send(move |editor| {
             tracing::info!("received log message");
