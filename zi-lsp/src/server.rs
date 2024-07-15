@@ -188,10 +188,9 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
-        let enc = self.position_encoding();
         self.server
             .definition(to_proto::goto_definition(params))
-            .map(move |res| res.map(from_proto::goto_definition(enc)))
+            .map(|res| res.map(from_proto::goto_definition))
             .map_err(Into::into)
             .boxed()
     }
@@ -200,10 +199,9 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
-        let enc = self.position_encoding();
         self.server
             .type_definition(to_proto::goto_definition(params))
-            .map(move |res| res.map(from_proto::goto_definition(enc)))
+            .map(|res| res.map(from_proto::goto_definition))
             .map_err(Into::into)
             .boxed()
     }
@@ -212,10 +210,9 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
-        let enc = self.position_encoding();
         self.server
             .implementation(to_proto::goto_definition(params))
-            .map(move |res| res.map(from_proto::goto_definition(enc)))
+            .map(|res| res.map(from_proto::goto_definition))
             .map_err(Into::into)
             .boxed()
     }
@@ -224,7 +221,6 @@ where
         &mut self,
         params: lstypes::ReferenceParams,
     ) -> ResponseFuture<Vec<lstypes::Location>> {
-        let enc = self.position_encoding();
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
@@ -235,10 +231,13 @@ where
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
             })
-            .map(move |res| {
-                res.map(move |locs| match locs {
+            .map(|res| {
+                res.map(|locs| match locs {
                     None => vec![],
-                    Some(locs) => locs.into_iter().map(from_proto::location(enc)).collect(),
+                    Some(locs) => locs
+                        .into_iter()
+                        .map(|loc| lstypes::Location { uri: loc.uri, range: loc.range })
+                        .collect(),
                 })
             })
             .map_err(Into::into)
@@ -310,20 +309,18 @@ fn downcast<S: 'static>(service: &mut dyn LanguageService) -> &mut ToLanguageSer
 
 mod from_proto {
     use async_lsp::lsp_types;
-    use zi::{lstypes, Point, PositionEncoding};
+    use zi::lstypes;
 
     pub fn goto_definition(
-        enc: PositionEncoding,
-    ) -> impl Fn(Option<lsp_types::GotoDefinitionResponse>) -> lstypes::GotoDefinitionResponse {
-        move |res| match res {
+        res: Option<lsp_types::GotoDefinitionResponse>,
+    ) -> lstypes::GotoDefinitionResponse {
+        match res {
             None => lstypes::GotoDefinitionResponse::Array(vec![]),
             Some(lsp_types::GotoDefinitionResponse::Scalar(loc)) => {
-                lstypes::GotoDefinitionResponse::Array(vec![location(enc)(loc)])
+                lstypes::GotoDefinitionResponse::Array(vec![location(loc)])
             }
             Some(lsp_types::GotoDefinitionResponse::Array(locs)) => {
-                lstypes::GotoDefinitionResponse::Array(
-                    locs.into_iter().map(location(enc)).collect(),
-                )
+                lstypes::GotoDefinitionResponse::Array(locs.into_iter().map(location).collect())
             }
             Some(lsp_types::GotoDefinitionResponse::Link(links)) => {
                 lstypes::GotoDefinitionResponse::Array(
@@ -331,7 +328,7 @@ mod from_proto {
                         .into_iter()
                         .map(|link| lstypes::Location {
                             uri: link.target_uri,
-                            range: range(enc)(link.target_selection_range),
+                            range: link.target_selection_range,
                         })
                         .collect(),
                 )
@@ -339,16 +336,8 @@ mod from_proto {
         }
     }
 
-    pub fn location(enc: PositionEncoding) -> impl Fn(lsp_types::Location) -> lstypes::Location {
-        move |loc| lstypes::Location { uri: loc.uri, range: range(enc)(loc.range) }
-    }
-
-    pub fn range(enc: PositionEncoding) -> impl Fn(lsp_types::Range) -> zi::EncodedPointRange {
-        move |r| zi::EncodedPointRange::from((point(enc)(r.start), point(enc)(r.end)))
-    }
-
-    pub fn point(enc: PositionEncoding) -> impl Fn(lsp_types::Position) -> zi::EncodedPoint {
-        move |pos| zi::EncodedPoint::new(enc, Point::new(pos.line as usize, pos.character as usize))
+    pub fn location(loc: lsp_types::Location) -> lstypes::Location {
+        lstypes::Location { uri: loc.uri, range: loc.range }
     }
 }
 

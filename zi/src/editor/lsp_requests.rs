@@ -13,7 +13,7 @@ use zi_core::{EncodedPoint, Point, PositionEncoding};
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
-use crate::lsp::{self, to_proto, LanguageClient};
+use crate::lsp::{self, from_proto, to_proto, LanguageClient};
 use crate::{
     BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
 };
@@ -60,7 +60,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, ViewId) -> Fut,
     ) -> impl Future<Output = Result<()>>
     where
-        Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
+        Fut: Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static,
     {
         let view = selector.select(self);
         let fut = f(self, view);
@@ -75,7 +75,8 @@ impl Editor {
     pub fn find_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/definition",
@@ -88,7 +89,8 @@ impl Editor {
     pub fn find_implementations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/implementation",
@@ -106,7 +108,8 @@ impl Editor {
     pub fn find_declarations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/declaration",
@@ -124,7 +127,8 @@ impl Editor {
     pub fn find_type_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
+    {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/typeDefinition",
@@ -142,7 +146,7 @@ impl Editor {
     pub fn find_references(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> {
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/references",
@@ -162,7 +166,7 @@ impl Editor {
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
         f: impl FnOnce(&mut dyn LanguageService, lstypes::GotoDefinitionParams) -> Fut,
-    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static
+    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
     where
         Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
     {
@@ -184,16 +188,16 @@ impl Editor {
                         },
                     },
                 );
-                Some(fut)
+                Some((encoding, fut))
             });
 
         async move {
             match res {
                 None => bail!("no language server supports {desc}"),
-                Some(fut) => {
+                Some((encoding, fut)) => {
                     let res = fut.await?;
                     tracing::debug!(?res, "lsp definition response");
-                    Ok(res)
+                    Ok((encoding, res))
                 }
             }
         }
@@ -280,7 +284,7 @@ impl Editor {
 
     fn lsp_jump_to_definitions(
         &mut self,
-        res: lstypes::GotoDefinitionResponse,
+        (encoding, res): (PositionEncoding, lstypes::GotoDefinitionResponse),
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let mut locations = match res {
             lstypes::GotoDefinitionResponse::Array(locations) => locations,
@@ -310,7 +314,7 @@ impl Editor {
 
         match &locations[..] {
             [] => bail!("no definition found"),
-            [_] => Ok(Box::pin(self.lsp_jump_to_location(locations.pop().unwrap())?)
+            [_] => Ok(Box::pin(self.lsp_jump_to_location(encoding, locations.pop().unwrap())?)
                 as BoxFuture<'static, _>),
             _ => {
                 self.open_static_picker::<BufferPicker<_>>(
@@ -320,8 +324,7 @@ impl Editor {
                     move |_, injector| {
                         for location in locations {
                             let Ok(path) = location.uri.to_file_path() else { continue };
-                            let entry =
-                                Entry { path, line: location.range.start().line() as usize };
+                            let entry = Entry { path, line: location.range.start.line as usize };
                             if injector.push(entry).is_err() {
                                 break;
                             }
@@ -335,6 +338,7 @@ impl Editor {
 
     fn lsp_jump_to_location(
         &mut self,
+        encoding: PositionEncoding,
         location: lstypes::Location,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let path = location
@@ -351,7 +355,7 @@ impl Editor {
             client
                 .with(move |editor| {
                     let text = editor[buf].text();
-                    match text.decode_point(location.range.start()) {
+                    match from_proto::point(encoding, text, location.range.start) {
                         Some(point) => editor.jump(from, Location::new(buf, point)),
                         None => tracing::warn!(?location, "lsp returned invalid location"),
                     }
