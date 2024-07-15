@@ -4,7 +4,9 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{lstypes, LanguageService, LanguageServiceId, PositionEncoding, Text, TextMut, TextSlice};
+use zi::{
+    lstypes, LanguageService, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice,
+};
 use zi_event::{event, HandlerResult};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
@@ -15,7 +17,7 @@ pub struct ToLanguageService<S> {
     position_encoding: OnceLock<PositionEncoding>,
     text_version: Option<i32>,
     // Keeping track of this here for encoding conversions (and sanity checks)
-    text: zi::Rope,
+    text: Rope,
 }
 
 impl<S> ToLanguageService<S> {
@@ -195,12 +197,17 @@ where
     fn formatting(
         &mut self,
         params: lstypes::DocumentFormattingParams,
-    ) -> ResponseFuture<Option<Vec<lsp_types::TextEdit>>> {
+    ) -> ResponseFuture<Option<zi::Deltas<'static>>> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
         self.server
             .formatting(lsp_types::DocumentFormattingParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
                 options: params.options,
                 work_done_progress_params: Default::default(),
+            })
+            .map(move |res| {
+                res.map(|opt| opt.and_then(|edits| from_proto::deltas(enc, &text, edits)))
             })
             .map_err(Into::into)
             .boxed()
@@ -210,9 +217,17 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
         self.server
-            .definition(to_proto::goto_definition(params))
-            .map(|res| res.map(from_proto::goto_definition))
+            .definition(to_proto::goto_definition(enc, &text, params))
+            .map(move |res| match res {
+                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                    Some(res) => Ok(res),
+                    None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
+                },
+                Err(err) => Err(err),
+            })
             .map_err(Into::into)
             .boxed()
     }
@@ -221,9 +236,21 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
         self.server
-            .type_definition(to_proto::goto_definition(params))
-            .map(|res| res.map(from_proto::goto_definition))
+            .type_definition(to_proto::goto_definition(
+                self.position_encoding(),
+                &self.text,
+                params,
+            ))
+            .map(move |res| match res {
+                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                    Some(res) => Ok(res),
+                    None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
+                },
+                Err(err) => Err(err),
+            })
             .map_err(Into::into)
             .boxed()
     }
@@ -232,9 +259,17 @@ where
         &mut self,
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
         self.server
-            .implementation(to_proto::goto_definition(params))
-            .map(|res| res.map(from_proto::goto_definition))
+            .implementation(to_proto::goto_definition(self.position_encoding(), &self.text, params))
+            .map(move |res| match res {
+                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                    Some(res) => Ok(res),
+                    None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
+                },
+                Err(err) => Err(err),
+            })
             .map_err(Into::into)
             .boxed()
     }
@@ -243,22 +278,28 @@ where
         &mut self,
         params: lstypes::ReferenceParams,
     ) -> ResponseFuture<Vec<lstypes::Location>> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
-                    position: params.at.point,
+                    position: to_proto::point(
+                        self.position_encoding(),
+                        &self.text,
+                        params.at.point,
+                    ),
                 },
                 context: lsp_types::ReferenceContext { include_declaration: true },
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
             })
-            .map(|res| {
+            .map(move |res| {
                 res.map(|locs| match locs {
                     None => vec![],
                     Some(locs) => locs
                         .into_iter()
-                        .map(|loc| lstypes::Location { uri: loc.uri, range: loc.range })
+                        .filter_map(|loc| from_proto::location(enc, &text, loc))
                         .collect(),
                 })
             })
@@ -331,52 +372,188 @@ fn downcast<S: 'static>(service: &mut dyn LanguageService) -> &mut ToLanguageSer
 
 mod from_proto {
     use async_lsp::lsp_types;
-    use zi::lstypes;
+    use zi::{lstypes, Delta, Deltas, Point, PointRange, PositionEncoding, Text};
 
     pub fn goto_definition(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
         res: Option<lsp_types::GotoDefinitionResponse>,
-    ) -> lstypes::GotoDefinitionResponse {
-        match res {
+    ) -> Option<lstypes::GotoDefinitionResponse> {
+        let res = match res {
             None => lstypes::GotoDefinitionResponse::Array(vec![]),
             Some(lsp_types::GotoDefinitionResponse::Scalar(loc)) => {
-                lstypes::GotoDefinitionResponse::Array(vec![location(loc)])
+                lstypes::GotoDefinitionResponse::Array(vec![location(encoding, text, loc)?])
             }
             Some(lsp_types::GotoDefinitionResponse::Array(locs)) => {
-                lstypes::GotoDefinitionResponse::Array(locs.into_iter().map(location).collect())
+                lstypes::GotoDefinitionResponse::Array(
+                    locs.into_iter().filter_map(|loc| location(encoding, text, loc)).collect(),
+                )
             }
             Some(lsp_types::GotoDefinitionResponse::Link(links)) => {
                 lstypes::GotoDefinitionResponse::Array(
                     links
                         .into_iter()
-                        .map(|link| lstypes::Location {
-                            uri: link.target_uri,
-                            range: link.target_selection_range,
+                        .filter_map(|link| {
+                            Some(lstypes::Location {
+                                uri: link.target_uri,
+                                range: range(encoding, text, link.target_selection_range)?,
+                            })
                         })
                         .collect(),
                 )
             }
-        }
+        };
+        Some(res)
     }
 
-    pub fn location(loc: lsp_types::Location) -> lstypes::Location {
-        lstypes::Location { uri: loc.uri, range: loc.range }
+    pub fn location(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        loc: lsp_types::Location,
+    ) -> Option<lstypes::Location> {
+        Some(lstypes::Location { uri: loc.uri, range: range(encoding, text, loc.range)? })
+    }
+
+    pub fn deltas(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        edits: impl IntoIterator<Item = lsp_types::TextEdit, IntoIter: ExactSizeIterator>,
+    ) -> Option<Deltas<'static>> {
+        let edits = edits.into_iter();
+        let n = edits.len();
+        let deltas = Deltas::new(edits.filter_map(|edit| {
+            let range = text.point_range_to_byte_range(range(encoding, text, edit.range)?);
+            Some(Delta::new(range, edit.new_text))
+        }));
+
+        // If any of the edits were invalid, return None.
+        if deltas.len() < n { None } else { Some(deltas) }
+    }
+
+    pub fn range(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        range: lsp_types::Range,
+    ) -> Option<PointRange> {
+        Some(PointRange::new(
+            point(encoding, text, range.start)?,
+            point(encoding, text, range.end)?,
+        ))
+    }
+
+    pub fn point(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        point: lsp_types::Position,
+    ) -> Option<Point> {
+        if point.line as usize > text.len_lines() {
+            return None;
+        }
+
+        match encoding {
+            PositionEncoding::Utf8 => {
+                Some(Point::new(point.line as usize, point.character as usize))
+            }
+            PositionEncoding::Utf16 => {
+                let line_start_byte = text.line_to_byte(point.line as usize);
+                let line_start_cu = text.byte_to_utf16_cu(line_start_byte);
+                if line_start_cu + point.character as usize > text.len_utf16_cu() {
+                    return None;
+                }
+
+                let byte = text.utf16_cu_to_byte(line_start_cu + point.character as usize);
+                Some(text.byte_to_point(byte))
+            }
+        }
     }
 }
 
 mod to_proto {
     use async_lsp::lsp_types;
-    use zi::lstypes;
+    use zi::{lstypes, Deltas, Point, PointRange, PositionEncoding, Text};
 
     pub fn goto_definition(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
         params: lstypes::GotoDefinitionParams,
     ) -> lsp_types::GotoDefinitionParams {
         lsp_types::GotoDefinitionParams {
             text_document_position_params: lsp_types::TextDocumentPositionParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
-                position: params.at.point,
+                position: point(encoding, text, params.at.point),
             },
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
+        }
+    }
+
+    // For some reason, LSP defines change events that are distinct from `TextEdit`s.
+    // The former is applied serially, while the latter is applied "atomically".
+    // However, since our deltas are ordered and disjoint, we can just return them in order and because
+    // they don't interfere we're all good.
+    pub fn deltas(
+        encoding: PositionEncoding,
+        old_text: impl Text,
+        deltas: &Deltas<'_>,
+    ) -> Vec<lsp_types::TextDocumentContentChangeEvent> {
+        deltas
+            .iter()
+            .map(|delta| lsp_types::TextDocumentContentChangeEvent {
+                range: Some(byte_range(encoding, &old_text, delta.range())),
+                text: delta.text().to_string(),
+                range_length: None,
+            })
+            .collect()
+    }
+
+    pub fn byte_range(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        range: std::ops::Range<usize>,
+    ) -> lsp_types::Range {
+        lsp_types::Range {
+            start: byte(encoding, text, range.start),
+            end: byte(encoding, text, range.end),
+        }
+    }
+
+    pub fn byte(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        byte: usize,
+    ) -> lsp_types::Position {
+        match encoding {
+            PositionEncoding::Utf8 => point(encoding, text, text.byte_to_point(byte)),
+            PositionEncoding::Utf16 => {
+                let line = text.byte_to_line(byte);
+                let line_start = text.byte_to_utf16_cu(text.line_to_byte(line));
+                let col = text.byte_to_utf16_cu(byte) - line_start;
+                lsp_types::Position::new(line as u32, col as u32)
+            }
+        }
+    }
+
+    pub fn range(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        range: PointRange,
+    ) -> lsp_types::Range {
+        lsp_types::Range {
+            start: point(encoding, text, range.start()),
+            end: point(encoding, text, range.end()),
+        }
+    }
+
+    pub fn point(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        point: Point,
+    ) -> lsp_types::Position {
+        match encoding {
+            PositionEncoding::Utf8 => {
+                lsp_types::Position::new(point.line() as u32, point.col() as u32)
+            }
+            PositionEncoding::Utf16 => byte(encoding, text, text.point_to_byte(point)),
         }
     }
 }

@@ -13,7 +13,7 @@ use zi_core::{EncodedPoint, Point, PositionEncoding};
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
-use crate::lsp::{self, from_proto, to_proto, LanguageClient};
+use crate::lsp::{self, LanguageClient};
 use crate::{
     BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
 };
@@ -60,7 +60,7 @@ impl Editor {
         f: impl FnOnce(&mut Self, ViewId) -> Fut,
     ) -> impl Future<Output = Result<()>>
     where
-        Fut: Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static,
+        Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
     {
         let view = selector.select(self);
         let fut = f(self, view);
@@ -75,8 +75,7 @@ impl Editor {
     pub fn find_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
-    {
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/definition",
@@ -89,8 +88,7 @@ impl Editor {
     pub fn find_implementations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
-    {
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/implementation",
@@ -108,8 +106,7 @@ impl Editor {
     pub fn find_declarations(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
-    {
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/declaration",
@@ -127,8 +124,7 @@ impl Editor {
     pub fn find_type_definitions(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
-    {
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/typeDefinition",
@@ -146,7 +142,7 @@ impl Editor {
     pub fn find_references(
         &mut self,
         selector: impl Selector<ViewId>,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> {
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> {
         let view = selector.select(self);
         self.find_definitions_(
             "textDocument/references",
@@ -166,7 +162,7 @@ impl Editor {
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
         f: impl FnOnce(&mut dyn LanguageService, lstypes::GotoDefinitionParams) -> Fut,
-    ) -> impl Future<Output = Result<(PositionEncoding, lstypes::GotoDefinitionResponse)>> + 'static
+    ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static
     where
         Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
     {
@@ -177,27 +173,23 @@ impl Editor {
                 let url = buf.file_url()?.clone();
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
-                let encoding = server.position_encoding();
                 tracing::debug!(%url, %point, "language request definition");
                 let fut = f(
                     &mut **server,
                     lstypes::GotoDefinitionParams {
-                        at: lstypes::TextDocumentPointParams {
-                            url,
-                            point: to_proto::point(encoding, &buf.text(), point),
-                        },
+                        at: lstypes::TextDocumentPointParams { url, point },
                     },
                 );
-                Some((encoding, fut))
+                Some(fut)
             });
 
         async move {
             match res {
                 None => bail!("no language server supports {desc}"),
-                Some((encoding, fut)) => {
+                Some(fut) => {
                     let res = fut.await?;
                     tracing::debug!(?res, "lsp definition response");
-                    Ok((encoding, res))
+                    Ok(res)
                 }
             }
         }
@@ -254,11 +246,8 @@ impl Editor {
                         Ok(service)
                     },
                     move |editor, mut service| {
-                        let span = tracing::info_span!("language service initialized", %server_id);
-                        let _guard = span.enter();
                         service.initialized()?;
-
-                        tracing::info!(encoding = ?service.position_encoding(), "lsp initialized");
+                        tracing::info!("language service initialized");
 
                         assert!(
                             editor.active_language_services.insert(server_id, service).is_none(),
@@ -284,7 +273,7 @@ impl Editor {
 
     fn lsp_jump_to_definitions(
         &mut self,
-        (encoding, res): (PositionEncoding, lstypes::GotoDefinitionResponse),
+        res: lstypes::GotoDefinitionResponse,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let mut locations = match res {
             lstypes::GotoDefinitionResponse::Array(locations) => locations,
@@ -314,7 +303,7 @@ impl Editor {
 
         match &locations[..] {
             [] => bail!("no definition found"),
-            [_] => Ok(Box::pin(self.lsp_jump_to_location(encoding, locations.pop().unwrap())?)
+            [_] => Ok(Box::pin(self.lsp_jump_to_location(locations.pop().unwrap())?)
                 as BoxFuture<'static, _>),
             _ => {
                 self.open_static_picker::<BufferPicker<_>>(
@@ -324,7 +313,8 @@ impl Editor {
                     move |_, injector| {
                         for location in locations {
                             let Ok(path) = location.uri.to_file_path() else { continue };
-                            let entry = Entry { path, line: location.range.start.line as usize };
+                            let entry =
+                                Entry { path, line: location.range.start().line() as usize };
                             if injector.push(entry).is_err() {
                                 break;
                             }
@@ -338,7 +328,6 @@ impl Editor {
 
     fn lsp_jump_to_location(
         &mut self,
-        encoding: PositionEncoding,
         location: lstypes::Location,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let path = location
@@ -353,13 +342,7 @@ impl Editor {
         Ok(async move {
             let buf = open_fut.await?;
             client
-                .with(move |editor| {
-                    let text = editor[buf].text();
-                    match from_proto::point(encoding, text, location.range.start) {
-                        Some(point) => editor.jump(from, Location::new(buf, point)),
-                        None => tracing::warn!(?location, "lsp returned invalid location"),
-                    }
-                })
+                .with(move |editor| editor.jump(from, Location::new(buf, location.range.start())))
                 .await;
             Ok(())
         })
@@ -575,7 +558,6 @@ impl Editor {
                 };
                 let uri = self.buffers[buf].file_url()?.clone();
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
-                let encoding = server.position_encoding();
                 let fut = server.document_diagnostic(lsp_types::DocumentDiagnosticParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri },
                     identifier: None,
@@ -583,7 +565,7 @@ impl Editor {
                     work_done_progress_params: Default::default(),
                     partial_result_params: Default::default(),
                 });
-                Some(((server_id, encoding), fut))
+                Some((server_id, fut))
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
@@ -602,7 +584,7 @@ impl Editor {
             }
 
             let responses = futures_util::future::try_join_all(futs).await?;
-            for ((server_id, encoding), res) in server_ids.into_iter().zip(responses) {
+            for (server_id, res) in server_ids.into_iter().zip(responses) {
                 tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
 
                 let path = path.clone();
@@ -611,25 +593,25 @@ impl Editor {
                         lsp_types::DocumentDiagnosticReport::Full(report) => {
                             client
                                 .with(move |editor| {
-                                    editor.update_diagnostics(
-                                        path,
-                                        None,
-                                        report
-                                            .full_document_diagnostic_report
-                                            .items
-                                            .into_iter()
-                                            .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
-                                            .collect::<Box<_>>(),
-                                    )
+                                    todo!();
+                                    // editor.update_diagnostics(
+                                    //     path,
+                                    //     None,
+                                    //     report
+                                    //         .full_document_diagnostic_report
+                                    //         .items
+                                    //         .into_iter()
+                                    //         .collect::<Box<_>>(),
+                                    // )
                                 })
                                 .await;
 
-                            update_related_docs(&client, encoding, report.related_documents).await;
+                            // update_related_docs(&client, encoding, report.related_documents).await;
                         }
                         lsp_types::DocumentDiagnosticReport::Unchanged(_) => {}
                     },
                     lsp_types::DocumentDiagnosticReportResult::Partial(report) => {
-                        update_related_docs(&client, encoding, report.related_documents).await;
+                        // update_related_docs(&client, encoding, report.related_documents).await;
                     }
                 }
             }

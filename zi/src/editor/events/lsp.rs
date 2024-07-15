@@ -27,9 +27,8 @@ impl Editor {
                                         Some(
                                             lsp_types::OneOf::Left(true)
                                             | lsp_types::OneOf::Right(_),
-                                        ) => Some((
-                                            server.position_encoding(),
-                                            server.formatting(lstypes::DocumentFormattingParams {
+                                        ) => Some(server.formatting(
+                                            lstypes::DocumentFormattingParams {
                                                 url: url.clone(),
                                                 options: lsp_types::FormattingOptions {
                                                     tab_size,
@@ -39,7 +38,7 @@ impl Editor {
                                                     trim_final_newlines: Some(true),
                                                     properties: Default::default(),
                                                 },
-                                            }),
+                                            },
                                         )),
                                         _ => None,
                                     }
@@ -52,24 +51,15 @@ impl Editor {
                 })
                 .await;
 
-            if let Some((encoding, fut)) = format_fut {
-                if let Some(edits) = fut.await? {
-                    client
-                        .with(move |editor| {
-                            let buf = &editor[event.buf];
-                            let text = buf.text();
-                            let deltas = lsp::from_proto::deltas(encoding, text, edits);
-
+            if let Some(fut) = format_fut {
+                let deltas = fut.await?;
+                client
+                    .with(move |editor| {
+                        let buf = &editor[event.buf];
+                        if let Some(deltas) = deltas {
                             if buf.version() == version {
-                                match deltas {
-                                    Some(deltas) => {
-                                        editor.edit(event.buf, &deltas)?;
-                                        editor[event.buf].snapshot(SnapshotFlags::empty());
-                                    }
-                                    None => {
-                                        tracing::error!("ignoring invalid format edits")
-                                    }
-                                }
+                                editor.edit(event.buf, &deltas)?;
+                                editor[event.buf].snapshot(SnapshotFlags::empty());
                             } else {
                                 assert!(buf.version() > version, "version has gone down?");
                                 tracing::info!(
@@ -77,10 +67,11 @@ impl Editor {
                                     buf.version(),
                                 );
                             }
-                            Ok::<_, Error>(())
-                        })
-                        .await?;
-                }
+                        }
+
+                        Ok::<_, Error>(())
+                    })
+                    .await?;
             }
 
             Ok(event::HandlerResult::Continue)

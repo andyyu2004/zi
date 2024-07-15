@@ -1,4 +1,8 @@
+//! Types used for the zi language service protocol.
+//! All positions are 0-indexed and in UTF-8 code units (bytes).
+
 use url::Url;
+use zi_core::{Point, PointRange};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
@@ -31,13 +35,11 @@ pub enum GotoDefinitionResponse {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
     pub uri: Url,
-    pub range: lsp_types::Range,
+    pub range: PointRange,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TextDocumentPointParams {
     pub url: Url,
-    /// The point inside the text document encoded in the service encoding.
-    pub point: lsp_types::Position,
+    pub point: Point,
 }
-
