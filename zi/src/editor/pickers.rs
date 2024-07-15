@@ -330,7 +330,7 @@ impl Editor {
                     self.path.display(),
                     // We're displaying the ranges in the encoded form which is wrong.
                     // However, this is just for display purposes so it's not a big deal (and still useful)
-                    self.range.encoded_range(),
+                    self.range,
                     self.message
                 )
             }

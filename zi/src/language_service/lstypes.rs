@@ -1,4 +1,5 @@
 use url::Url;
+use zi_core::EncodedPointRange;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
@@ -31,7 +32,7 @@ pub enum GotoDefinitionResponse {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
     pub uri: Url,
-    pub range: lsp_types::Range,
+    pub range: EncodedPointRange,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

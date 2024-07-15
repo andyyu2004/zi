@@ -31,7 +31,7 @@ impl Editor {
         });
 
         let mut diagnostics: Box<[_]> = diagnostics.into();
-        diagnostics.sort_unstable_by_key(|d| d.range.encoded_range().start());
+        diagnostics.sort_unstable_by_key(|d| d.range.start());
         self.diagnostics.entry(path).or_default().write((version, diagnostics));
 
         if let Some(buf) = buf {

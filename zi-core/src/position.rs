@@ -79,41 +79,53 @@ impl PartialEq<(usize, usize)> for Offset {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct EncodedPointRange {
-    encoding: PositionEncoding,
-    range: PointRange,
+    start: EncodedPoint,
+    end: EncodedPoint,
+}
+
+impl fmt::Display for EncodedPointRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}..{}", self.start, self.end)
+    }
+}
+
+impl From<(EncodedPoint, EncodedPoint)> for EncodedPointRange {
+    #[inline]
+    fn from((start, end): (EncodedPoint, EncodedPoint)) -> Self {
+        Self { start, end }
+    }
 }
 
 impl EncodedPointRange {
     #[inline]
     pub fn new(encoding: PositionEncoding, range: PointRange) -> Self {
-        Self { encoding, range }
-    }
-
-    #[inline]
-    pub fn encoding(&self) -> PositionEncoding {
-        self.encoding
-    }
-
-    #[inline]
-    pub fn encoded_range(&self) -> PointRange {
-        self.range
+        Self {
+            start: EncodedPoint::new(encoding, range.start),
+            end: EncodedPoint::new(encoding, range.end),
+        }
     }
 
     #[inline]
     pub fn start(&self) -> EncodedPoint {
-        EncodedPoint::new(self.encoding, self.range.start())
+        self.start
     }
 
     #[inline]
     pub fn end(&self) -> EncodedPoint {
-        EncodedPoint::new(self.encoding, self.range.end())
+        self.end
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
 pub struct EncodedPoint {
-    encoding: PositionEncoding,
     point: Point,
+    encoding: PositionEncoding,
+}
+
+impl fmt::Display for EncodedPoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.point)
+    }
 }
 
 impl From<Point> for EncodedPoint {
@@ -137,6 +149,12 @@ impl EncodedPoint {
     #[inline]
     pub fn encoded_point(&self) -> Point {
         self.point
+    }
+
+    #[inline]
+    // Fine to expose line directly as it's encoding agnostic
+    pub fn line(&self) -> Line {
+        self.point.line
     }
 }
 
@@ -455,7 +473,7 @@ impl From<Direction> for tui::Direction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PositionEncoding {
     /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
     Utf8,
