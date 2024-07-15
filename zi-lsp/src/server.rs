@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use async_lsp::{lsp_types, LanguageServer};
@@ -6,6 +7,7 @@ use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
 use zi::{
     lstypes, LanguageService, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice,
+    Url,
 };
 use zi_event::{event, HandlerResult};
 
@@ -15,9 +17,8 @@ pub struct ToLanguageService<S> {
     server: S,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
     position_encoding: OnceLock<PositionEncoding>,
-    text_version: Option<i32>,
     // Keeping track of this here for encoding conversions (and sanity checks)
-    text: Rope,
+    texts: HashMap<Url, (i32, Rope)>,
 }
 
 impl<S> ToLanguageService<S> {
@@ -27,8 +28,7 @@ impl<S> ToLanguageService<S> {
             server,
             capabilities: Default::default(),
             position_encoding: Default::default(),
-            text_version: None,
-            text: Default::default(),
+            texts: Default::default(),
         }
     }
 }
@@ -69,10 +69,10 @@ where
 
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
-            let Some(uri) = editor[buf].file_url() else { return HandlerResult::Continue };
+            let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
             let params = lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
-                    uri: uri.clone(),
+                    uri: url.clone(),
                     language_id: editor[buf].file_type().to_string(),
                     version: editor[buf].version() as i32,
                     text: editor[buf].text().to_string(),
@@ -81,13 +81,15 @@ where
 
             // TODO should ignore any open events not related to this language server.
             // See below
-            //
 
             if let Some(server) = editor.language_service(service_id) {
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
                 let server = downcast::<S>(server);
-                server.text = zi::Rope::from(params.text_document.text.as_str());
-                server.text_version = Some(params.text_document.version);
+                server.texts.entry(url).or_insert((
+                    params.text_document.version,
+                    Rope::from(params.text_document.text.as_str()),
+                ));
+
                 if let Err(err) = server.server.did_open(params) {
                     tracing::error!(?err, "lsp did_open notification failed");
                 }
@@ -117,15 +119,13 @@ where
 
                 let encoding = service.position_encoding();
 
-                let kind = match &service.capabilities().text_document_sync {
+                let kind = match service.capabilities().text_document_sync.clone() {
                     Some(cap) => match cap {
                         lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
-                        lsp_types::TextDocumentSyncCapability::Options(opts) => {
-                            match &opts.change {
-                                Some(kind) => kind,
-                                None => return HandlerResult::Continue,
-                            }
-                        }
+                        lsp_types::TextDocumentSyncCapability::Options(opts) => match opts.change {
+                            Some(kind) => kind,
+                            None => return HandlerResult::Continue,
+                        },
                     },
                     None => return HandlerResult::Continue,
                 };
@@ -134,15 +134,17 @@ where
                 let version = buf.version() as i32;
                 let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
-                let content_changes = match *kind {
+                let (text_version, text) =
+                    service.texts.get_mut(&text_document.uri).expect("buffer not opened");
+                let content_changes = match kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        if service.text_version == version.checked_sub(1) {
+                        if version.checked_sub(1) == Some(*text_version) {
                             debug_assert_eq!(
+                                *text,
                                 event.old_text.to_string(),
-                                service.text,
                                 "lsp text desynced"
                             );
-                            service.text.edit(&event.deltas);
+                            text.edit(&event.deltas);
                             zi::lsp::to_proto::deltas(
                                 encoding,
                                 event.old_text.as_ref(),
@@ -153,7 +155,7 @@ where
                             for chunk in buf.text().byte_slice(..).chunks() {
                                 builder.append(chunk);
                             }
-                            service.text = builder.build();
+                            *text = builder.build();
                             // If a version is skipped somehow, send the full text.
                             vec![lsp_types::TextDocumentContentChangeEvent {
                                 range: None,
@@ -167,7 +169,7 @@ where
                         for chunk in buf.text().byte_slice(..).chunks() {
                             builder.append(chunk);
                         }
-                        service.text = builder.build();
+                        *text = builder.build();
                         vec![lsp_types::TextDocumentContentChangeEvent {
                             range: None,
                             range_length: None,
@@ -178,12 +180,12 @@ where
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
                 };
 
-                debug_assert_eq!(service.text, buf.text().to_string(), "lsp text desynced");
+                debug_assert_eq!(*text, buf.text().to_string(), "lsp text desynced");
                 match service.server.did_change(lsp_types::DidChangeTextDocumentParams {
                     text_document,
                     content_changes,
                 }) {
-                    Ok(_) => service.text_version = Some(version),
+                    Ok(_) => *text_version = version,
                     Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
                 }
             }
@@ -199,7 +201,7 @@ where
         params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<zi::Deltas<'static>>> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_, text) = self.texts.get(&params.url).unwrap().clone();
         self.server
             .formatting(lsp_types::DocumentFormattingParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
@@ -218,7 +220,7 @@ where
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
             .definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -237,13 +239,9 @@ where
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
-            .type_definition(to_proto::goto_definition(
-                self.position_encoding(),
-                &self.text,
-                params,
-            ))
+            .type_definition(to_proto::goto_definition(self.position_encoding(), &text, params))
             .map(move |res| match res {
                 Ok(res) => match from_proto::goto_definition(enc, &text, res) {
                     Some(res) => Ok(res),
@@ -260,9 +258,9 @@ where
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
-            .implementation(to_proto::goto_definition(self.position_encoding(), &self.text, params))
+            .implementation(to_proto::goto_definition(self.position_encoding(), &text, params))
             .map(move |res| match res {
                 Ok(res) => match from_proto::goto_definition(enc, &text, res) {
                     Some(res) => Ok(res),
@@ -279,16 +277,12 @@ where
         params: lstypes::ReferenceParams,
     ) -> ResponseFuture<Vec<lstypes::Location>> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: lsp_types::TextDocumentPositionParams {
                     text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
-                    position: to_proto::point(
-                        self.position_encoding(),
-                        &self.text,
-                        params.at.point,
-                    ),
+                    position: to_proto::point(self.position_encoding(), &text, params.at.point),
                 },
                 context: lsp_types::ReferenceContext { include_declaration: true },
                 work_done_progress_params: Default::default(),
@@ -333,7 +327,7 @@ where
         params: lstypes::DocumentDiagnosticParams,
     ) -> ResponseFuture<lstypes::DocumentDiagnosticReport> {
         let enc = self.position_encoding();
-        let text = Rope::clone(&self.text);
+        let (_version, text) = self.texts.get(&params.url).unwrap().clone();
         self.server
             .document_diagnostic(lsp_types::DocumentDiagnosticParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
