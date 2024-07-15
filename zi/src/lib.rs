@@ -35,8 +35,8 @@ pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
 pub use zi_core::{
-    Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange,
-    PositionEncoding, Size,
+    BufferId, Col, CompletionItem, Direction, Line, Mode, NamespaceId, Offset, Operator, Point,
+    PointRange, PositionEncoding, Size, ViewGroupId, ViewId,
 };
 pub use zi_language_service::lsp_types::Url;
 pub use zi_language_service::LanguageService;
@@ -45,9 +45,7 @@ pub use zi_text::{
 };
 pub use zi_textobject::motion;
 
-pub use self::buffer::{
-    BufferFlags, BufferId, Mark, MarkBuilder, MarkId, PickerBuffer, TextBuffer,
-};
+pub use self::buffer::{BufferFlags, Mark, MarkBuilder, MarkId, PickerBuffer, TextBuffer};
 pub use self::command::{Command, Commands};
 pub use self::completion::{CompletionParams, CompletionProvider};
 pub use self::config::Setting;
@@ -56,9 +54,9 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
-pub use self::namespace::{Namespace, NamespaceId};
+pub use self::namespace::Namespace;
 pub use self::syntax::Syntax;
-pub use self::view::{VerticalAlignment, View, ViewId};
+pub use self::view::{VerticalAlignment, View};
 // pub use self::wit::zi::api::editor::{Mode, Operator};
 
 pub type Error = anyhow::Error;

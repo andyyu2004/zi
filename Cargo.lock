@@ -3747,6 +3747,7 @@ dependencies = [
  "arbitrary",
  "expect-test",
  "parking_lot",
+ "slotmap",
  "stdx",
  "tree-sitter",
  "zi-tui",

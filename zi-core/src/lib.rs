@@ -39,3 +39,10 @@ pub enum Operator {
     Change,
     Yank,
 }
+
+slotmap::new_key_type! {
+    pub struct ViewId;
+    pub struct ViewGroupId;
+    pub struct BufferId;
+    pub struct NamespaceId;
+}

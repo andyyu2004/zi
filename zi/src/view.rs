@@ -1,13 +1,13 @@
 use std::cell::Cell;
 
+use slotmap::Key;
 use tui::LineNumberStyle;
-use zi_core::{Offset, Size};
+use zi_core::{Offset, Size, ViewGroupId, ViewId};
 use zi_text::{self, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
 use crate::config::Setting;
 use crate::editor::{Resource, Selector};
-use crate::private::Sealed;
 use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
 
 /// View-local configuration
@@ -25,11 +25,6 @@ impl Default for Settings {
             line_number_style: Setting::new(LineNumberStyle::Absolute),
         }
     }
-}
-
-slotmap::new_key_type! {
-    pub struct ViewId;
-    pub struct ViewGroupId;
 }
 
 bitflags::bitflags! {
@@ -50,8 +45,6 @@ pub enum VerticalAlignment {
     Center,
     Bottom,
 }
-
-impl Sealed for ViewId {}
 
 impl Selector<Self> for ViewId {
     fn select(&self, _: &Editor) -> Self {
@@ -86,8 +79,6 @@ pub struct View {
     /// This value should be updated when rendering the view.
     pub(crate) number_width: Cell<u16>,
 }
-
-impl Sealed for View {}
 
 impl Selector<ViewId> for View {
     #[inline]
@@ -504,7 +495,7 @@ impl View {
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
         Self {
             id,
-            url: Url::parse(&format!("view://{}", id.0.as_ffi())).unwrap(),
+            url: Url::parse(&format!("view://{}", id.data().as_ffi())).unwrap(),
             buf,
             number_width: Cell::new(0),
             settings: Default::default(),

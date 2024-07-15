@@ -59,14 +59,12 @@ use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-// use crate::plugin::Plugins;
-use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
-use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
+use crate::view::{SetCursorFlags, ViewGroup};
 use crate::{
     event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageService,
     LanguageServiceId, Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url,
-    VerticalAlignment, View, ViewId,
+    VerticalAlignment, View, ViewGroupId, ViewId,
 };
 
 bitflags::bitflags! {
@@ -1991,7 +1989,7 @@ async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Resu
     Ok(builder.build())
 }
 
-pub trait Selector<T>: Sealed {
+pub trait Selector<T> {
     fn select(&self, editor: &Editor) -> T;
 }
 
@@ -2005,8 +2003,6 @@ where
 }
 
 pub struct Active;
-
-impl Sealed for Active {}
 
 impl Selector<ViewId> for Active {
     #[inline]

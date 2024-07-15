@@ -1,13 +1,9 @@
 use url::Url;
 use ustr::Ustr;
+use zi_core::NamespaceId;
 
 use crate::editor::{Resource, Selector};
-use crate::private::Sealed;
 use crate::Editor;
-
-slotmap::new_key_type! {
-    pub struct NamespaceId;
-}
 
 pub struct Namespace {
     id: NamespaceId,
@@ -27,8 +23,6 @@ impl Namespace {
         self.name
     }
 }
-
-impl Sealed for NamespaceId {}
 
 impl Selector<NamespaceId> for NamespaceId {
     fn select(&self, _editor: &Editor) -> NamespaceId {

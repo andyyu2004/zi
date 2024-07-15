@@ -10,6 +10,7 @@ tree-sitter = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 parking_lot = { workspace = true }
+slotmap = { workspace = true }
 
 [dev-dependencies]
 expect-test = { workspace = true }

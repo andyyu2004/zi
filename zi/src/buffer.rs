@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use unicode_width::UnicodeWidthChar;
+use zi_core::BufferId;
 use zi_text::{AnyText, Delta, Deltas};
 
 pub use self::explorer::ExplorerBuffer;
@@ -22,15 +23,9 @@ pub use self::text::TextBuffer;
 use crate::config::Setting;
 use crate::editor::{Resource, Selector};
 use crate::keymap::Keymap;
-use crate::private::{Internal, Sealed};
+use crate::private::Internal;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::{Client, Editor, FileType, Point, PointRange, Size, Url, View};
-
-slotmap::new_key_type! {
-    pub struct BufferId;
-}
-
-impl Sealed for BufferId {}
 
 impl Selector<Self> for BufferId {
     #[inline]
