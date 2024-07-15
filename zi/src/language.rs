@@ -8,9 +8,11 @@ use std::sync::OnceLock;
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use ustr::{ustr, Ustr};
+use zi_core::PositionEncoding;
+use zi_lsp::{lsp_types, LanguageServer};
 
 use crate::lsp::LanguageClient;
-use crate::Result;
+use crate::{LanguageService, Result};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileType(Ustr);
@@ -161,10 +163,7 @@ pub trait LanguageServerConfig {
         &self,
         cwd: &Path,
         client: LanguageClient,
-    ) -> zi_lsp::Result<(
-        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-        BoxFuture<'static, zi_lsp::Result<()>>,
-    )>;
+    ) -> zi_lsp::Result<(Box<dyn LanguageService>, BoxFuture<'static, zi_lsp::Result<()>>)>;
 }
 
 pub struct Config {
@@ -294,12 +293,85 @@ impl LanguageServerConfig for ExecutableLanguageServerConfig {
         &self,
         cwd: &Path,
         client: LanguageClient,
-    ) -> zi_lsp::Result<(
-        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-        BoxFuture<'static, zi_lsp::Result<()>>,
-    )> {
+    ) -> zi_lsp::Result<(Box<dyn LanguageService>, BoxFuture<'static, zi_lsp::Result<()>>)> {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
         let (server, fut) = zi_lsp::Server::start(client, cwd, &self.command, &self.args[..])?;
         Ok((Box::new(server), Box::pin(fut)))
+    }
+}
+
+use crate::language_service::ResponseFuture as ResFut;
+
+impl LanguageService for zi_lsp::Server {
+    fn initialize(
+        &mut self,
+        params: lsp_types::InitializeParams,
+    ) -> ResFut<lsp_types::InitializeResult> {
+        let fut = (**self).initialize(params);
+        Box::pin(async move { Ok(fut.await?) })
+    }
+
+    fn position_encoding(&self) -> PositionEncoding {
+        todo!()
+    }
+
+    fn capabilities(&self) -> &lsp_types::ServerCapabilities {
+        todo!()
+    }
+
+    fn formatting(
+        &mut self,
+        params: lsp_types::DocumentFormattingParams,
+    ) -> ResFut<Option<Vec<lsp_types::TextEdit>>> {
+        todo!()
+    }
+
+    fn definition(
+        &mut self,
+        params: lsp_types::GotoDefinitionParams,
+    ) -> ResFut<Option<lsp_types::GotoDefinitionResponse>> {
+        todo!()
+    }
+
+    fn type_definition(
+        &mut self,
+        params: lsp_types::GotoDefinitionParams,
+    ) -> ResFut<Option<lsp_types::GotoDefinitionResponse>> {
+        todo!()
+    }
+
+    fn implementation(
+        &mut self,
+        params: lsp_types::GotoDefinitionParams,
+    ) -> ResFut<Option<lsp_types::GotoDefinitionResponse>> {
+        todo!()
+    }
+
+    fn completion(
+        &mut self,
+        params: lsp_types::CompletionParams,
+    ) -> ResFut<Option<lsp_types::CompletionResponse>> {
+        todo!()
+    }
+
+    fn references(
+        &mut self,
+        params: lsp_types::ReferenceParams,
+    ) -> ResFut<Option<Vec<lsp_types::Location>>> {
+        todo!()
+    }
+
+    fn semantic_tokens_full(
+        &mut self,
+        params: lsp_types::SemanticTokensParams,
+    ) -> ResFut<Option<lsp_types::SemanticTokensResult>> {
+        todo!()
+    }
+
+    fn document_diagnostic(
+        &mut self,
+        params: lsp_types::DocumentDiagnosticParams,
+    ) -> ResFut<lsp_types::DocumentDiagnosticReportResult> {
+        todo!()
     }
 }

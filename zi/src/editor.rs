@@ -59,15 +59,15 @@ use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::layout::Layer;
-use crate::lsp::LanguageServer;
+// use crate::lsp::LanguageServer;
 // use crate::plugin::Plugins;
 use crate::private::Sealed;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupId};
 use crate::{
-    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageServiceId,
-    Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url, VerticalAlignment, View,
-    ViewId,
+    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageService,
+    LanguageServiceId, Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url,
+    VerticalAlignment, View, ViewId,
 };
 
 bitflags::bitflags! {
@@ -119,7 +119,7 @@ pub struct Editor {
     pub(crate) buffers: SlotMap<BufferId, Buffer>,
     pub(crate) views: SlotMap<ViewId, View>,
     pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    pub(super) active_language_services: HashMap<LanguageServiceId, LanguageServer>,
+    pub(super) active_language_services: HashMap<LanguageServiceId, Box<dyn LanguageService>>,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -647,20 +647,20 @@ impl Editor {
     }
 
     async fn shutdown(&mut self) {
-        for mut server in mem::take(&mut self.active_language_services).into_values() {
-            // TODO shutdown concurrenly
-            if let Err(err) = server.shutdown(()).await {
-                tracing::error!("language server shutdown failed: {err}");
-            }
-
-            if let Err(err) = server.exit(()) {
-                tracing::error!("language server exit failed: {err}");
-            }
-
-            if let Err(err) = server.wait().await {
-                tracing::error!("language server wait failed: {err}");
-            }
-        }
+        // for mut server in mem::take(&mut self.active_language_services).into_values() {
+        // TODO shutdown concurrenly
+        // if let Err(err) = server.shutdown(()).await {
+        //     tracing::error!("language server shutdown failed: {err}");
+        // }
+        //
+        // if let Err(err) = server.exit(()) {
+        //     tracing::error!("language server exit failed: {err}");
+        // }
+        //
+        // if let Err(err) = server.wait().await {
+        //     tracing::error!("language server wait failed: {err}");
+        // }
+        // }
     }
 
     #[doc(hidden)]

@@ -5,8 +5,7 @@ pub mod to_proto;
 
 use std::fmt;
 use std::future::ready;
-use std::ops::{ControlFlow, Deref, DerefMut};
-use std::time::Duration;
+use std::ops::ControlFlow;
 
 use futures_core::future::BoxFuture;
 use zi_core::PositionEncoding;
@@ -15,70 +14,69 @@ use zi_lsp::lsp_types::request::Request;
 use zi_lsp::lsp_types::{self, lsp_notification, lsp_request, ClientCapabilities};
 use zi_lsp::{ErrorCode, ResponseError, Result};
 
+// pub(crate) struct LanguageServer {
+//     pub capabilities: lsp_types::ServerCapabilities,
+//     /// The version of the last document that was synchronized with the server.
+//     pub last_version_sync: Option<i32>,
+//     handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
+//     // Storing this odd type to allow for a test implementation.
+//     // The `DerefMut` is useful to make it easy to delegate the actual server implementation to an inner type.
+//     server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+//     position_encoding: PositionEncoding,
+// }
+//
+// impl LanguageServer {
+//     pub(crate) fn new(
+//         capabilities: lsp_types::ServerCapabilities,
+//         handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
+//         server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
+//     ) -> Self {
+//         let position_encoding = match &capabilities.position_encoding {
+//             Some(encoding) => match encoding {
+//                 enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
+//                 enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
+//                 _ => {
+//                     tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+//                     PositionEncoding::default()
+//                 }
+//             },
+//             None => {
+//                 tracing::warn!("server did not return position encoding, defaulting to UTF-16");
+//                 PositionEncoding::default()
+//             }
+//         };
+//
+//         Self { capabilities, handle, server, position_encoding, last_version_sync: None }
+//     }
+//
+//     pub(crate) fn position_encoding(&self) -> PositionEncoding {
+//         self.position_encoding
+//     }
+//
+//     /// Wait for the language server to finish.
+//     /// This assumes that `shutdown` has been requested.
+//     pub(crate) async fn wait(self) -> crate::Result<()> {
+//         self.handle.abort();
+//         Ok(tokio::time::timeout(Duration::from_millis(50), self.handle).await???)
+//     }
+// }
+//
+// impl Deref for LanguageServer {
+//     type Target = zi_lsp::DynLanguageServer;
+//
+//     #[inline]
+//     fn deref(&self) -> &Self::Target {
+//         &*self.server
+//     }
+// }
+//
+// impl DerefMut for LanguageServer {
+//     #[inline]
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut *self.server
+//     }
+// }
 use crate::{lsp, Client, LanguageServiceId};
-
-pub(crate) struct LanguageServer {
-    pub capabilities: lsp_types::ServerCapabilities,
-    /// The version of the last document that was synchronized with the server.
-    pub last_version_sync: Option<i32>,
-    handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
-    // Storing this odd type to allow for a test implementation.
-    // The `DerefMut` is useful to make it easy to delegate the actual server implementation to an inner type.
-    server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-    position_encoding: PositionEncoding,
-}
-
-impl LanguageServer {
-    pub(crate) fn new(
-        capabilities: lsp_types::ServerCapabilities,
-        handle: tokio::task::JoinHandle<zi_lsp::Result<()>>,
-        server: Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-    ) -> Self {
-        let position_encoding = match &capabilities.position_encoding {
-            Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
-                _ => {
-                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
-                    PositionEncoding::default()
-                }
-            },
-            None => {
-                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
-                PositionEncoding::default()
-            }
-        };
-
-        Self { capabilities, handle, server, position_encoding, last_version_sync: None }
-    }
-
-    pub(crate) fn position_encoding(&self) -> PositionEncoding {
-        self.position_encoding
-    }
-
-    /// Wait for the language server to finish.
-    /// This assumes that `shutdown` has been requested.
-    pub(crate) async fn wait(self) -> crate::Result<()> {
-        self.handle.abort();
-        Ok(tokio::time::timeout(Duration::from_millis(50), self.handle).await???)
-    }
-}
-
-impl Deref for LanguageServer {
-    type Target = zi_lsp::DynLanguageServer;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &*self.server
-    }
-}
-
-impl DerefMut for LanguageServer {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.server
-    }
-}
 
 pub struct LanguageClient {
     for_server: LanguageServiceId,

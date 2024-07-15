@@ -23,11 +23,11 @@ impl Editor {
                                 active_servers_of!(editor, event.buf).find_map(|server_id| {
                                     let server =
                                         editor.active_language_services.get_mut(server_id).unwrap();
-                                    match server.capabilities.document_formatting_provider {
+                                    match server.capabilities().document_formatting_provider {
                                         Some(
                                             lsp_types::OneOf::Left(true)
                                             | lsp_types::OneOf::Right(_),
-                                        ) => Some((server.position_encoding(),server.formatting(
+                                        ) => Some((server.position_encoding(), server.formatting(
                                             lsp_types::DocumentFormattingParams {
                                                 text_document: lsp_types::TextDocumentIdentifier {
                                                     uri: uri.clone(),
@@ -94,22 +94,22 @@ impl Editor {
         server_id: LanguageServiceId,
     ) -> impl EventHandler<Event = event::DidOpenBuffer> {
         event::handler::<event::DidOpenBuffer>(move |editor, event| {
-            let buf = &editor.buffers[event.buf];
-            if let (Some(server), Some(uri)) =
-                (editor.active_language_services.get_mut(&server_id), buf.file_url())
-            {
-                tracing::debug!(?event, ?server_id, "lsp buffer did open");
-                server
-                    .did_open(lsp_types::DidOpenTextDocumentParams {
-                        text_document: lsp_types::TextDocumentItem {
-                            uri: uri.clone(),
-                            language_id: buf.file_type().to_string(),
-                            version: buf.version() as i32,
-                            text: buf.text().to_string(),
-                        },
-                    })
-                    .expect("lsp did_open failed");
-            }
+            // let buf = &editor.buffers[event.buf];
+            // if let (Some(server), Some(uri)) =
+            //     (editor.active_language_services.get_mut(&server_id), buf.file_url())
+            // {
+            //     tracing::debug!(?event, ?server_id, "lsp buffer did open");
+            // server
+            //     .did_open(lsp_types::DidOpenTextDocumentParams {
+            //         text_document: lsp_types::TextDocumentItem {
+            //             uri: uri.clone(),
+            //             language_id: buf.file_type().to_string(),
+            //             version: buf.version() as i32,
+            //             text: buf.text().to_string(),
+            //         },
+            //     })
+            //     .expect("lsp did_open failed");
+            // }
 
             event::HandlerResult::Continue
         })
@@ -235,56 +235,56 @@ impl Editor {
                     return event::HandlerResult::Continue;
                 }
 
-                let encoding = server.position_encoding();
+                // let encoding = server.position_encoding();
+                //
+                // let kind = match &server.capabilities().text_document_sync {
+                //     Some(cap) => match cap {
+                //         lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
+                //         lsp_types::TextDocumentSyncCapability::Options(opts) => {
+                //             match &opts.change {
+                //                 Some(kind) => kind,
+                //                 None => return event::HandlerResult::Continue,
+                //             }
+                //         }
+                //     },
+                //     None => return event::HandlerResult::Continue,
+                // };
+                //
+                // tracing::debug!(%uri, ?server_id, "lsp did_change");
+                // let version = buf.version() as i32;
+                // let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
-                let kind = match &server.capabilities.text_document_sync {
-                    Some(cap) => match cap {
-                        lsp_types::TextDocumentSyncCapability::Kind(kind) => kind,
-                        lsp_types::TextDocumentSyncCapability::Options(opts) => {
-                            match &opts.change {
-                                Some(kind) => kind,
-                                None => return event::HandlerResult::Continue,
-                            }
-                        }
-                    },
-                    None => return event::HandlerResult::Continue,
-                };
-
-                tracing::debug!(%uri, ?server_id, "lsp did_change");
-                let version = buf.version() as i32;
-                let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
-
-                let content_changes = match *kind {
-                    lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        if server.last_version_sync == version.checked_sub(1) {
-                            to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
-                        } else {
-                            // If a version is skipped somehow, send the full text.
-                            vec![lsp_types::TextDocumentContentChangeEvent {
-                                range: None,
-                                range_length: None,
-                                text: buf.text().to_string(),
-                            }]
-                        }
-                    }
-                    lsp_types::TextDocumentSyncKind::FULL => {
-                        vec![lsp_types::TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text: buf.text().to_string(),
-                        }]
-                    }
-                    lsp_types::TextDocumentSyncKind::NONE => return event::HandlerResult::Continue,
-                    _ => unreachable!("invalid text document sync kind: {kind:?}"),
-                };
-
-                match server.did_change(lsp_types::DidChangeTextDocumentParams {
-                    text_document,
-                    content_changes,
-                }) {
-                    Ok(_) => server.last_version_sync = Some(version),
-                    Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
-                }
+                // let content_changes = match *kind {
+                //     lsp_types::TextDocumentSyncKind::INCREMENTAL => {
+                //         if server.last_version_sync == version.checked_sub(1) {
+                //             to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
+                //         } else {
+                //             // If a version is skipped somehow, send the full text.
+                //             vec![lsp_types::TextDocumentContentChangeEvent {
+                //                 range: None,
+                //                 range_length: None,
+                //                 text: buf.text().to_string(),
+                //             }]
+                //         }
+                //     }
+                //     lsp_types::TextDocumentSyncKind::FULL => {
+                //         vec![lsp_types::TextDocumentContentChangeEvent {
+                //             range: None,
+                //             range_length: None,
+                //             text: buf.text().to_string(),
+                //         }]
+                //     }
+                //     lsp_types::TextDocumentSyncKind::NONE => return event::HandlerResult::Continue,
+                //     _ => unreachable!("invalid text document sync kind: {kind:?}"),
+                // };
+                //
+                // match server.did_change(lsp_types::DidChangeTextDocumentParams {
+                //     text_document,
+                //     content_changes,
+                // }) {
+                //     Ok(_) => server.last_version_sync = Some(version),
+                //     Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
+                // }
             }
 
             event::HandlerResult::Continue

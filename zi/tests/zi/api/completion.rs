@@ -17,7 +17,7 @@ impl zi::CompletionProvider for Completions {
         &self,
         _editor: &mut zi::Editor,
         _params: zi::CompletionParams,
-    ) -> BoxFuture<'static, zi_lsp::Result<Vec<zi::CompletionItem>>> {
+    ) -> BoxFuture<'static, zi::Result<Vec<zi::CompletionItem>>> {
         Box::pin(async move { Ok(items()) })
     }
 }

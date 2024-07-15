@@ -39,10 +39,8 @@ impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServer
         &self,
         _cwd: &Path,
         _client: zi::lsp::LanguageClient,
-    ) -> zi_lsp::Result<(
-        Box<dyn DerefMut<Target = zi_lsp::DynLanguageServer> + Send>,
-        BoxFuture<'static, zi_lsp::Result<()>>,
-    )> {
+    ) -> zi_lsp::Result<(Box<dyn zi::LanguageService>, BoxFuture<'static, zi_lsp::Result<()>>)>
+    {
         let server = Box::new(FakeLanguageServer {
             handlers: Arc::clone(&self.handlers),
             state: self.init_state.clone(),

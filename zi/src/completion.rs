@@ -7,14 +7,15 @@ use nucleo::Utf32Str;
 use zi_core::{CompletionItem, Point};
 use zi_text::{Delta, DeltaRange};
 
-use crate::{BufferId, Editor};
+use crate::{BufferId, Editor, Result};
 
+// FIXME this can maybe merge with `LanguageService` now
 pub trait CompletionProvider: Send + Sync + 'static {
     fn completions(
         &self,
         editor: &mut Editor,
         params: CompletionParams,
-    ) -> BoxFuture<'static, zi_lsp::Result<Vec<CompletionItem>>>;
+    ) -> BoxFuture<'static, Result<Vec<CompletionItem>>>;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

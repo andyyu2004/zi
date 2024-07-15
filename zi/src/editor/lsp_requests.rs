@@ -12,8 +12,10 @@ use zi_lsp::lsp_types::{self, OneOf, Url};
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
-use crate::lsp::{self, from_proto, to_proto, LanguageClient, LanguageServer};
-use crate::{BufferId, Editor, FileType, LanguageServiceId, Location, OpenFlags, ViewId};
+use crate::lsp::{self, from_proto, to_proto, LanguageClient};
+use crate::{
+    BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
+};
 
 impl Editor {
     pub fn goto_definition(
@@ -168,13 +170,13 @@ impl Editor {
         desc: &'static str,
         view: ViewId,
         has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
-        f: impl FnOnce(&mut LanguageServer, lsp_types::GotoDefinitionParams) -> Fut,
+        f: impl FnOnce(&mut dyn LanguageService, lsp_types::GotoDefinitionParams) -> Fut,
     ) -> impl Future<Output = Result<(PositionEncoding, lsp_types::GotoDefinitionResponse)>> + 'static
     where
-        Fut: Future<Output = zi_lsp::Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
+        Fut: Future<Output = Result<Option<lsp_types::GotoDefinitionResponse>>> + 'static,
     {
         let res = active_servers_of!(self, view)
-            .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities))
+            .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities()))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
                 let uri = buf.file_url()?;
@@ -183,7 +185,7 @@ impl Editor {
                 let encoding = server.position_encoding();
                 tracing::debug!(%uri, %point, "lsp request definition");
                 let fut = f(
-                    server,
+                    server.as_mut(),
                     lsp_types::GotoDefinitionParams {
                         text_document_position_params: lsp_types::TextDocumentPositionParams {
                             text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
@@ -269,9 +271,9 @@ impl Editor {
                     move |editor, (res, mut server)| {
                         let span = tracing::info_span!("lsp initialized", %server_id);
                         let _guard = span.enter();
-                        server.initialized(lsp_types::InitializedParams {})?;
+                        // server.initialized(lsp_types::InitializedParams {})?;
 
-                        let server = LanguageServer::new(res.capabilities, handle, server);
+                        // let server = LanguageServer::new(res.capabilities, handle, server);
                         tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
 
                         assert!(
@@ -397,7 +399,7 @@ impl Editor {
     pub(crate) fn request_semantic_tokens(
         &mut self,
         selector: impl Selector<BufferId>,
-    ) -> Option<impl Future<Output = zi_lsp::Result<()>>> {
+    ) -> Option<impl Future<Output = Result<()>>> {
         let buf = selector.select(self);
 
         let buf_version = self.buffers[buf].version();
@@ -412,7 +414,7 @@ impl Editor {
 
         let Some((server, caps)) = active_servers_of!(self, buf).find_map(|&server| {
             let caps = self.active_language_services[&server]
-                .capabilities
+                .capabilities()
                 .semantic_tokens_provider
                 .clone()?;
 
@@ -458,28 +460,24 @@ impl Editor {
         };
 
         enum Res {
-            Full(BoxFuture<'static, zi_lsp::Result<Option<lsp_types::SemanticTokensResult>>>),
-            Delta(
-                BoxFuture<
-                    'static,
-                    zi_lsp::Result<Option<lsp_types::SemanticTokensFullDeltaResult>>,
-                >,
-            ),
+            Full(BoxFuture<'static, Result<Option<lsp_types::SemanticTokensResult>>>),
+            Delta(BoxFuture<'static, Result<Option<lsp_types::SemanticTokensFullDeltaResult>>>),
         }
 
         let s = self.active_language_services.get_mut(&server).unwrap();
         let res = match (caps.full, tokens.last_request_id.clone()) {
             (
                 Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
-                Some(previous_result_id),
+                Some(_previous_result_id),
                 // `if false` here to avoid taking this branch as it's incomplete since the editing is not implemented
             ) if false => {
-                Res::Delta(s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                    previous_result_id,
-                    work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
-                }))
+                todo!();
+                // Res::Delta(s.semantic_tokens_full_delta(lsp_types::SemanticTokensDeltaParams {
+                //     text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+                //     previous_result_id,
+                //     work_done_progress_params: Default::default(),
+                //     partial_result_params: Default::default(),
+                // }))
             }
             _ => Res::Full(s.semantic_tokens_full(lsp_types::SemanticTokensParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
@@ -600,7 +598,7 @@ impl Editor {
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
                 let true = self.active_language_services[&server_id]
-                    .capabilities
+                    .capabilities()
                     .diagnostic_provider
                     .is_some()
                 else {

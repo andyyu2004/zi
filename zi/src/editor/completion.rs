@@ -12,7 +12,7 @@ use zi_text::{Delta, Deltas};
 use super::{active_servers_of, Selector, State};
 use crate::completion::{Completion, CompletionParams, CompletionProvider};
 use crate::lsp::{from_proto, to_proto};
-use crate::{Active, Editor, LanguageServiceId, ViewId};
+use crate::{Active, Editor, LanguageServiceId, Result, ViewId};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
     OnceLock::new();
@@ -64,7 +64,7 @@ impl Editor {
     pub fn request_completions(
         &mut self,
         view: impl Selector<ViewId>,
-    ) -> impl Future<Output = zi_lsp::Result<Vec<CompletionItem>>> {
+    ) -> impl Future<Output = Result<Vec<CompletionItem>>> {
         enum Provider {
             Lsp(LspCompletionProvider),
             Provider(Arc<dyn CompletionProvider>),
@@ -75,7 +75,7 @@ impl Editor {
                 &self,
                 editor: &mut Editor,
                 params: CompletionParams,
-            ) -> BoxFuture<'static, zi_lsp::Result<Vec<CompletionItem>>> {
+            ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
                 match self {
                     Provider::Lsp(provider) => provider.completions(editor, params),
                     Provider::Provider(provider) => provider.completions(editor, params),
@@ -87,7 +87,10 @@ impl Editor {
         let buf = self[view].buffer();
         let providers = active_servers_of!(self, buf)
             .filter_map(|&server| {
-                self.active_language_services[&server].capabilities.completion_provider.clone()?;
+                self.active_language_services[&server]
+                    .capabilities()
+                    .completion_provider
+                    .clone()?;
                 Some(Provider::Lsp(LspCompletionProvider { server }))
             })
             .chain(
@@ -127,7 +130,7 @@ impl CompletionProvider for LspCompletionProvider {
         &self,
         editor: &mut Editor,
         params: CompletionParams,
-    ) -> BoxFuture<'static, zi_lsp::Result<Vec<CompletionItem>>> {
+    ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
         use zi_lsp::lsp_types;
 
         let buf = params.buf;
