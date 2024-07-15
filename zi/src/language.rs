@@ -124,7 +124,7 @@ impl fmt::Display for LanguageServiceId {
 
 #[derive(Default)]
 pub struct Config {
-    pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
+    pub languages: BTreeMap<FileType, LanguageConfig>,
     pub(crate) language_services:
         BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig + Send>>,
 }
@@ -166,7 +166,7 @@ impl Config {
 
 #[derive(Debug, Default)]
 pub struct LanguageConfig {
-    pub(crate) language_services: Box<[LanguageServiceId]>,
+    pub language_services: Box<[LanguageServiceId]>,
 }
 
 impl LanguageConfig {

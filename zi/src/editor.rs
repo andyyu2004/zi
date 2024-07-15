@@ -111,12 +111,12 @@ pub trait Backend: Send + Sync + 'static {
 }
 
 pub struct Editor {
-    // pub(crate) to allow `active!` macro to access it
-    pub(crate) buffers: SlotMap<BufferId, Buffer>,
-    pub(crate) views: SlotMap<ViewId, View>,
-    pub(crate) view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    pub(super) active_language_services:
-        HashMap<LanguageServiceId, Box<dyn LanguageService + Send>>,
+    // Making this public to allow for disjoint mutable borrows to avoid pain.
+    pub buffers: SlotMap<BufferId, Buffer>,
+    pub views: SlotMap<ViewId, View>,
+    pub view_groups: SlotMap<ViewGroupId, ViewGroup>,
+    pub active_language_services: HashMap<LanguageServiceId, Box<dyn LanguageService + Send>>,
+    pub language_config: language::Config,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -129,10 +129,9 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     theme: Theme,
-    active_language_servers_for_ft: HashMap<FileType, Vec<LanguageServiceId>>,
+    active_language_services_by_ft: HashMap<FileType, Vec<LanguageServiceId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
-    language_config: language::Config,
     tree: layout::ViewTree,
     /// error to be displayed in the status line
     status_error: Option<String>,
@@ -269,7 +268,7 @@ macro_rules! active_servers_of {
     ($editor:ident, $selector:expr) => {{
         let buf = $selector.select($editor);
         $editor
-            .active_language_servers_for_ft
+            .active_language_services_by_ft
             .get(&$editor.buffers[buf].file_type())
             .map_or(&[][..], |s| &s[..])
             .iter()
@@ -451,7 +450,7 @@ impl Editor {
             view_groups: Default::default(),
             language_config: Default::default(),
             active_language_services: Default::default(),
-            active_language_servers_for_ft: Default::default(),
+            active_language_services_by_ft: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
             theme: Default::default(),

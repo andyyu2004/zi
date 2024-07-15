@@ -251,7 +251,11 @@ impl Editor {
                 let workspace_root = self.lsp_workspace_root(server_id);
                 let (mut service, fut) =
                     self.language_config.language_services[&server_id].spawn(&root_path, client)?;
-                let handle = tokio::spawn(fut);
+                let _handle = tokio::spawn(async move {
+                    if let Err(err) = fut.await {
+                        tracing::error!(?err, "language server died")
+                    }
+                });
 
                 callback(
                     &self.callbacks_tx,
@@ -268,32 +272,24 @@ impl Editor {
 
                         Ok((res, service))
                     },
-                    move |editor, (_res, mut server)| {
+                    move |editor, (_res, mut service)| {
                         let span = tracing::info_span!("language service initialized", %server_id);
                         let _guard = span.enter();
-                        server.initialized();
+                        service.initialized();
 
-                        tracing::info!(encoding = ?server.position_encoding(), "lsp initialized");
+                        tracing::info!(encoding = ?service.position_encoding(), "lsp initialized");
 
                         assert!(
-                            editor.active_language_services.insert(server_id, server).is_none(),
+                            editor.active_language_services.insert(server_id, service).is_none(),
                             "inserted duplicate language server"
                         );
 
                         editor
-                            .active_language_servers_for_ft
+                            .active_language_services_by_ft
                             .entry(ft)
                             .or_default()
                             .push(server_id);
 
-                        subscribe_per_server_lsp_event_handlers(server_id);
-
-                        // Must dispatch this event after the server is inserted
-                        // FIXME this is wrong to just generate an event and send it to all
-                        // language servers.
-                        // First if there are multiple iterations of this loop they will receive
-                        // the event more than once.
-                        // Second, not all languages have the same capabilities.
                         editor.dispatch(event::DidOpenBuffer { buf });
                         Ok(())
                     },
@@ -667,9 +663,4 @@ impl Editor {
             Ok(())
         }
     }
-}
-
-fn subscribe_per_server_lsp_event_handlers(server_id: LanguageServiceId) {
-    // TODO check capabilities
-    event::subscribe::<event::DidChangeBuffer>(Editor::lsp_did_change_sync(server_id));
 }
