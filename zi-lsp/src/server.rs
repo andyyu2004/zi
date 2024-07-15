@@ -102,7 +102,7 @@ where
                     return HandlerResult::Continue;
                 }
 
-                let service = downcast::<S>(service.as_mut());
+                let service = downcast::<S>(&mut **service);
 
                 let encoding = service.position_encoding();
 
@@ -244,6 +244,15 @@ where
                 PositionEncoding::default()
             }
         })
+    }
+
+    fn shutdown(&mut self) -> ResponseFuture<()> {
+        self.server.shutdown(()).map_err(Into::into).boxed()
+    }
+
+    fn exit(&mut self) -> anyhow::Result<()> {
+        self.server.exit(())?;
+        Ok(())
     }
 }
 

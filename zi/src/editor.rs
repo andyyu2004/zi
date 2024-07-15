@@ -57,6 +57,7 @@ use crate::completion::Completion;
 use crate::event::EventHandler;
 use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
+use crate::language_service::LanguageServiceInstance;
 use crate::layout::Layer;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup};
@@ -115,7 +116,7 @@ pub struct Editor {
     pub buffers: SlotMap<BufferId, Buffer>,
     pub views: SlotMap<ViewId, View>,
     pub view_groups: SlotMap<ViewGroupId, ViewGroup>,
-    pub active_language_services: HashMap<LanguageServiceId, Box<dyn LanguageService + Send>>,
+    pub active_language_services: HashMap<LanguageServiceId, LanguageServiceInstance>,
     pub language_config: language::Config,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
@@ -476,7 +477,7 @@ impl Editor {
         &mut self,
         id: LanguageServiceId,
     ) -> Option<&mut (dyn LanguageService + Send + 'static)> {
-        self.active_language_services.get_mut(&id).map(|s| s.as_mut())
+        self.active_language_services.get_mut(&id).map(|s| &mut **s)
     }
 
     pub fn client(&self) -> Client {
@@ -650,20 +651,16 @@ impl Editor {
     }
 
     async fn shutdown(&mut self) {
-        // for mut server in mem::take(&mut self.active_language_services).into_values() {
-        // TODO shutdown concurrenly
-        // if let Err(err) = server.shutdown(()).await {
-        //     tracing::error!("language server shutdown failed: {err}");
-        // }
-        //
-        // if let Err(err) = server.exit(()) {
-        //     tracing::error!("language server exit failed: {err}");
-        // }
-        //
-        // if let Err(err) = server.wait().await {
-        //     tracing::error!("language server wait failed: {err}");
-        // }
-        // }
+        for mut server in mem::take(&mut self.active_language_services).into_values() {
+            // TODO shutdown concurrently
+            if let Err(err) = server.shutdown().await {
+                tracing::error!("language server shutdown failed: {err}");
+            }
+
+            if let Err(err) = server.wait().await {
+                tracing::error!("language server wait failed: {err}");
+            }
+        }
     }
 
     #[doc(hidden)]

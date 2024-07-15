@@ -12,6 +12,7 @@ use zi_core::{EncodedPoint, Point, PositionEncoding};
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
+use crate::language_service::LanguageServiceInstance;
 use crate::lsp::{self, from_proto, to_proto, LanguageClient};
 use crate::{
     BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
@@ -185,7 +186,7 @@ impl Editor {
                 let encoding = server.position_encoding();
                 tracing::debug!(%uri, %point, "lsp request definition");
                 let fut = f(
-                    server.as_mut(),
+                    &mut **server,
                     lsp_types::GotoDefinitionParams {
                         text_document_position_params: lsp_types::TextDocumentPositionParams {
                             text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
@@ -249,13 +250,10 @@ impl Editor {
                 let client = Box::new(LanguageClient::new(server_id, self.client()));
                 let root_path = self.lsp_root_path(server_id);
                 let workspace_root = self.lsp_workspace_root(server_id);
-                let (mut service, fut) =
+                let (service, fut) =
                     self.language_config.language_services[&server_id].spawn(&root_path, client)?;
-                let _handle = tokio::spawn(async move {
-                    if let Err(err) = fut.await {
-                        tracing::error!(?err, "language server died")
-                    }
-                });
+                let handle = tokio::spawn(fut);
+                let mut service = LanguageServiceInstance::new(service, handle);
 
                 callback(
                     &self.callbacks_tx,

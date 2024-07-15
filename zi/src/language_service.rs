@@ -1,5 +1,7 @@
 use std::any::Any;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures_core::future::BoxFuture;
@@ -10,6 +12,41 @@ pub use zi_core::PositionEncoding;
 use crate::LanguageServiceId;
 
 pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
+
+pub struct LanguageServiceInstance {
+    service: Box<dyn LanguageService + Send>,
+    handle: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl LanguageServiceInstance {
+    pub(crate) fn new(
+        service: Box<dyn LanguageService + Send>,
+        handle: tokio::task::JoinHandle<Result<()>>,
+    ) -> Self {
+        Self { service, handle }
+    }
+
+    pub(crate) async fn wait(self) -> Result<()> {
+        self.handle.abort();
+        Ok(tokio::time::timeout(Duration::from_millis(50), self.handle).await???)
+    }
+}
+
+impl Deref for LanguageServiceInstance {
+    type Target = dyn LanguageService + Send;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &*self.service
+    }
+}
+
+impl DerefMut for LanguageServiceInstance {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.service
+    }
+}
 
 /// An abstraction of language server requests. Notifications are handled via the event system.
 pub trait LanguageService {
@@ -69,6 +106,10 @@ pub trait LanguageService {
     fn capabilities(&self) -> &lsp_types::ServerCapabilities;
 
     fn position_encoding(&self) -> PositionEncoding;
+
+    fn shutdown(&mut self) -> ResponseFuture<()>;
+
+    fn exit(&mut self) -> Result<()>;
 }
 
 /// A client to the editor for the language server.
