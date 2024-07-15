@@ -3724,6 +3724,7 @@ dependencies = [
  "tracing",
  "tree-sitter",
  "unicode-width",
+ "url",
  "ustr",
  "zi",
  "zi-core",
@@ -3783,6 +3784,7 @@ dependencies = [
 name = "zi-lsp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-lsp",
  "async-process",
  "futures-util",

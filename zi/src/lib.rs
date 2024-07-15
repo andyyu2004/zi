@@ -38,8 +38,8 @@ pub use zi_core::{
     Col, CompletionItem, Direction, Line, Mode, Offset, Operator, Point, PointRange,
     PositionEncoding, Size,
 };
+pub use zi_language_service::lsp_types::Url;
 pub use zi_language_service::LanguageService;
-pub use zi_lsp::lsp_types::Url;
 pub use zi_text::{
     deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Text, TextMut, TextSlice,
 };
@@ -55,7 +55,7 @@ pub use self::editor::{
     Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks,
 };
 pub(crate) use self::jump::JumpList;
-pub use self::language::{FileType, LanguageConfig, LanguageServerConfig, LanguageServiceId};
+pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
 pub use self::namespace::{Namespace, NamespaceId};
 pub use self::syntax::Syntax;
 pub use self::view::{VerticalAlignment, View, ViewId};

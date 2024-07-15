@@ -37,7 +37,7 @@ use tokio::sync::{oneshot, Notify};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
-use zi_lsp::lsp_types;
+use zi_language_service::lsp_types;
 use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
@@ -525,7 +525,7 @@ impl Editor {
         &mut self,
         path: impl AsRef<Path>,
         open_flags: OpenFlags,
-    ) -> io::Result<impl Future<Output = Result<BufferId, zi_lsp::Error>> + 'static> {
+    ) -> io::Result<impl Future<Output = Result<BufferId>> + 'static> {
         let theme = self.theme.clone();
         let mut path = path.as_ref().to_path_buf();
         self.check_open(&mut path, open_flags)?;
@@ -616,7 +616,7 @@ impl Editor {
                         editor.spawn_language_servers_for_ft(buf, ft)?;
                     }
 
-                    Ok::<_, zi_lsp::Error>(())
+                    Ok::<_, Error>(())
                 })
                 .await?;
 

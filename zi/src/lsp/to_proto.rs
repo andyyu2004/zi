@@ -1,5 +1,5 @@
 use zi_core::{Point, PointRange, PositionEncoding};
-use zi_lsp::lsp_types;
+use zi_language_service::lsp_types;
 use zi_text::{Deltas, Text};
 
 // For some reason, LSP defines change events that are distinct from `TextEdit`s.

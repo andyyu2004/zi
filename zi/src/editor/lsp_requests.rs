@@ -8,7 +8,7 @@ use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use zi_core::{EncodedPoint, Point, PositionEncoding};
-use zi_lsp::lsp_types::{self, OneOf, Url};
+use zi_language_service::lsp_types::{self, OneOf, Url};
 
 use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
@@ -238,7 +238,7 @@ impl Editor {
         &mut self,
         buf: BufferId,
         ft: FileType,
-    ) -> zi_lsp::Result<()> {
+    ) -> Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
             for server_id in config.language_services.iter().cloned() {
                 if self.active_language_services.contains_key(&server_id) {
@@ -246,7 +246,7 @@ impl Editor {
                     continue;
                 }
 
-                let client = LanguageClient::new(server_id, self.client());
+                let client = Box::new(LanguageClient::new(server_id, self.client()));
                 let root_path = self.lsp_root_path(server_id);
                 let workspace_root = self.lsp_workspace_root(server_id);
                 let (mut service, fut) =

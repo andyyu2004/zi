@@ -10,6 +10,7 @@ use std::future::IntoFuture;
 use std::io;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use expect_test::{expect, Expect};
 use futures_util::future::BoxFuture;
 use stdx::bomb::DropBomb;
@@ -36,7 +37,7 @@ impl TestContext {
         &self,
         path: impl Into<PathBuf>,
         flags: zi::OpenFlags,
-    ) -> zi_lsp::Result<zi::BufferId> {
+    ) -> Result<zi::BufferId> {
         let path = path.into();
         self.with(move |editor| editor.open(path, flags)).await?.await
     }

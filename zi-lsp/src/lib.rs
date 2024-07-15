@@ -1,6 +1,7 @@
-mod adaptor;
+mod client;
+mod server;
 
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io;
 use std::ops::ControlFlow;
@@ -15,11 +16,15 @@ pub use async_lsp::{
     lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
     ServerSocket,
 };
+use futures_util::future::BoxFuture;
+use futures_util::TryFutureExt;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
+use zi_language_service::{LanguageService, LanguageServiceConfig};
 
-pub use self::adaptor::ToLanguageService;
+use self::client::ToLanguageClient;
+pub use self::server::ToLanguageService;
 
 pub fn start<C>(
     client: C,
@@ -70,4 +75,30 @@ where
 
         main_loop.run_buffered(stdout, stdin).await
     }))
+}
+
+#[derive(Debug)]
+pub struct LanguageServerConfig {
+    pub command: OsString,
+    pub args: Box<[OsString]>,
+}
+
+impl LanguageServerConfig {
+    pub fn new(command: impl Into<OsString>, args: impl IntoIterator<Item = OsString>) -> Self {
+        Self { command: command.into(), args: args.into_iter().collect() }
+    }
+}
+
+impl LanguageServiceConfig for LanguageServerConfig {
+    fn spawn(
+        &self,
+        cwd: &Path,
+        client: Box<dyn zi_language_service::LanguageClient>,
+    ) -> anyhow::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
+    {
+        tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
+        let (server, fut) =
+            start(ToLanguageClient::new(client), cwd, &self.command, &self.args[..])?;
+        Ok((Box::new(ToLanguageService::new(server)), Box::pin(fut.map_err(Into::into))))
+    }
 }

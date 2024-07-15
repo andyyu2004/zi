@@ -7,9 +7,10 @@ use std::sync::Arc;
 use futures_core::future::BoxFuture;
 use futures_core::Future;
 use serde_json::Value;
-use zi_lsp::lsp_types::notification::Notification;
-use zi_lsp::lsp_types::request::Request;
-use zi_lsp::lsp_types::{lsp_notification, lsp_request};
+use zi_language_service::lsp_types::notification::Notification;
+use zi_language_service::lsp_types::request::Request;
+use zi_language_service::lsp_types::{lsp_notification, lsp_request};
+use zi_language_service::LanguageClient;
 use zi_lsp::{ErrorCode, LanguageServer, ResponseError, Result};
 
 pub struct FakeLanguageServerBuilder<St> {
@@ -33,12 +34,14 @@ impl<St: Default> Default for FakeLanguageServerTemplate<St> {
     }
 }
 
-impl<St: Clone + Send + 'static> zi::LanguageServerConfig for FakeLanguageServerTemplate<St> {
+impl<St: Clone + Send + 'static> zi_language_service::LanguageServiceConfig
+    for FakeLanguageServerTemplate<St>
+{
     fn spawn(
         &self,
         _cwd: &Path,
-        _client: zi::lsp::LanguageClient,
-    ) -> zi_lsp::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, zi_lsp::Result<()>>)>
+        _client: Box<dyn LanguageClient>,
+    ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         let server = FakeLanguageServer {
             handlers: Arc::clone(&self.handlers),

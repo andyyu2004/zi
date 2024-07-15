@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
-use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
 use std::sync::OnceLock;
 
 use anyhow::bail;
-use futures_core::future::BoxFuture;
 use ustr::{ustr, Ustr};
+use zi_language_service::LanguageServiceConfig;
+use zi_lsp::LanguageServerConfig;
 
 use crate::lsp::LanguageClient;
 use crate::{LanguageService, Result};
@@ -152,26 +152,16 @@ impl fmt::Display for LanguageServiceId {
     }
 }
 
-pub trait LanguageServerConfig {
-    /// Spawn a new language server instance.
-    /// Returns a boxed language server client and a future to spawn to run the server.
-    #[allow(clippy::type_complexity)]
-    fn spawn(
-        &self,
-        cwd: &Path,
-        client: LanguageClient,
-    ) -> zi_lsp::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, zi_lsp::Result<()>>)>;
-}
-
 pub struct Config {
     pub(crate) languages: BTreeMap<FileType, LanguageConfig>,
-    pub(crate) language_services: BTreeMap<LanguageServiceId, Box<dyn LanguageServerConfig + Send>>,
+    pub(crate) language_services:
+        BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig + Send>>,
 }
 
 impl Config {
     pub fn new(
         languages: BTreeMap<FileType, LanguageConfig>,
-        language_servers: BTreeMap<LanguageServiceId, Box<dyn LanguageServerConfig + Send>>,
+        language_servers: BTreeMap<LanguageServiceId, Box<dyn LanguageServiceConfig + Send>>,
     ) -> Result<Self> {
         for (lang, config) in &languages {
             for server in &*config.language_services {
@@ -196,7 +186,7 @@ impl Config {
     pub fn add_language_server(
         &mut self,
         id: impl Into<LanguageServiceId>,
-        config: impl LanguageServerConfig + Send + 'static,
+        config: impl LanguageServiceConfig + Send + 'static,
     ) -> &mut Self {
         self.language_services.insert(id.into(), Box::new(config));
         self
@@ -241,19 +231,16 @@ impl Default for Config {
             [
                 (
                     language_server_id!(rust_analyzer),
-                    ExecutableLanguageServerConfig::new("ra-multiplex", []),
+                    LanguageServerConfig::new("ra-multiplex", []),
                     // ExecutableLanguageServerConfig::new("rust-analyzer", []),
                 ),
                 (
                     language_server_id!(tsserver),
-                    ExecutableLanguageServerConfig::new(
-                        "typescript-language-server",
-                        ["--stdio".into()],
-                    ),
+                    LanguageServerConfig::new("typescript-language-server", ["--stdio".into()]),
                 ),
-                (language_server_id!(gopls), ExecutableLanguageServerConfig::new("gopls", [])),
-                (language_server_id!(gqlt), ExecutableLanguageServerConfig::new("gqlt", [])),
-                (language_server_id!(clangd), ExecutableLanguageServerConfig::new("clangd", [])),
+                (language_server_id!(gopls), LanguageServerConfig::new("gopls", [])),
+                (language_server_id!(gqlt), LanguageServerConfig::new("gqlt", [])),
+                (language_server_id!(clangd), LanguageServerConfig::new("clangd", [])),
             ]
             .map(|(k, v)| (k, Box::new(v) as _)),
         );
@@ -270,30 +257,5 @@ pub struct LanguageConfig {
 impl LanguageConfig {
     pub fn new(language_servers: impl IntoIterator<Item = LanguageServiceId>) -> Self {
         Self { language_services: language_servers.into_iter().collect() }
-    }
-}
-
-#[derive(Debug)]
-pub struct ExecutableLanguageServerConfig {
-    pub command: OsString,
-    pub args: Box<[OsString]>,
-}
-
-impl ExecutableLanguageServerConfig {
-    fn new(command: impl Into<OsString>, args: impl IntoIterator<Item = OsString>) -> Self {
-        Self { command: command.into(), args: args.into_iter().collect() }
-    }
-}
-
-impl LanguageServerConfig for ExecutableLanguageServerConfig {
-    fn spawn(
-        &self,
-        cwd: &Path,
-        client: LanguageClient,
-    ) -> zi_lsp::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, zi_lsp::Result<()>>)>
-    {
-        tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        let (server, fut) = zi_lsp::start(client, cwd, &self.command, &self.args[..])?;
-        Ok((Box::new(zi_lsp::ToLanguageService::new(server)), Box::pin(fut)))
     }
 }

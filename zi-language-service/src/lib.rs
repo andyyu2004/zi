@@ -1,8 +1,10 @@
+use std::path::Path;
+
 use anyhow::Result;
 use futures_core::future::BoxFuture;
-pub use zi_core::PositionEncoding;
-
 // TODO using lsp_types for now, but should define our own interface to drop the dependency;
+pub use lsp_types;
+pub use zi_core::PositionEncoding;
 
 pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
 
@@ -58,4 +60,20 @@ pub trait LanguageService {
     fn capabilities(&self) -> &lsp_types::ServerCapabilities;
 
     fn position_encoding(&self) -> PositionEncoding;
+}
+
+/// A client to the editor for the language server.
+pub trait LanguageClient: Send {}
+
+impl<C: LanguageClient + ?Sized> LanguageClient for Box<C> {}
+
+pub trait LanguageServiceConfig {
+    /// Spawn a new language service instance.
+    /// Returns a boxed language service and a future to spawn to run the service.
+    #[allow(clippy::type_complexity)]
+    fn spawn(
+        &self,
+        cwd: &Path,
+        client: Box<dyn LanguageClient>,
+    ) -> Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, Result<()>>)>;
 }

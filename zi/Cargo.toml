@@ -35,11 +35,13 @@ arbitrary = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 grep = "0.3.1"
 async-trait = { workspace = true }
+url = { workspace = true }
 stdx = { workspace = true }
 zi-core = { workspace = true, features = ["tree-sitter"] }
 zi-language-service = { workspace = true }
 zi-marktree = { workspace = true }
 zi-indent = { workspace = true }
+# TODO this shouldn't need to depend directly on this (only on zi-language-service)
 zi-lsp = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }

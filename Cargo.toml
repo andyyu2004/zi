@@ -61,6 +61,7 @@ tokio-util = { version = "0.7.10", default-features = false }
 tree-sitter = { version = "0.22.6" }
 tracing = "0.1.40"
 ustr = "1"
+url = "2"
 wit-bindgen = "0.24.0"
 wit-bindgen-rt = "0.24.0"
 dyn-clone = "1.0.17"

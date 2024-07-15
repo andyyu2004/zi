@@ -1,5 +1,5 @@
+use url::Url;
 use ustr::Ustr;
-use zi_lsp::lsp_types::Url;
 
 use crate::editor::{Resource, Selector};
 use crate::private::Sealed;

@@ -4,7 +4,7 @@
 use zi_core::{
     CompletionItem, Diagnostic, EncodedPointRange, PointRange, PositionEncoding, Severity,
 };
-use zi_lsp::lsp_types;
+use zi_language_service::lsp_types;
 use zi_text::{Delta, Deltas, Text};
 
 use crate::Point;
