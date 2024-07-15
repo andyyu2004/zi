@@ -330,9 +330,44 @@ where
 
     fn document_diagnostic(
         &mut self,
-        params: lsp_types::DocumentDiagnosticParams,
-    ) -> ResponseFuture<lsp_types::DocumentDiagnosticReportResult> {
-        self.server.document_diagnostic(params).map_err(Into::into).boxed()
+        params: lstypes::DocumentDiagnosticParams,
+    ) -> ResponseFuture<lstypes::DocumentDiagnosticReport> {
+        let enc = self.position_encoding();
+        let text = Rope::clone(&self.text);
+        self.server
+            .document_diagnostic(lsp_types::DocumentDiagnosticParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+                identifier: None,
+                previous_result_id: None,
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .map(move |res| {
+                res.map(move |res| match res {
+                    lsp_types::DocumentDiagnosticReportResult::Report(res) => match res {
+                        lsp_types::DocumentDiagnosticReport::Full(res) => {
+                            lstypes::DocumentDiagnosticReport {
+                                diagnostics: from_proto::diagnostics(
+                                    enc,
+                                    &text,
+                                    res.full_document_diagnostic_report.items,
+                                ),
+                                // Need to open any unopened buffers and get the text to do the conversions for related documents
+                                related_documents: Default::default(),
+                            }
+                        }
+                        lsp_types::DocumentDiagnosticReport::Unchanged(_) => {
+                            lstypes::DocumentDiagnosticReport::default()
+                        }
+                    },
+                    lsp_types::DocumentDiagnosticReportResult::Partial(_res) => {
+                        // ditto: related documents unimplemented
+                        lstypes::DocumentDiagnosticReport::default()
+                    }
+                })
+            })
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn capabilities(&self) -> &lsp_types::ServerCapabilities {
@@ -372,7 +407,9 @@ fn downcast<S: 'static>(service: &mut dyn LanguageService) -> &mut ToLanguageSer
 
 mod from_proto {
     use async_lsp::lsp_types;
-    use zi::{lstypes, Delta, Deltas, Point, PointRange, PositionEncoding, Text};
+    use zi::{
+        lstypes, Delta, Deltas, Diagnostic, Point, PointRange, PositionEncoding, Severity, Text,
+    };
 
     pub fn goto_definition(
         encoding: PositionEncoding,
@@ -395,7 +432,7 @@ mod from_proto {
                         .into_iter()
                         .filter_map(|link| {
                             Some(lstypes::Location {
-                                uri: link.target_uri,
+                                url: link.target_uri,
                                 range: range(encoding, text, link.target_selection_range)?,
                             })
                         })
@@ -411,7 +448,7 @@ mod from_proto {
         text: &(impl Text + ?Sized),
         loc: lsp_types::Location,
     ) -> Option<lstypes::Location> {
-        Some(lstypes::Location { uri: loc.uri, range: range(encoding, text, loc.range)? })
+        Some(lstypes::Location { url: loc.uri, range: range(encoding, text, loc.range)? })
     }
 
     pub fn deltas(
@@ -465,6 +502,33 @@ mod from_proto {
                 Some(text.byte_to_point(byte))
             }
         }
+    }
+
+    pub fn diagnostics(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        diags: impl IntoIterator<Item = lsp_types::Diagnostic>,
+    ) -> Vec<Diagnostic> {
+        diags.into_iter().filter_map(|diag| diagnostic(encoding, text, diag)).collect()
+    }
+
+    pub fn diagnostic(
+        encoding: PositionEncoding,
+        text: &(impl Text + ?Sized),
+        diag: lsp_types::Diagnostic,
+    ) -> Option<Diagnostic> {
+        Some(Diagnostic {
+            range: range(encoding, &text, diag.range)?,
+            severity: match diag.severity {
+                Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
+                Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
+                Some(lsp_types::DiagnosticSeverity::INFORMATION) => Severity::Info,
+                Some(lsp_types::DiagnosticSeverity::HINT) => Severity::Hint,
+                // Assume error if unspecified
+                _ => Severity::Error,
+            },
+            message: diag.message,
+        })
     }
 }
 

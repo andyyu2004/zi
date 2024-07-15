@@ -95,7 +95,9 @@ pub fn client_capabilities() -> ClientCapabilities {
             type_definition: GOTO_CAPABILITY,
             implementation: GOTO_CAPABILITY,
             diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
-                related_document_support: Some(true),
+                // Can be done, but needs to open files on demand to do encoding conversions which
+                // isn't completely trivial.
+                related_document_support: Some(false),
                 ..Default::default()
             }),
             publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {

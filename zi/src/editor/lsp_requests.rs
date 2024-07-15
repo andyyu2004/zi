@@ -1,5 +1,4 @@
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -8,9 +7,9 @@ use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use lsp_types::{self, OneOf, Url};
-use zi_core::{EncodedPoint, Point, PositionEncoding};
+use zi_core::Point;
 
-use super::{active_servers_of, callback, event, get, Client, Result, Selector, SemanticTokens};
+use super::{active_servers_of, callback, event, get, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
 use crate::lsp::{self, LanguageClient};
@@ -290,7 +289,7 @@ impl Editor {
                 Err(&self.path)
             }
 
-            fn point(&self) -> Option<EncodedPoint> {
+            fn point(&self) -> Option<Point> {
                 Some(Point::new(self.line, 0).into())
             }
         }
@@ -312,7 +311,7 @@ impl Editor {
                     (1, 1),
                     move |_, injector| {
                         for location in locations {
-                            let Ok(path) = location.uri.to_file_path() else { continue };
+                            let Ok(path) = location.url.to_file_path() else { continue };
                             let entry =
                                 Entry { path, line: location.range.start().line() as usize };
                             if injector.push(entry).is_err() {
@@ -331,9 +330,9 @@ impl Editor {
         location: lstypes::Location,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
         let path = location
-            .uri
+            .url
             .to_file_path()
-            .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.uri))?;
+            .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
 
         let from = self.current_location();
         let open_fut =
@@ -515,38 +514,6 @@ impl Editor {
         let buf = selector.select(self);
         tracing::info!(?buf, "requesting diagnostics");
 
-        async fn update_related_docs(
-            client: &Client,
-            encoding: PositionEncoding,
-            related_documents: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
-        ) {
-            for (url, related) in related_documents.into_iter().flatten() {
-                let Ok(path) = url.to_file_path() else {
-                    tracing::warn!(?url, "ignoring non-file related document diagnostics");
-                    continue;
-                };
-
-                match related {
-                    lsp_types::DocumentDiagnosticReportKind::Full(report) => {
-                        client
-                            .with(move |editor| {
-                                editor.update_diagnostics(
-                                    path,
-                                    None,
-                                    report
-                                        .items
-                                        .into_iter()
-                                        .map(|diag| lsp::from_proto::diagnostic(encoding, diag))
-                                        .collect::<Box<_>>(),
-                                )
-                            })
-                            .await;
-                    }
-                    lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {}
-                }
-            }
-        }
-
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
                 let true = self.active_language_services[&server_id]
@@ -556,15 +523,10 @@ impl Editor {
                 else {
                     return None;
                 };
-                let uri = self.buffers[buf].file_url()?.clone();
+                let url = self.buffers[buf].file_url()?.clone();
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
-                let fut = server.document_diagnostic(lsp_types::DocumentDiagnosticParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri },
-                    identifier: None,
-                    previous_result_id: None,
-                    work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
-                });
+                let fut = server
+                    .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });
                 Some((server_id, fut))
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
@@ -588,32 +550,17 @@ impl Editor {
                 tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
 
                 let path = path.clone();
-                match res {
-                    lsp_types::DocumentDiagnosticReportResult::Report(report) => match report {
-                        lsp_types::DocumentDiagnosticReport::Full(report) => {
-                            client
-                                .with(move |editor| {
-                                    todo!();
-                                    // editor.update_diagnostics(
-                                    //     path,
-                                    //     None,
-                                    //     report
-                                    //         .full_document_diagnostic_report
-                                    //         .items
-                                    //         .into_iter()
-                                    //         .collect::<Box<_>>(),
-                                    // )
-                                })
-                                .await;
-
-                            // update_related_docs(&client, encoding, report.related_documents).await;
-                        }
-                        lsp_types::DocumentDiagnosticReport::Unchanged(_) => {}
-                    },
-                    lsp_types::DocumentDiagnosticReportResult::Partial(report) => {
-                        // update_related_docs(&client, encoding, report.related_documents).await;
+                client.send(move |editor| {
+                    editor.update_diagnostics(path, None, res.diagnostics);
+                    for (url, related) in res.related_documents {
+                        let Ok(path) = url.to_file_path() else {
+                            tracing::warn!(?url, "ignoring non-file related document diagnostics");
+                            continue;
+                        };
+                        editor.update_diagnostics(path, None, related)
                     }
-                }
+                    Ok(())
+                });
             }
 
             Ok(())

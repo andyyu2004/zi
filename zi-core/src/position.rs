@@ -77,69 +77,6 @@ impl PartialEq<(usize, usize)> for Offset {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct EncodedPointRange {
-    encoding: PositionEncoding,
-    range: PointRange,
-}
-
-impl EncodedPointRange {
-    #[inline]
-    pub fn new(encoding: PositionEncoding, range: PointRange) -> Self {
-        Self { encoding, range }
-    }
-
-    #[inline]
-    pub fn encoding(&self) -> PositionEncoding {
-        self.encoding
-    }
-
-    #[inline]
-    pub fn encoded_range(&self) -> PointRange {
-        self.range
-    }
-
-    #[inline]
-    pub fn start(&self) -> EncodedPoint {
-        EncodedPoint::new(self.encoding, self.range.start())
-    }
-
-    #[inline]
-    pub fn end(&self) -> EncodedPoint {
-        EncodedPoint::new(self.encoding, self.range.end())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct EncodedPoint {
-    encoding: PositionEncoding,
-    point: Point,
-}
-
-impl From<Point> for EncodedPoint {
-    #[inline]
-    fn from(point: Point) -> Self {
-        Self::new(PositionEncoding::Utf8, point)
-    }
-}
-
-impl EncodedPoint {
-    #[inline]
-    pub fn new(encoding: PositionEncoding, point: Point) -> Self {
-        Self { encoding, point }
-    }
-
-    #[inline]
-    pub fn encoding(&self) -> PositionEncoding {
-        self.encoding
-    }
-
-    #[inline]
-    pub fn encoded_point(&self) -> Point {
-        self.point
-    }
-}
-
 /// A point range encoded in utf-8. Use [`EncodedPointRange`] to specify a non-utf8 encoding.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct PointRange {

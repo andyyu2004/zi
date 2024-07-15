@@ -103,8 +103,8 @@ pub trait LanguageService {
 
     fn document_diagnostic(
         &mut self,
-        params: lsp_types::DocumentDiagnosticParams,
-    ) -> ResponseFuture<lsp_types::DocumentDiagnosticReportResult>;
+        params: lstypes::DocumentDiagnosticParams,
+    ) -> ResponseFuture<lstypes::DocumentDiagnosticReport>;
 
     fn capabilities(&self) -> &lsp_types::ServerCapabilities;
 

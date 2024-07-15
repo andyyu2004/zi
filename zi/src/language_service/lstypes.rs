@@ -1,8 +1,10 @@
 //! Types used for the zi language service protocol.
 //! All positions are 0-indexed and in UTF-8 code units (bytes).
 
+use std::collections::HashMap;
+
 use url::Url;
-use zi_core::{Point, PointRange};
+pub use zi_core::{Diagnostic, Point, PointRange};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
@@ -32,9 +34,15 @@ pub enum GotoDefinitionResponse {
     Array(Vec<Location>),
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
+pub struct DocumentDiagnosticReport {
+    pub diagnostics: Vec<Diagnostic>,
+    pub related_documents: HashMap<Url, Vec<Diagnostic>>,
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
-    pub uri: Url,
+    pub url: Url,
     pub range: PointRange,
 }
 
@@ -42,4 +50,10 @@ pub struct Location {
 pub struct TextDocumentPointParams {
     pub url: Url,
     pub point: Point,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct DocumentDiagnosticParams {
+    pub url: Url,
+    // pub previous_result_id: Option<String>,
 }

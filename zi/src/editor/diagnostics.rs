@@ -31,7 +31,7 @@ impl Editor {
         });
 
         let mut diagnostics: Box<[_]> = diagnostics.into();
-        diagnostics.sort_unstable_by_key(|d| d.range.encoded_range().start());
+        diagnostics.sort_unstable_by_key(|d| d.range.start());
         self.diagnostics.entry(path).or_default().write((version, diagnostics));
 
         if let Some(buf) = buf {
@@ -73,7 +73,6 @@ impl Editor {
             .iter()
             .cloned()
             .filter_map(|diag| {
-                let range = text.decode_point_range(diag.range)?;
                 let hl_name = match diag.severity {
                     Severity::Error => HighlightName::ERROR,
                     Severity::Warning => HighlightName::WARNING,
@@ -82,7 +81,7 @@ impl Editor {
                 };
                 let hl = self.highlight_id_by_name(hl_name);
                 // Need to explode out multi-line ranges into multiple single-line ranges.
-                Some(range.explode(text).map(move |range| (range, hl)))
+                Some(diag.range.explode(text).map(move |range| (range, hl)))
             })
             .flatten()
             .map(|(point_range, style)| {

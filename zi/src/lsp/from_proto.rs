@@ -1,9 +1,7 @@
 //! Boring impls converting zi to lsp types
 //! We always return an `Option` since we don't want to panic if the server is buggy
 
-use zi_core::{
-    CompletionItem, Diagnostic, EncodedPointRange, PointRange, PositionEncoding, Severity,
-};
+use zi_core::{CompletionItem, Diagnostic, PointRange, PositionEncoding, Severity};
 use zi_text::{Delta, Deltas, Text};
 
 use crate::Point;
@@ -67,13 +65,11 @@ pub fn deltas(
 }
 
 pub fn diagnostic(encoding: PositionEncoding, diag: lsp_types::Diagnostic) -> Diagnostic {
+    // TODO need to open the relevant files and get their text
     zi_core::Diagnostic {
-        range: EncodedPointRange::new(
-            encoding,
-            PointRange::new(
-                Point::new(diag.range.start.line as usize, diag.range.start.character as usize),
-                Point::new(diag.range.end.line as usize, diag.range.end.character as usize),
-            ),
+        range: PointRange::new(
+            Point::new(diag.range.start.line as usize, diag.range.start.character as usize),
+            Point::new(diag.range.end.line as usize, diag.range.end.character as usize),
         ),
         severity: match diag.severity {
             Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,

@@ -1,8 +1,8 @@
-use crate::EncodedPointRange;
+use crate::PointRange;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    pub range: EncodedPointRange,
+    pub range: PointRange,
     pub severity: Severity,
     pub message: String,
 }

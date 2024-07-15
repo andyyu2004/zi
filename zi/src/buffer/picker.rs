@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
-use zi_core::EncodedPoint;
 use zi_text::TextMut;
 
 use super::*;
@@ -47,7 +46,7 @@ pub trait BufferPickerEntry: Entry {
     /// Return an open buffer id or a path to open
     fn buffer_or_path(&self) -> Result<BufferId, &Path>;
 
-    fn point(&self) -> Option<EncodedPoint>;
+    fn point(&self) -> Option<Point>;
 }
 
 impl<P> BufferPickerEntry for P
@@ -60,7 +59,7 @@ where
     }
 
     #[inline]
-    fn point(&self) -> Option<EncodedPoint> {
+    fn point(&self) -> Option<Point> {
         None
     }
 }
@@ -99,9 +98,7 @@ where
         let preview = move |editor: &mut Editor, buf: BufferId| {
             editor.set_buffer(self.preview, buf);
             if let Some(point) = point {
-                if let Some(point) = editor[buf].text().decode_point(point) {
-                    editor.reveal(self.preview, point, VerticalAlignment::Center)
-                }
+                editor.reveal(self.preview, point, VerticalAlignment::Center)
             }
         };
 
@@ -137,9 +134,7 @@ where
                 editor.close_view(self.preview);
                 editor.set_buffer(Active, buffer);
                 if let Some(point) = point {
-                    if let Some(point) = editor[buffer].text().decode_point(point) {
-                        editor.reveal(Active, point, VerticalAlignment::Center);
-                    }
+                    editor.reveal(Active, point, VerticalAlignment::Center);
                 }
                 return;
             }
@@ -152,11 +147,9 @@ where
         editor.close_view(self.preview);
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES);
-        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
+        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, _buf| {
             if let Some(point) = entry.point() {
-                if let Some(point) = editor[buf].text().decode_point(point) {
-                    editor.reveal(Active, point, VerticalAlignment::Center);
-                }
+                editor.reveal(Active, point, VerticalAlignment::Center);
             }
             Ok(())
         })

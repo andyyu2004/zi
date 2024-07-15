@@ -1,5 +1,3 @@
-use zi_core::{EncodedPoint, EncodedPointRange};
-
 use super::*;
 use crate::Mark;
 
@@ -196,8 +194,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<EncodedPoint> {
-                Some(self.point.into())
+            fn point(&self) -> Option<Point> {
+                Some(self.point)
             }
         }
 
@@ -284,8 +282,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<EncodedPoint> {
-                Some(self.range.start().into())
+            fn point(&self) -> Option<Point> {
+                Some(self.range.start())
             }
         }
 
@@ -318,21 +316,13 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct DiagnosticEntry {
             path: PathBuf,
-            range: EncodedPointRange,
+            range: PointRange,
             message: String,
         }
 
         impl fmt::Display for DiagnosticEntry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(
-                    f,
-                    "{}:{}: {}",
-                    self.path.display(),
-                    // We're displaying the ranges in the encoded form which is wrong.
-                    // However, this is just for display purposes so it's not a big deal (and still useful)
-                    self.range.encoded_range(),
-                    self.message
-                )
+                write!(f, "{}:{}: {}", self.path.display(), self.range, self.message)
             }
         }
 
@@ -343,7 +333,7 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<EncodedPoint> {
+            fn point(&self) -> Option<Point> {
                 Some(self.range.start())
             }
         }
@@ -387,8 +377,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<EncodedPoint> {
-                Some(Point::new(self.line, 0).into())
+            fn point(&self) -> Option<Point> {
+                Some(Point::new(self.line, 0))
             }
         }
 
