@@ -5,45 +5,58 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::{lsp_types, LanguageServer};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{
-    lstypes, LanguageService, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice,
-    Url,
-};
+use zi::{lstypes, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice, Url};
 use zi_event::{event, HandlerResult};
 
-use crate::{from_proto, to_proto};
+use crate::{from_proto, to_proto, EditorExt};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
-pub struct ToLanguageService<S> {
+// We box the inner server instead of making it generic to make downcasting to this type possible.
+pub struct LanguageService {
     service_id: LanguageServiceId,
-    server: S,
+    server: Box<
+        dyn async_lsp::LanguageServer<
+                NotifyResult = async_lsp::Result<()>,
+                Error = async_lsp::Error,
+            > + Send
+            + Sync,
+    >,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
     position_encoding: OnceLock<PositionEncoding>,
     // Keeping track of this here for encoding conversions (and sanity checks)
     texts: HashMap<Url, (i32, Rope)>,
 }
 
-impl<S> ToLanguageService<S> {
-    pub fn new(service_id: LanguageServiceId, server: S) -> Self {
+impl LanguageService {
+    pub fn new(
+        service_id: LanguageServiceId,
+        server: impl async_lsp::LanguageServer<
+            NotifyResult = async_lsp::Result<()>,
+            Error = async_lsp::Error,
+        > + Send
+        + Sync
+        + 'static,
+    ) -> Self {
         Self {
             service_id,
-            server,
+            server: Box::new(server),
             capabilities: Default::default(),
             position_encoding: Default::default(),
             texts: Default::default(),
         }
     }
+
+    #[inline]
+    pub(crate) fn text(&self, url: &Url) -> Option<&Rope> {
+        let (_, text) = self.texts.get(url)?;
+        Some(text)
+    }
 }
 
 type ResponseFuture<T> = BoxFuture<'static, zi::Result<T>>;
 
-impl<S> LanguageService for ToLanguageService<S>
-where
-    S: LanguageServer<NotifyResult = async_lsp::Result<()>, Error = async_lsp::Error>
-        + Send
-        + Sync
-        + 'static,
-{
+impl zi::LanguageService for LanguageService {
+    #[inline]
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -84,9 +97,8 @@ where
             // TODO should ignore any open events not related to this language server.
             // See below
 
-            if let Some(server) = editor.language_service(service_id) {
+            if let Some(server) = editor.language_server(service_id) {
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
-                let server = downcast::<S>(server);
                 server.texts.entry(url).or_insert((
                     params.text_document.version,
                     Rope::from(params.text_document.text.as_str()),
@@ -117,7 +129,7 @@ where
                     return HandlerResult::Continue;
                 }
 
-                let service = downcast::<S>(&mut **service);
+                let service = crate::downcast_mut(&mut **service);
 
                 let encoding = service.position_encoding();
 
@@ -395,8 +407,4 @@ where
         self.server.exit(())?;
         Ok(())
     }
-}
-
-fn downcast<S: 'static>(service: &mut dyn LanguageService) -> &mut ToLanguageService<S> {
-    service.as_any_mut().downcast_mut::<ToLanguageService<S>>().expect("failed to downcast")
 }

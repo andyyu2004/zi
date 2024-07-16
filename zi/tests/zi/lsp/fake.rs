@@ -10,7 +10,6 @@ use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{lsp_notification, lsp_request};
 use serde_json::Value;
-use zi::LanguageClient;
 use zi_lsp::{ErrorCode, LanguageServer, ResponseError, Result};
 
 pub struct FakeLanguageServerBuilder<St> {
@@ -40,7 +39,7 @@ impl<St: Clone + Send + Sync + 'static> zi::LanguageServiceConfig
     fn spawn(
         &self,
         _cwd: &Path,
-        client: Box<dyn LanguageClient>,
+        client: zi::LanguageClient,
     ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         let server = FakeLanguageServer {
@@ -49,7 +48,7 @@ impl<St: Clone + Send + Sync + 'static> zi::LanguageServiceConfig
         };
 
         Ok((
-            Box::new(zi_lsp::ToLanguageService::new(client.service_id(), server)),
+            Box::new(zi_lsp::LanguageService::new(client.service_id(), server)),
             Box::pin(async { Ok(()) }),
         ))
     }

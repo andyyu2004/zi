@@ -16,7 +16,7 @@ impl Editor {
         &self.diagnostics
     }
 
-    pub(crate) fn update_diagnostics(
+    pub fn replace_diagnostics(
         &mut self,
         path: PathBuf,
         version: Option<u32>,

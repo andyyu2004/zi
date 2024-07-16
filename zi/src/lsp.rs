@@ -3,70 +3,7 @@ pub mod from_proto;
 #[doc(hidden)]
 pub mod to_proto;
 
-use std::fmt;
-
 use lsp_types::{self, ClientCapabilities};
-
-use crate::{lsp, lstypes, Client, LanguageServiceId};
-
-pub struct LanguageClient {
-    for_server: LanguageServiceId,
-    client: Client,
-}
-
-impl LanguageClient {
-    pub fn new(for_server: LanguageServiceId, client: Client) -> Self {
-        Self { client, for_server }
-    }
-}
-
-impl fmt::Debug for LanguageClient {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LanguageClient").field("server", &self.for_server).finish()
-    }
-}
-
-impl crate::LanguageClient for LanguageClient {
-    #[inline]
-    fn service_id(&self) -> LanguageServiceId {
-        self.for_server
-    }
-
-    fn log_message(&mut self, params: lsp_types::LogMessageParams) {
-        self.client.send(move |editor| {
-            tracing::info!("received log message");
-            // TODO there are multiple levels of log messages
-            editor.set_error(params.message);
-            Ok(())
-        });
-    }
-
-    fn publish_diagnostics(&mut self, params: lstypes::PublishDiagnosticsParams) {
-        let server = self.for_server;
-        self.client.send(move |editor| {
-            let Ok(path) = params.url.to_file_path() else {
-                tracing::warn!("received diagnostics for non-file URI: {}", params.url);
-                return Ok(());
-            };
-
-            tracing::info!(
-                %server,
-                ?path,
-                version = params.version,
-                n = params.diagnostics.len(),
-                "received push diagnostics"
-            );
-
-            editor.update_diagnostics(
-                path,
-                params.version.map(|i| i as u32),
-                params.diagnostics.into_boxed_slice(),
-            );
-
-            Ok(())
-        })
-    }
-}
 
 pub fn client_capabilities() -> ClientCapabilities {
     const GOTO_CAPABILITY: Option<lsp_types::GotoCapability> = Some(lsp_types::GotoCapability {

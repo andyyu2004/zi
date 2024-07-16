@@ -4,20 +4,18 @@ use std::ops::ControlFlow;
 use async_lsp::lsp_types::notification::Notification;
 use async_lsp::lsp_types::request::Request;
 use async_lsp::lsp_types::{lsp_notification, lsp_request};
-use async_lsp::{ErrorCode, LanguageClient, ResponseError};
+use async_lsp::{ErrorCode, ResponseError};
 use futures_util::future::BoxFuture;
-use zi::lstypes;
+use zi::LanguageService;
 
-use crate::from_proto;
+use crate::{from_proto, EditorExt};
 
-/// zi_language_service::LanguageClient -> async_lsp::LanguageClient
-pub struct ToLanguageClient<C> {
-    client: C,
-}
+/// Adaptor to convert zi::LanguageClient -> async_lsp::LanguageClient
+pub struct LanguageClient(zi::LanguageClient);
 
-impl<C> ToLanguageClient<C> {
-    pub fn new(client: C) -> Self {
-        Self { client }
+impl LanguageClient {
+    pub fn new(client: zi::LanguageClient) -> Self {
+        Self(client)
     }
 }
 
@@ -36,13 +34,46 @@ where
     .into())))
 }
 
-impl<C> LanguageClient for ToLanguageClient<C>
-where
-    C: zi::LanguageClient,
-{
+impl async_lsp::LanguageClient for LanguageClient {
     type Error = ResponseError;
 
     type NotifyResult = ControlFlow<async_lsp::Result<()>>;
+
+    #[must_use]
+    fn publish_diagnostics(
+        &mut self,
+        params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
+    ) -> Self::NotifyResult {
+        let service_id = self.0.service_id();
+        self.0.send(move |editor| {
+            let Some(service) = editor.language_server(service_id) else { return Ok(()) };
+            let Some(text) = service.text(&params.uri) else { return Ok(()) };
+            let encoding = service.position_encoding();
+            let diagnostics = from_proto::diagnostics(encoding, text, params.diagnostics);
+
+            let Ok(path) = params.uri.to_file_path() else {
+                tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
+                return Ok(());
+            };
+
+            tracing::info!(
+                %service_id,
+                ?path,
+                version = params.version,
+                n = diagnostics.len(),
+                "received push diagnostics"
+            );
+
+            editor.replace_diagnostics(
+                path,
+                params.version.map(|i| i as u32),
+                diagnostics.into_boxed_slice(),
+            );
+
+            Ok(())
+        });
+        ControlFlow::Continue(())
+    }
 
     #[must_use]
     fn workspace_folders(
@@ -167,7 +198,12 @@ where
         &mut self,
         params: <lsp_notification!("window/logMessage") as Notification>::Params,
     ) -> Self::NotifyResult {
-        self.client.log_message(params);
+        self.0.send(move |editor| {
+            tracing::info!("received log message");
+            // TODO there are multiple levels of log messages
+            editor.set_error(params.message);
+            Ok(())
+        });
         ControlFlow::Continue(())
     }
 
@@ -177,21 +213,6 @@ where
         params: <lsp_notification!("telemetry/event") as Notification>::Params,
     ) -> Self::NotifyResult {
         let _ = params;
-        ControlFlow::Continue(())
-    }
-
-    #[must_use]
-    fn publish_diagnostics(
-        &mut self,
-        params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params,
-    ) -> Self::NotifyResult {
-        let encoding = self.client.position_encoding();
-        let text = self.client.service_id();
-        self.client.publish_diagnostics(lstypes::PublishDiagnosticsParams {
-            url: params.uri,
-            version: params.version,
-            diagnostics: from_proto::diagnostics(encoding, text, params.diagnostics),
-        });
         ControlFlow::Continue(())
     }
 

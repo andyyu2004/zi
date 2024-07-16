@@ -12,9 +12,9 @@ use zi_core::Point;
 use super::{active_servers_of, callback, event, get, Result, Selector, SemanticTokens};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
-use crate::lsp::{self, LanguageClient};
 use crate::{
-    BufferId, Editor, FileType, LanguageService, LanguageServiceId, Location, OpenFlags, ViewId,
+    lsp, BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
+    OpenFlags, ViewId,
 };
 
 impl Editor {
@@ -222,7 +222,7 @@ impl Editor {
                     continue;
                 }
 
-                let client = Box::new(LanguageClient::new(server_id, self.client()));
+                let client = LanguageClient::new(server_id, self.client());
                 let root_path = self.lsp_root_path(server_id);
                 let workspace_root = self.lsp_workspace_root(server_id);
                 let (service, fut) =
@@ -551,13 +551,13 @@ impl Editor {
 
                 let path = path.clone();
                 client.send(move |editor| {
-                    editor.update_diagnostics(path, None, res.diagnostics);
+                    editor.replace_diagnostics(path, None, res.diagnostics);
                     for (url, related) in res.related_documents {
                         let Ok(path) = url.to_file_path() else {
                             tracing::warn!(?url, "ignoring non-file related document diagnostics");
                             continue;
                         };
-                        editor.update_diagnostics(path, None, related)
+                        editor.replace_diagnostics(path, None, related)
                     }
                     Ok(())
                 });

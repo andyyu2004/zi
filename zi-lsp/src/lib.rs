@@ -15,18 +15,16 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
 pub use async_lsp::{
-    lsp_types, Error, ErrorCode, LanguageClient, LanguageServer, ResponseError, Result,
-    ServerSocket,
+    lsp_types, Error, ErrorCode, LanguageServer, ResponseError, Result, ServerSocket,
 };
 use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
-use zi::{LanguageService, LanguageServiceConfig};
 
-use self::client::ToLanguageClient;
-pub use self::server::ToLanguageService;
+use self::client::LanguageClient;
+pub use self::server::LanguageService;
 
 pub fn start<C>(
     client: C,
@@ -35,8 +33,10 @@ pub fn start<C>(
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> Result<(ServerSocket, impl Future<Output = Result<()>> + 'static)>
 where
-    C: LanguageClient<NotifyResult = ControlFlow<crate::Result<()>>, Error = ResponseError>
-        + Send
+    C: async_lsp::LanguageClient<
+            NotifyResult = ControlFlow<crate::Result<()>>,
+            Error = ResponseError,
+        > + Send
         + 'static,
 {
     let (main_loop, server) = async_lsp::MainLoop::new_client(|_server| {
@@ -91,17 +91,32 @@ impl LanguageServerConfig {
     }
 }
 
-impl LanguageServiceConfig for LanguageServerConfig {
+impl zi::LanguageServiceConfig for LanguageServerConfig {
     fn spawn(
         &self,
         cwd: &Path,
-        client: Box<dyn zi::LanguageClient>,
-    ) -> anyhow::Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
+        client: zi::LanguageClient,
+    ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
         let id = client.service_id();
-        let (server, fut) =
-            start(ToLanguageClient::new(client), cwd, &self.command, &self.args[..])?;
-        Ok((Box::new(ToLanguageService::new(id, server)), Box::pin(fut.map_err(Into::into))))
+        let (server, fut) = start(LanguageClient::new(client), cwd, &self.command, &self.args[..])?;
+        Ok((Box::new(LanguageService::new(id, server)), Box::pin(fut.map_err(Into::into))))
     }
+}
+
+trait EditorExt {
+    fn language_server(&mut self, service: zi::LanguageServiceId) -> Option<&mut LanguageService>;
+}
+
+impl EditorExt for zi::Editor {
+    fn language_server(&mut self, service: zi::LanguageServiceId) -> Option<&mut LanguageService> {
+        self.language_service(service).map(downcast_mut)
+    }
+}
+
+fn downcast_mut<'a>(
+    service: &'a mut (dyn zi::LanguageService + Send + 'static),
+) -> &'a mut LanguageService {
+    service.as_any_mut().downcast_mut().expect("expected language server")
 }
