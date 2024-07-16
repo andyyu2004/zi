@@ -58,7 +58,6 @@ serde_json = { workspace = true}
 proptest = { workspace = true}
 test-strategy = { workspace = true }
 zi = { workspace = true, features = ["arbitrary", "rand"] }
-zi-lsp = { workspace = true }
 zi-nvim = { workspace = true }
 regex = { workspace = true }
 mimalloc = { workspace = true }

@@ -100,7 +100,7 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
 
     let expected_main_diagnostics = main_diagnostics
         .into_iter()
-        .map(|diag| zi::lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, diag))
+        .filter_map(|diag| zi_lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, "text", diag))
         .collect();
 
     // Not implemented

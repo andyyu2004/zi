@@ -1,8 +1,9 @@
 //! Boring impls converting zi to lsp types
 //! We always return an `Option` since we don't want to panic if the server is buggy
+//! FIXME these should all go to zi-lsp
 
-use zi_core::{CompletionItem, Diagnostic, PointRange, PositionEncoding, Severity};
-use zi_text::{Delta, Deltas, Text};
+use zi_core::{CompletionItem, PositionEncoding};
+use zi_text::Text;
 
 use crate::Point;
 
@@ -37,48 +38,5 @@ pub fn point(
             let byte = text.utf16_cu_to_byte(line_start_cu + point.character as usize);
             Some(text.byte_to_point(byte))
         }
-    }
-}
-
-pub fn range(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
-    range: lsp_types::Range,
-) -> Option<PointRange> {
-    Some(PointRange::new(point(encoding, text, range.start)?, point(encoding, text, range.end)?))
-}
-
-pub fn deltas(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
-    edits: impl IntoIterator<Item = lsp_types::TextEdit, IntoIter: ExactSizeIterator>,
-) -> Option<Deltas<'static>> {
-    let edits = edits.into_iter();
-    let n = edits.len();
-    let deltas = Deltas::new(edits.filter_map(|edit| {
-        let range = text.point_range_to_byte_range(range(encoding, text, edit.range)?);
-        Some(Delta::new(range, edit.new_text))
-    }));
-
-    // If any of the edits were invalid, return None.
-    if deltas.len() < n { None } else { Some(deltas) }
-}
-
-pub fn diagnostic(encoding: PositionEncoding, diag: lsp_types::Diagnostic) -> Diagnostic {
-    // TODO need to open the relevant files and get their text
-    zi_core::Diagnostic {
-        range: PointRange::new(
-            Point::new(diag.range.start.line as usize, diag.range.start.character as usize),
-            Point::new(diag.range.end.line as usize, diag.range.end.character as usize),
-        ),
-        severity: match diag.severity {
-            Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
-            Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
-            Some(lsp_types::DiagnosticSeverity::INFORMATION) => Severity::Info,
-            Some(lsp_types::DiagnosticSeverity::HINT) => Severity::Hint,
-            // Assume error if unspecified
-            _ => Severity::Error,
-        },
-        message: diag.message,
     }
 }

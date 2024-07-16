@@ -76,7 +76,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
     }];
 
     let text = "abc";
-    let deltas = zi::lsp::from_proto::deltas(PositionEncoding::Utf8, text, edits).unwrap();
+    let deltas = zi_lsp::from_proto::deltas(PositionEncoding::Utf8, text, edits).unwrap();
     let buf = cx.open_tmp(text, zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
     cx.with(move |editor| editor.edit(buf, &deltas)).await.unwrap();
 
@@ -216,7 +216,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
                         None => tx.send_modify(|text| text.replace_range(.., &change.text)),
                         Some(lsp_range) => {
                             let text = tx.borrow();
-                            let point_range = zi::lsp::from_proto::range(
+                            let point_range = zi_lsp::from_proto::range(
                                 PositionEncoding::Utf8,
                                 &*text,
                                 lsp_range,

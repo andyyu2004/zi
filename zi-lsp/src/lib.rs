@@ -1,7 +1,9 @@
 mod client;
-mod from_proto;
+#[doc(hidden)]
+pub mod from_proto;
 mod server;
-mod to_proto;
+#[doc(hidden)]
+pub mod to_proto;
 
 use std::ffi::{OsStr, OsString};
 use std::future::Future;

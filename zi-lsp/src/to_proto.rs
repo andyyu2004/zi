@@ -1,5 +1,5 @@
 use async_lsp::lsp_types;
-use zi::{lstypes, Deltas, Point, PointRange, PositionEncoding, Text};
+use zi::{lstypes, Deltas, Point, PositionEncoding, Text};
 
 pub fn goto_definition(
     encoding: PositionEncoding,
@@ -59,17 +59,6 @@ pub fn byte(
             let col = text.byte_to_utf16_cu(byte) - line_start;
             lsp_types::Position::new(line as u32, col as u32)
         }
-    }
-}
-
-pub fn range(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
-    range: PointRange,
-) -> lsp_types::Range {
-    lsp_types::Range {
-        start: point(encoding, text, range.start()),
-        end: point(encoding, text, range.end()),
     }
 }
 

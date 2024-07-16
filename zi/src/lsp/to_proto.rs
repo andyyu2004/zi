@@ -1,35 +1,5 @@
 use zi_core::{Point, PointRange, PositionEncoding};
-use zi_text::{Deltas, Text};
-
-// For some reason, LSP defines change events that are distinct from `TextEdit`s.
-// The former is applied serially, while the latter is applied "atomically".
-// However, since our deltas are ordered and disjoint, we can just return them in order and because
-// they don't interfere we're all good.
-pub fn deltas(
-    encoding: PositionEncoding,
-    old_text: impl Text,
-    deltas: &Deltas<'_>,
-) -> Vec<lsp_types::TextDocumentContentChangeEvent> {
-    deltas
-        .iter()
-        .map(|delta| lsp_types::TextDocumentContentChangeEvent {
-            range: Some(byte_range(encoding, &old_text, delta.range())),
-            text: delta.text().to_string(),
-            range_length: None,
-        })
-        .collect()
-}
-
-pub fn byte_range(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
-    range: std::ops::Range<usize>,
-) -> lsp_types::Range {
-    lsp_types::Range {
-        start: byte(encoding, text, range.start),
-        end: byte(encoding, text, range.end),
-    }
-}
+use zi_text::Text;
 
 pub fn byte(
     encoding: PositionEncoding,

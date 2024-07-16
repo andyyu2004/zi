@@ -6,16 +6,13 @@ use std::future::IntoFuture;
 use std::io;
 use std::path::PathBuf;
 
-use expect_test::{expect, Expect};
+use expect_test::Expect;
 use futures_util::future::BoxFuture;
 use stdx::bomb::DropBomb;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
 use zi::Result;
-// use zi_lsp::lsp_types::{self, notification, request};
-
-// use self::lsp::{FakeLanguageServer, FakeLanguageServerBuilder};
 
 pub struct TestContext {
     size: zi::Size,

@@ -159,11 +159,7 @@ impl zi::LanguageService for LanguageService {
                                 "lsp text desynced"
                             );
                             text.edit(&event.deltas);
-                            zi::lsp::to_proto::deltas(
-                                encoding,
-                                event.old_text.as_ref(),
-                                &event.deltas,
-                            )
+                            to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
                         } else {
                             let mut builder = zi::RopeBuilder::new();
                             for chunk in buf.text().byte_slice(..).chunks() {

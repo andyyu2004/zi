@@ -16,7 +16,6 @@ use stdx::bomb::DropBomb;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
-use zi_lsp::lsp_types::{self, notification, request};
 
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
