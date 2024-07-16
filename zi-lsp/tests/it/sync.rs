@@ -1,8 +1,7 @@
 use rand::Rng;
 use stdx::bomb::DropBomb;
 use tokio::sync::watch;
-use zi::PositionEncoding;
-use zi_text::{deltas, TextBase};
+use zi::{deltas, PositionEncoding, TextBase};
 
 use super::*;
 

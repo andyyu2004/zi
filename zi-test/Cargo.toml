@@ -1,0 +1,17 @@
+[package]
+name = "zi-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zi.workspace = true
+futures-util.workspace = true
+stdx.workspace = true
+expect-test.workspace = true
+unicode-width.workspace = true
+tui.workspace = true
+tokio.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

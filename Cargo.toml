@@ -15,7 +15,7 @@ members = [
     "zi-textobject",
     "zi-tui",
     "zi-wasm",
-    "asciicast", "zi-event",
+    "asciicast", "zi-event", "zi-test",
 ]
 
 [workspace.dependencies]
@@ -28,9 +28,10 @@ zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }
 zi-nvim = { path = "zi-nvim" }
+zi-test = { path = "zi-test" }
 zi-text = { path = "zi-text" }
 zi-textobject = { path = "zi-textobject" }
-zi-tui = { path = "zi-tui" }
+tui = { path = "zi-tui", package = "zi-tui" }
 bitflags = "2.5.0"
 crop = { version = "0.4.2", features = ["graphemes", "utf16-metric"] }
 stdx = { path = "stdx" }
@@ -51,6 +52,8 @@ itertools = "0.13"
 measureme = "12"
 mimalloc = "0.1.42"
 parking_lot = "0.12.2"
+unicode-width = "0.1.13"
+tempfile = "3.10"
 regex = "1"
 regex-cursor = { version = "0.1.4", default-features = false, features = ["perf-inline"] }
 rustc-hash = "2"

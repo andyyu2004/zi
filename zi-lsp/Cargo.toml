@@ -12,8 +12,14 @@ tokio = { workspace = true, features = ["io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tracing = { workspace = true }
 zi-event = { workspace = true }
-zi = { workspace = true }
+zi = { workspace = true, features = ["rand"] }
 tower = "0.4.13"
+
+[dev-dependencies]
+zi-test = { workspace = true }
+serde_json.workspace = true
+rand.workspace = true
+stdx.workspace = true
 
 [lints]
 workspace = true

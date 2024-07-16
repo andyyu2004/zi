@@ -1,27 +1,22 @@
-#![feature(closure_track_caller, stmt_expr_attributes, try_blocks)]
+//! Testing utilities for zi
 
-mod api;
-mod keymap;
-mod perf;
-mod render;
+#![feature(closure_track_caller, stmt_expr_attributes, try_blocks)]
 
 use std::future::IntoFuture;
 use std::io;
 use std::path::PathBuf;
 
-use anyhow::Result;
 use expect_test::{expect, Expect};
 use futures_util::future::BoxFuture;
 use stdx::bomb::DropBomb;
 use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
-use zi_lsp::lsp_types::{self, notification, request};
+use zi::Result;
+// use zi_lsp::lsp_types::{self, notification, request};
 
-#[global_allocator]
-static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+// use self::lsp::{FakeLanguageServer, FakeLanguageServerBuilder};
 
-// FIXME deduplicate from zi-test
 pub struct TestContext {
     size: zi::Size,
     client: zi::Client,
@@ -87,7 +82,33 @@ impl TestContext {
         Ok(self.open(&path, flags).await?)
     }
 
-    async fn cleanup(mut self) {
+    // pub async fn setup_lang_server<St: Send + Sync + Clone + 'static>(
+    //     &self,
+    //     ft: zi::FileType,
+    //     server_id: impl Into<zi::LanguageServiceId>,
+    //     st: St,
+    //     f: impl FnOnce(FakeLanguageServerBuilder<St>) -> FakeLanguageServerBuilder<St>,
+    // ) {
+    //     let server_id = server_id.into();
+    //     // Setup a few default handlers.
+    //     let server = f(FakeLanguageServer::builder()
+    //         .request::<request::Initialize, _>(|_, _| async {
+    //             Ok(lsp_types::InitializeResult::default())
+    //         })
+    //         .notification::<notification::Initialized>(|_st, _params| Ok(()))
+    //         .notification::<notification::DidOpenTextDocument>(|_st, _params| Ok(()))
+    //         .notification::<notification::DidChangeTextDocument>(|_st, _params| Ok(())));
+    //
+    //     self.with(move |editor| {
+    //         editor
+    //             .language_config_mut()
+    //             .add_language(ft, zi::LanguageConfig::new([server_id]))
+    //             .add_language_service(server_id, server.finish(st));
+    //     })
+    //     .await
+    // }
+
+    pub async fn cleanup(mut self) {
         self.bomb.defuse();
         let handle = self.handle.take().unwrap();
         handle.abort();

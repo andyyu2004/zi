@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use zi::BufferId;
-use zi_text::deltas;
+use zi::{deltas, BufferId};
+use zi_lsp::lsp_types::{self, request};
+use zi_test::{new, TestContext};
 
-use super::*;
-use crate::new;
+use crate::TestContextExt;
 
 async fn setup(
     cx: &TestContext,

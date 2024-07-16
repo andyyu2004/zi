@@ -3788,12 +3788,16 @@ dependencies = [
  "async-lsp",
  "async-process",
  "futures-util",
+ "rand 0.8.5",
+ "serde_json",
+ "stdx",
  "tokio",
  "tokio-util",
  "tower",
  "tracing",
  "zi",
  "zi-event",
+ "zi-test",
 ]
 
 [[package]]
@@ -3841,6 +3845,20 @@ dependencies = [
  "zi-lsp",
  "zi-tui",
  "zi-wasm",
+]
+
+[[package]]
+name = "zi-test"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "futures-util",
+ "stdx",
+ "tempfile",
+ "tokio",
+ "unicode-width",
+ "zi",
+ "zi-tui",
 ]
 
 [[package]]

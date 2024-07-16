@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use async_lsp::{lsp_types, LanguageServer};
+use async_lsp::lsp_types;
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
 use zi::{lstypes, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice, Url};
