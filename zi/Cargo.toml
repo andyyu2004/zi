@@ -30,7 +30,7 @@ crossterm = { workspace = true, optional = true }
 futures-util = { workspace = true }
 directories-next = "2.0.0"
 smol_str = "0.2.1"
-tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
+# tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
 arbitrary = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 grep = "0.3.1"
@@ -47,7 +47,7 @@ dyn-clone = { workspace = true }
 tokio-util = { workspace = true }
 crop = { workspace = true }
 content_inspector = "0.2.4"
-cov-mark = "2.0.0-pre.1"
+# cov-mark = "2.0.0-pre.1"
 crossbeam-queue = "0.3.11"
 # FIXME remove this once LanguageService is lsp agnostic
 lsp-types = "0.95.0"
