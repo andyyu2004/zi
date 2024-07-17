@@ -1016,7 +1016,7 @@ impl Editor {
 
         // Request diagnostics using the pull model to ensure we have the latest diagnostics
         let fut = self.request_diagnostics(Active);
-        self.schedule("pull diagnostics", fut);
+        self.spawn("pull diagnostics", fut);
     }
 
     #[inline]
@@ -1921,7 +1921,7 @@ impl Editor {
         Location { buf: buf.id(), point: view.cursor() }
     }
 
-    pub(crate) fn schedule(
+    pub(crate) fn spawn(
         &self,
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<(), Error>> + Send + 'static,

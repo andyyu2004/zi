@@ -361,7 +361,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 let save_fut = editor.save(Active, SaveFlags::empty());
-                editor.schedule("save", save_fut);
+                editor.spawn("save", save_fut);
                 Ok(())
             })
             .into(),
@@ -385,7 +385,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 }
 
                 let open_fut = editor.open(path, open_flags)?;
-                editor.schedule("open", async move {
+                editor.spawn("open", async move {
                     open_fut.await?;
                     Ok(())
                 });
