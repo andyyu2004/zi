@@ -17,13 +17,13 @@ impl Editor {
                     let buf_version = buffer.version();
                     let format_fut = format
                         .then(|| {
-                            let url = editor[event.buf].url().clone();
+                            let url = editor[event.buf].file_url().cloned()?;
                             active_servers_of!(editor, event.buf).find_map(|server_id| {
                                 let server =
                                     editor.active_language_services.get_mut(server_id).unwrap();
                                 match server.formatting_capabilities() {
                                     Some(()) => {
-                                        Some(server.formatting(lstypes::DocumentFormattingParams {
+                                        Some(server.format(lstypes::DocumentFormattingParams {
                                             url: url.clone(),
                                             options: lstypes::FormattingOptions { tab_size },
                                         }))

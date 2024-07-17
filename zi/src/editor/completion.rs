@@ -11,7 +11,6 @@ use zi_text::{Delta, Deltas};
 
 use super::{active_servers_of, Selector, State};
 use crate::completion::{Completion, CompletionProvider};
-use crate::editor::Resource;
 use crate::{lstypes, Active, Editor, LanguageServiceId, Result, ViewId};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
@@ -104,7 +103,7 @@ impl Editor {
         let futs = providers
             .into_iter()
             .filter_map(|provider| {
-                let url = self[buf].url().clone();
+                let url = self[buf].file_url().cloned()?;
                 let params = lstypes::CompletionParams {
                     at: lstypes::TextDocumentPointParams { url, point },
                 };

@@ -103,7 +103,7 @@ pub trait LanguageService {
 
     fn initialized(&mut self) -> Result<()>;
 
-    fn formatting(
+    fn format(
         &mut self,
         params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<Deltas<'static>>>;

@@ -14,7 +14,7 @@ use crate::language_service::{lstypes, LanguageServiceInstance};
 use crate::lstypes::WorkspaceFolder;
 use crate::{
     BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
-    OpenFlags, Resource, ViewId,
+    OpenFlags, ViewId,
 };
 
 impl Editor {
@@ -154,7 +154,7 @@ impl Editor {
             .find(|server_id| has_cap(&*self.active_language_services[server_id]))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
-                let url = buf.url().clone();
+                let url = buf.file_url().cloned()?;
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 tracing::debug!(%url, %point, "language request definition");
@@ -342,7 +342,7 @@ impl Editor {
 
         let client = self.client();
 
-        let url = self.buffers[buf].url().clone();
+        let url = self.buffers[buf].file_url().cloned()?;
 
         let Some((server, _caps)) = active_servers_of!(self, buf).find_map(|&server| {
             self.active_language_services[&server]
@@ -386,7 +386,7 @@ impl Editor {
                 if self.active_language_services[&server_id].diagnostic_capabilities().is_none() {
                     return None;
                 };
-                let url = self.buffers[buf].url();
+                let Some(url) = self.buffers[buf].file_url() else { return None };
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let fut = server
                     .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });

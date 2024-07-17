@@ -5,9 +5,7 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::lsp_types::{self, OneOf};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{
-    lstypes, LanguageServiceId, Resource, Rope, Setting, Text, TextMut, TextSlice, Theme, Url,
-};
+use zi::{lstypes, LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url};
 use zi_event::{event, HandlerResult};
 
 use crate::{client, from_proto, to_proto, EditorExt, PositionEncoding};
@@ -192,7 +190,7 @@ impl zi::LanguageService for LanguageService {
 
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
-            let url = editor[buf].url().clone();
+            let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
             let params = lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: url.clone(),
@@ -224,8 +222,8 @@ impl zi::LanguageService for LanguageService {
             tracing::trace!(buf = ?event.buf, "buffer did change");
 
             let buf = &editor.buffers[event.buf];
-            if let (Some(service), uri) =
-                (editor.active_language_services.get_mut(&service_id), buf.url().clone())
+            if let (Some(service), Some(uri)) =
+                (editor.active_language_services.get_mut(&service_id), buf.file_url().cloned())
             {
                 if !editor
                     .language_config
@@ -322,7 +320,7 @@ impl zi::LanguageService for LanguageService {
         Ok(())
     }
 
-    fn formatting(
+    fn format(
         &mut self,
         params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<zi::Deltas<'static>>> {
