@@ -166,55 +166,59 @@ impl zi::LanguageService for LanguageService {
                 let version = buf.version() as i32;
                 let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
-                let (text_version, text) =
-                    service.texts.get_mut(&text_document.uri).expect("buffer not opened");
+                fn build_rope(text: impl Text) -> Rope {
+                    let mut builder = zi::RopeBuilder::new();
+                    for chunk in text.byte_slice(..).chunks() {
+                        builder.append(chunk);
+                    }
+                    builder.build()
+                }
+
                 let content_changes = match kind {
-                    lsp_types::TextDocumentSyncKind::INCREMENTAL => {
-                        if version.checked_sub(1) == Some(*text_version) {
+                    lsp_types::TextDocumentSyncKind::INCREMENTAL
+                    | lsp_types::TextDocumentSyncKind::FULL => {
+                        let (text_version, text) =
+                            service.texts.get_mut(&text_document.uri).expect("buffer not opened");
+                        let content_changes = if kind
+                            == lsp_types::TextDocumentSyncKind::INCREMENTAL
+                            && version.checked_sub(1) == Some(*text_version)
+                        {
+                            // If has incremental support and versions are consecutive, send deltas.
                             debug_assert_eq!(
                                 *text,
                                 event.old_text.to_string(),
-                                "lsp text desynced"
+                                "old lsp text desynced"
                             );
                             text.edit(&event.deltas);
+                            debug_assert_eq!(
+                                *text,
+                                buf.text().to_string(),
+                                "new lsp text desynced"
+                            );
                             to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
                         } else {
-                            let mut builder = zi::RopeBuilder::new();
-                            for chunk in buf.text().byte_slice(..).chunks() {
-                                builder.append(chunk);
-                            }
-                            *text = builder.build();
+                            *text = build_rope(buf.text());
                             // If a version is skipped somehow, send the full text.
                             vec![lsp_types::TextDocumentContentChangeEvent {
                                 range: None,
                                 range_length: None,
                                 text: buf.text().to_string(),
                             }]
-                        }
-                    }
-                    lsp_types::TextDocumentSyncKind::FULL => {
-                        let mut builder = zi::RopeBuilder::new();
-                        for chunk in buf.text().byte_slice(..).chunks() {
-                            builder.append(chunk);
-                        }
-                        *text = builder.build();
-                        vec![lsp_types::TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text: buf.text().to_string(),
-                        }]
+                        };
+                        *text_version = version;
+                        content_changes
                     }
                     lsp_types::TextDocumentSyncKind::NONE => return HandlerResult::Continue,
                     _ => unreachable!("invalid text document sync kind: {kind:?}"),
                 };
 
-                debug_assert_eq!(*text, buf.text().to_string(), "lsp text desynced");
-                match service.server.did_change(lsp_types::DidChangeTextDocumentParams {
-                    text_document,
-                    content_changes,
-                }) {
-                    Ok(_) => *text_version = version,
-                    Err(err) => tracing::error!(?err, "lsp did_change notification failed"),
+                if let Err(err) =
+                    service.server.did_change(lsp_types::DidChangeTextDocumentParams {
+                        text_document,
+                        content_changes,
+                    })
+                {
+                    tracing::error!(?err, "lsp did_change notification failed")
                 }
             }
 
