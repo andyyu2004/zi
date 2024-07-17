@@ -88,10 +88,8 @@ impl Editor {
         let providers = active_servers_of!(self, buf)
             .filter_map(|&server| {
                 self.active_language_services[&server]
-                    .capabilities()
-                    .completion_provider
-                    .clone()?;
-                Some(Provider::Lsp(LspCompletionProvider { server }))
+                    .completion_capabilities()
+                    .map(|_| Provider::Lsp(LspCompletionProvider { server }))
             })
             .chain(
                 COMPLETION_PROVIDERS
@@ -136,29 +134,6 @@ impl CompletionProvider for LspCompletionProvider {
         editor: &mut Editor,
         params: lstypes::CompletionParams,
     ) -> BoxFuture<'static, Result<lstypes::CompletionResponse>> {
-        let s = editor.active_language_services.get_mut(&self.server).unwrap();
-        return s.completion(params);
-        // let text = editor.buffers[buf].text();
-        // let encoding = s.position_encoding();
-        //
-        // let fut = s.completion(lsp_types::CompletionParams {
-        //     text_document_position: lsp_types::TextDocumentPositionParams {
-        //         text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
-        //         position: to_proto::point(encoding, &text, params.point),
-        //     },
-        //     work_done_progress_params: Default::default(),
-        //     partial_result_params: Default::default(),
-        //     context: None,
-        // });
-        //
-        // Box::pin(async {
-        //     let items = match fut.await? {
-        //         Some(lsp_types::CompletionResponse::List(list)) => list.items,
-        //         Some(lsp_types::CompletionResponse::Array(items)) => items,
-        //         None => vec![],
-        //     };
-        //
-        //     Ok(from_proto::completions(items).collect())
-        // })
+        editor.active_language_services.get_mut(&self.server).unwrap().completion(params)
     }
 }

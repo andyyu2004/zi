@@ -8,8 +8,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures_core::future::BoxFuture;
-// TODO using lsp_types for now, but should define our own lsp-agnostic interface to drop the dependency;
-pub use lsp_types;
 use zi_text::Deltas;
 
 use crate::syntax::Theme;
@@ -88,6 +86,17 @@ impl fmt::Debug for LanguageClient {
 pub trait LanguageService {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    // TODO add more information than () as required
+    fn definition_capabilities(&self) -> Option<()>;
+    fn declaration_capabilities(&self) -> Option<()>;
+    fn implementation_capabilities(&self) -> Option<()>;
+    fn type_definition_capabilities(&self) -> Option<()>;
+    fn completion_capabilities(&self) -> Option<()>;
+    fn reference_capabilities(&self) -> Option<()>;
+    fn diagnostic_capabilities(&self) -> Option<()>;
+    fn semantic_tokens_capabilities(&self) -> Option<()>;
+    fn formatting_capabilities(&self) -> Option<()>;
+
     /// Initialize the language service.
     /// This must be called before any other method and should only be called exactly once.
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()>;
@@ -133,16 +142,13 @@ pub trait LanguageService {
 
     // fn semantic_tokens_full_delta(
     //     &mut self,
-    //     params: lsp_types::SemanticTokensDeltaParams,
-    // ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>>;
+    //     params: lstypes::SemanticTokensDeltaParams,
+    // ) -> ResponseFuture<Option<lstypes::SemanticTokensFullDeltaResult>>;
 
     fn document_diagnostic(
         &mut self,
         params: lstypes::DocumentDiagnosticParams,
     ) -> ResponseFuture<lstypes::DocumentDiagnosticReport>;
-
-    // FIXME, think about how to define capabilities without using the lsp way
-    fn capabilities(&self) -> &lsp_types::ServerCapabilities;
 
     fn shutdown(&mut self) -> ResponseFuture<()>;
 

@@ -2,12 +2,11 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use async_lsp::lsp_types;
+use async_lsp::lsp_types::{self, OneOf};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
 use zi::{
-    lstypes, LanguageService as _, LanguageServiceId, Resource, Rope, Setting, Text, TextMut,
-    TextSlice, Theme, Url,
+    lstypes, LanguageServiceId, Resource, Rope, Setting, Text, TextMut, TextSlice, Theme, Url,
 };
 use zi_event::{event, HandlerResult};
 
@@ -86,6 +85,10 @@ impl LanguageService {
             }
         })
     }
+
+    fn capabilities(&self) -> &lsp_types::ServerCapabilities {
+        self.capabilities.get().expect("capabilities not initialized")
+    }
 }
 
 type ResponseFuture<T> = BoxFuture<'static, zi::Result<T>>;
@@ -96,12 +99,82 @@ impl zi::LanguageService for LanguageService {
         self
     }
 
+    fn definition_capabilities(&self) -> Option<()> {
+        matches!(self.capabilities().definition_provider, Some(OneOf::Left(true) | OneOf::Right(_)))
+            .then_some(())
+    }
+
+    fn declaration_capabilities(&self) -> Option<()> {
+        (!matches!(
+            self.capabilities().declaration_provider,
+            None | Some(lsp_types::DeclarationCapability::Simple(false))
+        ))
+        .then_some(())
+    }
+
+    fn implementation_capabilities(&self) -> Option<()> {
+        (!matches!(
+            self.capabilities().implementation_provider,
+            None | Some(lsp_types::ImplementationProviderCapability::Simple(false))
+        ))
+        .then_some(())
+    }
+
+    fn type_definition_capabilities(&self) -> Option<()> {
+        (!matches!(
+            self.capabilities().type_definition_provider,
+            None | Some(lsp_types::TypeDefinitionProviderCapability::Simple(false))
+        ))
+        .then_some(())
+    }
+
+    fn completion_capabilities(&self) -> Option<()> {
+        self.capabilities().completion_provider.as_ref()?;
+        Some(())
+    }
+
+    fn reference_capabilities(&self) -> Option<()> {
+        self.capabilities().references_provider.as_ref()?;
+        Some(())
+    }
+
+    fn diagnostic_capabilities(&self) -> Option<()> {
+        self.capabilities().diagnostic_provider.as_ref()?;
+        Some(())
+    }
+
+    fn semantic_tokens_capabilities(&self) -> Option<()> {
+        let caps = self.capabilities().semantic_tokens_provider.as_ref()?;
+
+        let caps = match caps {
+            lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(opts) => opts,
+            lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+                opts,
+            ) => &opts.semantic_tokens_options,
+        };
+
+        // Don't care if the server supports only range, we don't use it.
+        caps.full.as_ref()?;
+        Some(())
+    }
+
+    fn formatting_capabilities(&self) -> Option<()> {
+        self.capabilities().document_formatting_provider.as_ref()?;
+        Some(())
+    }
+
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
         let fut = self.server.initialize(lsp_types::InitializeParams {
             process_id: Some(params.process_id),
             capabilities: client::capabilities(),
-            workspace_folders: Some(params.workspace_folders),
+            workspace_folders: Some(
+                params
+                    .workspace_folders
+                    .into_iter()
+                    .map(|f| lsp_types::WorkspaceFolder { uri: f.uri, name: f.name })
+                    .collect(),
+            ),
             ..Default::default()
         });
         Box::pin(async move {
@@ -456,10 +529,6 @@ impl zi::LanguageService for LanguageService {
             })
             .map_err(Into::into)
             .boxed()
-    }
-
-    fn capabilities(&self) -> &lsp_types::ServerCapabilities {
-        self.capabilities.get().expect("capabilities not initialized")
     }
 
     fn shutdown(&mut self) -> ResponseFuture<()> {

@@ -30,10 +30,10 @@ mod undo;
 pub mod view;
 
 pub use location::Location;
-pub use lsp_types::Url;
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
+pub use url::Url;
 pub use zi_core::{
     BufferId, Col, CompletionItem, Diagnostic, Direction, Line, Mode, NamespaceId, Offset,
     Operator, Point, PointRange, Severity, Size, ViewGroupId, ViewId,

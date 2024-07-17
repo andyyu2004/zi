@@ -3684,7 +3684,6 @@ dependencies = [
  "grep",
  "ignore",
  "itertools 0.13.0",
- "lsp-types",
  "mimalloc",
  "mutants",
  "nucleo",

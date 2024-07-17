@@ -5,12 +5,13 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
-use lsp_types::{self, OneOf, Url};
+use url::Url;
 use zi_core::Point;
 
 use super::{active_servers_of, callback, event, get, Result, Selector};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
+use crate::lstypes::WorkspaceFolder;
 use crate::{
     BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
     OpenFlags, Resource, ViewId,
@@ -78,7 +79,7 @@ impl Editor {
         self.find_definitions_(
             "textDocument/definition",
             view,
-            |cap| matches!(cap.definition_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
+            |server| server.definition_capabilities().is_some(),
             |server, params| server.definition(params),
         )
     }
@@ -91,12 +92,7 @@ impl Editor {
         self.find_definitions_(
             "textDocument/implementation",
             view,
-            |cap| {
-                !matches!(
-                    cap.implementation_provider,
-                    None | Some(lsp_types::ImplementationProviderCapability::Simple(false))
-                )
-            },
+            |server| server.implementation_capabilities().is_some(),
             |server, params| server.implementation(params),
         )
     }
@@ -109,12 +105,7 @@ impl Editor {
         self.find_definitions_(
             "textDocument/declaration",
             view,
-            |cap| {
-                !matches!(
-                    cap.declaration_provider,
-                    None | Some(lsp_types::DeclarationCapability::Simple(false))
-                )
-            },
+            |server| server.declaration_capabilities().is_some(),
             |server, params| server.definition(params),
         )
     }
@@ -127,12 +118,7 @@ impl Editor {
         self.find_definitions_(
             "textDocument/typeDefinition",
             view,
-            |cap| {
-                !matches!(
-                    cap.type_definition_provider,
-                    None | Some(lsp_types::TypeDefinitionProviderCapability::Simple(false))
-                )
-            },
+            |server| server.type_definition_capabilities().is_some(),
             |server, params| server.type_definition(params),
         )
     }
@@ -145,7 +131,7 @@ impl Editor {
         self.find_definitions_(
             "textDocument/references",
             view,
-            |cap| matches!(cap.references_provider, Some(OneOf::Left(true) | OneOf::Right(_))),
+            |server| server.reference_capabilities().is_some(),
             |server, params| {
                 server
                     .references(lstypes::ReferenceParams { at: params.at })
@@ -158,14 +144,14 @@ impl Editor {
         &mut self,
         desc: &'static str,
         view: ViewId,
-        has_cap: impl Fn(&lsp_types::ServerCapabilities) -> bool,
+        has_cap: impl Fn(&dyn LanguageService) -> bool,
         f: impl FnOnce(&mut dyn LanguageService, lstypes::GotoDefinitionParams) -> Fut,
     ) -> impl Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static
     where
         Fut: Future<Output = Result<lstypes::GotoDefinitionResponse>> + 'static,
     {
         let res = active_servers_of!(self, view)
-            .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities()))
+            .find(|server_id| has_cap(&*self.active_language_services[server_id]))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
                 let url = buf.url().clone();
@@ -198,9 +184,9 @@ impl Editor {
         std::env::current_dir().unwrap()
     }
 
-    fn lsp_workspace_root(&self, server: LanguageServiceId) -> lsp_types::WorkspaceFolder {
+    fn lsp_workspace_root(&self, server: LanguageServiceId) -> WorkspaceFolder {
         let uri = Url::from_file_path(self.lsp_root_path(server)).unwrap();
-        lsp_types::WorkspaceFolder {
+        WorkspaceFolder {
             name: uri
                 .path_segments()
                 .and_then(Iterator::last)
@@ -359,22 +345,10 @@ impl Editor {
         let url = self.buffers[buf].url().clone();
 
         let Some((server, _caps)) = active_servers_of!(self, buf).find_map(|&server| {
-            let caps = self.active_language_services[&server]
-                .capabilities()
-                .semantic_tokens_provider
-                .clone()?;
-
-            let caps = match caps {
-                lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(opts) => opts,
-                lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
-                    opts,
-                ) => opts.semantic_tokens_options,
-            };
-
-            // Don't care if the server supports only range, we don't use it.
-            caps.full.as_ref()?;
-
-            Some((server, caps))
+            self.active_language_services[&server]
+                .semantic_tokens_capabilities()
+                .is_some()
+                .then_some((server, ()))
         }) else {
             tracing::warn!(?buf, "no active language server for buffer supports semantic tokens");
             return None;
@@ -409,11 +383,7 @@ impl Editor {
 
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
-                let true = self.active_language_services[&server_id]
-                    .capabilities()
-                    .diagnostic_provider
-                    .is_some()
-                else {
+                if self.active_language_services[&server_id].diagnostic_capabilities().is_none() {
                     return None;
                 };
                 let url = self.buffers[buf].url();

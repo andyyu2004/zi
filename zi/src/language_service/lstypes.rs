@@ -9,7 +9,13 @@ pub use zi_core::{CompletionItem, Diagnostic, Point, PointRange};
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
     pub process_id: u32,
-    pub workspace_folders: Vec<lsp_types::WorkspaceFolder>,
+    pub workspace_folders: Vec<WorkspaceFolder>,
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
+pub struct WorkspaceFolder {
+    pub uri: Url,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
