@@ -44,6 +44,13 @@ pub enum GotoDefinitionResponse {
     Array(Vec<Location>),
 }
 
+impl Default for GotoDefinitionResponse {
+    #[inline]
+    fn default() -> Self {
+        GotoDefinitionResponse::Array(Default::default())
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct DocumentDiagnosticReport {
     pub diagnostics: Vec<Diagnostic>,

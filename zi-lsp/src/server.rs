@@ -327,7 +327,10 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<zi::Deltas<'static>>> {
         let enc = self.position_encoding();
-        let text = self.text(&params.url).unwrap().clone();
+        let Some(text) = self.text(&params.url).cloned() else {
+            return Box::pin(async { Ok(None) });
+        };
+
         self.server
             .formatting(lsp_types::DocumentFormattingParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
@@ -353,7 +356,10 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = self.text(&params.at.url).unwrap().clone();
+        let Some(text) = self.text(&params.at.url).cloned() else {
+            return Box::pin(async { Ok(Default::default()) });
+        };
+
         self.server
             .definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -372,7 +378,9 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = self.text(&params.at.url).unwrap().clone();
+        let Some(text) = self.text(&params.at.url).cloned() else {
+            return Box::pin(async { Ok(Default::default()) });
+        };
         self.server
             .type_definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -391,7 +399,9 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let text = self.text(&params.at.url).unwrap().clone();
+        let Some(text) = self.text(&params.at.url).cloned() else {
+            return Box::pin(async { Ok(Default::default()) });
+        };
         self.server
             .implementation(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -410,7 +420,9 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::ReferenceParams,
     ) -> ResponseFuture<Vec<lstypes::Location>> {
         let enc = self.position_encoding();
-        let text = self.text(&params.at.url).unwrap().clone();
+        let Some(text) = self.text(&params.at.url).cloned() else {
+            return Box::pin(async { Ok(vec![]) });
+        };
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: to_proto::document_position(enc, &text, params.at),
@@ -436,7 +448,10 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::CompletionParams,
     ) -> ResponseFuture<lstypes::CompletionResponse> {
         let enc = self.position_encoding();
-        let text = self.text(&params.at.url).unwrap().clone();
+        let Some(text) = self.text(&params.at.url).cloned() else {
+            return Box::pin(async { Ok(Default::default()) });
+        };
+
         self.server
             .completion(lsp_types::CompletionParams {
                 text_document_position: to_proto::document_position(enc, &text, params.at),
@@ -461,7 +476,9 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::SemanticTokensParams,
     ) -> ResponseFuture<Option<Vec<zi::MarkBuilder>>> {
         let encoding = self.position_encoding();
-        let text = self.text(&params.url).unwrap().clone();
+        let Some(text) = self.text(&params.url).cloned() else {
+            return Box::pin(async { Ok(None) });
+        };
         let legend = self
             .semantic_tokens_legend()
             .expect("should not request semantic tokens to service without the capability");
