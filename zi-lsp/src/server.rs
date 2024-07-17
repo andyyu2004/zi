@@ -258,7 +258,14 @@ impl zi::LanguageService for LanguageService {
         self.server
             .formatting(lsp_types::DocumentFormattingParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
-                options: params.options,
+                options: lsp_types::FormattingOptions {
+                    tab_size: params.options.tab_size,
+                    insert_spaces: true,
+                    trim_trailing_whitespace: Some(true),
+                    insert_final_newline: Some(true),
+                    trim_final_newlines: Some(true),
+                    properties: Default::default(),
+                },
                 work_done_progress_params: Default::default(),
             })
             .map(move |res| {

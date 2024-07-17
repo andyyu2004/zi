@@ -15,7 +15,12 @@ pub struct InitializeParams {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocumentFormattingParams {
     pub url: Url,
-    pub options: lsp_types::FormattingOptions,
+    pub options: FormattingOptions,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FormattingOptions {
+    pub tab_size: u32,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

@@ -27,14 +27,7 @@ impl Editor {
                                     ) => {
                                         Some(server.formatting(lstypes::DocumentFormattingParams {
                                             url: url.clone(),
-                                            options: lsp_types::FormattingOptions {
-                                                tab_size,
-                                                insert_spaces: true,
-                                                trim_trailing_whitespace: Some(true),
-                                                insert_final_newline: Some(true),
-                                                trim_final_newlines: Some(true),
-                                                properties: Default::default(),
-                                            },
+                                            options: lstypes::FormattingOptions { tab_size },
                                         }))
                                     }
                                     _ => None,
