@@ -202,7 +202,7 @@ impl IndexMut<BufferId> for Editor {
     }
 }
 
-pub(crate) trait Resource {
+pub trait Resource {
     type Id;
 
     const URL_SCHEME: &'static str;
@@ -516,16 +516,7 @@ impl Editor {
     }
 
     fn buffer_at_path(&self, path: &Path) -> Option<BufferId> {
-        self.buffers.values().find_map(|b| {
-            b.file_url()
-                .and_then(|url| url.to_file_path().ok())
-                .filter(|p| p == path)
-                .map(|_| b.id())
-        })
-    }
-
-    fn buffer_at_url(&self, url: &Url) -> Option<BufferId> {
-        self.buffers.values().find_map(|b| b.file_url().filter(|u| *u == url).map(|_| b.id()))
+        self.buffers.values().find_map(|b| b.path().filter(|p| p == path).map(|_| b.id()))
     }
 
     pub fn open(
@@ -1683,7 +1674,7 @@ impl Editor {
         let buffer = &self[buf];
         let flags = buffer.flags();
         let url = buffer.url().clone();
-        let path = buffer.file_url().and_then(|url| url.to_file_path().ok());
+        let path = buffer.path();
         self[buf].snapshot(SnapshotFlags::empty());
 
         let client = self.client();

@@ -48,10 +48,11 @@ pub use zi_textobject::motion;
 
 pub use self::buffer::{BufferFlags, Mark, MarkBuilder, MarkId, PickerBuffer, TextBuffer};
 pub use self::command::{Command, Commands};
-pub use self::completion::{CompletionParams, CompletionProvider};
+pub use self::completion::CompletionProvider;
 pub use self::config::Setting;
 pub use self::editor::{
-    Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, SaveFlags, Tasks,
+    Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, Resource,
+    SaveFlags, Tasks,
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};

@@ -10,9 +10,9 @@ use zi_core::CompletionItem;
 use zi_text::{Delta, Deltas};
 
 use super::{active_servers_of, Selector, State};
-use crate::completion::{Completion, CompletionParams, CompletionProvider};
-use crate::lsp::{from_proto, to_proto};
-use crate::{Active, Editor, LanguageServiceId, Result, ViewId};
+use crate::completion::{Completion, CompletionProvider};
+use crate::editor::Resource;
+use crate::{lstypes, Active, Editor, LanguageServiceId, Result, ViewId};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
     OnceLock::new();
@@ -74,8 +74,8 @@ impl Editor {
             fn completions(
                 &self,
                 editor: &mut Editor,
-                params: CompletionParams,
-            ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
+                params: lstypes::CompletionParams,
+            ) -> BoxFuture<'static, Result<lstypes::CompletionResponse>> {
                 match self {
                     Provider::Lsp(provider) => provider.completions(editor, params),
                     Provider::Provider(provider) => provider.completions(editor, params),
@@ -106,8 +106,10 @@ impl Editor {
         let futs = providers
             .into_iter()
             .filter_map(|provider| {
-                let url = self[buf].file_url().cloned()?;
-                let params = CompletionParams { url, point };
+                let url = self[buf].url().clone();
+                let params = lstypes::CompletionParams {
+                    at: lstypes::TextDocumentPointParams { url, point },
+                };
                 Some(provider.completions(self, params))
             })
             .collect::<Vec<_>>();
@@ -115,8 +117,8 @@ impl Editor {
         async move {
             stream::iter(futs)
                 .buffered(16)
-                .try_fold(vec![], |mut acc, items| async move {
-                    acc.extend(items);
+                .try_fold(vec![], |mut acc, res| async move {
+                    acc.extend(res.items);
                     Ok(acc)
                 })
                 .await
@@ -132,33 +134,31 @@ impl CompletionProvider for LspCompletionProvider {
     fn completions(
         &self,
         editor: &mut Editor,
-        params: CompletionParams,
-    ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
-        let Some(buf) = editor.buffer_at_url(&params.url) else {
-            return Box::pin(async move { Ok(vec![]) });
-        };
+        params: lstypes::CompletionParams,
+    ) -> BoxFuture<'static, Result<lstypes::CompletionResponse>> {
         let s = editor.active_language_services.get_mut(&self.server).unwrap();
-        let text = editor.buffers[buf].text();
-        let encoding = s.position_encoding();
-
-        let fut = s.completion(lsp_types::CompletionParams {
-            text_document_position: lsp_types::TextDocumentPositionParams {
-                text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
-                position: to_proto::point(encoding, &text, params.point),
-            },
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
-            context: None,
-        });
-
-        Box::pin(async {
-            let items = match fut.await? {
-                Some(lsp_types::CompletionResponse::List(list)) => list.items,
-                Some(lsp_types::CompletionResponse::Array(items)) => items,
-                None => vec![],
-            };
-
-            Ok(from_proto::completions(items).collect())
-        })
+        return s.completion(params);
+        // let text = editor.buffers[buf].text();
+        // let encoding = s.position_encoding();
+        //
+        // let fut = s.completion(lsp_types::CompletionParams {
+        //     text_document_position: lsp_types::TextDocumentPositionParams {
+        //         text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+        //         position: to_proto::point(encoding, &text, params.point),
+        //     },
+        //     work_done_progress_params: Default::default(),
+        //     partial_result_params: Default::default(),
+        //     context: None,
+        // });
+        //
+        // Box::pin(async {
+        //     let items = match fut.await? {
+        //         Some(lsp_types::CompletionResponse::List(list)) => list.items,
+        //         Some(lsp_types::CompletionResponse::Array(items)) => items,
+        //         None => vec![],
+        //     };
+        //
+        //     Ok(from_proto::completions(items).collect())
+        // })
     }
 }

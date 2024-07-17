@@ -22,12 +22,10 @@ impl Editor {
         version: Option<u32>,
         diagnostics: impl Into<Box<[Diagnostic]>>,
     ) {
-        let buf = self.buffers.values().find(|b| {
-            b.file_url().and_then(|url| url.to_file_path().ok()).as_deref() == Some(&path)
-        });
+        let buf = self.buffer_at_path(&path);
         let version = version.unwrap_or_else(|| {
             // If there's a buffer with the same path, use its version.
-            if let Some(buf) = buf { buf.version() } else { 0 }
+            if let Some(buf) = buf { self[buf].version() } else { 0 }
         });
 
         let mut diagnostics: Box<[_]> = diagnostics.into();
@@ -35,7 +33,7 @@ impl Editor {
         self.diagnostics.entry(path).or_default().write((version, diagnostics));
 
         if let Some(buf) = buf {
-            self.refresh_diagnostic_marks(buf.id());
+            self.refresh_diagnostic_marks(self[buf].id());
             request_redraw();
         }
     }

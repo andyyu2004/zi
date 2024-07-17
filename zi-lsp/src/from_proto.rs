@@ -115,3 +115,30 @@ pub fn diagnostic(
         message: diag.message,
     })
 }
+
+pub fn completion_response(
+    encoding: PositionEncoding,
+    text: &(impl Text + ?Sized),
+    res: lsp_types::CompletionResponse,
+) -> lstypes::CompletionResponse {
+    let items = match res {
+        lsp_types::CompletionResponse::Array(items) => items,
+        lsp_types::CompletionResponse::List(list) => list.items,
+    };
+
+    lstypes::CompletionResponse {
+        items: items.into_iter().filter_map(|item| completion_item(encoding, text, item)).collect(),
+    }
+}
+
+pub fn completion_item(
+    _encoding: PositionEncoding,
+    _text: &(impl Text + ?Sized),
+    item: lsp_types::CompletionItem,
+) -> Option<lstypes::CompletionItem> {
+    Some(lstypes::CompletionItem {
+        label: item.label,
+        insert_text: item.insert_text,
+        filter_text: item.filter_text,
+    })
+}

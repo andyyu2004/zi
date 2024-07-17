@@ -19,30 +19,28 @@ impl Editor {
                     let buf_version = buffer.version();
                     let format_fut = format
                         .then(|| {
-                            editor[event.buf].file_url().cloned().and_then(|url| {
-                                active_servers_of!(editor, event.buf).find_map(|server_id| {
-                                    let server =
-                                        editor.active_language_services.get_mut(server_id).unwrap();
-                                    match server.capabilities().document_formatting_provider {
-                                        Some(
-                                            lsp_types::OneOf::Left(true)
-                                            | lsp_types::OneOf::Right(_),
-                                        ) => Some(server.formatting(
-                                            lstypes::DocumentFormattingParams {
-                                                url: url.clone(),
-                                                options: lsp_types::FormattingOptions {
-                                                    tab_size,
-                                                    insert_spaces: true,
-                                                    trim_trailing_whitespace: Some(true),
-                                                    insert_final_newline: Some(true),
-                                                    trim_final_newlines: Some(true),
-                                                    properties: Default::default(),
-                                                },
+                            let url = editor[event.buf].url().clone();
+                            active_servers_of!(editor, event.buf).find_map(|server_id| {
+                                let server =
+                                    editor.active_language_services.get_mut(server_id).unwrap();
+                                match server.capabilities().document_formatting_provider {
+                                    Some(
+                                        lsp_types::OneOf::Left(true) | lsp_types::OneOf::Right(_),
+                                    ) => {
+                                        Some(server.formatting(lstypes::DocumentFormattingParams {
+                                            url: url.clone(),
+                                            options: lsp_types::FormattingOptions {
+                                                tab_size,
+                                                insert_spaces: true,
+                                                trim_trailing_whitespace: Some(true),
+                                                insert_final_newline: Some(true),
+                                                trim_final_newlines: Some(true),
+                                                properties: Default::default(),
                                             },
-                                        )),
-                                        _ => None,
+                                        }))
                                     }
-                                })
+                                    _ => None,
+                                }
                             })
                         })
                         .flatten();

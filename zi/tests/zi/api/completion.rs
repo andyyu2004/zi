@@ -1,24 +1,27 @@
 use futures_core::future::BoxFuture;
+use zi::lstypes;
 
 use crate::new;
 
 struct Completions;
 
-fn items() -> Vec<zi::CompletionItem> {
-    vec![
-        zi::CompletionItem { label: "foo".to_string(), ..Default::default() },
-        zi::CompletionItem { label: "bar".to_string(), ..Default::default() },
-        zi::CompletionItem { label: "bazz".to_string(), ..Default::default() },
-    ]
+fn res() -> lstypes::CompletionResponse {
+    lstypes::CompletionResponse {
+        items: vec![
+            zi::CompletionItem { label: "foo".to_string(), ..Default::default() },
+            zi::CompletionItem { label: "bar".to_string(), ..Default::default() },
+            zi::CompletionItem { label: "bazz".to_string(), ..Default::default() },
+        ],
+    }
 }
 
 impl zi::CompletionProvider for Completions {
     fn completions(
         &self,
         _editor: &mut zi::Editor,
-        _params: zi::CompletionParams,
-    ) -> BoxFuture<'static, zi::Result<Vec<zi::CompletionItem>>> {
-        Box::pin(async move { Ok(items()) })
+        _params: lstypes::CompletionParams,
+    ) -> BoxFuture<'static, zi::Result<lstypes::CompletionResponse>> {
+        Box::pin(async move { Ok(dbg!(res())) })
     }
 }
 
@@ -33,7 +36,7 @@ async fn request_completion() -> zi::Result<()> {
         .await
         .await?;
 
-    assert_eq!(completions, items());
+    assert_eq!(completions, res().items);
 
     cx.cleanup().await;
     Ok(())
@@ -54,7 +57,7 @@ async fn trigger_completions() -> zi::Result<()> {
     .await;
 
     cx.with(|editor| {
-        assert_eq!(completions(editor), items());
+        assert_eq!(completions(editor), res().items);
         editor.insert_char(zi::Active, 'f').unwrap();
 
         assert_eq!(
@@ -63,7 +66,7 @@ async fn trigger_completions() -> zi::Result<()> {
         );
 
         editor.delete_char(zi::Active).unwrap();
-        assert_eq!(completions(editor), items());
+        assert_eq!(completions(editor), res().items);
     })
     .await;
 

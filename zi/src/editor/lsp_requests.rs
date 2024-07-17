@@ -14,7 +14,7 @@ use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
 use crate::{
     lsp, BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
-    OpenFlags, ViewId,
+    OpenFlags, Resource, ViewId,
 };
 
 impl Editor {
@@ -169,7 +169,7 @@ impl Editor {
             .find(|server_id| has_cap(&self.active_language_services[server_id].capabilities()))
             .and_then(|server_id| {
                 let (view, buf) = get!(self: view);
-                let url = buf.file_url()?.clone();
+                let url = buf.url().clone();
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 tracing::debug!(%url, %point, "language request definition");
@@ -358,10 +358,7 @@ impl Editor {
 
         let client = self.client();
 
-        let Some(uri) = self.buffers[buf].file_url().cloned() else {
-            tracing::warn!(?buf, "cannot request semantic tokens for non-file buffer");
-            return None;
-        };
+        let uri = self.buffers[buf].url().clone();
 
         let Some((server, caps)) = active_servers_of!(self, buf).find_map(|&server| {
             let caps = self.active_language_services[&server]
@@ -523,7 +520,7 @@ impl Editor {
                 else {
                     return None;
                 };
-                let url = self.buffers[buf].file_url()?.clone();
+                let url = self.buffers[buf].url();
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let fut = server
                     .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });

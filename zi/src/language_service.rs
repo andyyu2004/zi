@@ -121,8 +121,8 @@ pub trait LanguageService {
 
     fn completion(
         &mut self,
-        params: lsp_types::CompletionParams,
-    ) -> ResponseFuture<Option<lsp_types::CompletionResponse>>;
+        params: lstypes::CompletionParams,
+    ) -> ResponseFuture<lstypes::CompletionResponse>;
 
     fn semantic_tokens_full(
         &mut self,

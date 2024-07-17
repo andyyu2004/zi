@@ -5,7 +5,9 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::lsp_types;
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{lstypes, LanguageServiceId, PositionEncoding, Rope, Text, TextMut, TextSlice, Url};
+use zi::{
+    lstypes, LanguageServiceId, PositionEncoding, Resource, Rope, Text, TextMut, TextSlice, Url,
+};
 use zi_event::{event, HandlerResult};
 
 use crate::{from_proto, to_proto, EditorExt};
@@ -84,7 +86,7 @@ impl zi::LanguageService for LanguageService {
 
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
-            let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
+            let url = editor[buf].url().clone();
             let params = lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: url.clone(),
@@ -116,8 +118,8 @@ impl zi::LanguageService for LanguageService {
             tracing::trace!(buf = ?event.buf, "buffer did change");
 
             let buf = &editor.buffers[event.buf];
-            if let (Some(service), Some(uri)) =
-                (editor.active_language_services.get_mut(&service_id), buf.file_url().cloned())
+            if let (Some(service), uri) =
+                (editor.active_language_services.get_mut(&service_id), buf.url().clone())
             {
                 if !editor
                     .language_config
@@ -251,7 +253,7 @@ impl zi::LanguageService for LanguageService {
         let enc = self.position_encoding();
         let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
-            .type_definition(to_proto::goto_definition(self.position_encoding(), &text, params))
+            .type_definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
                 Ok(res) => match from_proto::goto_definition(enc, &text, res) {
                     Some(res) => Ok(res),
@@ -270,7 +272,7 @@ impl zi::LanguageService for LanguageService {
         let enc = self.position_encoding();
         let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
-            .implementation(to_proto::goto_definition(self.position_encoding(), &text, params))
+            .implementation(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
                 Ok(res) => match from_proto::goto_definition(enc, &text, res) {
                     Some(res) => Ok(res),
@@ -290,10 +292,7 @@ impl zi::LanguageService for LanguageService {
         let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
         self.server
             .references(lsp_types::ReferenceParams {
-                text_document_position: lsp_types::TextDocumentPositionParams {
-                    text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
-                    position: to_proto::point(self.position_encoding(), &text, params.at.point),
-                },
+                text_document_position: to_proto::document_position(enc, &text, params.at),
                 context: lsp_types::ReferenceContext { include_declaration: true },
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
@@ -313,9 +312,26 @@ impl zi::LanguageService for LanguageService {
 
     fn completion(
         &mut self,
-        params: lsp_types::CompletionParams,
-    ) -> ResponseFuture<Option<lsp_types::CompletionResponse>> {
-        self.server.completion(params).map_err(Into::into).boxed()
+        params: lstypes::CompletionParams,
+    ) -> ResponseFuture<lstypes::CompletionResponse> {
+        let enc = self.position_encoding();
+        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        self.server
+            .completion(lsp_types::CompletionParams {
+                text_document_position: to_proto::document_position(enc, &text, params.at),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+                context: None,
+            })
+            .map(move |res| {
+                res.map(|opt| {
+                    opt.map_or_else(Default::default, |res| {
+                        from_proto::completion_response(enc, &text, res)
+                    })
+                })
+            })
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn semantic_tokens_full(

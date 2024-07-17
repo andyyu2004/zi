@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use url::Url;
-pub use zi_core::{Diagnostic, Point, PointRange};
+pub use zi_core::{CompletionItem, Diagnostic, Point, PointRange};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
@@ -63,4 +63,14 @@ pub struct PublishDiagnosticsParams {
     pub url: Url,
     pub diagnostics: Vec<Diagnostic>,
     pub version: Option<i32>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CompletionParams {
+    pub at: TextDocumentPointParams,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
+pub struct CompletionResponse {
+    pub items: Vec<CompletionItem>,
 }

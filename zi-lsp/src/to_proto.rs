@@ -7,10 +7,7 @@ pub fn goto_definition(
     params: lstypes::GotoDefinitionParams,
 ) -> lsp_types::GotoDefinitionParams {
     lsp_types::GotoDefinitionParams {
-        text_document_position_params: lsp_types::TextDocumentPositionParams {
-            text_document: lsp_types::TextDocumentIdentifier { uri: params.at.url },
-            position: point(encoding, text, params.at.point),
-        },
+        text_document_position_params: document_position(encoding, text, params.at),
         work_done_progress_params: Default::default(),
         partial_result_params: Default::default(),
     }
@@ -70,5 +67,16 @@ pub fn point(
     match encoding {
         PositionEncoding::Utf8 => lsp_types::Position::new(point.line() as u32, point.col() as u32),
         PositionEncoding::Utf16 => byte(encoding, text, text.point_to_byte(point)),
+    }
+}
+
+pub fn document_position(
+    encoding: PositionEncoding,
+    text: &(impl Text + ?Sized),
+    params: lstypes::TextDocumentPointParams,
+) -> lsp_types::TextDocumentPositionParams {
+    lsp_types::TextDocumentPositionParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+        position: point(encoding, &text, params.point),
     }
 }

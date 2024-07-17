@@ -4,25 +4,18 @@ use std::ops::DerefMut;
 use futures_core::future::BoxFuture;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching, Normalization};
 use nucleo::Utf32Str;
-use url::Url;
-use zi_core::{CompletionItem, Point};
+use zi_core::CompletionItem;
 use zi_text::{Delta, DeltaRange};
 
-use crate::{Editor, Result};
+use crate::{lstypes, Editor, Result};
 
 // FIXME this can maybe merge with `LanguageService` now
 pub trait CompletionProvider: Send + Sync + 'static {
     fn completions(
         &self,
         editor: &mut Editor,
-        params: CompletionParams,
-    ) -> BoxFuture<'static, Result<Vec<CompletionItem>>>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompletionParams {
-    pub url: Url,
-    pub point: Point,
+        params: lstypes::CompletionParams,
+    ) -> BoxFuture<'static, Result<lstypes::CompletionResponse>>;
 }
 
 #[derive(Debug, Default)]
