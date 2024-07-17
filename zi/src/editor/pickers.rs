@@ -126,6 +126,8 @@ impl Editor {
         }));
 
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
+        let theme = self.theme();
+        let theme = theme.read();
         self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
                 id,
@@ -133,7 +135,7 @@ impl Editor {
                 filetype!(text),
                 path,
                 Rope::new(),
-                &self.theme,
+                &theme,
                 None,
             ))
         }));

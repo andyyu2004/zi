@@ -58,7 +58,9 @@ pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
 pub use self::language_service::{lstypes, LanguageClient, LanguageService, LanguageServiceConfig};
 pub use self::namespace::Namespace;
-pub use self::syntax::Syntax;
+#[doc(hidden)]
+pub use self::syntax::HighlightName;
+pub use self::syntax::{Syntax, Theme};
 pub use self::view::{VerticalAlignment, View};
 // pub use self::wit::zi::api::editor::{Mode, Operator};
 

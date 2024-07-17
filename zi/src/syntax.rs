@@ -4,7 +4,7 @@ use tree_sitter::{Query, QueryCapture, QueryCursor, Tree};
 use zi_core::PointRange;
 use zi_text::{AnyText, AnyTextMut, Deltas};
 
-pub(crate) use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
+pub use self::highlight::{HighlightId, HighlightMap, HighlightName, Theme};
 use crate::FileType;
 
 pub trait Syntax: Send + Sync + 'static {

@@ -82,7 +82,7 @@ impl Theme {
         self.default_style
     }
 
-    pub fn id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
+    pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
         let name = name.as_ref();
         self.highlights
             .iter()

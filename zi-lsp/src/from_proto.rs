@@ -142,3 +142,66 @@ pub fn completion_item(
         filter_text: item.filter_text,
     })
 }
+
+pub fn semantic_tokens(
+    encoding: PositionEncoding,
+    text: &(impl Text + ?Sized),
+    legend: &lsp_types::SemanticTokensLegend,
+    theme: &zi::Theme,
+    tokens: lsp_types::SemanticTokens,
+) -> Vec<zi::MarkBuilder> {
+    let mut line = 0;
+    let mut char = 0;
+    tokens
+        .data
+        .into_iter()
+        .filter_map(|token| {
+            if token.delta_line > 0 {
+                char = 0;
+            }
+
+            line += token.delta_line;
+            char += token.delta_start;
+
+            let hl = semantic_tt_to_highlight(&legend.token_types[token.token_type as usize])
+                .map(|name| theme.highlight_id_by_name(name))?;
+
+            let point = point(encoding, text, lsp_types::Position::new(line, char))?;
+            let start = text.point_to_byte(point);
+            // TODO need to convert this length to the right encoding too...
+            Some(zi::Mark::builder(start).width(token.length as usize).hl(hl))
+        })
+        .collect::<Vec<_>>()
+}
+
+// Naive mapping from semantic token types to highlight names for now
+use zi::HighlightName;
+fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
+    use lsp_types::SemanticTokenType as Stt;
+    Some(match tt {
+        t if t == &Stt::NAMESPACE => HighlightName::NAMESPACE,
+        t if t == &Stt::TYPE => HighlightName::TYPE,
+        t if t == &Stt::STRUCT => HighlightName::TYPE,
+        t if t == &Stt::CLASS => HighlightName::TYPE,
+        t if t == &Stt::INTERFACE => HighlightName::TYPE,
+        t if t == &Stt::ENUM => HighlightName::TYPE,
+        t if t == &Stt::TYPE_PARAMETER => HighlightName::TYPE,
+        t if t == &Stt::PARAMETER => HighlightName::PARAMETER,
+        t if t == &Stt::VARIABLE => HighlightName::VARIABLE,
+        t if t == &Stt::PROPERTY => HighlightName::PROPERTY,
+        // t if t == &Stt::ENUM_MEMBER => HighlightName::ENUM_MEMBER,
+        // t if t == &Stt::EVENT => HighlightName::EVENT,
+        t if t == &Stt::FUNCTION => HighlightName::FUNCTION,
+        t if t == &Stt::METHOD => HighlightName::FUNCTION,
+        t if t == &Stt::MACRO => HighlightName::MACRO,
+        t if t == &Stt::KEYWORD => HighlightName::KEYWORD,
+        // t if t == &Stt::MODIFIER => HighlightName::MODIFIER,
+        t if t == &Stt::COMMENT => HighlightName::COMMENT,
+        t if t == &Stt::STRING => HighlightName::STRING,
+        t if t == &Stt::NUMBER => HighlightName::NUMBER,
+        t if t == &Stt::REGEXP => HighlightName::STRING,
+        // t if t == &Stt::OPERATOR => HighlightName::OPERATOR,
+        // t if t == &Stt::DECORATOR => HighlightName::DECORATOR,
+        _ => return None,
+    })
+}

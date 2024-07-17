@@ -108,9 +108,10 @@ impl Editor {
         assert_eq!(surface.area.intersection(area), area);
 
         let theme = self.theme();
+        let theme = theme.read();
         let background = self
             .highlight_id_by_name(HighlightName::BACKGROUND)
-            .style(theme)
+            .style(&theme)
             .unwrap_or_else(|| theme.default_style());
 
         surface.set_style(area, background);
@@ -162,6 +163,7 @@ impl Editor {
 
     fn render_view_content(&self, area: Rect, surface: &mut tui::Buffer, view: ViewId) -> usize {
         let theme = self.theme();
+        let theme = theme.read();
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
         let view = &self[view];
@@ -183,13 +185,13 @@ impl Editor {
         let syntax_highlights = buf
             .syntax_highlights(self, &mut query_cursor, relevant_point_range)
             .skip_while(|hl| hl.range.end().line() < line_offset)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
+            .filter_map(|hl| Some((hl.range, hl.id.style(&theme)?)));
 
         let mark_highlights = buf
             .marks(relevant_byte_range)
             .filter(|(_, range, _)| !range.is_empty())
             .filter_map(|(_, byte_range, mark)| {
-                let style = mark.highlight().style(theme)?;
+                let style = mark.highlight().style(&theme)?;
                 let point_range = text.byte_range_to_point_range(&byte_range);
                 if !point_range.is_subrange_of(relevant_point_range) {
                     return None;
@@ -202,7 +204,7 @@ impl Editor {
         let overlay_highlights = buf
             .overlay_highlights(self, view, area.into())
             .skip_while(|hl| hl.range.end().line() < line_offset)
-            .filter_map(|hl| Some((hl.range, hl.id.style(theme)?)));
+            .filter_map(|hl| Some((hl.range, hl.id.style(&theme)?)));
 
         let view_highlights = syntax_highlights
             .range_merge(overlay_highlights)
@@ -230,7 +232,7 @@ impl Editor {
                     HighlightName::SEARCH
                 };
 
-                let style = self.highlight_id_by_name(hl_name).style(theme)?;
+                let style = self.highlight_id_by_name(hl_name).style(&theme)?;
                 Some((range, style))
             });
 

@@ -92,7 +92,7 @@ impl BufferInternal for InspectorBuffer {
                             .syntax()
                             .expect("if buffer has syntax highlights it must have syntax")
                             .capture_index_to_name(hl.capture_idx);
-                        match hl.id.style(editor.theme()) {
+                        match hl.id.style(&editor.theme().read()) {
                             Some(style) => format!("{capture_name} -> {style}"),
                             None => capture_name.to_string(),
                         }

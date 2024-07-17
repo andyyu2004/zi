@@ -63,8 +63,8 @@ use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup};
 use crate::{
     event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageService,
-    LanguageServiceId, Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Url,
-    VerticalAlignment, View, ViewGroupId, ViewId,
+    LanguageServiceId, Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Setting,
+    Url, VerticalAlignment, View, ViewGroupId, ViewId,
 };
 
 bitflags::bitflags! {
@@ -88,14 +88,6 @@ bitflags::bitflags! {
 fn pool() -> &'static rayon::ThreadPool {
     static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
-}
-
-struct SemanticTokens {
-    last_request_id: Option<String>,
-    buf_version: u32,
-    server: LanguageServiceId,
-    legend: lsp_types::SemanticTokensLegend,
-    tokens: Vec<lsp_types::SemanticToken>,
 }
 
 #[derive(Default)]
@@ -123,13 +115,11 @@ pub struct Editor {
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
     // The per-buffer diagnostics are sorted by range.
     diagnostics: HashMap<PathBuf, BufferDiagnostics>,
-    semantic_tokens: HashMap<BufferId, SemanticTokens>,
     empty_buffer: BufferId,
     settings: Settings,
     search_state: SearchState,
     state: State,
     keymap: Keymap,
-    theme: Theme,
     active_language_services_by_ft: HashMap<FileType, Vec<LanguageServiceId>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
@@ -386,8 +376,9 @@ impl Editor {
     /// It is recommended to implement a debounce mechanism to avoid redrawing too often.
     pub fn new(backend: impl Backend, size: impl Into<Size>) -> (Self, Tasks) {
         let size = size.into();
-        let theme = Theme::default();
+        let settings = Settings::default();
         let mut buffers = SlotMap::default();
+        let theme = settings.theme.read();
         let scratch_buffer = buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
                 id,
@@ -429,6 +420,7 @@ impl Editor {
         static NOTIFY_IDLE: OnceLock<Notify> = OnceLock::new();
         let notify_idle = NOTIFY_IDLE.get_or_init(Default::default);
 
+        drop(theme);
         let mut editor = Self {
             buffers,
             views,
@@ -439,22 +431,20 @@ impl Editor {
             // plugins,
             empty_buffer,
             notify_idle,
+            settings,
             backend: Box::new(backend),
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
-            semantic_tokens: Default::default(),
             diagnostics: Default::default(),
             is_idle: Default::default(),
             notify_quit: Default::default(),
-            settings: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
             active_language_services: Default::default(),
             active_language_services_by_ft: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
-            theme: Default::default(),
             status_error: Default::default(),
         };
 
@@ -524,7 +514,7 @@ impl Editor {
         path: impl AsRef<Path>,
         open_flags: OpenFlags,
     ) -> io::Result<impl Future<Output = Result<BufferId>> + 'static> {
-        let theme = self.theme.clone();
+        let theme = self.theme().clone();
         let mut path = path.as_ref().to_path_buf();
         self.check_open(&mut path, open_flags)?;
 
@@ -565,7 +555,7 @@ impl Editor {
                 ft: FileType,
                 path: &Path,
                 text: T,
-                theme: Theme,
+                theme: Setting<Theme>,
                 flags: BufferFlags,
                 syntax: Option<Box<dyn Syntax>>,
             ) -> BufferId {
@@ -574,13 +564,27 @@ impl Editor {
                     .with(move |editor| match plan {
                         Plan::Replace(id) => {
                             let buf = Buffer::new(TextBuffer::new(
-                                id, flags, ft, &path, text, &theme, syntax,
+                                id,
+                                flags,
+                                ft,
+                                &path,
+                                text,
+                                &theme.read(),
+                                syntax,
                             ));
                             editor.buffers[id] = buf;
                             id
                         }
                         Plan::Insert => editor.buffers.insert_with_key(|id| {
-                            Buffer::new(TextBuffer::new(id, flags, ft, &path, text, &theme, syntax))
+                            Buffer::new(TextBuffer::new(
+                                id,
+                                flags,
+                                ft,
+                                &path,
+                                text,
+                                &theme.read(),
+                                syntax,
+                            ))
                         }),
                         Plan::Existing(_) => unreachable!(),
                     })
@@ -642,7 +646,7 @@ impl Editor {
     }
 
     pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
-        self.theme.id_by_name(name)
+        self.theme().read().highlight_id_by_name(name)
     }
 
     async fn shutdown(&mut self) {
@@ -1371,8 +1375,8 @@ impl Editor {
         self.cursor_line().chars().nth(col)
     }
 
-    pub fn theme(&self) -> &Theme {
-        &self.theme
+    pub fn theme(&self) -> Setting<Theme> {
+        self.settings().theme.clone()
     }
 
     /// Applies the text object to the pending operator if there is one.
@@ -1797,6 +1801,8 @@ impl Editor {
         path: impl AsRef<Path>,
         s: impl Deref<Target = [u8]> + Send + Sync + 'static,
     ) -> BufferId {
+        let theme = self.theme();
+        let theme = theme.read();
         self.buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
                 id,
@@ -1804,7 +1810,7 @@ impl Editor {
                 filetype!(text),
                 path,
                 ReadonlyText::new(s),
-                &self.theme,
+                &theme,
                 None,
             ))
         })

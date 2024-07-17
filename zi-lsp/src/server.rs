@@ -6,7 +6,8 @@ use async_lsp::lsp_types;
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
 use zi::{
-    lstypes, LanguageServiceId, PositionEncoding, Resource, Rope, Text, TextMut, TextSlice, Url,
+    lstypes, LanguageService as _, LanguageServiceId, PositionEncoding, Resource, Rope, Setting,
+    Text, TextMut, TextSlice, Theme, Url,
 };
 use zi_event::{event, HandlerResult};
 
@@ -27,6 +28,7 @@ pub struct LanguageService {
     position_encoding: OnceLock<PositionEncoding>,
     // Keeping track of this here for encoding conversions (and sanity checks)
     texts: HashMap<Url, (i32, Rope)>,
+    semantic_tokens_legend: OnceLock<Option<Arc<lsp_types::SemanticTokensLegend>>>,
 }
 
 impl LanguageService {
@@ -45,6 +47,7 @@ impl LanguageService {
             capabilities: Default::default(),
             position_encoding: Default::default(),
             texts: Default::default(),
+            semantic_tokens_legend: Default::default(),
         }
     }
 
@@ -52,6 +55,19 @@ impl LanguageService {
     pub(crate) fn text(&self, url: &Url) -> Option<&Rope> {
         let (_, text) = self.texts.get(url)?;
         Some(text)
+    }
+
+    fn semantic_tokens_legend(&self) -> Option<Arc<lsp_types::SemanticTokensLegend>> {
+        self.semantic_tokens_legend
+            .get_or_init(|| {
+                let opts = match self.capabilities().semantic_tokens_provider.as_ref()? {
+                    lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(opts) => opts,
+                    lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(opts) => &opts.semantic_tokens_options,
+                };
+
+                Some(Arc::new(opts.legend.clone()))
+            })
+            .clone()
     }
 }
 
@@ -213,7 +229,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::DocumentFormattingParams,
     ) -> ResponseFuture<Option<zi::Deltas<'static>>> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.url).unwrap().clone();
+        let text = self.text(&params.url).unwrap().clone();
         self.server
             .formatting(lsp_types::DocumentFormattingParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
@@ -232,7 +248,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        let text = self.text(&params.at.url).unwrap().clone();
         self.server
             .definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -251,7 +267,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        let text = self.text(&params.at.url).unwrap().clone();
         self.server
             .type_definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -270,7 +286,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::GotoDefinitionParams,
     ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        let text = self.text(&params.at.url).unwrap().clone();
         self.server
             .implementation(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
@@ -289,7 +305,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::ReferenceParams,
     ) -> ResponseFuture<Vec<lstypes::Location>> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        let text = self.text(&params.at.url).unwrap().clone();
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: to_proto::document_position(enc, &text, params.at),
@@ -315,7 +331,7 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::CompletionParams,
     ) -> ResponseFuture<lstypes::CompletionResponse> {
         let enc = self.position_encoding();
-        let (_, text) = self.texts.get(&params.at.url).unwrap().clone();
+        let text = self.text(&params.at.url).unwrap().clone();
         self.server
             .completion(lsp_types::CompletionParams {
                 text_document_position: to_proto::document_position(enc, &text, params.at),
@@ -336,16 +352,32 @@ impl zi::LanguageService for LanguageService {
 
     fn semantic_tokens_full(
         &mut self,
+        theme: Setting<Theme>,
         params: lsp_types::SemanticTokensParams,
-    ) -> ResponseFuture<Option<lsp_types::SemanticTokensResult>> {
-        self.server.semantic_tokens_full(params).map_err(Into::into).boxed()
-    }
+    ) -> ResponseFuture<Option<Vec<zi::MarkBuilder>>> {
+        let encoding = self.position_encoding();
+        let text = self.text(&params.text_document.uri).unwrap().clone();
+        let legend = self
+            .semantic_tokens_legend()
+            .expect("should not request semantic tokens to service without the capability");
 
-    fn semantic_tokens_full_delta(
-        &mut self,
-        params: lsp_types::SemanticTokensDeltaParams,
-    ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>> {
-        self.server.semantic_tokens_full_delta(params).map_err(Into::into).boxed()
+        self.server
+            .semantic_tokens_full(params)
+            .map(move |res| {
+                let theme = theme.read();
+                match res {
+                    Ok(Some(res)) => match res {
+                        lsp_types::SemanticTokensResult::Tokens(tokens) => Ok(Some(
+                            from_proto::semantic_tokens(encoding, &text, &legend, &theme, tokens),
+                        )),
+                        lsp_types::SemanticTokensResult::Partial(_tokens) => Ok(None),
+                    },
+                    Ok(None) => Ok(None),
+                    Err(err) => Err(err),
+                }
+            })
+            .map_err(Into::into)
+            .boxed()
     }
 
     fn document_diagnostic(

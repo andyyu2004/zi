@@ -13,7 +13,8 @@ pub use lsp_types;
 pub use zi_core::PositionEncoding;
 use zi_text::Deltas;
 
-use crate::{Client, LanguageServiceId};
+use crate::syntax::Theme;
+use crate::{Client, LanguageServiceId, MarkBuilder, Setting};
 
 pub type ResponseFuture<T> = BoxFuture<'static, Result<T>>;
 
@@ -126,13 +127,15 @@ pub trait LanguageService {
 
     fn semantic_tokens_full(
         &mut self,
+        // Bit of a hack parameter, find another cleaner way
+        theme: Setting<Theme>,
         params: lsp_types::SemanticTokensParams,
-    ) -> ResponseFuture<Option<lsp_types::SemanticTokensResult>>;
+    ) -> ResponseFuture<Option<Vec<MarkBuilder>>>;
 
-    fn semantic_tokens_full_delta(
-        &mut self,
-        params: lsp_types::SemanticTokensDeltaParams,
-    ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>>;
+    // fn semantic_tokens_full_delta(
+    //     &mut self,
+    //     params: lsp_types::SemanticTokensDeltaParams,
+    // ) -> ResponseFuture<Option<lsp_types::SemanticTokensFullDeltaResult>>;
 
     fn document_diagnostic(
         &mut self,
