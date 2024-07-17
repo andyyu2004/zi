@@ -1,5 +1,5 @@
 use async_lsp::lsp_types;
-use zi::{lstypes, Delta, Deltas, Diagnostic, Point, PointRange, PositionEncoding, Severity, Text};
+use zi::{lstypes, Delta, Deltas, Diagnostic, Point, PointRange, Severity, Text};
 
 pub fn goto_definition(
     encoding: PositionEncoding,
@@ -176,6 +176,8 @@ pub fn semantic_tokens(
 
 // Naive mapping from semantic token types to highlight names for now
 use zi::HighlightName;
+
+use crate::PositionEncoding;
 fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
     use lsp_types::SemanticTokenType as Stt;
     Some(match tt {

@@ -1,5 +1,7 @@
 use async_lsp::lsp_types;
-use zi::{lstypes, Deltas, Point, PositionEncoding, Text};
+use zi::{lstypes, Deltas, Point, Text};
+
+use crate::PositionEncoding;
 
 pub fn goto_definition(
     encoding: PositionEncoding,

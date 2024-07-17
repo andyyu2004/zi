@@ -10,7 +10,6 @@ use anyhow::Result;
 use futures_core::future::BoxFuture;
 // TODO using lsp_types for now, but should define our own lsp-agnostic interface to drop the dependency;
 pub use lsp_types;
-pub use zi_core::PositionEncoding;
 use zi_text::Deltas;
 
 use crate::syntax::Theme;
@@ -142,10 +141,8 @@ pub trait LanguageService {
         params: lstypes::DocumentDiagnosticParams,
     ) -> ResponseFuture<lstypes::DocumentDiagnosticReport>;
 
+    // FIXME, think about how to define capabilities without using the lsp way
     fn capabilities(&self) -> &lsp_types::ServerCapabilities;
-
-    // FIXME remove this, all encoding logic should be pushed into lsp
-    fn position_encoding(&self) -> PositionEncoding;
 
     fn shutdown(&mut self) -> ResponseFuture<()>;
 

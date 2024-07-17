@@ -12,7 +12,7 @@ use super::{active_servers_of, callback, event, get, Result, Selector};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
 use crate::{
-    lsp, BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
+    BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
     OpenFlags, Resource, ViewId,
 };
 
@@ -236,7 +236,6 @@ impl Editor {
                         service
                             .initialize(lstypes::InitializeParams {
                                 process_id: std::process::id(),
-                                capabilities: lsp::client_capabilities(),
                                 workspace_folders: vec![workspace_root],
                             })
                             .await?;

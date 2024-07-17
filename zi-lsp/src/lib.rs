@@ -28,6 +28,15 @@ use tower::ServiceBuilder;
 use self::client::LanguageClient;
 pub use self::server::LanguageService;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PositionEncoding {
+    /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
+    Utf8,
+    /// UTF-16 code units
+    #[default]
+    Utf16,
+}
+
 pub fn start<C>(
     client: C,
     cwd: impl AsRef<Path>,

@@ -9,7 +9,6 @@ pub use zi_core::{CompletionItem, Diagnostic, Point, PointRange};
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
     pub process_id: u32,
-    pub capabilities: lsp_types::ClientCapabilities,
     pub workspace_folders: Vec<lsp_types::WorkspaceFolder>,
 }
 

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use zi::{deltas, BufferId};
 use zi_lsp::lsp_types::{self, request};
+use zi_lsp::PositionEncoding;
 use zi_test::{new, TestContext};
 
 use crate::TestContextExt;
@@ -100,7 +101,7 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
 
     let expected_main_diagnostics = main_diagnostics
         .into_iter()
-        .filter_map(|diag| zi_lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, "text", diag))
+        .filter_map(|diag| zi_lsp::from_proto::diagnostic(PositionEncoding::Utf8, "text", diag))
         .collect();
 
     // Not implemented

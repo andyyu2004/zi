@@ -21,8 +21,6 @@ mod language;
 mod language_service;
 mod layout;
 mod location;
-#[doc(hidden)]
-pub mod lsp;
 mod namespace;
 mod operator;
 mod plugin;
@@ -38,7 +36,7 @@ pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
 pub use zi_core::{
     BufferId, Col, CompletionItem, Diagnostic, Direction, Line, Mode, NamespaceId, Offset,
-    Operator, Point, PointRange, PositionEncoding, Severity, Size, ViewGroupId, ViewId,
+    Operator, Point, PointRange, Severity, Size, ViewGroupId, ViewId,
 };
 pub use zi_text::{
     deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextBase,

@@ -1,7 +1,8 @@
 use rand::Rng;
 use stdx::bomb::DropBomb;
 use tokio::sync::watch;
-use zi::{deltas, PositionEncoding, TextBase};
+use zi::{deltas, TextBase};
+use zi_lsp::PositionEncoding;
 
 use super::*;
 
@@ -95,7 +96,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
     // It may look like the events are out of order, but that's due to the way zi sorts deltas.
     // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
     let expected_events = ExpectedSequence::new([
-        vec![lsp_change_event!(0:0..0:0 => "\n")],
+        vec![lsp_change_event!("\n")],
         vec![lsp_change_event!(0:0..0:0 => "abc")],
         vec![lsp_change_event!(0:3..0:3 => "de")],
         vec![lsp_change_event!(0:2..0:2 => "z"), lsp_change_event!(0:0..0:0 => "©")],
@@ -150,7 +151,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
     // It may look like the events are out of order, but that's due to the way zi sorts deltas.
     // This is also important for LSP as edits are applied in order. Ordering this way avoids changes affecting each other.
     let expected_events = ExpectedSequence::new([
-        vec![lsp_change_event!(0:0..0:0 => "\n")],
+        vec![lsp_change_event!("\n")],
         vec![lsp_change_event!(0:0..0:0 => "©")],
         // This would be 0:2 if utf-8
         vec![lsp_change_event!(0:1..0:1 => "z")],

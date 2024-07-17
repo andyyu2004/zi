@@ -6,12 +6,12 @@ use async_lsp::lsp_types;
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
 use zi::{
-    lstypes, LanguageService as _, LanguageServiceId, PositionEncoding, Resource, Rope, Setting,
-    Text, TextMut, TextSlice, Theme, Url,
+    lstypes, LanguageService as _, LanguageServiceId, Resource, Rope, Setting, Text, TextMut,
+    TextSlice, Theme, Url,
 };
 use zi_event::{event, HandlerResult};
 
-use crate::{from_proto, to_proto, EditorExt};
+use crate::{client, from_proto, to_proto, EditorExt, PositionEncoding};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
 // We box the inner server instead of making it generic to make downcasting to this type possible.
@@ -69,6 +69,23 @@ impl LanguageService {
             })
             .clone()
     }
+
+    pub(crate) fn position_encoding(&self) -> PositionEncoding {
+        *self.position_encoding.get_or_init(|| match &Self::capabilities(self).position_encoding {
+            Some(encoding) => match encoding {
+                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
+                _ => {
+                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+                    PositionEncoding::default()
+                }
+            },
+            None => {
+                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
+                PositionEncoding::default()
+            }
+        })
+    }
 }
 
 type ResponseFuture<T> = BoxFuture<'static, zi::Result<T>>;
@@ -83,7 +100,7 @@ impl zi::LanguageService for LanguageService {
         let caps = Arc::clone(&self.capabilities);
         let fut = self.server.initialize(lsp_types::InitializeParams {
             process_id: Some(params.process_id),
-            capabilities: params.capabilities,
+            capabilities: client::capabilities(),
             workspace_folders: Some(params.workspace_folders),
             ..Default::default()
         });
@@ -436,23 +453,6 @@ impl zi::LanguageService for LanguageService {
 
     fn capabilities(&self) -> &lsp_types::ServerCapabilities {
         self.capabilities.get().expect("capabilities not initialized")
-    }
-
-    fn position_encoding(&self) -> PositionEncoding {
-        *self.position_encoding.get_or_init(|| match &Self::capabilities(self).position_encoding {
-            Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
-                _ => {
-                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
-                    PositionEncoding::default()
-                }
-            },
-            None => {
-                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
-                PositionEncoding::default()
-            }
-        })
     }
 
     fn shutdown(&mut self) -> ResponseFuture<()> {
