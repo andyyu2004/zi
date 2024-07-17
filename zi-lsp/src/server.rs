@@ -177,11 +177,15 @@ impl zi::LanguageService for LanguageService {
                 let content_changes = match kind {
                     lsp_types::TextDocumentSyncKind::INCREMENTAL
                     | lsp_types::TextDocumentSyncKind::FULL => {
-                        let (text_version, text) =
-                            service.texts.get_mut(&text_document.uri).expect("buffer not opened");
+                        let (prev_version, text) = service
+                            .texts
+                            .entry(text_document.uri.clone())
+                            .or_insert_with(|| (0, Rope::new()));
+
                         let content_changes = if kind
                             == lsp_types::TextDocumentSyncKind::INCREMENTAL
-                            && version.checked_sub(1) == Some(*text_version)
+                            && *prev_version > 0
+                            && version.checked_sub(1) == Some(*prev_version)
                         {
                             // If has incremental support and versions are consecutive, send deltas.
                             debug_assert_eq!(
@@ -205,7 +209,7 @@ impl zi::LanguageService for LanguageService {
                                 text: buf.text().to_string(),
                             }]
                         };
-                        *text_version = version;
+                        *prev_version = version;
                         content_changes
                     }
                     lsp_types::TextDocumentSyncKind::NONE => return HandlerResult::Continue,
