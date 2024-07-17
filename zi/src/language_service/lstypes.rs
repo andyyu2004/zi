@@ -74,3 +74,8 @@ pub struct CompletionParams {
 pub struct CompletionResponse {
     pub items: Vec<CompletionItem>,
 }
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct SemanticTokensParams {
+    pub url: Url,
+}

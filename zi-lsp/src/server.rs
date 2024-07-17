@@ -361,16 +361,20 @@ impl zi::LanguageService for LanguageService {
     fn semantic_tokens_full(
         &mut self,
         theme: Setting<Theme>,
-        params: lsp_types::SemanticTokensParams,
+        params: lstypes::SemanticTokensParams,
     ) -> ResponseFuture<Option<Vec<zi::MarkBuilder>>> {
         let encoding = self.position_encoding();
-        let text = self.text(&params.text_document.uri).unwrap().clone();
+        let text = self.text(&params.url).unwrap().clone();
         let legend = self
             .semantic_tokens_legend()
             .expect("should not request semantic tokens to service without the capability");
 
         self.server
-            .semantic_tokens_full(params)
+            .semantic_tokens_full(lsp_types::SemanticTokensParams {
+                text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
             .map(move |res| {
                 let theme = theme.read();
                 match res {

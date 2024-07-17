@@ -357,7 +357,7 @@ impl Editor {
 
         let client = self.client();
 
-        let uri = self.buffers[buf].url().clone();
+        let url = self.buffers[buf].url().clone();
 
         let Some((server, _caps)) = active_servers_of!(self, buf).find_map(|&server| {
             let caps = self.active_language_services[&server]
@@ -383,18 +383,10 @@ impl Editor {
 
         let theme = self.theme();
         let s = self.active_language_services.get_mut(&server).unwrap();
-        let fut = s.semantic_tokens_full(
-            theme,
-            lsp_types::SemanticTokensParams {
-                text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-            },
-        );
+        tracing::debug!(%url, "requesting semantic tokens full");
+        let fut = s.semantic_tokens_full(theme, lstypes::SemanticTokensParams { url });
 
         Some(async move {
-            tracing::debug!(%uri, "requesting semantic tokens full");
-
             let Some(marks) = fut.await? else { return Ok(()) };
             client
                 .with(move |editor| {

@@ -129,7 +129,7 @@ pub trait LanguageService {
         &mut self,
         // Bit of a hack parameter, find another cleaner way
         theme: Setting<Theme>,
-        params: lsp_types::SemanticTokensParams,
+        params: lstypes::SemanticTokensParams,
     ) -> ResponseFuture<Option<Vec<MarkBuilder>>>;
 
     // fn semantic_tokens_full_delta(
