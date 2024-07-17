@@ -1724,7 +1724,12 @@ impl Editor {
 
             tracing::info!("buffer written to disk");
 
-            client.with(move |editor| editor[buf].flushed()).await;
+            client
+                .with(move |editor| {
+                    editor[buf].flushed();
+                    editor.dispatch(event::DidSaveBuffer { buf });
+                })
+                .await;
             Ok(())
         }
     }

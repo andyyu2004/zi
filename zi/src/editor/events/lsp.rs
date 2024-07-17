@@ -68,12 +68,12 @@ impl Editor {
     pub(super) fn lsp_did_open_refresh_semantic_tokens()
     -> impl EventHandler<Self, Event = event::DidOpenBuffer> {
         zi_event::handler::<Editor, event::DidOpenBuffer>(move |editor, event| {
-            editor.schedule_semantic_tokens(event.buf);
+            editor.refresh_semantic_tokens(event.buf);
             event::HandlerResult::Continue
         })
     }
 
-    pub(super) fn schedule_semantic_tokens(&mut self, buf: BufferId) {
+    pub(super) fn refresh_semantic_tokens(&mut self, buf: BufferId) {
         if let Some(fut) = self.request_semantic_tokens(buf) {
             self.spawn("semantic tokens", fut.map_err(Into::into))
         };

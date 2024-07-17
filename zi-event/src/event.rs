@@ -50,8 +50,16 @@ pub struct DidInsertChar {
 
 impl Event for DidInsertChar {}
 
+#[derive(Debug, Clone)]
 pub struct DidDeleteChar {
     pub view: ViewId,
 }
 
 impl Event for DidDeleteChar {}
+
+#[derive(Debug, Clone)]
+pub struct DidSaveBuffer {
+    pub buf: BufferId,
+}
+
+impl Event for DidSaveBuffer {}

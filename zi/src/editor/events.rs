@@ -8,6 +8,11 @@ impl Editor {
     pub(super) fn subscribe_sync_hooks() {
         event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
 
+        event::subscribe_with::<event::DidSaveBuffer>(|editor, event| {
+            editor.refresh_semantic_tokens(event.buf);
+            HandlerResult::Continue
+        });
+
         event::subscribe_with::<event::WillChangeMode>(|editor, event| {
             match (event.from, event.to) {
                 (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
@@ -19,7 +24,7 @@ impl Editor {
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
             match (event.from, event.to) {
                 (Mode::Insert, Mode::Normal) => {
-                    editor.schedule_semantic_tokens(Active.select(editor))
+                    editor.refresh_semantic_tokens(Active.select(editor))
                 }
                 _ => (),
             }
