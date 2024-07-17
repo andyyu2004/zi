@@ -103,10 +103,13 @@ impl Editor {
             .collect::<Vec<_>>();
 
         let point = self[view].cursor();
-        let params = CompletionParams { buf, point };
         let futs = providers
             .into_iter()
-            .map(|provider| provider.completions(self, params))
+            .filter_map(|provider| {
+                let url = self[buf].file_url().cloned()?;
+                let params = CompletionParams { url, point };
+                Some(provider.completions(self, params))
+            })
             .collect::<Vec<_>>();
 
         async move {
@@ -131,8 +134,7 @@ impl CompletionProvider for LspCompletionProvider {
         editor: &mut Editor,
         params: CompletionParams,
     ) -> BoxFuture<'static, Result<Vec<CompletionItem>>> {
-        let buf = params.buf;
-        let Some(uri) = editor[buf].file_url().cloned() else {
+        let Some(buf) = editor.buffer_at_url(&params.url) else {
             return Box::pin(async move { Ok(vec![]) });
         };
         let s = editor.active_language_services.get_mut(&self.server).unwrap();
@@ -141,7 +143,7 @@ impl CompletionProvider for LspCompletionProvider {
 
         let fut = s.completion(lsp_types::CompletionParams {
             text_document_position: lsp_types::TextDocumentPositionParams {
-                text_document: lsp_types::TextDocumentIdentifier { uri },
+                text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
                 position: to_proto::point(encoding, &text, params.point),
             },
             work_done_progress_params: Default::default(),

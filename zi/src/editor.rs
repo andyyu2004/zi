@@ -524,6 +524,10 @@ impl Editor {
         })
     }
 
+    fn buffer_at_url(&self, url: &Url) -> Option<BufferId> {
+        self.buffers.values().find_map(|b| b.file_url().filter(|u| *u == url).map(|_| b.id()))
+    }
+
     pub fn open(
         &mut self,
         path: impl AsRef<Path>,
