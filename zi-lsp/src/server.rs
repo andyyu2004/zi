@@ -515,7 +515,32 @@ impl zi::LanguageService for LanguageService {
         params: lstypes::DocumentDiagnosticParams,
     ) -> ResponseFuture<lstypes::DocumentDiagnosticReport> {
         let enc = self.position_encoding();
-        let (_version, text) = self.texts.get(&params.url).unwrap().clone();
+
+        fn convert_related(
+            enc: lstypes::PositionEncoding,
+            kind: Option<HashMap<Url, lsp_types::DocumentDiagnosticReportKind>>,
+        ) -> HashMap<Url, lstypes::Diagnostics> {
+            kind.map_or_else(Default::default, |kind| {
+                kind.into_iter()
+                    .filter_map(|(url, kind)| {
+                        Some((
+                            url,
+                            match kind {
+                                lsp_types::DocumentDiagnosticReportKind::Full(full) => {
+                                    lstypes::Diagnostics::Full(from_proto::diagnostics(
+                                        enc, full.items,
+                                    ))
+                                }
+                                lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {
+                                    lstypes::Diagnostics::Unchanged
+                                }
+                            },
+                        ))
+                    })
+                    .collect()
+            })
+        }
+
         self.server
             .document_diagnostic(lsp_types::DocumentDiagnosticParams {
                 text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
@@ -529,22 +554,25 @@ impl zi::LanguageService for LanguageService {
                     lsp_types::DocumentDiagnosticReportResult::Report(res) => match res {
                         lsp_types::DocumentDiagnosticReport::Full(res) => {
                             lstypes::DocumentDiagnosticReport {
-                                diagnostics: from_proto::diagnostics(
+                                diagnostics: lstypes::Diagnostics::Full(from_proto::diagnostics(
                                     enc,
-                                    &text,
                                     res.full_document_diagnostic_report.items,
-                                ),
-                                // Need to open any unopened buffers and get the text to do the conversions for related documents
-                                related_documents: Default::default(),
+                                )),
+                                related_documents: convert_related(enc, res.related_documents),
                             }
                         }
                         lsp_types::DocumentDiagnosticReport::Unchanged(_) => {
-                            lstypes::DocumentDiagnosticReport::default()
+                            lstypes::DocumentDiagnosticReport {
+                                diagnostics: lstypes::Diagnostics::Unchanged,
+                                related_documents: Default::default(),
+                            }
                         }
                     },
-                    lsp_types::DocumentDiagnosticReportResult::Partial(_res) => {
-                        // ditto: related documents unimplemented
-                        lstypes::DocumentDiagnosticReport::default()
+                    lsp_types::DocumentDiagnosticReportResult::Partial(res) => {
+                        lstypes::DocumentDiagnosticReport {
+                            related_documents: convert_related(enc, res.related_documents),
+                            diagnostics: lstypes::Diagnostics::Unchanged,
+                        }
                     }
                 })
             })

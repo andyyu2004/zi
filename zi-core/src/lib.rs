@@ -1,12 +1,10 @@
 pub mod completion;
-mod diagnostic;
 mod position;
 pub mod style;
 
 use std::fmt;
 
 pub use self::completion::CompletionItem;
-pub use self::diagnostic::{Diagnostic, Severity};
 pub use self::position::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,4 +44,3 @@ slotmap::new_key_type! {
     pub struct BufferId;
     pub struct NamespaceId;
 }
-

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use url::Url;
-pub use zi_core::{CompletionItem, Diagnostic, Point, PointRange};
+pub use zi_core::{CompletionItem, Point, PointRange};
 use zi_text::Text;
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -53,10 +53,16 @@ impl Default for GotoDefinitionResponse {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DocumentDiagnosticReport {
-    pub diagnostics: Vec<Diagnostic>,
-    pub related_documents: HashMap<Url, Vec<Diagnostic>>,
+    pub diagnostics: Diagnostics,
+    pub related_documents: HashMap<Url, Diagnostics>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Diagnostics {
+    Full(Vec<Diagnostic>),
+    Unchanged,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -87,12 +93,20 @@ impl EncodedRange {
         EncodedPoint { point: self.range.start(), encoding: self.encoding }
     }
 
+    pub fn end(&self) -> EncodedPoint {
+        EncodedPoint { point: self.range.end(), encoding: self.encoding }
+    }
+
+    pub fn decode(&self, text: impl Text) -> Option<PointRange> {
+        text.decode_range(self)
+    }
+
     pub fn decode_start(&self, text: impl Text) -> Option<Point> {
         text.decode_point(self.start())
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, PartialOrd, Ord)]
 pub struct EncodedPoint {
     point: Point,
     encoding: PositionEncoding,
@@ -105,7 +119,7 @@ impl From<Point> for EncodedPoint {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PositionEncoding {
     /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
     Utf8,
@@ -126,11 +140,26 @@ pub struct DocumentDiagnosticParams {
     // pub previous_result_id: Option<String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct PublishDiagnosticsParams {
-    pub url: Url,
-    pub diagnostics: Vec<Diagnostic>,
-    pub version: Option<i32>,
+// #[derive(Debug, Eq, PartialEq, Clone)]
+// pub struct PublishDiagnosticsParams {
+//     pub url: Url,
+//     pub diagnostics: Vec<Diagnostic>,
+//     pub version: Option<i32>,
+// }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub range: EncodedRange,
+    pub severity: Severity,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Severity {
+    Hint,
+    Info,
+    Warning,
+    Error,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -150,6 +179,13 @@ pub struct SemanticTokensParams {
 
 pub(crate) trait TextExt {
     fn decode_point(&self, point: EncodedPoint) -> Option<Point>;
+
+    #[inline]
+    fn decode_range(&self, range: &EncodedRange) -> Option<PointRange> {
+        let start = self.decode_point(range.start())?;
+        let end = self.decode_point(range.end())?;
+        Some(PointRange::new(start, end))
+    }
 }
 
 impl<T: Text> TextExt for T {

@@ -35,8 +35,8 @@ pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
 pub use url::Url;
 pub use zi_core::{
-    BufferId, Col, CompletionItem, Diagnostic, Direction, Line, Mode, NamespaceId, Offset,
-    Operator, Point, PointRange, Severity, Size, ViewGroupId, ViewId,
+    BufferId, Col, CompletionItem, Direction, Line, Mode, NamespaceId, Offset, Operator, Point,
+    PointRange, Size, ViewGroupId, ViewId,
 };
 pub use zi_text::{
     deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextBase,

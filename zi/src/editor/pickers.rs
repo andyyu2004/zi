@@ -318,7 +318,7 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct DiagnosticEntry {
             path: PathBuf,
-            range: PointRange,
+            range: lstypes::EncodedRange,
             message: String,
         }
 
@@ -336,7 +336,7 @@ impl Editor {
 
             #[inline]
             fn point(&self) -> Option<lstypes::EncodedPoint> {
-                Some(self.range.start().into())
+                Some(self.range.start())
             }
         }
 
@@ -350,7 +350,7 @@ impl Editor {
                     for diag in &server_diags.read().1 {
                         if let Err(()) = injector.push(DiagnosticEntry {
                             path: path.clone(),
-                            range: diag.range,
+                            range: diag.range.clone(),
                             message: diag.message.clone(),
                         }) {
                             break;

@@ -100,22 +100,19 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
 
     let expected_main_diagnostics = main_diagnostics
         .into_iter()
-        .filter_map(|diag| {
-            zi_lsp::from_proto::diagnostic(lstypes::PositionEncoding::Utf8, "text", diag)
-        })
+        .filter_map(|diag| zi_lsp::from_proto::diagnostic(lstypes::PositionEncoding::Utf8, diag))
         .collect();
 
-    // Not implemented
-    // let expected_related_diagnostics = related_diagnostics
-    //     .into_iter()
-    //     .map(|diag| zi::lsp::from_proto::diagnostic(zi::PositionEncoding::Utf8, diag))
-    //     .collect();
+    let expected_related_diagnostics = related_diagnostics
+        .into_iter()
+        .filter_map(|diag| zi_lsp::from_proto::diagnostic(lstypes::PositionEncoding::Utf8, diag))
+        .collect();
 
     assert_eq!(
         cx.with(move |editor| editor.diagnostics().clone()).await,
         zi::hashmap! {
             path => zi::Setting::new((1, expected_main_diagnostics)),
-            // PathBuf::from("/related") => zi::Setting::new((0, expected_related_diagnostics)),
+            PathBuf::from("/related") => zi::Setting::new((0, expected_related_diagnostics)),
         }
     );
 

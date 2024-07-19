@@ -6,6 +6,7 @@ use async_lsp::lsp_types::request::Request;
 use async_lsp::lsp_types::{self, lsp_notification, lsp_request};
 use async_lsp::{ErrorCode, ResponseError};
 use futures_util::future::BoxFuture;
+use zi::lstypes;
 
 use crate::{from_proto, EditorExt};
 
@@ -37,9 +38,7 @@ pub(crate) fn capabilities() -> lsp_types::ClientCapabilities {
             type_definition: GOTO_CAPABILITY,
             implementation: GOTO_CAPABILITY,
             diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
-                // Can be done, but needs to open files on demand to do encoding conversions which
-                // isn't completely trivial.
-                related_document_support: Some(false),
+                related_document_support: Some(true),
                 ..Default::default()
             }),
             publish_diagnostics: Some(lsp_types::PublishDiagnosticsClientCapabilities {
@@ -127,9 +126,8 @@ impl async_lsp::LanguageClient for LanguageClient {
         let service_id = self.0.service_id();
         self.0.send(move |editor| {
             let Some(service) = editor.language_server(service_id) else { return Ok(()) };
-            let Some(text) = service.text(&params.uri) else { return Ok(()) };
             let encoding = service.position_encoding();
-            let diagnostics = from_proto::diagnostics(encoding, text, params.diagnostics);
+            let diagnostics = from_proto::diagnostics(encoding, params.diagnostics);
 
             let Ok(path) = params.uri.to_file_path() else {
                 tracing::warn!("received diagnostics for non-file URI: {}", params.uri);
@@ -147,7 +145,7 @@ impl async_lsp::LanguageClient for LanguageClient {
             editor.replace_diagnostics(
                 path,
                 params.version.map(|i| i as u32),
-                diagnostics.into_boxed_slice(),
+                lstypes::Diagnostics::Full(diagnostics),
             );
 
             Ok(())

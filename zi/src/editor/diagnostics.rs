@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use zi_core::{Diagnostic, Severity};
 use zi_text::PointRangeExt;
 
 use super::request_redraw;
+use crate::lstypes::{self, Diagnostic, Severity};
 use crate::syntax::HighlightName;
 use crate::{BufferId, Editor, Mark, Setting};
 
@@ -20,8 +20,9 @@ impl Editor {
         &mut self,
         path: PathBuf,
         version: Option<u32>,
-        diagnostics: impl Into<Box<[Diagnostic]>>,
+        diagnostics: lstypes::Diagnostics,
     ) {
+        let lstypes::Diagnostics::Full(diagnostics) = diagnostics else { return };
         let buf = self.buffer_at_path(&path);
         let version = version.unwrap_or_else(|| {
             // If there's a buffer with the same path, use its version.
@@ -79,7 +80,7 @@ impl Editor {
                 };
                 let hl = self.highlight_id_by_name(hl_name);
                 // Need to explode out multi-line ranges into multiple single-line ranges.
-                Some(diag.range.explode(text).map(move |range| (range, hl)))
+                Some(diag.range.decode(text)?.explode(text).map(move |range| (range, hl)))
             })
             .flatten()
             .map(|(point_range, style)| {

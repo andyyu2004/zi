@@ -1,5 +1,11 @@
+//! Convert LSP types to zi types
+//! We try to convert encodings early if possible.
+//! However, cross file references may refer to files that are not open so we defer those
+//! conversions for effieciency.
+
 use async_lsp::lsp_types;
-use zi::{lstypes, Delta, Deltas, Diagnostic, Point, PointRange, Severity, Text};
+use zi::lstypes::Severity;
+use zi::{lstypes, Delta, Deltas, Point, PointRange, Text};
 
 pub fn goto_definition(
     encoding: lstypes::PositionEncoding,
@@ -37,13 +43,8 @@ pub fn location(
     encoding: lstypes::PositionEncoding,
     loc: lsp_types::Location,
 ) -> Option<lstypes::Location> {
-    // We can't really do anything with the encoding here, since we don't necessarily have the text available.
-    let range = lstypes::PointRange::new(
-        lstypes::Point::new(loc.range.start.line as usize, loc.range.start.character as usize),
-        lstypes::Point::new(loc.range.end.line as usize, loc.range.end.character as usize),
-    );
-
-    Some(lstypes::Location { url: loc.uri, range: lstypes::EncodedRange::new(encoding, range) })
+    let range = encoded_range(encoding, loc.range);
+    Some(lstypes::Location { url: loc.uri, range })
 }
 
 pub fn deltas(
@@ -98,19 +99,17 @@ pub fn point(
 
 pub fn diagnostics(
     encoding: lstypes::PositionEncoding,
-    text: &(impl Text + ?Sized),
     diags: impl IntoIterator<Item = lsp_types::Diagnostic>,
-) -> Vec<Diagnostic> {
-    diags.into_iter().filter_map(|diag| diagnostic(encoding, text, diag)).collect()
+) -> Vec<lstypes::Diagnostic> {
+    diags.into_iter().filter_map(|diag| diagnostic(encoding,  diag)).collect()
 }
 
 pub fn diagnostic(
     encoding: lstypes::PositionEncoding,
-    text: &(impl Text + ?Sized),
     diag: lsp_types::Diagnostic,
-) -> Option<Diagnostic> {
-    Some(Diagnostic {
-        range: range(encoding, &text, diag.range)?,
+) -> Option<lstypes::Diagnostic> {
+    Some(lstypes::Diagnostic {
+        range: encoded_range(encoding, diag.range),
         severity: match diag.severity {
             Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
             Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,
@@ -121,6 +120,17 @@ pub fn diagnostic(
         },
         message: diag.message,
     })
+}
+
+fn encoded_range(
+    encoding: lstypes::PositionEncoding,
+    range: lsp_types::Range,
+) -> lstypes::EncodedRange {
+    let range = lstypes::PointRange::new(
+        lstypes::Point::new(range.start.line as usize, range.start.character as usize),
+        lstypes::Point::new(range.end.line as usize, range.end.character as usize),
+    );
+    lstypes::EncodedRange::new(encoding, range)
 }
 
 pub fn completion_response(
