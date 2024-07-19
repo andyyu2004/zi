@@ -5,8 +5,8 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::lsp_types::{self, OneOf};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{lstypes, LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url};
-use zi_event::{event, HandlerResult};
+use zi::{event, lstypes, LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url};
+use zi_event::HandlerResult;
 
 use crate::{client, from_proto, to_proto, EditorExt};
 

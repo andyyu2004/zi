@@ -1,5 +1,3 @@
-pub mod event;
-
 use std::any::Any;
 use std::marker::PhantomData;
 

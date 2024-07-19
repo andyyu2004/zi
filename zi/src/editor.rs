@@ -618,6 +618,8 @@ impl Editor {
                         editor.spawn_language_services_for_ft(buf, ft)?;
                     }
 
+                    editor.dispatch(event::DidOpenBuffer { buf });
+
                     Ok::<_, Error>(())
                 })
                 .await?;

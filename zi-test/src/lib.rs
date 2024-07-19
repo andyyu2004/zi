@@ -116,6 +116,12 @@ impl TestContext {
             }
         }
     }
+
+    /// Only for use when debugging failing tests to avoid the drop panic.
+    #[deprecated]
+    pub fn defuse(&self) {
+        self.bomb.defuse();
+    }
 }
 
 pub fn new(scratch_content: impl Into<String>) -> TestContextBuilder {

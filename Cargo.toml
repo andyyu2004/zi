@@ -15,7 +15,12 @@ members = [
     "zi-textobject",
     "zi-tui",
     "zi-wasm",
-    "asciicast", "zi-event", "zi-test",
+    "zi-event",
+    "zi-test",
+    "asciicast",
+]
+exclude = [
+    "zi-lsp/tests/zi-lsp/testdirs/*",
 ]
 
 [workspace.dependencies]

@@ -7,7 +7,6 @@ use std::sync::{Arc, OnceLock};
 
 use crossbeam_queue::SegQueue;
 use rustc_hash::FxHashMap;
-pub use zi_event::event::*;
 pub use zi_event::{Event, EventHandler, HandlerResult};
 
 pub use self::events::*;

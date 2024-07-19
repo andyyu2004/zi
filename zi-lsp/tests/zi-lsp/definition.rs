@@ -1,4 +1,7 @@
-use zi::{BufferId, Url};
+use tokio::sync::mpsc;
+use zi::event::HandlerResult;
+use zi::{BufferId, LanguageConfig, Url};
+use zi_lsp::LanguageServerConfig;
 
 use super::*;
 
@@ -68,6 +71,62 @@ async fn lsp_definition_utf16() -> zi::Result<()> {
 
     cx.with(move |editor| editor.goto_definition(zi::Active)).await.await?;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;
+
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn lsp_definition_cross_file() -> zi::Result<()> {
+    let cx = new("").await;
+
+    cx.with(|editor| {
+        editor
+            .language_config_mut()
+            .add_language(zi::filetype!(go), LanguageConfig::new(["gopls".into()]))
+            .add_language_service("gopls", LanguageServerConfig::new("gopls", []));
+    })
+    .await;
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    zi::event::subscribe_with::<zi::event::DidInitializeLanguageService>(move |_editor, _event| {
+        tx.send(()).unwrap();
+        HandlerResult::Continue
+    });
+
+    cx.with(move |editor| {
+        editor
+            .open("tests/zi-lsp/testdirs/lsp-test/main.go", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES)
+    })
+    .await?
+    .await?;
+
+    rx.recv().await;
+
+    cx.with(move |editor| {
+        assert_eq!(editor.cursor_line(), "// An example go module to test lsp interactions");
+        editor.set_cursor(zi::Active, zi::Point::new(4, 1));
+        assert_eq!(editor.cursor_char(), Some('f'));
+        editor.goto_definition(zi::Active)
+    })
+    .await
+    .await?;
+
+    cx.with(|editor| {
+        assert_eq!(editor.cursor_line(), "func f(i int) {");
+        // FIXME this is necessary since we don't deal with tabs properly
+        editor.input("jB").unwrap();
+        assert_eq!(editor.cursor_line(), "\tg(i)");
+        assert_eq!(editor.cursor_char(), Some('g'));
+        editor.goto_definition(zi::Active)
+    })
+    .await
+    .await?;
+
+    cx.with(|editor| {
+        assert_eq!(editor.cursor_line(), "func g(int) {");
+    })
+    .await;
 
     cx.cleanup().await;
     Ok(())

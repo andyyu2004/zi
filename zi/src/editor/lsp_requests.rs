@@ -200,17 +200,17 @@ impl Editor {
         ft: FileType,
     ) -> Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
-            for server_id in config.language_services.iter().cloned() {
-                if self.active_language_services.contains_key(&server_id) {
+            for service_id in config.language_services.iter().cloned() {
+                if self.active_language_services.contains_key(&service_id) {
                     // Language server already running
                     continue;
                 }
 
-                let client = LanguageClient::new(server_id, self.client());
-                let root_path = self.lsp_root_path(server_id);
-                let workspace_root = self.lsp_workspace_root(server_id);
-                let (service, fut) =
-                    self.language_config.language_services[&server_id].spawn(&root_path, client)?;
+                let client = LanguageClient::new(service_id, self.client());
+                let root_path = self.lsp_root_path(service_id);
+                let workspace_root = self.lsp_workspace_root(service_id);
+                let (service, fut) = self.language_config.language_services[&service_id]
+                    .spawn(&root_path, client)?;
                 let handle = tokio::spawn(fut);
                 let mut service = LanguageServiceInstance::new(service, handle);
 
@@ -232,7 +232,7 @@ impl Editor {
                         tracing::info!("language service initialized");
 
                         assert!(
-                            editor.active_language_services.insert(server_id, service).is_none(),
+                            editor.active_language_services.insert(service_id, service).is_none(),
                             "inserted duplicate language server"
                         );
 
@@ -240,9 +240,11 @@ impl Editor {
                             .active_language_services_by_ft
                             .entry(ft)
                             .or_default()
-                            .push(server_id);
+                            .push(service_id);
 
+                        // Fire an extra open event for the new language service.
                         editor.dispatch(event::DidOpenBuffer { buf });
+                        editor.dispatch(event::DidInitializeLanguageService { service_id });
 
                         Ok(())
                     },
