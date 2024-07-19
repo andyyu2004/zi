@@ -2,18 +2,18 @@ use async_lsp::lsp_types;
 use zi::{lstypes, Delta, Deltas, Diagnostic, Point, PointRange, Severity, Text};
 
 pub fn goto_definition(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
+    encoding: lstypes::PositionEncoding,
     res: Option<lsp_types::GotoDefinitionResponse>,
 ) -> Option<lstypes::GotoDefinitionResponse> {
+    // FIXME this is also wrong since each location might be in a different buffer and have different text..
     let res = match res {
         None => lstypes::GotoDefinitionResponse::Array(vec![]),
         Some(lsp_types::GotoDefinitionResponse::Scalar(loc)) => {
-            lstypes::GotoDefinitionResponse::Array(vec![location(encoding, text, loc)?])
+            lstypes::GotoDefinitionResponse::Array(vec![location(encoding, loc)?])
         }
         Some(lsp_types::GotoDefinitionResponse::Array(locs)) => {
             lstypes::GotoDefinitionResponse::Array(
-                locs.into_iter().filter_map(|loc| location(encoding, text, loc)).collect(),
+                locs.into_iter().filter_map(|loc| location(encoding, loc)).collect(),
             )
         }
         Some(lsp_types::GotoDefinitionResponse::Link(links)) => {
@@ -21,10 +21,10 @@ pub fn goto_definition(
                 links
                     .into_iter()
                     .filter_map(|link| {
-                        Some(lstypes::Location {
-                            url: link.target_uri,
-                            range: range(encoding, text, link.target_selection_range)?,
-                        })
+                        location(
+                            encoding,
+                            lsp_types::Location { uri: link.target_uri, range: link.target_range },
+                        )
                     })
                     .collect(),
             )
@@ -34,15 +34,20 @@ pub fn goto_definition(
 }
 
 pub fn location(
-    encoding: PositionEncoding,
-    text: &(impl Text + ?Sized),
+    encoding: lstypes::PositionEncoding,
     loc: lsp_types::Location,
 ) -> Option<lstypes::Location> {
-    Some(lstypes::Location { url: loc.uri, range: range(encoding, text, loc.range)? })
+    // We can't really do anything with the encoding here, since we don't necessarily have the text available.
+    let range = lstypes::PointRange::new(
+        lstypes::Point::new(loc.range.start.line as usize, loc.range.start.character as usize),
+        lstypes::Point::new(loc.range.end.line as usize, loc.range.end.character as usize),
+    );
+
+    Some(lstypes::Location { url: loc.uri, range: lstypes::EncodedRange::new(encoding, range) })
 }
 
 pub fn deltas(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     edits: impl IntoIterator<Item = lsp_types::TextEdit, IntoIter: ExactSizeIterator>,
 ) -> Option<Deltas<'static>> {
@@ -58,7 +63,7 @@ pub fn deltas(
 }
 
 pub fn range(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     range: lsp_types::Range,
 ) -> Option<PointRange> {
@@ -66,7 +71,7 @@ pub fn range(
 }
 
 pub fn point(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     point: lsp_types::Position,
 ) -> Option<Point> {
@@ -75,8 +80,10 @@ pub fn point(
     }
 
     match encoding {
-        PositionEncoding::Utf8 => Some(Point::new(point.line as usize, point.character as usize)),
-        PositionEncoding::Utf16 => {
+        lstypes::PositionEncoding::Utf8 => {
+            Some(Point::new(point.line as usize, point.character as usize))
+        }
+        lstypes::PositionEncoding::Utf16 => {
             let line_start_byte = text.line_to_byte(point.line as usize);
             let line_start_cu = text.byte_to_utf16_cu(line_start_byte);
             if line_start_cu + point.character as usize > text.len_utf16_cu() {
@@ -90,7 +97,7 @@ pub fn point(
 }
 
 pub fn diagnostics(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     diags: impl IntoIterator<Item = lsp_types::Diagnostic>,
 ) -> Vec<Diagnostic> {
@@ -98,7 +105,7 @@ pub fn diagnostics(
 }
 
 pub fn diagnostic(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     diag: lsp_types::Diagnostic,
 ) -> Option<Diagnostic> {
@@ -117,7 +124,7 @@ pub fn diagnostic(
 }
 
 pub fn completion_response(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     res: lsp_types::CompletionResponse,
 ) -> lstypes::CompletionResponse {
@@ -132,7 +139,7 @@ pub fn completion_response(
 }
 
 pub fn completion_item(
-    _encoding: PositionEncoding,
+    _encoding: lstypes::PositionEncoding,
     _text: &(impl Text + ?Sized),
     item: lsp_types::CompletionItem,
 ) -> Option<lstypes::CompletionItem> {
@@ -144,7 +151,7 @@ pub fn completion_item(
 }
 
 pub fn semantic_tokens(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     legend: &lsp_types::SemanticTokensLegend,
     theme: &zi::Theme,
@@ -177,7 +184,6 @@ pub fn semantic_tokens(
 // Naive mapping from semantic token types to highlight names for now
 use zi::HighlightName;
 
-use crate::PositionEncoding;
 fn semantic_tt_to_highlight(tt: &lsp_types::SemanticTokenType) -> Option<HighlightName> {
     use lsp_types::SemanticTokenType as Stt;
     Some(match tt {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::Mark;
+use crate::{lstypes, Mark};
 
 impl Editor {
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
@@ -196,8 +196,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.point)
+            fn point(&self) -> Option<lstypes::EncodedPoint> {
+                Some(self.point.into())
             }
         }
 
@@ -284,8 +284,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.range.start())
+            fn point(&self) -> Option<lstypes::EncodedPoint> {
+                Some(self.range.start().into())
             }
         }
 
@@ -335,8 +335,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(self.range.start())
+            fn point(&self) -> Option<lstypes::EncodedPoint> {
+                Some(self.range.start().into())
             }
         }
 
@@ -379,8 +379,8 @@ impl Editor {
             }
 
             #[inline]
-            fn point(&self) -> Option<Point> {
-                Some(Point::new(self.line, 0))
+            fn point(&self) -> Option<lstypes::EncodedPoint> {
+                Some(Point::new(self.line, 0).into())
             }
         }
 

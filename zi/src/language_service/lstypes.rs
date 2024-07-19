@@ -2,9 +2,11 @@
 //! All positions are 0-indexed and in UTF-8 code units (bytes).
 
 use std::collections::HashMap;
+use std::fmt;
 
 use url::Url;
 pub use zi_core::{CompletionItem, Diagnostic, Point, PointRange};
+use zi_text::Text;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InitializeParams {
@@ -60,7 +62,56 @@ pub struct DocumentDiagnosticReport {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Location {
     pub url: Url,
-    pub range: PointRange,
+    pub range: EncodedRange,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct EncodedRange {
+    /// Special case, this range is in `encoding` units, not necessarily `Utf8.
+    range: PointRange,
+    encoding: PositionEncoding,
+}
+
+impl fmt::Display for EncodedRange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.range)
+    }
+}
+
+impl EncodedRange {
+    pub fn new(encoding: PositionEncoding, range: PointRange) -> Self {
+        Self { encoding, range }
+    }
+
+    pub fn start(&self) -> EncodedPoint {
+        EncodedPoint { point: self.range.start(), encoding: self.encoding }
+    }
+
+    pub fn decode_start(&self, text: impl Text) -> Option<Point> {
+        text.decode_point(self.start())
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct EncodedPoint {
+    point: Point,
+    encoding: PositionEncoding,
+}
+
+impl From<Point> for EncodedPoint {
+    #[inline]
+    fn from(point: Point) -> Self {
+        Self { point, encoding: PositionEncoding::Utf8 }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PositionEncoding {
+    /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
+    Utf8,
+    /// UTF-16 code units
+    #[default]
+    Utf16,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -95,4 +146,30 @@ pub struct CompletionResponse {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct SemanticTokensParams {
     pub url: Url,
+}
+
+pub(crate) trait TextExt {
+    fn decode_point(&self, point: EncodedPoint) -> Option<Point>;
+}
+
+impl<T: Text> TextExt for T {
+    fn decode_point(&self, EncodedPoint { point, encoding }: EncodedPoint) -> Option<Point> {
+        if point.line() as usize > self.len_lines() {
+            return None;
+        }
+
+        match encoding {
+            PositionEncoding::Utf8 => Some(Point::new(point.line(), point.col())),
+            PositionEncoding::Utf16 => {
+                let line_start_byte = self.line_to_byte(point.line() as usize);
+                let line_start_cu = self.byte_to_utf16_cu(line_start_byte);
+                if line_start_cu + point.col() as usize > self.len_utf16_cu() {
+                    return None;
+                }
+
+                let byte = self.utf16_cu_to_byte(line_start_cu + point.col() as usize);
+                Some(self.byte_to_point(byte))
+            }
+        }
+    }
 }

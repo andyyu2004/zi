@@ -28,15 +28,6 @@ use tower::ServiceBuilder;
 use self::client::LanguageClient;
 pub use self::server::LanguageService;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum PositionEncoding {
-    /// UTF-8 code units (bytes) (not codepoints I think, but can't find conclusive documentation?)
-    Utf8,
-    /// UTF-16 code units
-    #[default]
-    Utf16,
-}
-
 pub fn start<C>(
     client: C,
     cwd: impl AsRef<Path>,
@@ -110,9 +101,9 @@ impl zi::LanguageServiceConfig for LanguageServerConfig {
     ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        let id = client.service_id();
-        let (server, fut) = start(LanguageClient::new(client), cwd, &self.command, &self.args[..])?;
-        Ok((Box::new(LanguageService::new(id, server)), Box::pin(fut.map_err(Into::into))))
+        let (server, fut) =
+            start(LanguageClient::new(client.clone()), cwd, &self.command, &self.args[..])?;
+        Ok((Box::new(LanguageService::new(client, server)), Box::pin(fut.map_err(Into::into))))
     }
 }
 

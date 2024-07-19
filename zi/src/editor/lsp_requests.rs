@@ -6,12 +6,11 @@ use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use url::Url;
-use zi_core::Point;
 
 use super::{active_servers_of, callback, event, get, Result, Selector};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{lstypes, LanguageServiceInstance};
-use crate::lstypes::WorkspaceFolder;
+use crate::lstypes::{TextExt, WorkspaceFolder};
 use crate::{
     BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
     OpenFlags, ViewId,
@@ -66,7 +65,7 @@ impl Editor {
         let client = self.client();
         async move {
             let res = fut.await?;
-            client.with(|editor| editor.lsp_jump_to_definitions(res)).await?.await?;
+            client.with(|editor| editor.jump_to_definition(res)).await?.await?;
             Ok(())
         }
     }
@@ -254,7 +253,7 @@ impl Editor {
         Ok(())
     }
 
-    fn lsp_jump_to_definitions(
+    fn jump_to_definition(
         &mut self,
         res: lstypes::GotoDefinitionResponse,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
@@ -265,7 +264,7 @@ impl Editor {
         #[derive(Clone, Debug)]
         struct Entry {
             path: PathBuf,
-            line: usize,
+            range: lstypes::EncodedRange,
         }
 
         impl BufferPickerEntry for Entry {
@@ -273,21 +272,23 @@ impl Editor {
                 Err(&self.path)
             }
 
-            fn point(&self) -> Option<Point> {
-                Some(Point::new(self.line, 0).into())
+            fn point(&self) -> Option<lstypes::EncodedPoint> {
+                Some(self.range.start())
             }
         }
 
         impl fmt::Display for Entry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}:{}", self.path.display(), self.line)
+                write!(f, "{}:{}", self.path.display(), self.range)
             }
         }
 
         match &locations[..] {
             [] => bail!("no definition found"),
-            [_] => Ok(Box::pin(self.lsp_jump_to_location(locations.pop().unwrap())?)
-                as BoxFuture<'static, _>),
+            [_] => {
+                Ok(Box::pin(self.jump_to_location(locations.pop().unwrap())?)
+                    as BoxFuture<'static, _>)
+            }
             _ => {
                 self.open_static_picker::<BufferPicker<_>>(
                     Url::parse("view-group://lsp/picker").unwrap(),
@@ -296,8 +297,7 @@ impl Editor {
                     move |_, injector| {
                         for location in locations {
                             let Ok(path) = location.url.to_file_path() else { continue };
-                            let entry =
-                                Entry { path, line: location.range.start().line() as usize };
+                            let entry = Entry { path, range: location.range };
                             if injector.push(entry).is_err() {
                                 break;
                             }
@@ -309,7 +309,7 @@ impl Editor {
         }
     }
 
-    fn lsp_jump_to_location(
+    fn jump_to_location(
         &mut self,
         location: lstypes::Location,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
@@ -325,7 +325,11 @@ impl Editor {
         Ok(async move {
             let buf = open_fut.await?;
             client
-                .with(move |editor| editor.jump(from, Location::new(buf, location.range.start())))
+                .with(move |editor| {
+                    if let Some(point) = editor.text(buf).decode_point(location.range.start()) {
+                        editor.jump(from, Location::new(buf, point))
+                    }
+                })
                 .await;
             Ok(())
         })

@@ -46,3 +46,4 @@ slotmap::new_key_type! {
     pub struct BufferId;
     pub struct NamespaceId;
 }
+

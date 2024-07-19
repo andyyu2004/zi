@@ -51,6 +51,7 @@ impl DerefMut for LanguageServiceInstance {
 }
 
 /// A client to the editor per language service.
+#[derive(Clone)]
 pub struct LanguageClient {
     service_id: LanguageServiceId,
     client: Client,

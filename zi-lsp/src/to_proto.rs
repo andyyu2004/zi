@@ -1,10 +1,8 @@
 use async_lsp::lsp_types;
 use zi::{lstypes, Deltas, Point, Text};
 
-use crate::PositionEncoding;
-
 pub fn goto_definition(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     params: lstypes::GotoDefinitionParams,
 ) -> lsp_types::GotoDefinitionParams {
@@ -20,7 +18,7 @@ pub fn goto_definition(
 // However, since our deltas are ordered and disjoint, we can just return them in order and because
 // they don't interfere we're all good.
 pub fn deltas(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     old_text: impl Text,
     deltas: &Deltas<'_>,
 ) -> Vec<lsp_types::TextDocumentContentChangeEvent> {
@@ -35,7 +33,7 @@ pub fn deltas(
 }
 
 pub fn byte_range(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     range: std::ops::Range<usize>,
 ) -> lsp_types::Range {
@@ -46,13 +44,13 @@ pub fn byte_range(
 }
 
 pub fn byte(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     byte: usize,
 ) -> lsp_types::Position {
     match encoding {
-        PositionEncoding::Utf8 => point(encoding, text, text.byte_to_point(byte)),
-        PositionEncoding::Utf16 => {
+        lstypes::PositionEncoding::Utf8 => point(encoding, text, text.byte_to_point(byte)),
+        lstypes::PositionEncoding::Utf16 => {
             let line = text.byte_to_line(byte);
             let line_start = text.byte_to_utf16_cu(text.line_to_byte(line));
             let col = text.byte_to_utf16_cu(byte) - line_start;
@@ -62,18 +60,20 @@ pub fn byte(
 }
 
 pub fn point(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     point: Point,
 ) -> lsp_types::Position {
     match encoding {
-        PositionEncoding::Utf8 => lsp_types::Position::new(point.line() as u32, point.col() as u32),
-        PositionEncoding::Utf16 => byte(encoding, text, text.point_to_byte(point)),
+        lstypes::PositionEncoding::Utf8 => {
+            lsp_types::Position::new(point.line() as u32, point.col() as u32)
+        }
+        lstypes::PositionEncoding::Utf16 => byte(encoding, text, text.point_to_byte(point)),
     }
 }
 
 pub fn document_position(
-    encoding: PositionEncoding,
+    encoding: lstypes::PositionEncoding,
     text: &(impl Text + ?Sized),
     params: lstypes::TextDocumentPointParams,
 ) -> lsp_types::TextDocumentPositionParams {

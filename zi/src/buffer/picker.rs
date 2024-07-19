@@ -8,8 +8,9 @@ use zi_text::TextMut;
 
 use super::*;
 use crate::editor::{get, Action};
+use crate::lstypes::TextExt;
 use crate::{
-    filetype, hashmap, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId,
+    filetype, hashmap, lstypes, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId,
 };
 
 pub struct PickerBuffer<P: Picker> {
@@ -46,7 +47,7 @@ pub trait BufferPickerEntry: Entry {
     /// Return an open buffer id or a path to open
     fn buffer_or_path(&self) -> Result<BufferId, &Path>;
 
-    fn point(&self) -> Option<Point>;
+    fn point(&self) -> Option<lstypes::EncodedPoint>;
 }
 
 impl<P> BufferPickerEntry for P
@@ -59,7 +60,7 @@ where
     }
 
     #[inline]
-    fn point(&self) -> Option<Point> {
+    fn point(&self) -> Option<lstypes::EncodedPoint> {
         None
     }
 }
@@ -97,7 +98,7 @@ where
 
         let preview = move |editor: &mut Editor, buf: BufferId| {
             editor.set_buffer(self.preview, buf);
-            if let Some(point) = point {
+            if let Some(point) = point.and_then(|p| editor.text(buf).decode_point(p)) {
                 editor.reveal(self.preview, point, VerticalAlignment::Center)
             }
         };
@@ -130,10 +131,10 @@ where
         let point = entry.point();
 
         let path = match entry.buffer_or_path() {
-            Ok(buffer) => {
+            Ok(buf) => {
                 editor.close_view(self.preview);
-                editor.set_buffer(Active, buffer);
-                if let Some(point) = point {
+                editor.set_buffer(Active, buf);
+                if let Some(point) = point.and_then(|p| editor.text(buf).decode_point(p)) {
                     editor.reveal(Active, point, VerticalAlignment::Center);
                 }
                 return;
@@ -147,8 +148,8 @@ where
         editor.close_view(self.preview);
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES);
-        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, _buf| {
-            if let Some(point) = entry.point() {
+        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
+            if let Some(point) = entry.point().and_then(|p| editor.text(buf).decode_point(p)) {
                 editor.reveal(Active, point, VerticalAlignment::Center);
             }
             Ok(())

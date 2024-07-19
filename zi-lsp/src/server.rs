@@ -8,11 +8,12 @@ use futures_util::{FutureExt, TryFutureExt};
 use zi::{lstypes, LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url};
 use zi_event::{event, HandlerResult};
 
-use crate::{client, from_proto, to_proto, EditorExt, PositionEncoding};
+use crate::{client, from_proto, to_proto, EditorExt};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
 // We box the inner server instead of making it generic to make downcasting to this type possible.
 pub struct LanguageService {
+    _client: zi::LanguageClient,
     service_id: LanguageServiceId,
     server: Box<
         dyn async_lsp::LanguageServer<
@@ -22,7 +23,7 @@ pub struct LanguageService {
             + Sync,
     >,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
-    position_encoding: OnceLock<PositionEncoding>,
+    position_encoding: OnceLock<lstypes::PositionEncoding>,
     // Keeping track of this here for encoding conversions (and sanity checks)
     texts: HashMap<Url, (i32, Rope)>,
     semantic_tokens_legend: OnceLock<Option<Arc<lsp_types::SemanticTokensLegend>>>,
@@ -30,7 +31,7 @@ pub struct LanguageService {
 
 impl LanguageService {
     pub fn new(
-        service_id: LanguageServiceId,
+        client: zi::LanguageClient,
         server: impl async_lsp::LanguageServer<
             NotifyResult = async_lsp::Result<()>,
             Error = async_lsp::Error,
@@ -38,7 +39,9 @@ impl LanguageService {
         + Sync
         + 'static,
     ) -> Self {
+        let service_id = client.service_id();
         Self {
+            _client: client,
             service_id,
             server: Box::new(server),
             capabilities: Default::default(),
@@ -67,19 +70,23 @@ impl LanguageService {
             .clone()
     }
 
-    pub(crate) fn position_encoding(&self) -> PositionEncoding {
+    pub(crate) fn position_encoding(&self) -> lstypes::PositionEncoding {
         *self.position_encoding.get_or_init(|| match &Self::capabilities(self).position_encoding {
             Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => PositionEncoding::Utf8,
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => PositionEncoding::Utf16,
+                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => {
+                    lstypes::PositionEncoding::Utf8
+                }
+                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => {
+                    lstypes::PositionEncoding::Utf16
+                }
                 _ => {
                     tracing::warn!("server returned unknown position encoding: {encoding:?}",);
-                    PositionEncoding::default()
+                    lstypes::PositionEncoding::default()
                 }
             },
             None => {
                 tracing::warn!("server did not return position encoding, defaulting to UTF-16");
-                PositionEncoding::default()
+                lstypes::PositionEncoding::default()
             }
         })
     }
@@ -361,7 +368,7 @@ impl zi::LanguageService for LanguageService {
         self.server
             .definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
-                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                Ok(res) => match from_proto::goto_definition(enc, res) {
                     Some(res) => Ok(res),
                     None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
                 },
@@ -382,7 +389,7 @@ impl zi::LanguageService for LanguageService {
         self.server
             .type_definition(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
-                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                Ok(res) => match from_proto::goto_definition(enc, res) {
                     Some(res) => Ok(res),
                     None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
                 },
@@ -403,7 +410,7 @@ impl zi::LanguageService for LanguageService {
         self.server
             .implementation(to_proto::goto_definition(enc, &text, params))
             .map(move |res| match res {
-                Ok(res) => match from_proto::goto_definition(enc, &text, res) {
+                Ok(res) => match from_proto::goto_definition(enc, res) {
                     Some(res) => Ok(res),
                     None => Ok(lstypes::GotoDefinitionResponse::Array(vec![])),
                 },
@@ -431,10 +438,9 @@ impl zi::LanguageService for LanguageService {
             .map(move |res| {
                 res.map(|locs| match locs {
                     None => vec![],
-                    Some(locs) => locs
-                        .into_iter()
-                        .filter_map(|loc| from_proto::location(enc, &text, loc))
-                        .collect(),
+                    Some(locs) => {
+                        locs.into_iter().filter_map(|loc| from_proto::location(enc, loc)).collect()
+                    }
                 })
             })
             .map_err(Into::into)
