@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures_core::future::BoxFuture;
+use futures_util::FutureExt;
 use zi_text::Deltas;
 
 use crate::syntax::Theme;
@@ -88,58 +89,111 @@ pub trait LanguageService {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // TODO add more information than () as required
-    fn definition_capabilities(&self) -> Option<()>;
-    fn declaration_capabilities(&self) -> Option<()>;
-    fn implementation_capabilities(&self) -> Option<()>;
-    fn type_definition_capabilities(&self) -> Option<()>;
-    fn completion_capabilities(&self) -> Option<()>;
-    fn reference_capabilities(&self) -> Option<()>;
-    fn diagnostic_capabilities(&self) -> Option<()>;
-    fn semantic_tokens_capabilities(&self) -> Option<()>;
-    fn formatting_capabilities(&self) -> Option<()>;
+    fn definition_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn declaration_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn implementation_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn type_definition_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn completion_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn reference_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn diagnostic_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn semantic_tokens_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn formatting_capabilities(&self) -> Option<()> {
+        None
+    }
 
     /// Initialize the language service.
     /// This must be called before any other method and should only be called exactly once.
-    fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()>;
+    fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
+        let _ = params;
+        async { Ok(()) }.boxed()
+    }
 
-    fn initialized(&mut self) -> Result<()>;
+    fn initialized(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     fn format(
         &mut self,
         params: lstypes::DocumentFormattingParams,
-    ) -> ResponseFuture<Option<Deltas<'static>>>;
+    ) -> ResponseFuture<Option<Deltas<'static>>> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn definition(
         &mut self,
         params: lstypes::GotoDefinitionParams,
-    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn type_definition(
         &mut self,
         params: lstypes::GotoDefinitionParams,
-    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn implementation(
         &mut self,
         params: lstypes::GotoDefinitionParams,
-    ) -> ResponseFuture<lstypes::GotoDefinitionResponse>;
+    ) -> ResponseFuture<lstypes::GotoDefinitionResponse> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn references(
         &mut self,
         params: lstypes::ReferenceParams,
-    ) -> ResponseFuture<Vec<lstypes::Location>>;
+    ) -> ResponseFuture<Vec<lstypes::Location>> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn completion(
         &mut self,
         params: lstypes::CompletionParams,
-    ) -> ResponseFuture<lstypes::CompletionResponse>;
+    ) -> ResponseFuture<lstypes::CompletionResponse> {
+        let _ = params;
+        unimplemented!()
+    }
 
     fn semantic_tokens_full(
         &mut self,
         // Bit of a hack parameter, find another cleaner way
         theme: Setting<Theme>,
         params: lstypes::SemanticTokensParams,
-    ) -> ResponseFuture<Option<Vec<MarkBuilder>>>;
+    ) -> ResponseFuture<Option<Vec<MarkBuilder>>> {
+        let _ = params;
+        let _ = theme;
+        unimplemented!()
+    }
 
     // fn semantic_tokens_full_delta(
     //     &mut self,
@@ -149,11 +203,18 @@ pub trait LanguageService {
     fn document_diagnostic(
         &mut self,
         params: lstypes::DocumentDiagnosticParams,
-    ) -> ResponseFuture<lstypes::DocumentDiagnosticReport>;
+    ) -> ResponseFuture<lstypes::DocumentDiagnosticReport> {
+        let _ = params;
+        unimplemented!()
+    }
 
-    fn shutdown(&mut self) -> ResponseFuture<()>;
+    fn shutdown(&mut self) -> ResponseFuture<()> {
+        async { Ok(()) }.boxed()
+    }
 
-    fn exit(&mut self) -> Result<()>;
+    fn exit(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 pub trait LanguageServiceConfig {
