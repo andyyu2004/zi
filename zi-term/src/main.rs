@@ -102,6 +102,7 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(text), LanguageConfig::new([]))
         .add_language(filetype!(toml), LanguageConfig::new([]))
         .add_language(filetype!(json), LanguageConfig::new([]))
+        .add_language(filetype!(haskell), LanguageConfig::new(["hls".into()]))
         .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
         .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
@@ -111,5 +112,9 @@ fn configure(editor: &mut zi::Editor) {
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
         .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
+        .add_language_service(
+            "hls",
+            LanguageServerConfig::new("haskell-language-server-wrapper", ["--lsp".into()]),
+        )
         .add_language_service("tsserver", LanguageServerConfig::new("tsserver", []));
 }
