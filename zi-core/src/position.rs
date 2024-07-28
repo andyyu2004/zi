@@ -261,10 +261,7 @@ impl Sub<Offset> for Point {
 
     #[inline]
     fn sub(self, offset: Offset) -> Self {
-        Self::new(
-            self.line.checked_sub(offset.line).unwrap(),
-            self.col.checked_sub(offset.col).unwrap(),
-        )
+        Self::new(self.line.saturating_sub(offset.line), self.col.saturating_sub(offset.col))
     }
 }
 
