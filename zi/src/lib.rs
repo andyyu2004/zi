@@ -1,11 +1,4 @@
-#![feature(
-    try_blocks,
-    type_alias_impl_trait,
-    trait_upcasting,
-    is_sorted,
-    coroutines,
-    iter_from_coroutine
-)]
+#![feature(try_blocks, type_alias_impl_trait, trait_upcasting, coroutines, iter_from_coroutine)]
 
 pub mod buffer;
 mod command;
