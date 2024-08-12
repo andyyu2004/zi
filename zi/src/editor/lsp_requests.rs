@@ -65,7 +65,10 @@ impl Editor {
         let client = self.client();
         async move {
             let res = fut.await?;
-            client.with(|editor| editor.jump_to_definition(res)).await?.await?;
+            client
+                .with(|editor| editor.jump_to_definition(res))
+                .await?
+                .await?;
             Ok(())
         }
     }
@@ -232,7 +235,10 @@ impl Editor {
                         tracing::info!("language service initialized");
 
                         assert!(
-                            editor.active_language_services.insert(service_id, service).is_none(),
+                            editor
+                                .active_language_services
+                                .insert(service_id, service)
+                                .is_none(),
                             "inserted duplicate language server"
                         );
 
@@ -298,8 +304,13 @@ impl Editor {
                     (1, 1),
                     move |_, injector| {
                         for location in locations {
-                            let Ok(path) = location.url.to_file_path() else { continue };
-                            let entry = Entry { path, range: location.range };
+                            let Ok(path) = location.url.to_file_path() else {
+                                continue;
+                            };
+                            let entry = Entry {
+                                path,
+                                range: location.range,
+                            };
                             if injector.push(entry).is_err() {
                                 break;
                             }
@@ -321,8 +332,10 @@ impl Editor {
             .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
 
         let from = self.current_location();
-        let open_fut =
-            self.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES | OpenFlags::BACKGROUND)?;
+        let open_fut = self.open(
+            path,
+            OpenFlags::SPAWN_LANGUAGE_SERVICES | OpenFlags::BACKGROUND,
+        )?;
         let client = self.client();
         Ok(async move {
             let buf = open_fut.await?;
@@ -356,7 +369,10 @@ impl Editor {
                 .is_some()
                 .then_some((server, ()))
         }) else {
-            tracing::warn!(?buf, "no active language server for buffer supports semantic tokens");
+            tracing::warn!(
+                ?buf,
+                "no active language server for buffer supports semantic tokens"
+            );
             return None;
         };
 
@@ -366,7 +382,9 @@ impl Editor {
         let fut = s.semantic_tokens_full(theme, lstypes::SemanticTokensParams { url });
 
         Some(async move {
-            let Some(marks) = fut.await? else { return Ok(()) };
+            let Some(marks) = fut.await? else {
+                return Ok(());
+            };
             client
                 .with(move |editor| {
                     let ns = editor.create_namespace("semantic-tokens");
@@ -389,10 +407,15 @@ impl Editor {
 
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
-                if self.active_language_services[&server_id].diagnostic_capabilities().is_none() {
+                if self.active_language_services[&server_id]
+                    .diagnostic_capabilities()
+                    .is_none()
+                {
                     return None;
                 };
-                let Some(url) = self.buffers[buf].file_url() else { return None };
+                let Some(url) = self.buffers[buf].file_url() else {
+                    return None;
+                };
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let fut = server
                     .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });
@@ -432,6 +455,36 @@ impl Editor {
                 });
             }
 
+            Ok(())
+        }
+    }
+
+    pub fn code_actions(
+        &mut self,
+        selector: impl Selector<ViewId>,
+    ) -> impl Future<Output = Result<()>> {
+        let view = selector.select(self);
+        let buf = self.views[view].buffer();
+
+        let (_server_ids, futs) = active_servers_of!(self, buf)
+            .filter_map(|&server_id| {
+                let url = self.buffers[buf].file_url().cloned()?;
+                let range = self.views[view].cursor().empty_range();
+
+                self.active_language_services[&server_id].code_action_capabilities()?;
+                let fut = self
+                    .active_language_services
+                    .get_mut(&server_id)
+                    .unwrap()
+                    .code_actions(lstypes::CodeActionParams { url, range });
+                Some((server_id, fut))
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+
+        // let client = self.client();
+        async move {
+            let responses = futures_util::future::try_join_all(futs).await?;
+            tracing::debug!(?responses, "code actions response");
             Ok(())
         }
     }

@@ -33,11 +33,11 @@ impl LanguageService {
     pub fn new(
         client: zi::LanguageClient,
         server: impl async_lsp::LanguageServer<
-            NotifyResult = async_lsp::Result<()>,
-            Error = async_lsp::Error,
-        > + Send
-        + Sync
-        + 'static,
+                NotifyResult = async_lsp::Result<()>,
+                Error = async_lsp::Error,
+            > + Send
+            + Sync
+            + 'static,
     ) -> Self {
         let service_id = client.service_id();
         Self {
@@ -71,28 +71,32 @@ impl LanguageService {
     }
 
     pub(crate) fn position_encoding(&self) -> lstypes::PositionEncoding {
-        *self.position_encoding.get_or_init(|| match &Self::capabilities(self).position_encoding {
-            Some(encoding) => match encoding {
-                enc if *enc == lsp_types::PositionEncodingKind::UTF8 => {
-                    lstypes::PositionEncoding::Utf8
-                }
-                enc if *enc == lsp_types::PositionEncodingKind::UTF16 => {
-                    lstypes::PositionEncoding::Utf16
-                }
-                _ => {
-                    tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+        *self
+            .position_encoding
+            .get_or_init(|| match &Self::capabilities(self).position_encoding {
+                Some(encoding) => match encoding {
+                    enc if *enc == lsp_types::PositionEncodingKind::UTF8 => {
+                        lstypes::PositionEncoding::Utf8
+                    }
+                    enc if *enc == lsp_types::PositionEncodingKind::UTF16 => {
+                        lstypes::PositionEncoding::Utf16
+                    }
+                    _ => {
+                        tracing::warn!("server returned unknown position encoding: {encoding:?}",);
+                        lstypes::PositionEncoding::default()
+                    }
+                },
+                None => {
+                    tracing::warn!("server did not return position encoding, defaulting to UTF-16");
                     lstypes::PositionEncoding::default()
                 }
-            },
-            None => {
-                tracing::warn!("server did not return position encoding, defaulting to UTF-16");
-                lstypes::PositionEncoding::default()
-            }
-        })
+            })
     }
 
     fn capabilities(&self) -> &lsp_types::ServerCapabilities {
-        self.capabilities.get().expect("capabilities not initialized")
+        self.capabilities
+            .get()
+            .expect("capabilities not initialized")
     }
 }
 
@@ -105,8 +109,11 @@ impl zi::LanguageService for LanguageService {
     }
 
     fn definition_capabilities(&self) -> Option<()> {
-        matches!(self.capabilities().definition_provider, Some(OneOf::Left(true) | OneOf::Right(_)))
-            .then_some(())
+        matches!(
+            self.capabilities().definition_provider,
+            Some(OneOf::Left(true) | OneOf::Right(_))
+        )
+        .then_some(())
     }
 
     fn declaration_capabilities(&self) -> Option<()> {
@@ -168,6 +175,11 @@ impl zi::LanguageService for LanguageService {
         Some(())
     }
 
+    fn code_action_capabilities(&self) -> Option<()> {
+        self.capabilities().code_action_provider.as_ref()?;
+        Some(())
+    }
+
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
         let fut = self.server.initialize(lsp_types::InitializeParams {
@@ -177,14 +189,18 @@ impl zi::LanguageService for LanguageService {
                 params
                     .workspace_folders
                     .into_iter()
-                    .map(|f| lsp_types::WorkspaceFolder { uri: f.uri, name: f.name })
+                    .map(|f| lsp_types::WorkspaceFolder {
+                        uri: f.uri,
+                        name: f.name,
+                    })
                     .collect(),
             ),
             ..Default::default()
         });
         Box::pin(async move {
             let result = fut.await?;
-            caps.set(result.capabilities).expect("capabilities already initialized");
+            caps.set(result.capabilities)
+                .expect("capabilities already initialized");
             Ok(())
         })
     }
@@ -197,7 +213,9 @@ impl zi::LanguageService for LanguageService {
 
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
-            let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
+            let Some(url) = editor[buf].file_url().cloned() else {
+                return HandlerResult::Continue;
+            };
             let params = lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: url.clone(),
@@ -229,9 +247,10 @@ impl zi::LanguageService for LanguageService {
             tracing::trace!(buf = ?event.buf, "buffer did change");
 
             let buf = &editor.buffers[event.buf];
-            if let (Some(service), Some(uri)) =
-                (editor.active_language_services.get_mut(&service_id), buf.file_url().cloned())
-            {
+            if let (Some(service), Some(uri)) = (
+                editor.active_language_services.get_mut(&service_id),
+                buf.file_url().cloned(),
+            ) {
                 if !editor
                     .language_config
                     .languages
@@ -312,10 +331,12 @@ impl zi::LanguageService for LanguageService {
                 };
 
                 if let Err(err) =
-                    service.server.did_change(lsp_types::DidChangeTextDocumentParams {
-                        text_document,
-                        content_changes,
-                    })
+                    service
+                        .server
+                        .did_change(lsp_types::DidChangeTextDocumentParams {
+                            text_document,
+                            content_changes,
+                        })
                 {
                     tracing::error!(?err, "lsp did_change notification failed")
                 }
@@ -431,16 +452,19 @@ impl zi::LanguageService for LanguageService {
         self.server
             .references(lsp_types::ReferenceParams {
                 text_document_position: to_proto::document_position(enc, &text, params.at),
-                context: lsp_types::ReferenceContext { include_declaration: true },
+                context: lsp_types::ReferenceContext {
+                    include_declaration: true,
+                },
                 work_done_progress_params: Default::default(),
                 partial_result_params: Default::default(),
             })
             .map(move |res| {
                 res.map(|locs| match locs {
                     None => vec![],
-                    Some(locs) => {
-                        locs.into_iter().filter_map(|loc| from_proto::location(enc, loc)).collect()
-                    }
+                    Some(locs) => locs
+                        .into_iter()
+                        .filter_map(|loc| from_proto::location(enc, loc))
+                        .collect(),
                 })
             })
             .map_err(Into::into)
@@ -578,6 +602,41 @@ impl zi::LanguageService for LanguageService {
             })
             .map_err(Into::into)
             .boxed()
+    }
+
+    fn code_actions(
+        &mut self,
+        params: lstypes::CodeActionParams,
+    ) -> ResponseFuture<Vec<lstypes::CodeAction>> {
+        let Some(text) = self.text(&params.url).cloned() else {
+            return Box::pin(async { Ok(Default::default()) });
+        };
+
+        let enc = self.position_encoding();
+        let fut = self.server.code_action(lsp_types::CodeActionParams {
+            text_document: lsp_types::TextDocumentIdentifier { uri: params.url },
+            range: to_proto::range(enc, &text, params.range),
+            context: lsp_types::CodeActionContext {
+                diagnostics: vec![],
+                trigger_kind: Some(lsp_types::CodeActionTriggerKind::INVOKED),
+                only: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        });
+
+        async move {
+            let res = match fut.await? {
+                Some(res) => res,
+                None => return Ok(vec![]),
+            };
+
+            Ok(res
+                .into_iter()
+                .filter_map(|action| from_proto::code_action_or_command(action))
+                .collect())
+        }
+        .boxed()
     }
 
     fn shutdown(&mut self) -> ResponseFuture<()> {

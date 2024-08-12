@@ -26,7 +26,11 @@ impl<B: Backend + io::Write> App<B> {
     }
 
     pub fn enter(&mut self) -> io::Result<()> {
-        execute!(self.term.backend_mut(), EnterAlternateScreen, DisableMouseCapture)?;
+        execute!(
+            self.term.backend_mut(),
+            EnterAlternateScreen,
+            DisableMouseCapture
+        )?;
         terminal::enable_raw_mode()?;
         Ok(())
     }
@@ -37,6 +41,7 @@ impl<B: Backend + io::Write> App<B> {
         events: impl Stream<Item = io::Result<Event>>,
         tasks: zi::Tasks,
     ) -> io::Result<()> {
+        struct S {}
         editor
             .run(events, tasks, |editor| {
                 // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
@@ -62,7 +67,10 @@ impl<B: Backend + io::Write> App<B> {
 
 impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
-        _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
+        _ = execute!(
+            self.term.backend_mut(),
+            crossterm::terminal::LeaveAlternateScreen
+        );
         _ = terminal::disable_raw_mode();
 
         if let Ok((panic, backtrace)) = self.panic_rx.try_recv() {

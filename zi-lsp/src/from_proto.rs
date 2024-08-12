@@ -7,6 +7,15 @@ use async_lsp::lsp_types;
 use zi::lstypes::Severity;
 use zi::{lstypes, Delta, Deltas, Point, PointRange, Text};
 
+pub fn code_action_or_command(c: lsp_types::CodeActionOrCommand) -> Option<lstypes::CodeAction> {
+    match c {
+        lsp_types::CodeActionOrCommand::Command(_) => None,
+        lsp_types::CodeActionOrCommand::CodeAction(action) => Some(lstypes::CodeAction {
+            title: action.title,
+        }),
+    }
+}
+
 pub fn goto_definition(
     encoding: lstypes::PositionEncoding,
     res: Option<lsp_types::GotoDefinitionResponse>,
@@ -19,7 +28,9 @@ pub fn goto_definition(
         }
         Some(lsp_types::GotoDefinitionResponse::Array(locs)) => {
             lstypes::GotoDefinitionResponse::Array(
-                locs.into_iter().filter_map(|loc| location(encoding, loc)).collect(),
+                locs.into_iter()
+                    .filter_map(|loc| location(encoding, loc))
+                    .collect(),
             )
         }
         Some(lsp_types::GotoDefinitionResponse::Link(links)) => {
@@ -29,7 +40,10 @@ pub fn goto_definition(
                     .filter_map(|link| {
                         location(
                             encoding,
-                            lsp_types::Location { uri: link.target_uri, range: link.target_range },
+                            lsp_types::Location {
+                                uri: link.target_uri,
+                                range: link.target_range,
+                            },
                         )
                     })
                     .collect(),
@@ -44,7 +58,10 @@ pub fn location(
     loc: lsp_types::Location,
 ) -> Option<lstypes::Location> {
     let range = encoded_range(encoding, loc.range);
-    Some(lstypes::Location { url: loc.uri, range })
+    Some(lstypes::Location {
+        url: loc.uri,
+        range,
+    })
 }
 
 pub fn deltas(
@@ -60,7 +77,11 @@ pub fn deltas(
     }));
 
     // If any of the edits were invalid, return None.
-    if deltas.len() < n { None } else { Some(deltas) }
+    if deltas.len() < n {
+        None
+    } else {
+        Some(deltas)
+    }
 }
 
 pub fn range(
@@ -68,7 +89,10 @@ pub fn range(
     text: &(impl Text + ?Sized),
     range: lsp_types::Range,
 ) -> Option<PointRange> {
-    Some(PointRange::new(point(encoding, text, range.start)?, point(encoding, text, range.end)?))
+    Some(PointRange::new(
+        point(encoding, text, range.start)?,
+        point(encoding, text, range.end)?,
+    ))
 }
 
 pub fn point(
@@ -101,7 +125,10 @@ pub fn diagnostics(
     encoding: lstypes::PositionEncoding,
     diags: impl IntoIterator<Item = lsp_types::Diagnostic>,
 ) -> Vec<lstypes::Diagnostic> {
-    diags.into_iter().filter_map(|diag| diagnostic(encoding,  diag)).collect()
+    diags
+        .into_iter()
+        .filter_map(|diag| diagnostic(encoding, diag))
+        .collect()
 }
 
 pub fn diagnostic(
@@ -144,7 +171,10 @@ pub fn completion_response(
     };
 
     lstypes::CompletionResponse {
-        items: items.into_iter().filter_map(|item| completion_item(encoding, text, item)).collect(),
+        items: items
+            .into_iter()
+            .filter_map(|item| completion_item(encoding, text, item))
+            .collect(),
     }
 }
 

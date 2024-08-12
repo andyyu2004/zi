@@ -104,7 +104,12 @@ impl PointRange {
     pub fn new(start: impl Into<Point>, end: impl Into<Point>) -> Self {
         let start = start.into();
         let end = end.into();
-        assert!(start <= end, "start must be less than end: {} !<= {}", start, end);
+        assert!(
+            start <= end,
+            "start must be less than end: {} !<= {}",
+            start,
+            end
+        );
         Self { start, end }
     }
 
@@ -211,12 +216,20 @@ pub enum PointOrByte {
 impl PointOrByte {
     #[inline]
     pub fn try_into_point(self) -> Result<Point, Self> {
-        if let Self::Point(v) = self { Ok(v) } else { Err(self) }
+        if let Self::Point(v) = self {
+            Ok(v)
+        } else {
+            Err(self)
+        }
     }
 
     #[inline]
     pub fn try_into_byte(self) -> Result<usize, Self> {
-        if let Self::Byte(v) = self { Ok(v) } else { Err(self) }
+        if let Self::Byte(v) = self {
+            Ok(v)
+        } else {
+            Err(self)
+        }
     }
 }
 
@@ -261,7 +274,10 @@ impl Sub<Offset> for Point {
 
     #[inline]
     fn sub(self, offset: Offset) -> Self {
-        Self::new(self.line.saturating_sub(offset.line), self.col.saturating_sub(offset.col))
+        Self::new(
+            self.line.saturating_sub(offset.line),
+            self.col.saturating_sub(offset.col),
+        )
     }
 }
 
@@ -345,6 +361,7 @@ impl Point {
         Self::new(self.line, self.col.saturating_add(amt))
     }
 
+    #[inline]
     pub fn with_line(self, line: Line) -> Self {
         Self::new(line, self.col)
     }
@@ -352,6 +369,11 @@ impl Point {
     #[inline]
     pub fn with_col(self, col: Col) -> Self {
         Self::new(self.line, col)
+    }
+
+    #[inline]
+    pub fn empty_range(self) -> PointRange {
+        PointRange::new(self, self)
     }
 }
 

@@ -69,7 +69,10 @@ impl Deref for LanguageClient {
 
 impl LanguageClient {
     pub fn new(for_server: LanguageServiceId, client: Client) -> Self {
-        Self { client, service_id: for_server }
+        Self {
+            client,
+            service_id: for_server,
+        }
     }
 
     /// The language service this client is associated with.
@@ -80,7 +83,9 @@ impl LanguageClient {
 
 impl fmt::Debug for LanguageClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LanguageClient").field("server", &self.service_id).finish()
+        f.debug_struct("LanguageClient")
+            .field("server", &self.service_id)
+            .finish()
     }
 }
 
@@ -122,6 +127,10 @@ pub trait LanguageService {
     }
 
     fn formatting_capabilities(&self) -> Option<()> {
+        None
+    }
+
+    fn code_action_capabilities(&self) -> Option<()> {
         None
     }
 
@@ -208,6 +217,14 @@ pub trait LanguageService {
         unimplemented!()
     }
 
+    fn code_actions(
+        &mut self,
+        params: lstypes::CodeActionParams,
+    ) -> ResponseFuture<Vec<lstypes::CodeAction>> {
+        let _ = params;
+        unimplemented!()
+    }
+
     fn shutdown(&mut self) -> ResponseFuture<()> {
         async { Ok(()) }.boxed()
     }
@@ -225,5 +242,8 @@ pub trait LanguageServiceConfig {
         &self,
         cwd: &Path,
         client: LanguageClient,
-    ) -> Result<(Box<dyn LanguageService + Send>, BoxFuture<'static, Result<()>>)>;
+    ) -> Result<(
+        Box<dyn LanguageService + Send>,
+        BoxFuture<'static, Result<()>>,
+    )>;
 }

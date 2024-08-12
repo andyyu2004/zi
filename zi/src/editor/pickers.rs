@@ -116,7 +116,9 @@ impl Editor {
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
         let preview = self.views.insert_with_key(|id| {
             let view = View::new(id, preview_buf).with_group(view_group);
-            view.settings().line_number_style.write(tui::LineNumberStyle::None);
+            view.settings()
+                .line_number_style
+                .write(tui::LineNumberStyle::None);
             view
         });
 
@@ -210,8 +212,13 @@ impl Editor {
             split_ratio,
             move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
-                    let Some(path) = editor.buffer(loc.buf).path() else { continue };
-                    if let Err(()) = injector.push(Jump { path, point: loc.point }) {
+                    let Some(path) = editor.buffer(loc.buf).path() else {
+                        continue;
+                    };
+                    if let Err(()) = injector.push(Jump {
+                        path,
+                        point: loc.point,
+                    }) {
                         break;
                     }
                 }
@@ -228,16 +235,18 @@ impl Editor {
             split_ratio,
             |_editor, injector| {
                 let mut entries =
-                    ignore::WalkBuilder::new(path).build().filter_map(|entry| match entry {
-                        Ok(entry) => match entry.file_type() {
-                            Some(ft) if ft.is_file() => Some(entry),
-                            _ => None,
-                        },
-                        Err(err) => {
-                            tracing::error!(%err, "file picker error");
-                            None
-                        }
-                    });
+                    ignore::WalkBuilder::new(path)
+                        .build()
+                        .filter_map(|entry| match entry {
+                            Ok(entry) => match entry.file_type() {
+                                Some(ft) if ft.is_file() => Some(entry),
+                                _ => None,
+                            },
+                            Err(err) => {
+                                tracing::error!(%err, "file picker error");
+                                None
+                            }
+                        });
 
                 let deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
                 for entry in entries.by_ref() {
@@ -324,7 +333,13 @@ impl Editor {
 
         impl fmt::Display for DiagnosticEntry {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}:{}: {}", self.path.display(), self.range, self.message)
+                write!(
+                    f,
+                    "{}:{}: {}",
+                    self.path.display(),
+                    self.range,
+                    self.message
+                )
             }
         }
 
@@ -450,4 +465,5 @@ impl Editor {
             },
         )
     }
+
 }

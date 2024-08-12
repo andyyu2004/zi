@@ -37,6 +37,17 @@ pub(crate) fn capabilities() -> lsp_types::ClientCapabilities {
             definition: GOTO_CAPABILITY,
             type_definition: GOTO_CAPABILITY,
             implementation: GOTO_CAPABILITY,
+            code_action: Some(lsp_types::CodeActionClientCapabilities {
+                dynamic_registration: None,
+                is_preferred_support: None,
+                disabled_support: None,
+                data_support: None,
+                resolve_support: None,
+                honors_change_annotations: None,
+                code_action_literal_support: Some(lsp_types::CodeActionLiteralSupport {
+                    code_action_kind: lsp_types::CodeActionKindLiteralSupport { value_set: vec![] },
+                }),
+            }),
             diagnostic: Some(lsp_types::DiagnosticClientCapabilities {
                 related_document_support: Some(true),
                 ..Default::default()
@@ -125,7 +136,9 @@ impl async_lsp::LanguageClient for LanguageClient {
     ) -> Self::NotifyResult {
         let service_id = self.0.service_id();
         self.0.send(move |editor| {
-            let Some(service) = editor.language_server(service_id) else { return Ok(()) };
+            let Some(service) = editor.language_server(service_id) else {
+                return Ok(());
+            };
             let encoding = service.position_encoding();
             let diagnostics = from_proto::diagnostics(encoding, params.diagnostics);
 

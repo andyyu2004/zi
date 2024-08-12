@@ -26,12 +26,18 @@ pub(super) fn new() -> Keymap {
 
     fn delete_till_end_of_line(editor: &mut Editor) {
         delete_operator_pending(editor);
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
+        set_error_if!(
+            editor,
+            editor.text_object(Active, zi_textobject::Until('\n'))
+        );
     }
 
     fn change_till_end_of_line(editor: &mut Editor) {
         change_operator_pending(editor);
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
+        set_error_if!(
+            editor,
+            editor.text_object(Active, zi_textobject::Until('\n'))
+        );
     }
 
     fn insert_mode(editor: &mut Editor) {
@@ -137,11 +143,17 @@ pub(super) fn new() -> Keymap {
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::inclusive()));
+        set_error_if!(
+            editor,
+            editor.text_object(Active, zi_textobject::Line::inclusive())
+        );
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::exclusive()));
+        set_error_if!(
+            editor,
+            editor.text_object(Active, zi_textobject::Line::exclusive())
+        );
     }
 
     fn append_eol(editor: &mut Editor) {
@@ -177,6 +189,11 @@ pub(super) fn new() -> Keymap {
 
     fn open_global_search(editor: &mut Editor) {
         editor.open_global_search(".");
+    }
+
+    fn code_actions(editor: &mut Editor) {
+        let fut = editor.code_actions(Active);
+        editor.spawn("code actions", fut);
     }
 
     fn open_file_explorer(editor: &mut Editor) {
@@ -287,7 +304,10 @@ pub(super) fn new() -> Keymap {
         editor.create_mark(
             Active,
             editor.default_namespace(),
-            Mark::builder(byte).hl(hl).width(5).start_bias(zi_marktree::Bias::Left),
+            Mark::builder(byte)
+                .hl(hl)
+                .width(5)
+                .start_bias(zi_marktree::Bias::Left),
         );
     }
 
@@ -380,6 +400,7 @@ pub(super) fn new() -> Keymap {
                         "l" => open_diagnostics,
                         "m" => open_marks,
                         "/" => open_global_search,
+                        "." => code_actions,
                     },
                     "g" => {
                         "d" => goto_definition,

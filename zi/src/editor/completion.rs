@@ -25,7 +25,10 @@ impl Editor {
     }
 
     pub fn unregister_completion_provider<P: CompletionProvider + 'static>(&mut self) {
-        COMPLETION_PROVIDERS.get_or_init(Default::default).write().remove(&TypeId::of::<P>());
+        COMPLETION_PROVIDERS
+            .get_or_init(Default::default)
+            .write()
+            .remove(&TypeId::of::<P>());
     }
 
     pub fn completions(&self) -> Option<impl ExactSizeIterator<Item = &CompletionItem>> {
@@ -39,23 +42,32 @@ impl Editor {
         let fut = self.request_completions(Active);
         let at = self.cursor_byte(Active);
 
-        let State::Insert(state) = &mut self.state else { return };
+        let State::Insert(state) = &mut self.state else {
+            return;
+        };
         state.completion.activate(at, trigger);
 
-        self.callback("completions", fut.map_err(Into::into), move |editor, items| {
-            let State::Insert(state) = &mut editor.state else { return Ok(()) };
-            if let Completion::Active(state) = &mut state.completion {
-                state.set_items(items);
-            }
+        self.callback(
+            "completions",
+            fut.map_err(Into::into),
+            move |editor, items| {
+                let State::Insert(state) = &mut editor.state else {
+                    return Ok(());
+                };
+                if let Completion::Active(state) = &mut state.completion {
+                    state.set_items(items);
+                }
 
-            return Ok(());
-        });
+                return Ok(());
+            },
+        );
     }
 
     pub(super) fn apply_completion_delta(&mut self, delta: Delta<'_>) {
         let delta = delta.to_owned();
         let new_cursor = delta.range().start + delta.text().len();
-        self.edit(Active, &Deltas::new([delta])).expect("valid delta");
+        self.edit(Active, &Deltas::new([delta]))
+            .expect("valid delta");
         self.set_cursor_bytewise(Active, new_cursor);
     }
 
@@ -133,6 +145,10 @@ impl CompletionProvider for LspCompletionProvider {
         editor: &mut Editor,
         params: lstypes::CompletionParams,
     ) -> BoxFuture<'static, Result<lstypes::CompletionResponse>> {
-        editor.active_language_services.get_mut(&self.server).unwrap().completion(params)
+        editor
+            .active_language_services
+            .get_mut(&self.server)
+            .unwrap()
+            .completion(params)
     }
 }

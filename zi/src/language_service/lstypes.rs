@@ -90,11 +90,17 @@ impl EncodedRange {
     }
 
     pub fn start(&self) -> EncodedPoint {
-        EncodedPoint { point: self.range.start(), encoding: self.encoding }
+        EncodedPoint {
+            point: self.range.start(),
+            encoding: self.encoding,
+        }
     }
 
     pub fn end(&self) -> EncodedPoint {
-        EncodedPoint { point: self.range.end(), encoding: self.encoding }
+        EncodedPoint {
+            point: self.range.end(),
+            encoding: self.encoding,
+        }
     }
 
     pub fn decode(&self, text: impl Text) -> Option<PointRange> {
@@ -115,7 +121,10 @@ pub struct EncodedPoint {
 impl From<Point> for EncodedPoint {
     #[inline]
     fn from(point: Point) -> Self {
-        Self { point, encoding: PositionEncoding::Utf8 }
+        Self {
+            point,
+            encoding: PositionEncoding::Utf8,
+        }
     }
 }
 
@@ -170,6 +179,25 @@ pub struct CompletionParams {
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct CompletionResponse {
     pub items: Vec<CompletionItem>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CodeActionParams {
+    pub url: Url,
+    pub range: PointRange,
+}
+
+pub type CodeActionResponse = Vec<CodeActionOrCommand>;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum CodeActionOrCommand {
+    // Command(Command),
+    CodeAction(CodeAction),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct CodeAction {
+    pub title: String,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

@@ -35,7 +35,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Some(log) = opts.log {
-        let file = std::fs::OpenOptions::new().create(true).append(true).open(log)?;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log)?;
         tracing_subscriber::fmt()
             .with_writer(file)
             .with_ansi(false)
@@ -82,7 +85,10 @@ async fn main() -> anyhow::Result<()> {
                     flags.insert(zi::OpenFlags::READONLY);
                 }
 
-                client.with(move |editor| editor.open(path, flags)).await?.await?;
+                client
+                    .with(move |editor| editor.open(path, flags))
+                    .await?
+                    .await?;
             }
         }
         Ok::<_, zi::Error>(())
@@ -98,7 +104,10 @@ async fn main() -> anyhow::Result<()> {
 fn configure(editor: &mut zi::Editor) {
     editor
         .language_config_mut()
-        .add_language(filetype!(rust), LanguageConfig::new(["rust-analyzer".into()]))
+        .add_language(
+            filetype!(rust),
+            LanguageConfig::new(["rust-analyzer".into()]),
+        )
         .add_language(filetype!(text), LanguageConfig::new([]))
         .add_language(filetype!(toml), LanguageConfig::new([]))
         .add_language(filetype!(json), LanguageConfig::new([]))
@@ -106,9 +115,19 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
         .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
-        .add_language(filetype!(javascript), LanguageConfig::new(["tsserver".into()]))
-        .add_language(filetype!(typescript), LanguageConfig::new(["tsserver".into()]))
-        .add_language_service("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
+        .add_language(
+            filetype!(javascript),
+            LanguageConfig::new(["tsserver".into()]),
+        )
+        .add_language(
+            filetype!(typescript),
+            LanguageConfig::new(["tsserver".into()]),
+        )
+        .add_language_service(
+            "rust-analyzer",
+            // LanguageServerConfig::new("ra-multiplex", []),
+            LanguageServerConfig::new("rust-analyzer", []),
+        )
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
         .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
