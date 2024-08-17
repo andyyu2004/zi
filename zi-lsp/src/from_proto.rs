@@ -101,7 +101,7 @@ pub fn diagnostics(
     encoding: lstypes::PositionEncoding,
     diags: impl IntoIterator<Item = lsp_types::Diagnostic>,
 ) -> Vec<lstypes::Diagnostic> {
-    diags.into_iter().filter_map(|diag| diagnostic(encoding,  diag)).collect()
+    diags.into_iter().filter_map(|diag| diagnostic(encoding, diag)).collect()
 }
 
 pub fn diagnostic(
