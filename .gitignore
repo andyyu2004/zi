@@ -6,3 +6,4 @@ profile.json
 mutants.out
 mutants.out.old
 rustc-ice-*
+tree-sitter-*
