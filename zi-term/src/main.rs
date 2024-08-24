@@ -106,8 +106,14 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
         .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
-        .add_language(filetype!(javascript), LanguageConfig::new(["tsserver".into()]))
-        .add_language(filetype!(typescript), LanguageConfig::new(["tsserver".into()]))
+        .add_language(
+            filetype!(javascript),
+            LanguageConfig::new(["typescript-language-server".into()]),
+        )
+        .add_language(
+            filetype!(typescript),
+            LanguageConfig::new(["typescript-language-server".into()]),
+        )
         .add_language_service("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
@@ -116,5 +122,8 @@ fn configure(editor: &mut zi::Editor) {
             "hls",
             LanguageServerConfig::new("haskell-language-server-wrapper", ["--lsp".into()]),
         )
-        .add_language_service("tsserver", LanguageServerConfig::new("tsserver", []));
+        .add_language_service(
+            "typescript-language-server",
+            LanguageServerConfig::new("typescript-language-server", ["--stdio".into()]),
+        );
 }
