@@ -1,7 +1,7 @@
 .PHONY: tree-sitter-install
 .PHONY: tree-sitter-install-%
 
-tree-sitter-install: tree-sitter-install-rust tree-sitter-install-go
+tree-sitter-install: tree-sitter-install-rust tree-sitter-install-go tree-sitter-install-json
 
 tree-sitter-install-%: tree-sitter-%.wasm
 	mkdir -p ~/.local/share/zi/grammars/$*
@@ -18,4 +18,8 @@ tree-sitter-rust:
 tree-sitter-go:
 	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-go/archive/refs/tags/v0.20.0.tar.gz | tar xz
 	mv tree-sitter-go-0.20.0 tree-sitter-go
+
+tree-sitter-json:
+	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-json/archive/refs/tags/v0.21.0.tar.gz | tar xz
+	mv tree-sitter-json-0.21.0 tree-sitter-json
 
