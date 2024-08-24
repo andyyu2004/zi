@@ -175,6 +175,16 @@ pub(super) fn new() -> Keymap {
         editor.open_file_picker(".");
     }
 
+    fn open_file_picker_here(editor: &mut Editor) {
+        match editor.buffer(Active).path() {
+            Some(path) if path.is_dir() => editor.open_file_picker(path),
+            Some(path) => {
+                editor.open_file_picker(path.parent().expect("file must have parent path"))
+            }
+            None => editor.open_file_picker("."),
+        };
+    }
+
     fn open_global_search(editor: &mut Editor) {
         editor.open_global_search(".");
     }
@@ -380,6 +390,7 @@ pub(super) fn new() -> Keymap {
                     "<space>" => {
                         "e" => open_file_explorer,
                         "o" => open_file_picker,
+                        "f" => open_file_picker_here,
                         "j" => open_jump_list,
                         "l" => open_diagnostics,
                         "m" => open_marks,
