@@ -374,7 +374,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 let buf = editor.buffer(Active);
-                let Some(path) = buf.path() else { return Ok(()) };
+                let Some(path) = buf.file_path() else { return Ok(()) };
                 if buf.flags().contains(BufferFlags::DIRTY) {
                     bail!("buffer is dirty")
                 }

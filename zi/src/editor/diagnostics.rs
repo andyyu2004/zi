@@ -43,7 +43,7 @@ impl Editor {
         let ns = self.create_namespace(format!("lsp-diagnostics"));
 
         let Some(diagnostics) =
-            self.buffer(buf).path().and_then(|path| self.diagnostics.get(&path))
+            self.buffer(buf).file_path().and_then(|path| self.diagnostics.get(&path))
         else {
             return;
         };
@@ -57,7 +57,7 @@ impl Editor {
         if *version != buf_version {
             tracing::debug!(
                 "clearing diagnostics for `{}` because the version is outdated: {version} > {}",
-                self[buf].path().expect("if we're here, the buffer has a path").display(),
+                self[buf].file_path().expect("if we're here, the buffer has a path").display(),
                 buf_version,
             );
 

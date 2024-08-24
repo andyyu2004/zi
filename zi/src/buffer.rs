@@ -171,8 +171,14 @@ impl Buffer {
         self.inner.file_url()
     }
 
+    /// The path of the buffer, this may be a file path or a directory path.
     pub fn path(&self) -> Option<PathBuf> {
         self.inner.path()
+    }
+
+    /// The path of the file backing the buffer, if it is backed by a file.
+    pub fn file_path(&self) -> Option<PathBuf> {
+        self.inner.file_path()
     }
 
     pub fn settings(&self) -> &Settings {
@@ -281,8 +287,12 @@ pub(crate) trait BufferInternal: Send + Sync {
 
     fn as_any(&self) -> &dyn Any;
 
-    /// The path of the buffer, if it is backed by a file. This is derived from `file_url`
     fn path(&self) -> Option<PathBuf> {
+        self.file_path()
+    }
+
+    /// The path of the buffer, if it is backed by a file. This is derived from `file_url`
+    fn file_path(&self) -> Option<PathBuf> {
         self.file_url().and_then(|url| url.to_file_path().ok())
     }
 
@@ -412,6 +422,11 @@ impl BufferInternal for Box<dyn BufferInternal> {
     #[inline]
     fn path(&self) -> Option<PathBuf> {
         self.as_ref().path()
+    }
+
+    #[inline]
+    fn file_path(&self) -> Option<PathBuf> {
+        self.as_ref().file_path()
     }
 
     #[inline]

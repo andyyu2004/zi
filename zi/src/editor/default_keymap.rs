@@ -180,7 +180,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn open_file_explorer(editor: &mut Editor) {
-        editor.open_file_explorer(".");
+        if let Some(path) = editor.buffer(Active).path().as_ref().and_then(|p| p.parent()) {
+            editor.open_file_explorer(path);
+        } else {
+            editor.open_file_explorer(".");
+        }
     }
 
     fn split_vertical(editor: &mut Editor) {

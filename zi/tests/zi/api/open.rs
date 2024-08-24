@@ -57,14 +57,14 @@ async fn test_open_focus() -> zi::Result<()> {
     let b = cx.tempfile("b")?;
 
     cx.open(&a, zi::OpenFlags::empty()).await.unwrap();
-    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &a);
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).file_path().unwrap()).await, &a);
 
     cx.open(&b, zi::OpenFlags::empty()).await.unwrap();
-    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &b);
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).file_path().unwrap()).await, &b);
 
     // Should focus `a` again even if it's already open
     cx.open(&a, zi::OpenFlags::empty()).await.unwrap();
-    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).path().unwrap()).await, &a);
+    assert_eq!(&cx.with(|editor| editor.buffer(zi::Active).file_path().unwrap()).await, &a);
 
     cx.cleanup().await;
     Ok(())

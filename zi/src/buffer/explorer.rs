@@ -10,6 +10,7 @@ use crate::{filetype, hashmap, trie, Mode};
 
 pub struct ExplorerBuffer<T: Entry, F: 'static> {
     id: BufferId,
+    path: PathBuf,
     url: Url,
     text: String,
     nucleo: Nucleo<T>,
@@ -26,6 +27,7 @@ where
 {
     pub fn new(
         id: BufferId,
+        path: PathBuf,
         config: nucleo::Config,
         notify: impl Fn() + Send + Sync + 'static,
         confirm: F,
@@ -59,6 +61,7 @@ where
         (
             Self {
                 id,
+                path,
                 nucleo,
                 cancel,
                 keymap,
@@ -85,10 +88,9 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
         unreachable!("explorer buffer does not have a backing file")
     }
 
-    // fn path(&self) -> &Path {
-    //     // TODO get the actual directory path we're looking at
-    //     Path::new("explorer")
-    // }
+    fn path(&self) -> Option<PathBuf> {
+        Some(self.path.clone())
+    }
 
     fn url(&self) -> &Url {
         &self.url

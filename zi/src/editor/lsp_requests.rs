@@ -400,7 +400,7 @@ impl Editor {
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
-        let path = self[buf].path();
+        let path = self[buf].file_path();
         let client = self.client();
         async move {
             let Some(path) = path else { return Ok(()) };

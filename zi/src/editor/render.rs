@@ -35,7 +35,7 @@ impl Editor {
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
         let (view, buf) = get_ref!(self);
-        let path = buf.path();
+        let path = buf.file_path();
         let path = path.as_ref().map(|p| p.display());
         let display = path
             .as_ref()

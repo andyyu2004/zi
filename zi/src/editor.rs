@@ -506,7 +506,7 @@ impl Editor {
     }
 
     fn buffer_at_path(&self, path: &Path) -> Option<BufferId> {
-        self.buffers.values().find_map(|b| b.path().filter(|p| p == path).map(|_| b.id()))
+        self.buffers.values().find_map(|b| b.file_path().filter(|p| p == path).map(|_| b.id()))
     }
 
     pub fn open(
@@ -947,8 +947,8 @@ impl Editor {
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
-                if let Some(handler) = self.command_handlers.get(cmd).cloned() {
-                    handler.execute(self, range, args)?;
+                if let Some(handler) = self.command_handlers.get(&cmd).cloned() {
+                    handler.execute(self, range, &args)?;
                 } else {
                     anyhow::bail!("unknown command: {cmd}")
                 }
@@ -1680,7 +1680,7 @@ impl Editor {
         let buffer = &self[buf];
         let flags = buffer.flags();
         let url = buffer.url().clone();
-        let path = buffer.path();
+        let path = buffer.file_path();
         self[buf].snapshot(SnapshotFlags::empty());
 
         let client = self.client();

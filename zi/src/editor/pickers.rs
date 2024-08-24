@@ -10,6 +10,7 @@ impl Editor {
             let buf = editor.buffers.insert_with_key(|id| {
                 let (explorer, inj) = ExplorerBuffer::new(
                     id,
+                    path.to_path_buf(),
                     nucleo::Config::DEFAULT.match_paths(),
                     request_redraw,
                     |editor, path: Relative| {
@@ -210,7 +211,7 @@ impl Editor {
             split_ratio,
             move |editor, injector| {
                 for loc in editor.view(view).jump_list().iter() {
-                    let Some(path) = editor.buffer(loc.buf).path() else { continue };
+                    let Some(path) = editor.buffer(loc.buf).file_path() else { continue };
                     if let Err(()) = injector.push(Jump { path, point: loc.point }) {
                         break;
                     }
