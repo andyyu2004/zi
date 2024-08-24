@@ -66,7 +66,7 @@ impl ViewTree {
             TraverseResult::Continue => Err(()),
             TraverseResult::Done(..) => Ok(()),
             // pop the entire layer as it's empty
-            TraverseResult::Propogate => {
+            TraverseResult::Propagate => {
                 self.pop();
                 Ok(())
             }
@@ -180,7 +180,7 @@ impl Layer {
         self.active = match self.root.next_view(self.active, direction) {
             TraverseResult::Continue => panic!("active_view not found"),
             // This case only occurs when the root is a view, so the next view is always itself
-            TraverseResult::Propogate => self.active,
+            TraverseResult::Propagate => self.active,
             TraverseResult::Done(v) => v,
         };
         self.active
@@ -245,7 +245,7 @@ impl Node {
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
         match self {
-            Node::View(v) if *v == view => TraverseResult::Propogate,
+            Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.close_view(view),
             _ => TraverseResult::Continue,
         }
@@ -260,7 +260,7 @@ impl Node {
 
     fn next_view(&self, view: ViewId, direction: Direction) -> TraverseResult<ViewId> {
         match self {
-            Node::View(v) if *v == view => TraverseResult::Propogate,
+            Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.next_view(view, direction),
             _ => TraverseResult::Continue,
         }
@@ -270,7 +270,7 @@ impl Node {
 #[must_use]
 enum TraverseResult<T> {
     Continue,
-    Propogate,
+    Propagate,
     Done(T),
 }
 
@@ -374,10 +374,10 @@ impl Container {
             match child.close_view(view) {
                 TraverseResult::Continue => continue,
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
-                TraverseResult::Propogate => {
+                TraverseResult::Propagate => {
                     if self.children.len() == 1 {
                         // The container is now empty, so we should remove it
-                        return TraverseResult::Propogate;
+                        return TraverseResult::Propagate;
                     }
 
                     self.children.remove(i);
@@ -402,23 +402,23 @@ impl Container {
             match child.next_view(view, direction) {
                 TraverseResult::Continue => continue,
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
-                TraverseResult::Propogate => {
+                TraverseResult::Propagate => {
                     if self.direction != direction.into() {
                         // If the container direction is different, we try again in the parent container
-                        return TraverseResult::Propogate;
+                        return TraverseResult::Propagate;
                     }
 
                     // If the direction is the same, we can just move to the next/previous view
                     let next_idx = match direction {
                         Direction::Left | Direction::Up => {
                             if i == 0 {
-                                return TraverseResult::Propogate;
+                                return TraverseResult::Propagate;
                             }
                             i - 1
                         }
                         Direction::Right | Direction::Down => {
                             if i + 1 == self.children.len() {
-                                return TraverseResult::Propogate;
+                                return TraverseResult::Propagate;
                             }
                             i + 1
                         }

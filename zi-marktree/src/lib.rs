@@ -643,7 +643,7 @@ impl<const N: usize> Leaf<N> {
     ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
         debug_assert!(at <= summary.bytes);
         if at == summary.bytes {
-            // Trying to insert at the end. Just propogate the new key up.
+            // Trying to insert at the end. Just propagate the new key up.
             let array = ArrayVec::<_, N>::from_iter([Extent::new(0, [key])]);
             return Some(smallvec![Leaf::from(array)].into_iter());
         }
@@ -673,12 +673,12 @@ impl<const N: usize> Leaf<N> {
                     Err(err) => {
                         if i + 1 == N {
                             summary.bytes -= rem;
-                            // Trying to insert at end, propogate the new key up.
+                            // Trying to insert at end, propagate the new key up.
                             let array = ArrayVec::<_, N>::from_iter([err.element()]);
                             return Some(smallvec![Leaf::from(array)].into_iter());
                         }
 
-                        // If we can't fit, drain the remainder of the keys and propogate them up.
+                        // If we can't fit, drain the remainder of the keys and propagate them up.
                         let drained = self
                             .extents
                             .drain(i + 1..)
