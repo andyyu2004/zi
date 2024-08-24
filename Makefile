@@ -1,7 +1,11 @@
 .PHONY: tree-sitter-install
 .PHONY: tree-sitter-install-%
+.PHONY: all test clean
 
-tree-sitter-install: tree-sitter-install-rust tree-sitter-install-go tree-sitter-install-json
+all: tree-sitter-install-rust tree-sitter-install-go tree-sitter-install-json
+
+clean:
+	rm -rf tree-sitter-rust tree-sitter-go tree-sitter-json
 
 tree-sitter-install-%: tree-sitter-%.wasm
 	mkdir -p ~/.local/share/zi/grammars/$*
