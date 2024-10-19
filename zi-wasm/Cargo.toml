@@ -5,13 +5,19 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
 zi = { workspace = true }
+slotmap = { workspace = true }
+smol_str = { workspace = true }
+futures-util = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
 # The version of wasmtime is decided by the dependency that tree-sitter takes
 wasmtime = { version = "25", features = ["component-model"] }
 streaming-iterator = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+tokio-stream = { workspace = true, features = ["fs"] }
 
 [lints]
 workspace = true

@@ -1,6 +1,8 @@
 use std::io;
 
+mod plugin;
 mod syntax;
+mod wit_conversion_impls;
 
 mod wit {
     wasmtime::component::bindgen!({

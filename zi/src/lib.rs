@@ -1,7 +1,7 @@
 #![feature(try_blocks, type_alias_impl_trait, trait_upcasting, coroutines, iter_from_coroutine)]
 
 pub mod buffer;
-mod command;
+pub mod command;
 mod completion;
 mod config;
 pub mod dirs;
@@ -16,7 +16,6 @@ mod layout;
 mod location;
 mod namespace;
 mod operator;
-mod plugin;
 mod private;
 mod syntax;
 mod undo;

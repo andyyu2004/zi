@@ -29,8 +29,7 @@ chumsky = "0.9.3"
 crossterm = { workspace = true, optional = true }
 futures-util = { workspace = true, features = ["io"] }
 directories-next = "2.0.0"
-smol_str = "0.2.1"
-# tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
+smol_str = { workspace = true }
 arbitrary = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 grep = "0.3.1"
