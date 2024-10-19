@@ -522,8 +522,8 @@ impl zi::LanguageService for LanguageService {
         ) -> HashMap<Url, lstypes::Diagnostics> {
             kind.map_or_else(Default::default, |kind| {
                 kind.into_iter()
-                    .filter_map(|(url, kind)| {
-                        Some((
+                    .map(|(url, kind)| {
+                        (
                             url,
                             match kind {
                                 lsp_types::DocumentDiagnosticReportKind::Full(full) => {
@@ -535,7 +535,7 @@ impl zi::LanguageService for LanguageService {
                                     lstypes::Diagnostics::Unchanged
                                 }
                             },
-                        ))
+                        )
                     })
                     .collect()
             })

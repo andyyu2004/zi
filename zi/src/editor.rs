@@ -549,6 +549,7 @@ impl Editor {
 
         let client = self.client();
         Ok(async move {
+            #[allow(clippy::too_many_arguments)]
             async fn execute<T: Text + Clone + 'static>(
                 client: &Client,
                 plan: Plan,
@@ -943,12 +944,12 @@ impl Editor {
         C: TryInto<Command>,
         Error: From<<C as TryInto<Command>>::Error>,
     {
-        let cmd = cmd.try_into()?;
+        let cmd: Command = cmd.try_into()?;
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
-                if let Some(handler) = self.command_handlers.get(&cmd).cloned() {
-                    handler.execute(self, range, &args)?;
+                if let Some(handler) = self.command_handlers.get(cmd).cloned() {
+                    handler.execute(self, range, args)?;
                 } else {
                     anyhow::bail!("unknown command: {cmd}")
                 }

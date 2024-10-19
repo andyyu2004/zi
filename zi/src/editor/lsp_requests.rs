@@ -259,9 +259,7 @@ impl Editor {
         &mut self,
         res: lstypes::GotoDefinitionResponse,
     ) -> Result<impl Future<Output = Result<()>> + 'static> {
-        let mut locations = match res {
-            lstypes::GotoDefinitionResponse::Array(locations) => locations,
-        };
+        let lstypes::GotoDefinitionResponse::Array(mut locations) = res;
 
         #[derive(Clone, Debug)]
         struct Entry {
@@ -389,10 +387,8 @@ impl Editor {
 
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
-                if self.active_language_services[&server_id].diagnostic_capabilities().is_none() {
-                    return None;
-                };
-                let Some(url) = self.buffers[buf].file_url() else { return None };
+                self.active_language_services[&server_id].diagnostic_capabilities()?;
+                let url = self.buffers[buf].file_url()?;
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let fut = server
                     .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });

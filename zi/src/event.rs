@@ -18,6 +18,7 @@ use crate::{Client, Editor, Result};
 pub struct Registry {
     // map<event_type, map<handler_type, handler>>
     // We key by handler type too to avoid duplicates in tests as this is stored in a static.
+    #[allow(clippy::type_complexity)]
     handlers: parking_lot::RwLock<
         FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedEventHandler + Send + Sync>>>,
     >,
@@ -28,6 +29,7 @@ pub struct Registry {
     garbage: SegQueue<(TypeId, TypeId)>,
     async_garbage: SegQueue<(TypeId, TypeId)>,
 
+    #[allow(clippy::type_complexity)]
     async_handlers: tokio::sync::RwLock<
         FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
     >,
@@ -56,7 +58,7 @@ pub fn subscribe_with<E: Event>(
     subscribe(zi_event::handler(f));
 }
 
-pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Event = E> + Sync) {
+pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Event = E>) {
     registry().subscribe_async(handler).await
 }
 

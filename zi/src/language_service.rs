@@ -31,7 +31,7 @@ impl LanguageServiceInstance {
 
     pub(crate) async fn wait(self) -> Result<()> {
         self.handle.abort();
-        Ok(tokio::time::timeout(Duration::from_millis(50), self.handle).await???)
+        tokio::time::timeout(Duration::from_millis(50), self.handle).await??
     }
 }
 

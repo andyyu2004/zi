@@ -23,7 +23,7 @@ impl zi::CompletionProvider for Completions {
         _editor: &mut zi::Editor,
         _params: lstypes::CompletionParams,
     ) -> BoxFuture<'static, zi::Result<lstypes::CompletionResponse>> {
-        Box::pin(async move { Ok(dbg!(res())) })
+        Box::pin(async move { Ok(res()) })
     }
 }
 

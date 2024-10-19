@@ -42,6 +42,7 @@ where
 
 struct AsyncHandlerFunc<F, Fut, E> {
     f: F,
+    #[allow(clippy::type_complexity)]
     _marker: PhantomData<(fn() -> Fut, fn() -> E)>,
 }
 

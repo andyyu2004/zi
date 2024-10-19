@@ -109,7 +109,7 @@ impl ActiveCompletionState {
         Some(self.generate_delta(replacement_text.to_owned()))
     }
 
-    fn generate_delta<'a>(&mut self, replacement: impl Into<String>) -> Delta<'static> {
+    fn generate_delta(&mut self, replacement: impl Into<String>) -> Delta<'static> {
         let replacement = replacement.into();
         let n = replacement.len();
         let delta = Delta::new(self.replacement_range.clone(), replacement);

@@ -14,19 +14,13 @@ impl Editor {
         });
 
         event::subscribe_with::<event::WillChangeMode>(|editor, event| {
-            match (event.from, event.to) {
-                (Mode::Insert, Mode::Normal) => editor.insert_to_normal(),
-                _ => (),
-            }
+            if let (Mode::Insert, Mode::Normal) = (event.from, event.to) { editor.insert_to_normal() }
             HandlerResult::Continue
         });
 
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
-            match (event.from, event.to) {
-                (Mode::Insert, Mode::Normal) => {
-                    editor.refresh_semantic_tokens(Active.select(editor))
-                }
-                _ => (),
+            if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
+                editor.refresh_semantic_tokens(Active.select(editor))
             }
             HandlerResult::Continue
         });

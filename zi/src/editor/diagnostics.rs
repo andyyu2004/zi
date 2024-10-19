@@ -40,7 +40,7 @@ impl Editor {
     }
 
     fn refresh_diagnostic_marks(&mut self, buf: BufferId) {
-        let ns = self.create_namespace(format!("lsp-diagnostics"));
+        let ns = self.create_namespace("lsp-diagnostics".to_string());
 
         let Some(diagnostics) =
             self.buffer(buf).file_path().and_then(|path| self.diagnostics.get(&path))

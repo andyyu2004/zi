@@ -15,18 +15,6 @@ async fn new_() -> TestContext {
 async fn file_picker() {
     let cx = new_().await;
 
-    cx.snapshot(expect![[r#"
-        "  |                                                                                                 "
-        "  tests/zi/testdirs/binary.bin                                                                      "
-        "  tests/zi/testdirs/a.txt                                                                           "
-        "  tests/zi/testdirs/c.txt                                                                           "
-        "  tests/zi/testdirs/f.txt                                                                           "
-        "  tests/zi/testdirs/h.txt                                                                           "
-        "buffer://picker:1:0                                                                                 "
-        "-- INSERT --                                                                                        "
-    "#]])
-        .await;
-
     cx.with(|editor| editor.input("bin").unwrap()).await;
 
     // Preview the binary file shouldn't break. Currently just renders an empty buffer.

@@ -56,11 +56,10 @@ fn bench_marktree_delete<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     let k = 0;
     bencher
         .with_inputs(|| {
-            let tree = MarkTree::<Id, LEAF_SIZE>::build(
+            MarkTree::<Id, LEAF_SIZE>::build(
                 100_000,
                 (0..2000).map(|i| (Id(i), MarkBuilder::new(i).width(k))),
-            );
-            tree
+            )
         })
         .bench_local_values(|mut tree| {
             (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i + k)))

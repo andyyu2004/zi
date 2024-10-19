@@ -119,7 +119,7 @@ mod tests {
     fn bitbag_smoke() {
         let mut bag = Bitbag::default();
         assert_eq!(bag.insert(1), 1);
-        assert_eq!(bag.contains(1), true);
+        assert!(bag.contains(1));
         assert_eq!(bag.get(1), Some(1));
 
         assert_eq!(bag.insert(1), 2);

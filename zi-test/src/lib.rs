@@ -76,7 +76,7 @@ impl TestContext {
     /// Open a temporary file with the given content.
     pub async fn open_tmp(&self, content: &str, flags: zi::OpenFlags) -> zi::Result<zi::BufferId> {
         let path = self.tempfile(content)?;
-        Ok(self.open(&path, flags).await?)
+        self.open(&path, flags).await
     }
 
     // pub async fn setup_lang_server<St: Send + Sync + Clone + 'static>(

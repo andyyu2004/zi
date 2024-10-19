@@ -48,7 +48,7 @@ impl Editor {
                 state.set_items(items);
             }
 
-            return Ok(());
+            Ok(())
         });
     }
 

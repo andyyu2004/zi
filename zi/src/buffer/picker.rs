@@ -121,7 +121,7 @@ where
             }
         };
 
-        editor.callback("open preview", async move { Ok(fut.await?) }, move |editor, buf| {
+        editor.callback("open preview", fut, move |editor, buf| {
             preview(editor, buf);
             Ok(())
         });
@@ -148,7 +148,7 @@ where
         editor.close_view(self.preview);
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES);
-        editor.callback("confirm selection", async move { Ok(fut?.await?) }, move |editor, buf| {
+        editor.callback("confirm selection", async move { fut?.await }, move |editor, buf| {
             if let Some(point) = entry.point().and_then(|p| editor.text(buf).decode_point(p)) {
                 editor.reveal(Active, point, VerticalAlignment::Center);
             }

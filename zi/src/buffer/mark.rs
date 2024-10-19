@@ -97,7 +97,7 @@ impl PerNs {
         Some((range, mark))
     }
 
-    fn drain<'a>(&'a mut self, range: impl RangeBounds<usize>) {
+    fn drain(&mut self, range: impl RangeBounds<usize>) {
         let start_len = self.tree.len();
         for (_range, id) in self.tree.drain(range) {
             self.marks.remove(id).unwrap();

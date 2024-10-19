@@ -18,8 +18,6 @@ async fn test(path: &Path) -> Result<()> {
 }
 
 async fn run(seq: KeySequence) -> Result<()> {
-    eprintln!("{seq:#?}\n{seq}");
-
     let (width, height) = (24, 10);
     let mut frame = tui::TestFrame::new(width, height);
     let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, zi::Size::new(width, height));

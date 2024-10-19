@@ -143,8 +143,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub(crate) fn new(buffer: impl BufferInternal + 'static) -> Self {
-        let this = Self { inner: buffer.boxed(), marks: Marks::default() };
-        this
+        Self { inner: buffer.boxed(), marks: Marks::default() }
     }
 
     pub fn id(&self) -> BufferId {
@@ -500,7 +499,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
         editor: &'a Editor,
         view: &View,
         size: Size,
-    ) -> Box<dyn Iterator<Item = Highlight> + '_> {
+    ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         self.as_ref().overlay_highlights(editor, view, size)
     }
 
