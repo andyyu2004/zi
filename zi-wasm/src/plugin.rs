@@ -12,8 +12,8 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
-use zi::command::{CommandHandler, CommandRange, Handler, Word};
-use zi::{dirs, Active, Client as EditorClient, Point, ViewId};
+use zi::command::{CommandRange, Word};
+use zi::{dirs, Active, Client, Point, ViewId};
 
 use crate::wit::zi::api;
 use crate::wit::Plugin;
@@ -27,93 +27,71 @@ pub fn engine() -> &'static Engine {
     })
 }
 
-pub type Store = wasmtime::Store<EditorClient>;
-
-impl From<Point> for api::editor::Point {
-    fn from(value: Point) -> Self {
-        Self { line: value.line() as u32, col: value.col() as u32 }
-    }
-}
-
-impl From<api::editor::Point> for Point {
-    fn from(value: api::editor::Point) -> Self {
-        Self::from((value.line as usize, value.col as usize))
-    }
-}
+pub type Store = wasmtime::Store<Client>;
 
 fn v(res: Resource<api::editor::View>) -> ViewId {
     ViewId::from(KeyData::from_ffi(res.rep() as u64))
 }
 
 #[async_trait::async_trait]
-impl api::editor::HostView for EditorClient {
+impl api::editor::HostView for Client {
     async fn get_buffer(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> wasmtime::Result<Resource<api::editor::Buffer>> {
+    ) -> Resource<api::editor::Buffer> {
         let bufnr = self.with(move |editor| editor.view(v(view)).buffer()).await;
-        Ok(Resource::new_own(bufnr.data().as_ffi() as u32))
+        Resource::new_own(bufnr.data().as_ffi() as u32)
     }
 
-    async fn get_cursor(
-        &mut self,
-        view: Resource<api::editor::View>,
-    ) -> wasmtime::Result<api::editor::Point> {
-        Ok(self.with(move |editor| editor.view(v(view)).cursor().into()).await)
+    async fn get_cursor(&mut self, view: Resource<api::editor::View>) -> api::editor::Point {
+        self.with(move |editor| editor.view(v(view)).cursor().into()).await
     }
 
-    async fn set_cursor(
-        &mut self,
-        view: Resource<api::editor::View>,
-        pos: api::editor::Point,
-    ) -> wasmtime::Result<()> {
-        self.with(move |editor| editor.set_cursor(v(view), Point::from(pos))).await;
-        Ok(())
+    async fn set_cursor(&mut self, view: Resource<api::editor::View>, pos: api::editor::Point) {
+        self.with(move |editor| editor.set_cursor(v(view), Point::from(pos))).await
     }
 
-    fn drop(&mut self, _rep: Resource<api::editor::View>) -> wasmtime::Result<()> {
+    async fn drop(&mut self, _rep: Resource<api::editor::View>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl api::editor::HostBuffer for EditorClient {
-    fn drop(&mut self, _rep: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
+impl api::editor::HostBuffer for Client {
+    async fn drop(&mut self, _rep: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl api::editor::Host for EditorClient {
-    async fn insert(&mut self, text: String) -> wasmtime::Result<()> {
-        self.with(move |editor| editor.insert(Active, &text)).await?;
-        Ok(())
+impl api::editor::Host for Client {
+    async fn insert(&mut self, text: String) -> Result<(), api::editor::EditError> {
+        Ok(self.with(move |editor| editor.insert(Active, &text)).await?)
     }
 
-    async fn get_mode(&mut self) -> wasmtime::Result<api::editor::Mode> {
-        Ok(self.with(|editor| editor.mode()).await.into())
+    async fn get_mode(&mut self) -> api::editor::Mode {
+        self.with(|editor| editor.mode()).await.into()
     }
 
-    async fn set_mode(&mut self, mode: api::editor::Mode) -> wasmtime::Result<()> {
-        self.with(move |editor| editor.set_mode(mode.into())).await;
-        Ok(())
+    async fn set_mode(&mut self, mode: api::editor::Mode) {
+        self.with(move |editor| editor.set_mode(mode.into())).await
     }
 
-    async fn get_active_view(&mut self) -> wasmtime::Result<Resource<api::editor::View>> {
+    async fn get_active_view(&mut self) -> Resource<api::editor::View> {
         let v = self.with(|editor| editor.view(Active).id().data().as_ffi() as u32).await;
-        Ok(Resource::new_own(v))
+        Resource::new_own(v)
     }
 }
 
 /// The plugin manager responsible for loading and running plugins and keeping track of their state.
 /// This also provides the interface for the editor to interact with the plugins.
 #[derive(Clone)]
-pub struct Plugins {
+pub struct PluginManager {
     inner: Arc<Inner>,
-    client: EditorClient,
+    client: Client,
 }
 
-impl Plugins {
+impl PluginManager {
     #[must_use]
     fn add(&self, _name: impl Into<SmolStr>, tx: Sender<PluginRequest>) -> PluginId {
         // TODO name uniqueness check?
@@ -188,8 +166,8 @@ enum PluginRequest {
     },
 }
 
-impl Plugins {
-    pub fn new(client: EditorClient) -> Self {
+impl PluginManager {
+    pub fn new(client: Client) -> Self {
         Self { client, inner: Arc::new(Inner::default()) }
     }
 
@@ -209,8 +187,7 @@ impl Plugins {
                     let component = component?;
                     let mut store = Store::new(engine, client);
                     Plugin::add_to_linker(&mut linker, |client| client)?;
-                    let (plugin, _instance) =
-                        Plugin::instantiate_async(&mut store, &component, &linker).await?;
+                    let plugin = Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
                     Ok::<_, wasmtime::Error>(PluginHost::new(plugins, store, plugin))
                 }
@@ -263,7 +240,7 @@ impl Plugins {
 }
 
 struct PluginHost {
-    plugins: Plugins,
+    plugins: PluginManager,
     store: Store,
     plugin: Plugin,
     handler: Option<ResourceAny>,
@@ -282,7 +259,7 @@ impl Drop for PluginHost {
 }
 
 impl PluginHost {
-    fn new(plugins: Plugins, store: Store, plugin: Plugin) -> Self {
+    fn new(plugins: PluginManager, store: Store, plugin: Plugin) -> Self {
         Self { plugins, store, plugin, handler: None }
     }
 
@@ -294,26 +271,27 @@ impl PluginHost {
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let id = self.plugins.add(name, tx);
+        let _id = self.plugins.add(name, tx);
 
         let command = self.plugin.zi_api_command();
         self.handler = Some(command.handler().call_constructor(&mut self.store).await?);
 
         for cmd in init.commands {
-            let Ok(name) = Word::try_from(cmd.name.as_str()) else {
+            let Ok(_name) = Word::try_from(cmd.name.as_str()) else {
                 tracing::error!("invalid command name: {}", cmd.name);
                 continue;
             };
 
             self.store
                 .data()
-                .with(move |editor| {
-                    editor.register_command(Handler::new(
-                        name,
-                        cmd.arity,
-                        cmd.opts,
-                        CommandHandler::Remote(id),
-                    ))
+                .with(move |_editor| {
+                    todo!();
+                    // editor.register_command(Handler::new(
+                    //     name,
+                    //     cmd.arity.into(),
+                    //     cmd.opts.into(),
+                    //     CommandHandler::Remote(id),
+                    // ))
                 })
                 .await;
         }
@@ -369,10 +347,10 @@ mod test {
     use std::path::Path;
 
     use tokio::task::LocalSet;
+    use zi::Editor;
 
     use super::*;
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
-    use crate::Editor;
 
     async fn load(
         engine: &Engine,
@@ -384,8 +362,8 @@ mod test {
         for path in plugin_paths {
             let component = Component::from_file(engine, path)?;
             Plugin::add_to_linker(&mut linker, |client| client)?;
-            let (bindings, _) = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
-            plugins.push(bindings);
+            let plugin = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
+            plugins.push(plugin);
         }
 
         Ok(plugins.into_boxed_slice())
@@ -394,7 +372,7 @@ mod test {
     #[tokio::test]
     #[cfg_attr(test, mutants::skip)]
     async fn smoke() -> wasmtime::Result<()> {
-        let (editor, tasks) = Editor::new(crate::Size::new(80, 24));
+        let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
 
         let engine = engine();
 

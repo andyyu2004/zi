@@ -10,7 +10,7 @@ struct Component;
 #[allow(warnings)]
 mod bindings {
     wit_bindgen::generate!({
-        path: "../../zi/wit/zi.wit",
+        path: "../../zi-wasm/wit/zi.wit",
         additional_derives: [PartialEq, Eq],
         ownership: Borrowing { duplicate_if_necessary: true },
     });

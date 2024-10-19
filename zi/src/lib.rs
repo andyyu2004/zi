@@ -16,6 +16,7 @@ mod layout;
 mod location;
 mod namespace;
 mod operator;
+pub mod plugin;
 mod private;
 mod syntax;
 mod undo;
@@ -52,7 +53,6 @@ pub use self::namespace::Namespace;
 pub use self::syntax::HighlightName;
 pub use self::syntax::{Syntax, Theme};
 pub use self::view::{VerticalAlignment, View};
-// pub use self::wit::zi::api::editor::{Mode, Operator};
 
 pub type Error = anyhow::Error;
 pub type Result<T, E = Error> = std::result::Result<T, E>;

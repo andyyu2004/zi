@@ -59,6 +59,7 @@ use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::language_service::LanguageServiceInstance;
 use crate::layout::Layer;
+use crate::plugin::PluginManager;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup};
 use crate::{
@@ -132,6 +133,7 @@ pub struct Editor {
     notify_idle: &'static Notify,
     is_idle: bool,
     backend: Box<dyn Backend>,
+    plugin_managers: Vec<Box<dyn PluginManager + Send>>,
 }
 
 macro_rules! mode {
@@ -446,6 +448,7 @@ impl Editor {
             state: Default::default(),
             search_state: Default::default(),
             status_error: Default::default(),
+            plugin_managers: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -468,6 +471,10 @@ impl Editor {
         id: LanguageServiceId,
     ) -> Option<&mut (dyn LanguageService + Send + 'static)> {
         self.active_language_services.get_mut(&id).map(|s| &mut **s)
+    }
+
+    pub async fn register_plugin_manager(&mut self, manager: impl PluginManager + Send + 'static) {
+        self.plugin_managers.push(Box::new(manager));
     }
 
     pub fn client(&self) -> Client {
@@ -739,7 +746,7 @@ impl Editor {
         request_redraw();
     }
 
-    #[cfg(test)]
+    #[doc(hidden)]
     pub async fn test_run(mut self, tasks: Tasks) -> io::Result<()> {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
@@ -748,10 +755,7 @@ impl Editor {
     //     self.plugins.clone()
     // }
 
-    // HACK, run without spawning the plugin system
-    // This can be executed with any executor
-    #[doc(hidden)]
-    pub async fn fuzz(
+    pub async fn run(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks,
@@ -808,20 +812,6 @@ impl Editor {
         }
 
         self.shutdown().await;
-
-        Ok(())
-    }
-
-    pub async fn run(
-        &mut self,
-        events: impl Stream<Item = io::Result<Event>>,
-        tasks: Tasks,
-        render: impl FnMut(&mut Self) -> io::Result<()>,
-    ) -> io::Result<()> {
-        // let plugin_handle = tokio::spawn(self.plugins.clone().run());
-        self.fuzz(events, tasks, render).await?;
-        // plugin_handle.abort();
-        // let _ = plugin_handle.await;
 
         Ok(())
     }

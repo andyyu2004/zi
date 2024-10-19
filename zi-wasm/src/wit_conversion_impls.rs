@@ -1,3 +1,5 @@
+use zi::Point;
+
 use crate::wit::zi::api;
 
 impl From<zi::Mode> for api::editor::Mode {
@@ -41,5 +43,25 @@ impl From<api::editor::Operator> for zi::Operator {
             api::editor::Operator::Delete => zi::Operator::Delete,
             api::editor::Operator::Yank => zi::Operator::Yank,
         }
+    }
+}
+
+impl From<zi::EditError> for api::editor::EditError {
+    fn from(err: zi::EditError) -> Self {
+        match err {
+            zi::EditError::Readonly => api::editor::EditError::Readonly,
+        }
+    }
+}
+
+impl From<Point> for api::editor::Point {
+    fn from(value: Point) -> Self {
+        Self { line: value.line() as u32, col: value.col() as u32 }
+    }
+}
+
+impl From<api::editor::Point> for Point {
+    fn from(value: api::editor::Point) -> Self {
+        Self::from((value.line as usize, value.col as usize))
     }
 }

@@ -64,6 +64,10 @@ interface editor {
         operator-pending(operator),
     }
 
+    variant edit-error {
+        readonly,
+    }
+
     type line = u32;
     type col = u32;
 
@@ -72,7 +76,7 @@ interface editor {
        col: col,
     }
 
-    insert: func(text: string) -> ();
+    insert: func(text: string) -> result<_, edit-error>;
     get-mode: func() -> mode;
     set-mode: func(mode: mode) -> ();
     get-active-view: func() -> view;

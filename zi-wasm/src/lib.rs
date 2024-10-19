@@ -4,6 +4,8 @@ mod plugin;
 mod syntax;
 mod wit_conversion_impls;
 
+pub use self::plugin::PluginManager;
+
 mod wit {
     wasmtime::component::bindgen!({
         async: true,
@@ -11,7 +13,12 @@ mod wit {
         ownership: Borrowing {
             duplicate_if_necessary: true
         },
-        with: {}
+        with: {},
+        additional_derives: [
+            Clone,
+            PartialEq,
+            Eq,
+        ],
     });
 }
 

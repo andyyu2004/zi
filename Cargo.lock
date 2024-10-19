@@ -3950,6 +3950,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures-util",
+ "mutants",
  "parking_lot",
  "slotmap",
  "smol_str",

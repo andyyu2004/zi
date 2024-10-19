@@ -10,7 +10,7 @@ struct Component;
 #[allow(warnings)]
 mod bindings {
     wit_bindgen::generate!({
-        path: "../../zi/wit/zi.wit",
+        path: "../../zi-wasm/wit/zi.wit",
         additional_derives: [PartialEq, Eq],
         ownership: Borrowing { duplicate_if_necessary: true },
     });
@@ -38,7 +38,7 @@ impl lifecycle::Guest for Component {
         assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
         view.set_cursor(Point { line: 0, col: 1 });
         assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
-        insert("abc");
+        insert("abc").unwrap();
         view.set_cursor(Point { line: 0, col: 1 });
         assert_eq!(view.get_cursor(), Point { line: 0, col: 1 });
 

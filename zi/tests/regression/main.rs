@@ -37,7 +37,7 @@ async fn run(seq: KeySequence) -> Result<()> {
     let inputs = futures_util::stream::iter(inputs.into_iter().map(zi::input::Event::Key).map(Ok));
 
     editor
-        .fuzz(inputs, tasks, |editor| {
+        .run(inputs, tasks, |editor| {
             // don't use `term.draw()` as it's very slow
             editor.render(&mut frame);
             Ok(())
