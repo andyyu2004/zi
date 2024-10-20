@@ -14,7 +14,7 @@ mod search;
 mod state;
 
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::future::Future;
 use std::ops::{self, Deref, Index, IndexMut};
@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
 
 use anyhow::{anyhow, bail};
+use futures_util::stream::FuturesUnordered;
 use futures_util::{FutureExt, Stream, StreamExt};
 use ignore::WalkState;
 use slotmap::SlotMap;
@@ -133,7 +134,7 @@ pub struct Editor {
     notify_idle: &'static Notify,
     is_idle: bool,
     backend: Box<dyn Backend>,
-    plugin_managers: Vec<Box<dyn PluginManager + Send>>,
+    plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
 }
 
 macro_rules! mode {
@@ -473,8 +474,11 @@ impl Editor {
         self.active_language_services.get_mut(&id).map(|s| &mut **s)
     }
 
-    pub async fn register_plugin_manager(&mut self, manager: impl PluginManager + Send + 'static) {
-        self.plugin_managers.push(Box::new(manager));
+    pub fn register_plugin_manager(
+        &mut self,
+        manager: impl PluginManager + Send + Sync + 'static,
+    ) -> Option<Arc<dyn PluginManager + Send + Sync>> {
+        self.plugin_managers.insert(manager.name(), Arc::new(manager))
     }
 
     pub fn client(&self) -> Client {
@@ -765,6 +769,11 @@ impl Editor {
 
         render(self)?;
 
+        let mut plugin_manager_handles = FuturesUnordered::from_iter(
+            self.plugin_managers.values().cloned().map(|m| tokio::spawn(m.start(self.client()))),
+        )
+        .fuse();
+
         let mut requests = pin!(requests.fuse().peekable());
         let mut callbacks = pin!(callbacks.buffer_unordered(128).peekable());
 
@@ -788,6 +797,7 @@ impl Editor {
                     // If the receiver dropped then we just ignore the request.
                     let _ = req.tx.send((req.f)(self));
                 },
+                Some(res) = plugin_manager_handles.next() => tracing::error!(?res, "plugin manager exited"),
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
             }

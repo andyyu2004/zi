@@ -1,4 +1,6 @@
-use crate::{Client, Editor, Result};
+use std::sync::Arc;
+
+use crate::{Client, Result};
 
 #[async_trait::async_trait]
 pub trait Plugin {
@@ -6,6 +8,8 @@ pub trait Plugin {
 }
 
 #[async_trait::async_trait]
-pub trait PluginManager {}
+pub trait PluginManager {
+    fn name(&self) -> &'static str;
 
-impl Editor {}
+    async fn start(self: Arc<Self>, client: Client) -> Result<()>;
+}

@@ -83,27 +83,25 @@ impl api::editor::Host for Client {
     }
 }
 
-/// The plugin manager responsible for loading and running plugins and keeping track of their state.
+/// The plugin manager responsible for loading and running wasm plugins and keeping track of their state.
 /// This also provides the interface for the editor to interact with the plugins.
-#[derive(Clone)]
+#[derive(Default)]
 pub struct PluginManager {
-    inner: Arc<Inner>,
-    client: Client,
+    plugins: RwLock<SlotMap<PluginId, PluginState>>,
 }
 
 impl PluginManager {
     #[must_use]
     fn add(&self, _name: impl Into<SmolStr>, tx: Sender<PluginRequest>) -> PluginId {
         // TODO name uniqueness check?
-        self.inner.plugins.write().insert(PluginState { client: PluginClient(tx) })
+        self.plugins.write().insert(PluginState { client: PluginClient(tx) })
     }
 
     fn with_plugin<F, T>(&self, id: PluginId, f: F) -> wasmtime::Result<T>
     where
         F: FnOnce(&PluginState) -> T,
     {
-        self.inner
-            .plugins
+        self.plugins
             .read()
             .get(id)
             .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}",))
@@ -128,11 +126,6 @@ impl PluginManager {
 
 slotmap::new_key_type! {
     pub struct PluginId;
-}
-
-#[derive(Default)]
-struct Inner {
-    plugins: RwLock<SlotMap<PluginId, PluginState>>,
 }
 
 #[derive(Clone)]
@@ -166,12 +159,13 @@ enum PluginRequest {
     },
 }
 
-impl PluginManager {
-    pub fn new(client: Client) -> Self {
-        Self { client, inner: Arc::new(Inner::default()) }
+#[async_trait::async_trait]
+impl zi::plugin::PluginManager for PluginManager {
+    fn name(&self) -> &'static str {
+        "wasm"
     }
 
-    pub async fn run(self) -> wasmtime::Result<()> {
+    async fn start(self: Arc<Self>, client: Client) -> wasmtime::Result<()> {
         let engine = engine();
 
         let components = self.load_plugin_components(engine).await?;
@@ -181,7 +175,7 @@ impl PluginManager {
         let plugin_hosts = components
             .then(|component| {
                 let plugins = self.clone();
-                let client = plugins.client.clone();
+                let client = client.clone();
                 let mut linker = Linker::new(engine);
                 async move {
                     let component = component?;
@@ -221,7 +215,9 @@ impl PluginManager {
 
         Ok(())
     }
+}
 
+impl PluginManager {
     async fn load_plugin_components(
         &self,
         engine: &'static Engine,
@@ -240,7 +236,7 @@ impl PluginManager {
 }
 
 struct PluginHost {
-    plugins: PluginManager,
+    manager: Arc<PluginManager>,
     store: Store,
     plugin: Plugin,
     handler: Option<ResourceAny>,
@@ -259,8 +255,8 @@ impl Drop for PluginHost {
 }
 
 impl PluginHost {
-    fn new(plugins: PluginManager, store: Store, plugin: Plugin) -> Self {
-        Self { plugins, store, plugin, handler: None }
+    fn new(manager: Arc<PluginManager>, store: Store, plugin: Plugin) -> Self {
+        Self { manager, store, plugin, handler: None }
     }
 
     pub async fn start(mut self) -> wasmtime::Result<()> {
@@ -271,7 +267,7 @@ impl PluginHost {
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let _id = self.plugins.add(name, tx);
+        let _id = self.manager.add(name, tx);
 
         let command = self.plugin.zi_api_command();
         self.handler = Some(command.handler().call_constructor(&mut self.store).await?);

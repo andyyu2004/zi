@@ -49,6 +49,8 @@ async fn main() -> anyhow::Result<()> {
 
     configure(&mut editor);
 
+    assert!(editor.register_plugin_manager(zi_wasm::PluginManager::default()).is_none());
+
     let init_path = zi::dirs::config().join("init.zi");
     if init_path.exists() {
         for cmd in std::fs::read_to_string(init_path)?.parse::<zi::Commands>()? {
@@ -114,7 +116,10 @@ fn configure(editor: &mut zi::Editor) {
             filetype!(typescript),
             LanguageConfig::new(["typescript-language-server".into()]),
         )
-        .add_language_service("rust-analyzer", LanguageServerConfig::new("ra-multiplex", []))
+        .add_language_service(
+            "rust-analyzer",
+            LanguageServerConfig::new("ra-multiplex", ["client".into()]),
+        )
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
         .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
