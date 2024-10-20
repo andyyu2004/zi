@@ -14,7 +14,7 @@ parking_lot = { workspace = true }
 regex-cursor = { workspace = true }
 mutants = { workspace = true }
 slotmap = { workspace = true }
-tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs"] }
+tokio = { workspace = true, default-features = false, features = ["sync", "rt-multi-thread", "time", "macros", "fs", "io-util"] }
 tracing = { workspace = true }
 tree-sitter = { workspace = true }
 itertools = { workspace = true }
@@ -27,7 +27,7 @@ ignore = "0.4.22"
 rayon = "1.9.0"
 chumsky = "0.9.3"
 crossterm = { workspace = true, optional = true }
-futures-util = { workspace = true }
+futures-util = { workspace = true, features = ["io"] }
 directories-next = "2.0.0"
 smol_str = "0.2.1"
 # tokio-stream = { version = "0.1.15", default-features = false, features = ["fs"] }
@@ -44,7 +44,7 @@ zi-indent = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }
 dyn-clone = { workspace = true }
-tokio-util = { workspace = true }
+tokio-util = { workspace = true, features = ["compat"] }
 crop = { workspace = true }
 content_inspector = "0.2.4"
 # cov-mark = "2.0.0-pre.1"
