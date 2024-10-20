@@ -4,6 +4,7 @@ use std::ops::Bound;
 use std::sync::OnceLock;
 
 use parking_lot::RwLock;
+use streaming_iterator::StreamingIterator;
 use zi::tree_sitter::{
     self, InputEdit, Node, Parser, Query, QueryCapture, QueryCaptures, QueryCursor, Tree,
 };
@@ -98,7 +99,7 @@ static ENGINE: OnceLock<wasmtime::Engine> = OnceLock::new();
 thread_local! {
     static PARSER: RefCell<Parser> = {
         let mut parser = Parser::new();
-        parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default).clone()).unwrap()).unwrap();
+        parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default)).unwrap()).unwrap();
         parser.set_timeout_micros(500_000);
 
         // TODO we should use this feature as otherwise it times out quite easily
@@ -247,7 +248,7 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Highlights::Captures(captures) => captures.next().map(|(m, idx)| m.captures[idx]),
+            Highlights::Captures(captures) => captures.next().map(|(m, idx)| m.captures[*idx]),
             Highlights::Empty => None,
         }
     }

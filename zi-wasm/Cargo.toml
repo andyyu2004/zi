@@ -10,7 +10,8 @@ parking_lot = { workspace = true }
 zi = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
 # The version of wasmtime is decided by the dependency that tree-sitter takes
-wasmtime = { version = "21", features = ["component-model"] }
+wasmtime = { version = "25", features = ["component-model"] }
+streaming-iterator = { workspace = true }
 
 [lints]
 workspace = true
