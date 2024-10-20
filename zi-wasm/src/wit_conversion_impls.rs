@@ -1,5 +1,6 @@
 use zi::Point;
 
+use crate::wit::exports::zi::api::command;
 use crate::wit::zi::api;
 
 impl From<zi::Mode> for api::editor::Mode {
@@ -63,5 +64,19 @@ impl From<Point> for api::editor::Point {
 impl From<api::editor::Point> for Point {
     fn from(value: api::editor::Point) -> Self {
         Self::from((value.line as usize, value.col as usize))
+    }
+}
+
+impl From<command::Arity> for zi::command::Arity {
+    fn from(arity: command::Arity) -> Self {
+        zi::command::Arity { min: arity.min, max: arity.max }
+    }
+}
+
+impl From<command::CommandFlags> for zi::command::CommandFlags {
+    fn from(flags: command::CommandFlags) -> Self {
+        // Ideally don't need transmute, but don't see a better non-manual way to do this conversion currently.
+        zi::command::CommandFlags::from_bits(unsafe { std::mem::transmute::<_, u8>(flags) })
+            .expect("invalid command flags")
     }
 }

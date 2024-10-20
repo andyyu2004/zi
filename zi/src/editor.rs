@@ -353,9 +353,17 @@ impl Client {
         *rx.await.expect("server did not send response").downcast().unwrap()
     }
 
+    pub async fn spawn(
+        &self,
+        desc: &'static str,
+        fut: impl Future<Output = Result<()>> + Send + 'static,
+    ) {
+        self.with(move |editor| editor.spawn(desc, fut)).await
+    }
+
     /// Send a callback to the editor to be executed.
     /// This is a sync operation with the limitation that we can't return a value.
-    pub fn send(&self, f: impl FnOnce(&mut Editor) -> Result<(), Error> + Send + 'static) {
+    pub fn send(&self, f: impl FnOnce(&mut Editor) -> Result<()> + Send + 'static) {
         // no description needed as `ready()` will never timeout
         callback(&self.callbacks_tx, "", std::future::ready(Ok(())), |editor, ()| f(editor));
     }
@@ -948,8 +956,8 @@ impl Editor {
         let range = cmd.range();
         match cmd.kind() {
             CommandKind::Generic(cmd, args) => {
-                if let Some(handler) = self.command_handlers.get(cmd).cloned() {
-                    handler.execute(self, range, args)?;
+                if let Some(handler) = self.command_handlers.get(cmd) {
+                    handler.execute(self, range.cloned(), args.clone())?;
                 } else {
                     anyhow::bail!("unknown command: {cmd}")
                 }

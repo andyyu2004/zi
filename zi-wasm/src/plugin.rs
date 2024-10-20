@@ -12,7 +12,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
-use zi::command::{CommandRange, Word};
+use zi::command::{CommandHandler, CommandRange, Handler, Word};
 use zi::{dirs, Active, Client, Point, ViewId};
 
 use crate::wit::zi::api;
@@ -117,7 +117,7 @@ impl PluginManager {
         id: PluginId,
         name: Word,
         range: Option<CommandRange>,
-        args: Box<[String]>,
+        args: Box<[Word]>,
     ) -> wasmtime::Result<()> {
         let client = self.plugin_client(id)?;
         client.execute(name, range, args).await
@@ -136,7 +136,7 @@ impl PluginClient {
         &self,
         name: Word,
         range: Option<CommandRange>,
-        args: Box<[String]>,
+        args: Box<[Word]>,
     ) -> wasmtime::Result<()> {
         let (tx, rx) = oneshot::channel();
         self.0.send(PluginRequest::ExecuteCommand { name, range, args, tx }).await?;
@@ -151,12 +151,7 @@ struct PluginState {
 type Responder<T> = oneshot::Sender<wasmtime::Result<T>>;
 
 enum PluginRequest {
-    ExecuteCommand {
-        name: Word,
-        range: Option<CommandRange>,
-        args: Box<[String]>,
-        tx: Responder<()>,
-    },
+    ExecuteCommand { name: Word, range: Option<CommandRange>, args: Box<[Word]>, tx: Responder<()> },
 }
 
 #[async_trait::async_trait]
@@ -266,35 +261,47 @@ impl PluginHost {
         let lifecycle = self.plugin.zi_api_lifecycle();
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
-        let (tx, mut rx) = mpsc::channel(16);
-        let _id = self.manager.add(name, tx);
+        let (sender, mut receiver) = mpsc::channel(16);
+        let id = self.manager.add(name, sender);
 
         let command = self.plugin.zi_api_command();
         self.handler = Some(command.handler().call_constructor(&mut self.store).await?);
 
         for cmd in init.commands {
-            let Ok(_name) = Word::try_from(cmd.name.as_str()) else {
+            let Ok(name) = Word::try_from(cmd.name.as_str()) else {
                 tracing::error!("invalid command name: {}", cmd.name);
                 continue;
             };
 
             self.store
                 .data()
-                .with(move |_editor| {
-                    todo!();
-                    // editor.register_command(Handler::new(
-                    //     name,
-                    //     cmd.arity.into(),
-                    //     cmd.opts.into(),
-                    //     CommandHandler::Remote(id),
-                    // ))
+                .with(move |editor| {
+                    let cb = |editor: &mut zi::Editor,
+                              range: Option<&CommandRange>,
+                              args: &[Word]| async {
+                        let (tx, _rx) = tokio::sync::oneshot::channel();
+                        sender.send(PluginRequest::ExecuteCommand {
+                            name,
+                            range: range.cloned(),
+                            args: args.into(),
+                            tx,
+                        })
+                    };
+
+                    editor.register_command(Handler::new(
+                        name.try_into()?,
+                        cmd.arity.into(),
+                        cmd.opts.into(),
+                        todo!(),
+                    ));
+                    Ok(())
                 })
                 .await;
         }
 
         loop {
             select! {
-                msg = rx.recv() => match msg {
+                msg = receiver.recv() => match msg {
                     Some(req) => self.handle_request(req).await?,
                     None => break,
                 }

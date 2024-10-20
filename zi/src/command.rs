@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
+use std::pin::Pin;
 use std::str::FromStr;
 
 use anyhow::bail;
@@ -12,14 +14,14 @@ use smol_str::SmolStr;
 use crate::editor::SaveFlags;
 // use crate::plugin::PluginId;
 // use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
-use crate::{Active, BufferFlags, Editor, Error, OpenFlags};
+use crate::{Active, BufferFlags, Client, Editor, Error, OpenFlags};
 
 pub struct Commands(Box<[Command]>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Arity {
-    min: u8,
-    max: u8,
+    pub min: u8,
+    pub max: u8,
 }
 
 bitflags::bitflags! {
@@ -68,6 +70,7 @@ impl FromStr for Commands {
     }
 }
 
+#[derive(Clone)]
 pub enum CommandRange {}
 
 impl fmt::Debug for CommandRange {
@@ -234,27 +237,29 @@ impl fmt::Debug for CommandKind {
     }
 }
 
-#[derive(Clone)]
 pub struct Handler {
     name: Word,
     arity: Arity,
     opts: CommandFlags,
-    handler: CommandHandler,
+    f: HandlerFn,
 }
 
-#[derive(Clone, Copy)]
-pub enum CommandHandler {
-    Local(LocalHandler),
-    // Remote(PluginId),
-}
+pub type HandlerFn = Box<
+    dyn Fn(
+            Client,
+            Option<CommandRange>,
+            Box<[Word]>,
+        ) -> Pin<Box<dyn Future<Output = crate::Result<()>> + Send>>
+        + Send,
+>;
 
-#[derive(Clone, Copy)]
-pub struct LocalHandler(fn(&mut Editor, Option<&CommandRange>, &[Word]) -> crate::Result<()>);
-
-impl From<LocalHandler> for CommandHandler {
-    fn from(v: LocalHandler) -> Self {
-        Self::Local(v)
-    }
+pub fn handler<Fut>(
+    f: impl Fn(Client, Option<CommandRange>, Box<[Word]>) -> Fut + Send + 'static,
+) -> HandlerFn
+where
+    Fut: Future<Output = crate::Result<()>> + Send + 'static,
+{
+    Box::new(move |client, range, args| Box::pin(f(client, range, args)))
 }
 
 impl From<RangeInclusive<u8>> for Arity {
@@ -275,34 +280,20 @@ impl RangeBounds<u8> for Arity {
 }
 
 impl Handler {
-    pub fn new(
-        name: impl Into<Word>,
-        arity: Arity,
-        opts: CommandFlags,
-        handler: impl Into<CommandHandler>,
-    ) -> Self {
-        Self { name: name.into(), arity, opts, handler: handler.into() }
+    pub fn new(name: impl Into<Word>, arity: Arity, opts: CommandFlags, f: HandlerFn) -> Self {
+        Self { name: name.into(), arity, opts, f }
     }
 
     pub fn execute(
         &self,
-        editor: &mut Editor,
-        range: Option<&CommandRange>,
-        args: &[Word],
+        editor: &Editor,
+        range: Option<CommandRange>,
+        args: Box<[Word]>,
     ) -> Result<(), Error> {
-        self.check(range, args)?;
-        match self.handler {
-            CommandHandler::Local(f) => (f.0)(editor, range, args),
-            // CommandHandler::Remote(id) => {
-            //     let plugins = editor.plugins();
-            //     let name = self.name.clone();
-            //     let args = args.iter().map(Into::into).collect::<Box<_>>();
-            //     editor.schedule(format!("plugin command {name}"), async move {
-            //         plugins.execute(id, name, None, args).await
-            //     });
-            //     Ok(())
-            // }
-        }
+        self.check(range.as_ref(), &args)?;
+        let fut = (self.f)(editor.client(), range, args);
+        editor.spawn("command handler", fut);
+        Ok(())
     }
 
     fn check(&self, range: Option<&CommandRange>, args: &[Word]) -> Result<(), Error> {
@@ -345,10 +336,10 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             name: "q".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.close_view(Active);
+                client.with(|editor| editor.close_view(Active)).await;
                 Ok(())
             })
             .into(),
@@ -357,52 +348,52 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             name: "w".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_fut = editor.save(Active, SaveFlags::empty());
-                editor.spawn("save", save_fut);
+                let () =
+                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         Handler {
             name: "e".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let buf = editor.buffer(Active);
-                let Some(path) = buf.file_path() else { return Ok(()) };
-                if buf.flags().contains(BufferFlags::DIRTY) {
-                    bail!("buffer is dirty")
-                }
 
-                let mut open_flags = OpenFlags::FORCE;
-                if buf.flags().contains(BufferFlags::READONLY) {
-                    open_flags |= OpenFlags::READONLY;
-                }
+                client
+                    .with(|editor| async move {
+                        let buf = editor.buffer(Active);
+                        let Some(path) = buf.file_path() else { return Ok(()) };
+                        if buf.flags().contains(BufferFlags::DIRTY) {
+                            bail!("buffer is dirty")
+                        }
 
-                let open_fut = editor.open(path, open_flags)?;
-                editor.spawn("open", async move {
-                    open_fut.await?;
-                    Ok(())
-                });
+                        let mut open_flags = OpenFlags::FORCE;
+                        if buf.flags().contains(BufferFlags::READONLY) {
+                            open_flags |= OpenFlags::READONLY;
+                        }
 
+                        editor.open(path, open_flags)?.await?;
+                        Ok(())
+                    })
+                    .await
+                    .await?;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         Handler {
             name: "jumps".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
-                editor.open_jump_list(Active);
+                client.with(|editor| editor.open_jump_list(Active));
                 Ok(())
             })
             .into(),
@@ -411,10 +402,10 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             name: "inspect".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.inspect(Active);
+                client.with(|editor| editor.inspect(Active)).await;
                 Ok(())
             })
             .into(),
@@ -423,10 +414,10 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             name: "explore".try_into().unwrap(),
             arity: Arity::ZERO,
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                editor.open_file_explorer(".");
+                client.with(|editor| editor.open_file_explorer(".")).await;
                 Ok(())
             })
             .into(),
@@ -436,13 +427,11 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             name: "set".try_into().unwrap(),
             arity: Arity::exact(2),
             opts: CommandFlags::empty(),
-            handler: LocalHandler(|editor, range, args| {
+            f: handler(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.len() == 2);
-                let key = &args[0];
-                let value = &args[1];
 
-                set(editor, key, value)
+                client.with(move |editor| set(editor, &args[0], &args[1])).await
             })
             .into(),
         },
