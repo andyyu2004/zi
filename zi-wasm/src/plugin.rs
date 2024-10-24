@@ -12,7 +12,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
-use zi::command::{CommandHandler, CommandRange, Handler, Word};
+use zi::command::{CommandRange, Handler, Word};
 use zi::{dirs, Active, Client, Point, ViewId};
 
 use crate::wit::zi::api;
@@ -289,12 +289,12 @@ impl PluginHost {
                     };
 
                     editor.register_command(Handler::new(
-                        name.try_into()?,
+                        name,
                         cmd.arity.into(),
                         cmd.opts.into(),
                         todo!(),
                     ));
-                    Ok(())
+                    anyhow::Ok(())
                 })
                 .await;
         }

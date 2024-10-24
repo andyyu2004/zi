@@ -5,10 +5,10 @@ use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::pin::Pin;
 use std::str::FromStr;
 
-use anyhow::bail;
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
+use futures_util::FutureExt;
 use smol_str::SmolStr;
 
 use crate::editor::SaveFlags;
@@ -341,8 +341,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.is_empty());
                 client.with(|editor| editor.close_view(Active)).await;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         Handler {
             name: "w".try_into().unwrap(),
@@ -365,11 +364,11 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.is_empty());
 
                 client
-                    .with(|editor| async move {
+                    .with(|editor| {
                         let buf = editor.buffer(Active);
-                        let Some(path) = buf.file_path() else { return Ok(()) };
+                        let Some(path) = buf.file_path() else { return async { Ok(()) }.boxed() };
                         if buf.flags().contains(BufferFlags::DIRTY) {
-                            bail!("buffer is dirty")
+                            return async { Err(anyhow::anyhow!("buffer is dirty")) }.boxed();
                         }
 
                         let mut open_flags = OpenFlags::FORCE;
@@ -377,8 +376,12 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                             open_flags |= OpenFlags::READONLY;
                         }
 
-                        editor.open(path, open_flags)?.await?;
-                        Ok(())
+                        let fut = editor.open(path, open_flags);
+                        async {
+                            fut?.await?;
+                            Ok(())
+                        }
+                        .boxed()
                     })
                     .await
                     .await?;
@@ -393,10 +396,9 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
-                client.with(|editor| editor.open_jump_list(Active));
+                client.with(|editor| editor.open_jump_list(Active)).await;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         Handler {
             name: "inspect".try_into().unwrap(),
@@ -407,8 +409,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.is_empty());
                 client.with(|editor| editor.inspect(Active)).await;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         Handler {
             name: "explore".try_into().unwrap(),
@@ -419,8 +420,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.is_empty());
                 client.with(|editor| editor.open_file_explorer(".")).await;
                 Ok(())
-            })
-            .into(),
+            }),
         },
         // `set x y` to set parameter `x` to value `y`
         Handler {
@@ -432,8 +432,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(args.len() == 2);
 
                 client.with(move |editor| set(editor, &args[0], &args[1])).await
-            })
-            .into(),
+            }),
         },
     ]
     .into_iter()
