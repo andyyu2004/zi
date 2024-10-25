@@ -12,7 +12,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
-use zi::command::{CommandRange, Handler, Word};
+use zi::command::{self, CommandRange, Handler, Word};
 use zi::{dirs, Active, Client, Point, ViewId};
 
 use crate::wit::zi::api;
@@ -262,7 +262,7 @@ impl PluginHost {
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
         let (sender, mut receiver) = mpsc::channel(16);
-        let id = self.manager.add(name, sender);
+        let _id = self.manager.add(name, sender.clone());
 
         let command = self.plugin.zi_api_command();
         self.handler = Some(command.handler().call_constructor(&mut self.store).await?);
@@ -273,30 +273,36 @@ impl PluginHost {
                 continue;
             };
 
+            let sender = sender.clone();
+
+            let f = command::executor_fn({
+                let sender: &'static _ = Box::leak(Box::new(sender));
+                |_client, range, args| async {
+                    let (tx, rx) = oneshot::channel();
+                    sender
+                        .send(PluginRequest::ExecuteCommand {
+                            name: Word::try_from("tmp").unwrap(),
+                            range,
+                            args,
+                            tx,
+                        })
+                        .await?;
+                    rx.await?
+                }
+            });
+
             self.store
                 .data()
                 .with(move |editor| {
-                    let cb = |editor: &mut zi::Editor,
-                              range: Option<&CommandRange>,
-                              args: &[Word]| async {
-                        let (tx, _rx) = tokio::sync::oneshot::channel();
-                        sender.send(PluginRequest::ExecuteCommand {
-                            name,
-                            range: range.cloned(),
-                            args: args.into(),
-                            tx,
-                        })
-                    };
-
                     editor.register_command(Handler::new(
                         name,
                         cmd.arity.into(),
                         cmd.opts.into(),
-                        todo!(),
+                        f,
                     ));
                     anyhow::Ok(())
                 })
-                .await;
+                .await?;
         }
 
         loop {

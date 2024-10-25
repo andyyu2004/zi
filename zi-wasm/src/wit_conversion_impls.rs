@@ -76,7 +76,9 @@ impl From<command::Arity> for zi::command::Arity {
 impl From<command::CommandFlags> for zi::command::CommandFlags {
     fn from(flags: command::CommandFlags) -> Self {
         // Ideally don't need transmute, but don't see a better non-manual way to do this conversion currently.
-        zi::command::CommandFlags::from_bits(unsafe { std::mem::transmute::<_, u8>(flags) })
-            .expect("invalid command flags")
+        zi::command::CommandFlags::from_bits(unsafe {
+            std::mem::transmute::<crate::wit::exports::zi::api::command::CommandFlags, u8>(flags)
+        })
+        .expect("invalid command flags")
     }
 }

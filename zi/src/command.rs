@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
-use std::pin::Pin;
 use std::str::FromStr;
 
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
 use chumsky::Parser;
+use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use smol_str::SmolStr;
 
@@ -241,25 +241,43 @@ pub struct Handler {
     name: Word,
     arity: Arity,
     opts: CommandFlags,
-    f: HandlerFn,
+    executor: Box<dyn CommandExecutor>,
 }
 
-pub type HandlerFn = Box<
-    dyn Fn(
-            Client,
-            Option<CommandRange>,
-            Box<[Word]>,
-        ) -> Pin<Box<dyn Future<Output = crate::Result<()>> + Send>>
-        + Send,
->;
+pub trait CommandExecutor: Send + Sync {
+    fn execute(
+        &self,
+        client: Client,
+        range: Option<CommandRange>,
+        args: Box<[Word]>,
+    ) -> BoxFuture<'static, Result<(), Error>>;
+}
 
-pub fn handler<Fut>(
-    f: impl Fn(Client, Option<CommandRange>, Box<[Word]>) -> Fut + Send + 'static,
-) -> HandlerFn
+struct CommandExecutorFn<F>(F);
+
+impl<F> CommandExecutor for CommandExecutorFn<F>
+where
+    F: Fn(Client, Option<CommandRange>, Box<[Word]>) -> BoxFuture<'static, Result<(), Error>>
+        + Send
+        + Sync,
+{
+    fn execute(
+        &self,
+        client: Client,
+        range: Option<CommandRange>,
+        args: Box<[Word]>,
+    ) -> BoxFuture<'static, Result<(), Error>> {
+        (self.0)(client, range, args)
+    }
+}
+
+pub fn executor_fn<Fut>(
+    f: impl Fn(Client, Option<CommandRange>, Box<[Word]>) -> Fut + Send + Sync + 'static,
+) -> impl CommandExecutor
 where
     Fut: Future<Output = crate::Result<()>> + Send + 'static,
 {
-    Box::new(move |client, range, args| Box::pin(f(client, range, args)))
+    CommandExecutorFn(move |client, range, args| f(client, range, args).boxed())
 }
 
 impl From<RangeInclusive<u8>> for Arity {
@@ -280,8 +298,13 @@ impl RangeBounds<u8> for Arity {
 }
 
 impl Handler {
-    pub fn new(name: impl Into<Word>, arity: Arity, opts: CommandFlags, f: HandlerFn) -> Self {
-        Self { name: name.into(), arity, opts, f }
+    pub fn new(
+        name: impl Into<Word>,
+        arity: Arity,
+        opts: CommandFlags,
+        executor: impl CommandExecutor + 'static,
+    ) -> Self {
+        Self { name: name.into(), arity, opts, executor: Box::new(executor) }
     }
 
     pub fn execute(
@@ -291,7 +314,7 @@ impl Handler {
         args: Box<[Word]>,
     ) -> Result<(), Error> {
         self.check(range.as_ref(), &args)?;
-        let fut = (self.f)(editor.client(), range, args);
+        let fut = self.executor.execute(editor.client(), range, args);
         editor.spawn("command handler", fut);
         Ok(())
     }
@@ -332,34 +355,34 @@ impl Arity {
 
 pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
     [
-        Handler {
-            name: "q".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        Handler::new(
+            Word::try_from("q").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.close_view(Active)).await;
                 Ok(())
             }),
-        },
-        Handler {
-            name: "w".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("w").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 let () =
                     client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
                 Ok(())
             }),
-        },
-        Handler {
-            name: "e".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("e").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
@@ -387,53 +410,52 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                     .await?;
                 Ok(())
             }),
-        },
-        Handler {
-            name: "jumps".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("jumps").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
                 client.with(|editor| editor.open_jump_list(Active)).await;
                 Ok(())
             }),
-        },
-        Handler {
-            name: "inspect".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("inspect").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.inspect(Active)).await;
                 Ok(())
             }),
-        },
-        Handler {
-            name: "explore".try_into().unwrap(),
-            arity: Arity::ZERO,
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("explore").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.open_file_explorer(".")).await;
                 Ok(())
             }),
-        },
-        // `set x y` to set parameter `x` to value `y`
-        Handler {
-            name: "set".try_into().unwrap(),
-            arity: Arity::exact(2),
-            opts: CommandFlags::empty(),
-            f: handler(|client, range, args| async move {
+        ),
+        Handler::new(
+            Word::try_from("set").unwrap(),
+            Arity::exact(2),
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
                 assert!(range.is_none());
                 assert!(args.len() == 2);
 
                 client.with(move |editor| set(editor, &args[0], &args[1])).await
             }),
-        },
+        ),
     ]
     .into_iter()
     .map(|handler| (handler.name.clone(), handler))

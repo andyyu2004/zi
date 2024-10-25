@@ -649,8 +649,8 @@ impl Editor {
         })
     }
 
-    pub fn register_command(&mut self, handler: Handler) {
-        self.command_handlers.insert(handler.name(), handler);
+    pub fn register_command(&mut self, handler: Handler) -> Option<Handler> {
+        self.command_handlers.insert(handler.name(), handler)
     }
 
     pub(crate) fn empty_buffer(&self) -> BufferId {
