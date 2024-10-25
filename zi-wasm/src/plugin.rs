@@ -1,7 +1,8 @@
 use std::io;
 use std::sync::{Arc, OnceLock};
 
-use futures_util::{Stream, StreamExt, TryStreamExt};
+use futures_util::future::BoxFuture;
+use futures_util::{FutureExt, Stream, StreamExt, TryStreamExt};
 use parking_lot::RwLock;
 use slotmap::{Key as _, KeyData, SlotMap};
 use smol_str::SmolStr;
@@ -12,7 +13,7 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
-use zi::command::{self, CommandRange, Handler, Word};
+use zi::command::{CommandRange, Handler, Word};
 use zi::{dirs, Active, Client, Point, ViewId};
 
 use crate::wit::zi::api;
@@ -275,30 +276,44 @@ impl PluginHost {
 
             let sender = sender.clone();
 
-            let f = command::executor_fn({
-                let sender: &'static _ = Box::leak(Box::new(sender));
-                |_client, range, args| async {
-                    let (tx, rx) = oneshot::channel();
-                    sender
-                        .send(PluginRequest::ExecuteCommand {
-                            name: Word::try_from("tmp").unwrap(),
-                            range,
-                            args,
-                            tx,
-                        })
-                        .await?;
-                    rx.await?
+            struct PluginExecutor {
+                name: Word,
+                sender: Sender<PluginRequest>,
+            }
+
+            impl zi::command::Executor for PluginExecutor {
+                fn execute(
+                    &self,
+                    _client: Client,
+                    range: Option<CommandRange>,
+                    args: Box<[Word]>,
+                ) -> BoxFuture<'static, Result<(), zi::Error>> {
+                    let sender = self.sender.clone();
+                    let name = self.name.clone();
+                    async move {
+                        let (tx, rx) = oneshot::channel();
+                        sender
+                            .send(PluginRequest::ExecuteCommand {
+                                name: name.clone(),
+                                range,
+                                args,
+                                tx,
+                            })
+                            .await?;
+                        rx.await?
+                    }
+                    .boxed()
                 }
-            });
+            }
 
             self.store
                 .data()
                 .with(move |editor| {
                     editor.register_command(Handler::new(
-                        name,
+                        name.clone(),
                         cmd.arity.into(),
                         cmd.opts.into(),
-                        f,
+                        PluginExecutor { name, sender },
                     ));
                     anyhow::Ok(())
                 })

@@ -241,10 +241,10 @@ pub struct Handler {
     name: Word,
     arity: Arity,
     opts: CommandFlags,
-    executor: Box<dyn CommandExecutor>,
+    executor: Box<dyn Executor>,
 }
 
-pub trait CommandExecutor: Send + Sync {
+pub trait Executor: Send + Sync {
     fn execute(
         &self,
         client: Client,
@@ -255,7 +255,7 @@ pub trait CommandExecutor: Send + Sync {
 
 struct CommandExecutorFn<F>(F);
 
-impl<F> CommandExecutor for CommandExecutorFn<F>
+impl<F> Executor for CommandExecutorFn<F>
 where
     F: Fn(Client, Option<CommandRange>, Box<[Word]>) -> BoxFuture<'static, Result<(), Error>>
         + Send
@@ -273,7 +273,7 @@ where
 
 pub fn executor_fn<Fut>(
     f: impl Fn(Client, Option<CommandRange>, Box<[Word]>) -> Fut + Send + Sync + 'static,
-) -> impl CommandExecutor
+) -> impl Executor
 where
     Fut: Future<Output = crate::Result<()>> + Send + 'static,
 {
@@ -302,7 +302,7 @@ impl Handler {
         name: impl Into<Word>,
         arity: Arity,
         opts: CommandFlags,
-        executor: impl CommandExecutor + 'static,
+        executor: impl Executor + 'static,
     ) -> Self {
         Self { name: name.into(), arity, opts, executor: Box::new(executor) }
     }
