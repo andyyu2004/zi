@@ -763,10 +763,6 @@ impl Editor {
         self.run(futures_util::stream::empty(), tasks, |_| Ok(())).await
     }
 
-    // pub(crate) fn plugins(&self) -> Plugins {
-    //     self.plugins.clone()
-    // }
-
     pub async fn run(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
@@ -805,7 +801,17 @@ impl Editor {
                     // If the receiver dropped then we just ignore the request.
                     let _ = req.tx.send((req.f)(self));
                 },
-                Some(res) = plugin_manager_handles.next() => tracing::error!(?res, "plugin manager exited"),
+                Some(res) = plugin_manager_handles.next() => match res {
+                        Ok(Ok(())) => (),
+                        Ok(Err(err)) => {
+                            tracing::error!("plugin manager failed: {err}");
+                            self.set_error(err);
+                        }
+                        Err(err) => {
+                            tracing::error!("plugin manager died: {err}");
+                            self.set_error(err);
+                        }
+                    },
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
             }
