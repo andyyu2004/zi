@@ -675,11 +675,11 @@ impl Editor {
         for mut server in mem::take(&mut self.active_language_services).into_values() {
             // TODO shutdown concurrently
             if let Err(err) = server.shutdown().await {
-                tracing::error!("language server shutdown failed: {err}");
+                tracing::error!(error = &*err, "language server shutdown failed");
             }
 
             if let Err(err) = server.wait().await {
-                tracing::error!("language server wait failed: {err}");
+                tracing::error!(error = &*err, "language server wait failed: {err}");
             }
         }
     }
@@ -789,11 +789,11 @@ impl Editor {
                 () = notify_redraw.notified() => tracing::debug!("redrawing due to request"),
                 f = callbacks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(self) {
-                        tracing::error!("task callback failed: {err:?}");
+                        tracing::error!(error = &*err, "task callback failed");
                         self.set_error(err);
                     }
                     Err(err) => {
-                        tracing::error!("task failed: {err}");
+                        tracing::error!(error = &*err, "task failed");
                         self.set_error(err);
                     }
                 },
@@ -804,11 +804,11 @@ impl Editor {
                 Some(res) = plugin_manager_handles.next() => match res {
                         Ok(Ok(())) => (),
                         Ok(Err(err)) => {
-                            tracing::error!("plugin manager failed: {err}");
+                            tracing::error!(error = &*err, "plugin manager failed");
                             self.set_error(err);
                         }
                         Err(err) => {
-                            tracing::error!("plugin manager died: {err}");
+                            tracing::error!(error = &err as &dyn std::error::Error, "plugin manager died");
                             self.set_error(err);
                         }
                     },

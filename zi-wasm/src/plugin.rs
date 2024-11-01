@@ -186,7 +186,7 @@ impl zi::plugin::PluginManager for PluginManager {
                 match res {
                     Ok(plugin) => Some(plugin),
                     Err(err) => {
-                        tracing::error!("error loading plugin: {err} (skipping)");
+                        tracing::error!(error = &*err, "error loading plugin (skipping)");
                         None
                     }
                 }
@@ -204,8 +204,10 @@ impl zi::plugin::PluginManager for PluginManager {
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok(Ok(())) => {}
-                Ok(Err(err)) => tracing::error!("error running plugin: {err}"),
-                Err(err) => tracing::error!("error joining plugin: {err}"),
+                Ok(Err(err)) => tracing::error!(error = &*err, "error running plugin"),
+                Err(err) => {
+                    tracing::error!(error = &err as &dyn std::error::Error, "error joining plugin")
+                }
             }
         }
 
