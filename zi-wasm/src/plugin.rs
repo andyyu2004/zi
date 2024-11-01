@@ -218,9 +218,15 @@ impl PluginManager {
         &self,
         engine: &'static Engine,
     ) -> io::Result<impl Stream<Item = wasmtime::Result<Component>>> {
-        let entries = tokio::fs::read_dir(dirs::plugin()).await?;
-        let stream = ReadDirStream::new(entries);
-        Ok(stream.map_err(Into::into).try_filter_map(move |entry| async move {
+        let dirs = futures_util::stream::iter(dirs::plugin());
+        let entries = dirs
+            .then(|dir| async move {
+                let entries = tokio::fs::read_dir(dir).await?;
+                Ok::<_, io::Error>(ReadDirStream::new(entries))
+            })
+            .try_flatten();
+
+        Ok(entries.map_err(Into::into).try_filter_map(move |entry| async move {
             if !entry.file_type().await?.is_file() {
                 return Ok(None);
             }

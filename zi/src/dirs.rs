@@ -5,7 +5,7 @@ static DIRS: OnceLock<Dirs> = OnceLock::new();
 
 struct Dirs {
     grammar_dir: PathBuf,
-    plugin_dir: PathBuf,
+    plugin_dirs: &'static [PathBuf],
     config_dir: PathBuf,
 }
 
@@ -30,7 +30,10 @@ fn dirs() -> &'static Dirs {
             std::fs::create_dir_all(&config_dir).expect("couldn't create config directory");
         }
 
-        Dirs { grammar_dir, plugin_dir, config_dir }
+        let plugin_path = std::env::var("ZI_PLUGIN_PATH").ok().unwrap_or_else(String::new);
+        let plugin_dirs = Box::leak(plugin_path.split(':').map(PathBuf::from).collect::<Box<_>>());
+
+        Dirs { grammar_dir, plugin_dirs, config_dir }
     })
 }
 
@@ -38,8 +41,8 @@ pub fn grammar() -> &'static Path {
     &dirs().grammar_dir
 }
 
-pub fn plugin() -> &'static Path {
-    &dirs().plugin_dir
+pub fn plugin() -> impl Iterator<Item = &'static Path> {
+    dirs().plugin_dirs.iter().map(|path| path.as_path())
 }
 
 pub fn config() -> &'static Path {

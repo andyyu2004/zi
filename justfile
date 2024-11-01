@@ -6,7 +6,6 @@ build-plugins:
     mkdir -p runtime/plugins
     cp target/{{wasm-target}}/release/*.wasm runtime/plugins
 
-
 test *FLAGS: build
     mold -run cargo test {{FLAGS}}
 
