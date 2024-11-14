@@ -170,9 +170,12 @@ impl zi::LanguageService for LanguageService {
 
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
+        #[expect(deprecated)]
         let fut = self.server.initialize(lsp_types::InitializeParams {
             process_id: Some(params.process_id),
             capabilities: client::capabilities(),
+            // This is deprecated but some servers still rely on this.
+            root_uri: params.workspace_folders.first().map(|f| f.uri.clone()),
             workspace_folders: Some(
                 params
                     .workspace_folders
