@@ -6,7 +6,8 @@ all: tree-sitter-install-rust \
 	tree-sitter-install-go \
 	tree-sitter-install-json \
 	tree-sitter-install-c \
-	tree-sitter-install-typescript
+	tree-sitter-install-fsharp
+	# tree-sitter-install-typescript \
 
 # clean:
 # 	rm -rf tree-sitter-rust tree-sitter-go tree-sitter-json tree-sitter-c
@@ -21,6 +22,11 @@ tree-sitter-install-%: tree-sitter-%.wasm
 tree-sitter-%.wasm: tree-sitter-%
 	cd tree-sitter-$* && tree-sitter build --wasm
 	cp tree-sitter-$*/tree-sitter-$*.wasm tree-sitter-$*.wasm
+
+tree-sitter-fsharp:
+	curl --silent --show-error -L https://github.com/ionide/tree-sitter-fsharp/archive/refs/heads/main.tar.gz | tar xz
+	mv tree-sitter-fsharp-main tree-sitter-fsharp
+	# this one requires `cd tree-sitter-fsharp && tree-sitter generate && tree-sitter build --wasm`
 
 tree-sitter-typescript:
 	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-typescript/archive/refs/tags/v0.20.4.tar.gz | tar xz

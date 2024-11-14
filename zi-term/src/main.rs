@@ -101,6 +101,7 @@ fn configure(editor: &mut zi::Editor) {
     editor
         .language_config_mut()
         .add_language(filetype!(rust), LanguageConfig::new(["rust-analyzer".into()]))
+        .add_language(filetype!(fsharp), LanguageConfig::new(["fsautocomplete".into()]))
         .add_language(filetype!(text), LanguageConfig::new([]))
         .add_language(filetype!(toml), LanguageConfig::new([]))
         .add_language(filetype!(json), LanguageConfig::new([]))
@@ -116,6 +117,7 @@ fn configure(editor: &mut zi::Editor) {
             filetype!(typescript),
             LanguageConfig::new(["typescript-language-server".into()]),
         )
+        .add_language_service("fsautocomplete", LanguageServerConfig::new("fsautocomplete", []))
         .add_language_service(
             "rust-analyzer",
             LanguageServerConfig::new("ra-multiplex", ["client".into()]),

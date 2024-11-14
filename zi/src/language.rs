@@ -31,6 +31,7 @@ pub struct KnownFileTypes {
     pub typescript: FileType,
     pub c: FileType,
     pub rust: FileType,
+    pub fsharp: FileType,
     pub go: FileType,
     pub haskell: FileType,
     pub toml: FileType,
@@ -61,6 +62,7 @@ impl FileType {
             typescript: ft("typescript"),
             c: ft("c"),
             rust: ft("rust"),
+            fsharp: ft("fsharp"),
             go: ft("go"),
             haskell: ft("haskell"),
             toml: ft("toml"),
@@ -75,6 +77,7 @@ impl FileType {
             Some(ext) => match ext.to_str() {
                 Some("c") => filetype!(c),
                 Some("rs") => filetype!(rust),
+                Some("fs") => filetype!(fsharp),
                 Some("go") => filetype!(go),
                 Some("toml") => filetype!(toml),
                 Some("json") => filetype!(json),
