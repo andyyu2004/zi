@@ -512,7 +512,8 @@ impl Editor {
             let mut buf = [0u8; 1024];
             let n = File::open(path.as_path())?.read(&mut buf)?;
             match content_inspector::inspect(&buf[..n]) {
-                content_inspector::ContentType::UTF_8 => {}
+                content_inspector::ContentType::UTF_8
+                | content_inspector::ContentType::UTF_8_BOM => {}
                 _ => {
                     return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data"));
                 }
@@ -1987,6 +1988,14 @@ impl Editor {
 async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Result<Rope> {
     let mut reader = tokio::io::BufReader::new(reader);
     let mut builder = RopeBuilder::new();
+
+    // Handle utf-8 byte order mark.
+    // Not supporting other encodings for now.
+    let buf = reader.fill_buf().await?;
+    if let [0xEF, 0xBB, 0xBF, ..] = buf {
+        // Skip the BOM before decoding. This means we won't preserve it on save but we don't care.
+        reader.consume(3)
+    };
 
     loop {
         let buf = reader.fill_buf().await?;
