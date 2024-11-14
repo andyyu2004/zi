@@ -176,6 +176,11 @@ impl zi::LanguageService for LanguageService {
             capabilities: client::capabilities(),
             // This is deprecated but some servers still rely on this.
             root_uri: params.workspace_folders.first().map(|f| f.uri.clone()),
+            root_path: params
+                .workspace_folders
+                .first()
+                .and_then(|f| f.uri.to_file_path().ok())
+                .map(|p| p.to_string_lossy().to_string()),
             workspace_folders: Some(
                 params
                     .workspace_folders
