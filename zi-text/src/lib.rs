@@ -310,7 +310,8 @@ impl<'a> TextSlice<'a> for &'a dyn AnyTextSlice<'a> {
 }
 
 impl Text for dyn AnyTextMut + '_ {
-    type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
+    type Slice<'a>
+        = Box<dyn AnyTextSlice<'a> + 'a>
     where
         Self: 'a;
 
@@ -340,7 +341,8 @@ impl Text for dyn AnyTextMut + '_ {
 }
 
 impl Text for dyn AnyText + '_ {
-    type Slice<'a> = Box<dyn AnyTextSlice<'a> + 'a>
+    type Slice<'a>
+        = Box<dyn AnyTextSlice<'a> + 'a>
     where
         Self: 'a;
 
@@ -540,6 +542,14 @@ pub trait Text: TextBase {
     fn reader(&self) -> impl Read + Send + '_;
 
     #[inline]
+    fn char_at_point_or_byte(&self, point_or_byte: PointOrByte) -> Option<char> {
+        match point_or_byte {
+            PointOrByte::Point(p) => self.char_at_point(p),
+            PointOrByte::Byte(b) => self.char_at_byte(b),
+        }
+    }
+
+    #[inline]
     fn char_at_point(&self, point: Point) -> Option<char> {
         self.char_at_byte(self.point_to_byte(point))
     }
@@ -691,7 +701,10 @@ where
 }
 
 impl<T: Text + ?Sized> Text for &T {
-    type Slice<'a> = T::Slice<'a> where Self: 'a;
+    type Slice<'a>
+        = T::Slice<'a>
+    where
+        Self: 'a;
 
     #[inline]
     fn byte_slice(&self, byte_range: impl RangeBounds<usize>) -> Self::Slice<'_> {
@@ -847,7 +860,7 @@ struct TextReader<'a, I> {
     chunks: I,
 }
 
-impl<'a, I> TextReader<'a, I> {
+impl<I> TextReader<'_, I> {
     fn new(chunks: I) -> Self {
         Self { chunk: &[], chunks }
     }

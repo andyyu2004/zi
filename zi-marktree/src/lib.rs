@@ -19,7 +19,7 @@ use arrayvec::ArrayVec;
 use crop::tree::{
     Arc, AsSlice, BalancedLeaf, BaseMeasured, Metric, Node, ReplaceableLeaf, Summarize, Tree,
 };
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use stdx::iter::ExactChain;
 use stdx::range::RangeExt;
 use tinyset::SetU64;
@@ -343,7 +343,7 @@ pub struct Inserter<'a, Id: MarkTreeId, const N: usize> {
     builder: MarkBuilder,
 }
 
-impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
+impl<Id: MarkTreeId, const N: usize> Inserter<'_, Id, N> {
     pub fn start_bias(mut self, bias: Bias) -> Self {
         self.builder = self.builder.start_bias(bias);
         self
@@ -360,7 +360,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Inserter<'a, Id, N> {
     }
 }
 
-impl<'a, Id: MarkTreeId, const N: usize> Drop for Inserter<'a, Id, N> {
+impl<Id: MarkTreeId, const N: usize> Drop for Inserter<'_, Id, N> {
     fn drop(&mut self) {
         let id = self.id.into();
         let at = self.builder.at;
@@ -417,7 +417,7 @@ pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
     ids: std::vec::IntoIter<Id>,
 }
 
-impl<'a, Id: MarkTreeId, const N: usize> Drop for Drain<'a, Id, N> {
+impl<Id: MarkTreeId, const N: usize> Drop for Drain<'_, Id, N> {
     fn drop(&mut self) {
         for id in self.ids.by_ref() {
             self.tree.delete(id).unwrap();
@@ -425,7 +425,7 @@ impl<'a, Id: MarkTreeId, const N: usize> Drop for Drain<'a, Id, N> {
     }
 }
 
-impl<'a, Id: MarkTreeId, const N: usize> Iterator for Drain<'a, Id, N> {
+impl<Id: MarkTreeId, const N: usize> Iterator for Drain<'_, Id, N> {
     type Item = (Range<usize>, Id);
 
     #[inline]
@@ -895,7 +895,10 @@ impl<const N: usize> BaseMeasured for Leaf<N> {
 }
 
 impl<const N: usize> AsSlice for Leaf<N> {
-    type Slice<'a> = LeafSlice<'a > where Self: 'a;
+    type Slice<'a>
+        = LeafSlice<'a>
+    where
+        Self: 'a;
 
     #[inline]
     fn as_slice(&self) -> Self::Slice<'_> {
@@ -914,14 +917,14 @@ impl fmt::Debug for LeafSlice<'_> {
     }
 }
 
-impl<'a> Default for LeafSlice<'a> {
+impl Default for LeafSlice<'_> {
     #[inline]
     fn default() -> Self {
         Self { extents: &[] }
     }
 }
 
-impl<'a> LeafSlice<'a> {
+impl LeafSlice<'_> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
     fn get_left(&self, id: u32) -> Option<usize> {
@@ -972,7 +975,7 @@ impl<'a> LeafSlice<'a> {
     }
 }
 
-impl<'a> Summarize for LeafSlice<'a> {
+impl Summarize for LeafSlice<'_> {
     type Summary = Summary;
 
     #[inline]

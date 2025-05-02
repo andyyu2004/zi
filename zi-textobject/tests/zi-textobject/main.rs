@@ -179,3 +179,22 @@ fn motion_prev_char() {
     check(&motion, "a", 1, 0);
     check(&motion, "---------\u{a002d}-\u{fe2c}\0---\u{a05cc}\n", 25, 21)
 }
+
+#[test]
+fn matchit() {
+    #[track_caller]
+    fn chk(text: &str, p: impl Into<PointOrByte>, expected: impl Into<PointOrByte>) {
+        check(&MatchIt, text, p, expected);
+    }
+
+    chk("a", 0, 0);
+    chk("a", 1, 1);
+    chk("(abc)", 0, 4);
+    chk("(abc)", 4, 0);
+    chk("((abc))", 0, 6);
+    chk("((abc))", 6, 0);
+    chk("((abc))", 1, 5);
+    chk("((abc))", 5, 1);
+    chk("(abc))", 5, 5);
+    chk("((abc)", 0, 0);
+}

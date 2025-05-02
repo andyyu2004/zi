@@ -2,11 +2,11 @@ use std::sync::OnceLock;
 
 use stdx::merge::Merge;
 
-use crate::editor::{set_error_if, Action, SaveFlags};
+use crate::editor::{Action, SaveFlags, set_error_if};
 use crate::input::KeyEvent;
 use crate::keymap::Keymap;
 use crate::{
-    hashmap, motion, trie, Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment,
+    Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment, hashmap, motion, trie,
 };
 
 pub(super) fn new() -> Keymap {
@@ -134,6 +134,10 @@ pub(super) fn new() -> Keymap {
 
     fn prev_word(editor: &mut Editor) {
         set_error_if!(editor, editor.motion(Active, motion::PrevWord));
+    }
+
+    fn matchit(editor: &mut Editor) {
+        set_error_if!(editor, editor.motion(Active, motion::MatchIt))
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
@@ -361,6 +365,7 @@ pub(super) fn new() -> Keymap {
                     "y" => yank_operator_pending,
                     "C" => change_till_end_of_line,
                     "D" => delete_till_end_of_line,
+                    "%" => matchit,
                     ":" => command_mode,
                     "/" => search,
                     "i" => insert_mode,

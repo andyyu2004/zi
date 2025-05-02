@@ -19,7 +19,7 @@ use std::fs::File;
 use std::future::Future;
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -34,7 +34,7 @@ use stdx::path::{PathExt, Relative};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{Notify, oneshot};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
@@ -64,9 +64,9 @@ use crate::plugin::PluginManager;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup};
 use crate::{
-    event, filetype, language, layout, BufferId, Direction, Error, FileType, LanguageService,
-    LanguageServiceId, Location, Mode, Namespace, NamespaceId, Operator, Point, Result, Setting,
-    Url, VerticalAlignment, View, ViewGroupId, ViewId,
+    BufferId, Direction, Error, FileType, LanguageService, LanguageServiceId, Location, Mode,
+    Namespace, NamespaceId, Operator, Point, Result, Setting, Url, VerticalAlignment, View,
+    ViewGroupId, ViewId, event, filetype, language, layout,
 };
 
 bitflags::bitflags! {
@@ -464,15 +464,12 @@ impl Editor {
         editor.resize(size);
         Self::subscribe_sync_hooks();
 
-        (
-            editor,
-            Tasks {
-                requests: ChannelStream(requests_rx),
-                callbacks: UnboundedChannelStream(callbacks_rx),
-                notify_redraw,
-                notify_idle,
-            },
-        )
+        (editor, Tasks {
+            requests: ChannelStream(requests_rx),
+            callbacks: UnboundedChannelStream(callbacks_rx),
+            notify_redraw,
+            notify_idle,
+        })
     }
 
     pub fn language_service(
@@ -851,8 +848,8 @@ impl Editor {
         match k {
             ":" => {}
             "/" => {
-                use regex_cursor::engines::meta::Regex;
                 use regex_cursor::Input;
+                use regex_cursor::engines::meta::Regex;
 
                 if query.is_empty() {
                     return;

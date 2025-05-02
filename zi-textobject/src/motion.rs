@@ -41,7 +41,6 @@ impl Motion for &dyn Motion {
     }
 
     #[inline]
-
     fn motion_flags(&self) -> MotionFlags {
         (**self).motion_flags()
     }
