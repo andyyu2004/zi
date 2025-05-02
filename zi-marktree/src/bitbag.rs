@@ -45,6 +45,7 @@ impl Bitbag {
     }
 
     /// Returns an iterator over the values and their duplicity.
+    #[doc(hidden)]
     pub fn iter(&self) -> impl Iterator<Item = (u32, usize)> + '_ {
         // Only used for debugging for now, so naive impl
         let mut values = self.values().map(|v| (v, 1)).collect::<Vec<_>>();
