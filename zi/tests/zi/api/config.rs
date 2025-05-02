@@ -30,6 +30,8 @@ async fn buffer_set_command() {
         // :set tabwidth
         assert_eq!(buf(editor).tab_width, 4);
 
+        // FIXME this no longer happens synchronously so doesn't really work...
+        // Even though this command could easily be done synchronously
         editor.execute("set tabwidth 8").unwrap();
         assert_eq!(buf(editor).tab_width, 8);
 

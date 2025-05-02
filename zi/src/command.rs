@@ -4,9 +4,9 @@ use std::future::Future;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
 
+use chumsky::Parser;
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
-use chumsky::Parser;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use smol_str::SmolStr;
