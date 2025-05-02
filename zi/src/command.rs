@@ -379,6 +379,32 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             }),
         ),
         Handler::new(
+            Word::try_from("wq").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                let () =
+                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
+                client.with(|editor| editor.close_view(Active)).await;
+                Ok(())
+            }),
+        ),
+        Handler::new(
+            Word::try_from("x").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args| async move {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                let () =
+                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
+                client.with(|editor| editor.close_view(Active)).await;
+                Ok(())
+            }),
+        ),
+        Handler::new(
             Word::try_from("e").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
