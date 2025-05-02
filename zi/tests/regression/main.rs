@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use arbitrary::{Arbitrary, Unstructured};
-use datatest_stable::{harness, Result};
+use datatest_stable::{Result, harness};
 use zi::input::{KeyCode, KeyEvent, KeySequence};
 
 #[global_allocator]

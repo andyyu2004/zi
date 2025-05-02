@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use zi::{deltas, lstypes, BufferId};
+use zi::{BufferId, deltas, lstypes};
 use zi_lsp::lsp_types::{self, request};
-use zi_test::{new, TestContext};
+use zi_test::{TestContext, new};
 
 use crate::TestContextExt;
 
@@ -108,13 +108,10 @@ async fn lsp_pull_diagnostics() -> zi::Result<()> {
         .filter_map(|diag| zi_lsp::from_proto::diagnostic(lstypes::PositionEncoding::Utf8, diag))
         .collect();
 
-    assert_eq!(
-        cx.with(move |editor| editor.diagnostics().clone()).await,
-        zi::hashmap! {
-            path => zi::Setting::new((1, expected_main_diagnostics)),
-            PathBuf::from("/related") => zi::Setting::new((0, expected_related_diagnostics)),
-        }
-    );
+    assert_eq!(cx.with(move |editor| editor.diagnostics().clone()).await, zi::hashmap! {
+        path => zi::Setting::new((1, expected_main_diagnostics)),
+        PathBuf::from("/related") => zi::Setting::new((0, expected_related_diagnostics)),
+    });
 
     cx.cleanup().await;
 

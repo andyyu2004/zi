@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
 
 /// A clone and thread-safe implementation of `DropBomb`.
 #[derive(Clone)]

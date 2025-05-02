@@ -64,10 +64,10 @@ async fn trigger_completions() -> zi::Result<()> {
         assert_eq!(completions(editor), res().items);
         editor.insert_char(zi::Active, 'f').unwrap();
 
-        assert_eq!(
-            completions(editor),
-            vec![zi::CompletionItem { label: "foo".to_string(), ..Default::default() }]
-        );
+        assert_eq!(completions(editor), vec![zi::CompletionItem {
+            label: "foo".to_string(),
+            ..Default::default()
+        }]);
 
         editor.delete_char(zi::Active).unwrap();
         assert_eq!(completions(editor), res().items);

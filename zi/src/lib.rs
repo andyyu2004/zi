@@ -32,8 +32,8 @@ pub use zi_core::{
     PointRange, Size, ViewGroupId, ViewId,
 };
 pub use zi_text::{
-    deltas, AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextBase,
-    TextMut, TextSlice,
+    AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextBase, TextMut,
+    TextSlice, deltas,
 };
 pub use zi_textobject::motion;
 
@@ -47,7 +47,7 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
-pub use self::language_service::{lstypes, LanguageClient, LanguageService, LanguageServiceConfig};
+pub use self::language_service::{LanguageClient, LanguageService, LanguageServiceConfig, lstypes};
 pub use self::namespace::Namespace;
 #[doc(hidden)]
 pub use self::syntax::HighlightName;

@@ -77,7 +77,10 @@ impl<B: Deref<Target = [u8]>> fmt::Debug for ReadonlyText<B> {
 }
 
 impl<B: Deref<Target = [u8]> + Send + Sync> Text for ReadonlyText<B> {
-    type Slice<'a> = &'a str where Self: 'a;
+    type Slice<'a>
+        = &'a str
+    where
+        Self: 'a;
 
     fn byte_slice(&self, byte_range: impl ops::RangeBounds<usize>) -> Self::Slice<'_> {
         self.as_str().byte_slice(byte_range)

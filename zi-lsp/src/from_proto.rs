@@ -5,7 +5,7 @@
 
 use async_lsp::lsp_types;
 use zi::lstypes::Severity;
-use zi::{lstypes, Delta, Deltas, Point, PointRange, Text};
+use zi::{Delta, Deltas, Point, PointRange, Text, lstypes};
 
 pub fn goto_definition(
     encoding: lstypes::PositionEncoding,
@@ -27,10 +27,10 @@ pub fn goto_definition(
                 links
                     .into_iter()
                     .filter_map(|link| {
-                        location(
-                            encoding,
-                            lsp_types::Location { uri: link.target_uri, range: link.target_range },
-                        )
+                        location(encoding, lsp_types::Location {
+                            uri: link.target_uri,
+                            range: link.target_range,
+                        })
                     })
                     .collect(),
             )

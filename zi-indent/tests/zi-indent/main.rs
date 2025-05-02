@@ -1,4 +1,4 @@
-use zi_indent::{indent, Config, Indent, Text};
+use zi_indent::{Config, Indent, Text, indent};
 
 #[track_caller]
 fn check(text: impl Text, line_idx: usize, expected: Indent) {

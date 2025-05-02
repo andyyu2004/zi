@@ -199,7 +199,8 @@ impl TextBase for String {
 }
 
 impl Text for String {
-    type Slice<'a> = &'a str
+    type Slice<'a>
+        = &'a str
     where
         Self: 'a;
 

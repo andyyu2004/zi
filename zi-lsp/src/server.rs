@@ -5,10 +5,10 @@ use std::sync::{Arc, OnceLock};
 use async_lsp::lsp_types::{self, OneOf};
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, TryFutureExt};
-use zi::{event, lstypes, LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url};
+use zi::{LanguageServiceId, Rope, Setting, Text, TextMut, TextSlice, Theme, Url, event, lstypes};
 use zi_event::HandlerResult;
 
-use crate::{client, from_proto, to_proto, EditorExt};
+use crate::{EditorExt, client, from_proto, to_proto};
 
 /// async_lsp::LanguageServer -> zi::LanguageService
 // We box the inner server instead of making it generic to make downcasting to this type possible.
@@ -531,19 +531,14 @@ impl zi::LanguageService for LanguageService {
             kind.map_or_else(Default::default, |kind| {
                 kind.into_iter()
                     .map(|(url, kind)| {
-                        (
-                            url,
-                            match kind {
-                                lsp_types::DocumentDiagnosticReportKind::Full(full) => {
-                                    lstypes::Diagnostics::Full(from_proto::diagnostics(
-                                        enc, full.items,
-                                    ))
-                                }
-                                lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {
-                                    lstypes::Diagnostics::Unchanged
-                                }
-                            },
-                        )
+                        (url, match kind {
+                            lsp_types::DocumentDiagnosticReportKind::Full(full) => {
+                                lstypes::Diagnostics::Full(from_proto::diagnostics(enc, full.items))
+                            }
+                            lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {
+                                lstypes::Diagnostics::Unchanged
+                            }
+                        })
                     })
                     .collect()
             })

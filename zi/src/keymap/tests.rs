@@ -1,6 +1,6 @@
 use super::{DynKeymap as _, Keymap};
-use crate::keymap::TrieResult::*;
 use crate::Mode;
+use crate::keymap::TrieResult::*;
 
 #[test]
 fn keymap() {

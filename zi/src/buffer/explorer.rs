@@ -4,9 +4,9 @@ use std::sync::Arc;
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::{get, Action};
+use crate::editor::{Action, get};
 use crate::syntax::HighlightName;
-use crate::{filetype, hashmap, trie, Mode};
+use crate::{Mode, filetype, hashmap, trie};
 
 pub struct ExplorerBuffer<T: Entry, F: 'static> {
     id: BufferId,

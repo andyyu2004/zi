@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 
-use anyhow::{ensure, Context};
+use anyhow::{Context, ensure};
 use nvim_rs::error::LoopError;
 use tokio::process::{ChildStdin, Command};
 use zi::input::KeySequence;

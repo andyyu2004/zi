@@ -1,7 +1,7 @@
 use rand::Rng;
 use stdx::bomb::DropBomb;
 use tokio::sync::watch;
-use zi::{deltas, lstypes, TextBase};
+use zi::{TextBase, deltas, lstypes};
 
 use super::*;
 

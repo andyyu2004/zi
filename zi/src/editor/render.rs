@@ -7,7 +7,7 @@ use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
-use super::{get_ref, Editor, State};
+use super::{Editor, State, get_ref};
 use crate::completion::Completion;
 use crate::editor::Resource;
 use crate::syntax::HighlightName;

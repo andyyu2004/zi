@@ -8,10 +8,10 @@ use clap::Parser;
 use crossterm::event::EventStream;
 use futures_util::StreamExt;
 use tracing_subscriber::EnvFilter;
-use tui::backend::CrosstermBackend;
 use tui::Terminal;
+use tui::backend::CrosstermBackend;
 use zi::input::Event;
-use zi::{filetype, LanguageConfig};
+use zi::{LanguageConfig, filetype};
 use zi_lsp::LanguageServerConfig;
 
 #[derive(Parser)]

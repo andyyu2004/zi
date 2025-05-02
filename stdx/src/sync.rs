@@ -1,5 +1,5 @@
-use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicBool};
 
 #[derive(Debug, Clone, Default)]
 pub struct Cancel {

@@ -2,15 +2,15 @@ use std::marker::PhantomData;
 use std::mem;
 use std::sync::Arc;
 
-use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
+use nucleo::pattern::{CaseMatching, Normalization};
 use zi_text::TextMut;
 
 use super::*;
-use crate::editor::{get, Action};
+use crate::editor::{Action, get};
 use crate::lstypes::TextExt;
 use crate::{
-    filetype, hashmap, lstypes, trie, Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId,
+    Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId, filetype, hashmap, lstypes, trie,
 };
 
 pub struct PickerBuffer<P: Picker> {

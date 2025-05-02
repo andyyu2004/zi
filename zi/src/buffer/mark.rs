@@ -7,8 +7,8 @@ use zi_marktree::{Bias, MarkTree, MarkTreeId};
 use zi_text::Deltas;
 
 use super::Buffer;
-use crate::syntax::HighlightId;
 use crate::NamespaceId;
+use crate::syntax::HighlightId;
 
 slotmap::new_key_type! {
     pub struct MarkId;

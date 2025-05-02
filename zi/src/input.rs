@@ -267,16 +267,12 @@ impl fmt::Display for KeyEvent {
         } else {
             write!(f, "<")?;
             for modifier in self.modifiers.iter() {
-                write!(
-                    f,
-                    "{}-",
-                    match modifier {
-                        KeyModifiers::CONTROL => "C",
-                        KeyModifiers::SHIFT => "S",
-                        KeyModifiers::ALT => "A",
-                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
-                    }
-                )?;
+                write!(f, "{}-", match modifier {
+                    KeyModifiers::CONTROL => "C",
+                    KeyModifiers::SHIFT => "S",
+                    KeyModifiers::ALT => "A",
+                    _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
+                })?;
             }
 
             write!(f, "{}>", self.code)

@@ -18,16 +18,12 @@ pub enum Mode {
 
 impl fmt::Display for Mode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Mode::Normal | Mode::OperatorPending(_) => "",
-                Mode::Command => "COMMAND",
-                Mode::Insert => "INSERT",
-                Mode::Visual => "VISUAL",
-            }
-        )
+        write!(f, "{}", match self {
+            Mode::Normal | Mode::OperatorPending(_) => "",
+            Mode::Command => "COMMAND",
+            Mode::Insert => "INSERT",
+            Mode::Visual => "VISUAL",
+        })
     }
 }
 

@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use tokio::sync::OnceCell;
-use zi_nvim::{spawn, CompareFlags, Fixture, Nvim, TestCase};
+use zi_nvim::{CompareFlags, Fixture, Nvim, TestCase, spawn};
 
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;

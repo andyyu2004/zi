@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use expect_test::Expect;
 use futures_util::future::BoxFuture;
 use stdx::bomb::DropBomb;
-use tui::backend::{Backend as _, TestBackend};
 use tui::Terminal;
+use tui::backend::{Backend as _, TestBackend};
 use unicode_width::UnicodeWidthStr;
 use zi::Result;
 

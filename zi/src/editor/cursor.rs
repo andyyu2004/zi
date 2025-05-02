@@ -1,7 +1,7 @@
 use zi_core::PointOrByte;
-use zi_textobject::{motion, Motion};
+use zi_textobject::{Motion, motion};
 
-use super::{get, get_ref, mode, Selector};
+use super::{Selector, get, get_ref, mode};
 use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Mode, Point, ViewId};
 

@@ -10,7 +10,7 @@ use rustc_hash::FxHashMap;
 pub use zi_event::{Event, EventHandler, HandlerResult};
 
 pub use self::events::*;
-pub(crate) use self::handler::{async_handler, AsyncEventHandler};
+pub(crate) use self::handler::{AsyncEventHandler, async_handler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
 use crate::{Client, Editor, Result};
 

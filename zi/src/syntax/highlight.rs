@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zi_core::style::{style, Style};
+use zi_core::style::{Style, style};
 
 #[derive(Clone)]
 pub struct Theme {

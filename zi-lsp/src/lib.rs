@@ -17,10 +17,10 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::tracing::TracingLayer;
 pub use async_lsp::{
-    lsp_types, Error, ErrorCode, LanguageServer, ResponseError, Result, ServerSocket,
+    Error, ErrorCode, LanguageServer, ResponseError, Result, ServerSocket, lsp_types,
 };
-use futures_util::future::BoxFuture;
 use futures_util::TryFutureExt;
+use futures_util::future::BoxFuture;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;

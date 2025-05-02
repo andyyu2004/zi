@@ -1,5 +1,5 @@
 use super::*;
-use crate::{lstypes, Mark};
+use crate::{Mark, lstypes};
 
 impl Editor {
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {

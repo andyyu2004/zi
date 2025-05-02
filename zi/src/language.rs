@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use anyhow::bail;
-use ustr::{ustr, Ustr};
+use ustr::{Ustr, ustr};
 
 use crate::{LanguageServiceConfig, Result};
 

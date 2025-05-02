@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::{Path, PathBuf, MAIN_SEPARATOR};
+use std::path::{MAIN_SEPARATOR, Path, PathBuf};
 
 pub trait PathExt {
     fn display_owned(self) -> Display;

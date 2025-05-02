@@ -3,15 +3,15 @@ use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
 use futures_core::future::BoxFuture;
-use futures_util::{stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures_util::{StreamExt, TryFutureExt, TryStreamExt, stream};
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use zi_core::CompletionItem;
 use zi_text::{Delta, Deltas};
 
-use super::{active_servers_of, Selector, State};
+use super::{Selector, State, active_servers_of};
 use crate::completion::{Completion, CompletionProvider};
-use crate::{lstypes, Active, Editor, LanguageServiceId, Result, ViewId};
+use crate::{Active, Editor, LanguageServiceId, Result, ViewId, lstypes};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
     OnceLock::new();

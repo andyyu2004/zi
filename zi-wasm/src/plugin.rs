@@ -11,13 +11,13 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
-use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 pub use wasmtime::Engine;
+use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 use zi::command::{CommandRange, Handler, Word};
-use zi::{dirs, Active, Client, Point, ViewId};
+use zi::{Active, Client, Point, ViewId, dirs};
 
-use crate::wit::zi::api;
 use crate::wit::Plugin;
+use crate::wit::zi::api;
 
 pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
@@ -427,16 +427,13 @@ mod test {
                     let init = lifecycle.call_initialize(&mut store).await?;
 
                     use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
-                    assert_eq!(
-                        init,
-                        InitializeResult {
-                            commands: vec![Command {
-                                name: "foo".into(),
-                                arity: Arity { min: 0, max: 1 },
-                                opts: CommandFlags::RANGE
-                            }]
-                        }
-                    );
+                    assert_eq!(init, InitializeResult {
+                        commands: vec![Command {
+                            name: "foo".into(),
+                            arity: Arity { min: 0, max: 1 },
+                            opts: CommandFlags::RANGE
+                        }]
+                    });
                     let handler = plugin.zi_api_command().handler();
                     let handler_resource = handler.call_constructor(&mut store).await?;
                     handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;

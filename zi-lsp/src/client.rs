@@ -8,7 +8,7 @@ use async_lsp::{ErrorCode, ResponseError};
 use futures_util::future::BoxFuture;
 use zi::lstypes;
 
-use crate::{from_proto, EditorExt};
+use crate::{EditorExt, from_proto};
 
 /// Adaptor to convert zi::LanguageClient -> async_lsp::LanguageClient
 pub struct LanguageClient(zi::LanguageClient);

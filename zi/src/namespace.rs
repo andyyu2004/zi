@@ -2,8 +2,8 @@ use url::Url;
 use ustr::Ustr;
 use zi_core::NamespaceId;
 
-use crate::editor::{Resource, Selector};
 use crate::Editor;
+use crate::editor::{Resource, Selector};
 
 pub struct Namespace {
     id: NamespaceId,

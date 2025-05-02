@@ -7,9 +7,9 @@ use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use url::Url;
 
-use super::{active_servers_of, callback, event, get, Result, Selector};
+use super::{Result, Selector, active_servers_of, callback, event, get};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
-use crate::language_service::{lstypes, LanguageServiceInstance};
+use crate::language_service::{LanguageServiceInstance, lstypes};
 use crate::lstypes::{TextExt, WorkspaceFolder};
 use crate::{
     BufferId, Editor, FileType, LanguageClient, LanguageService, LanguageServiceId, Location,
@@ -157,12 +157,9 @@ impl Editor {
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 tracing::debug!(%url, %point, "language request definition");
-                let fut = f(
-                    &mut **server,
-                    lstypes::GotoDefinitionParams {
-                        at: lstypes::TextDocumentPointParams { url, point },
-                    },
-                );
+                let fut = f(&mut **server, lstypes::GotoDefinitionParams {
+                    at: lstypes::TextDocumentPointParams { url, point },
+                });
                 Some(fut)
             });
 

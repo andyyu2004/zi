@@ -9,8 +9,8 @@ use crossterm::{cursor, execute, terminal};
 use futures_util::Stream;
 use mimalloc::MiMalloc;
 use tui::{Backend, Terminal};
-use zi::input::Event;
 use zi::Editor;
+use zi::input::Event;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;

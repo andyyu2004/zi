@@ -2,12 +2,12 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 
 use futures_core::future::BoxFuture;
-use nucleo::pattern::{Atom, AtomKind, CaseMatching, Normalization};
 use nucleo::Utf32Str;
+use nucleo::pattern::{Atom, AtomKind, CaseMatching, Normalization};
 use zi_core::CompletionItem;
 use zi_text::{Delta, DeltaRange};
 
-use crate::{lstypes, Editor, Result};
+use crate::{Editor, Result, lstypes};
 
 // FIXME this can maybe merge with `LanguageService` now
 pub trait CompletionProvider: Send + Sync + 'static {

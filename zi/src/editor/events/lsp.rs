@@ -2,7 +2,7 @@ use futures_util::TryFutureExt;
 
 use super::*;
 use crate::event::AsyncEventHandler;
-use crate::{event, lstypes, Editor};
+use crate::{Editor, event, lstypes};
 
 impl Editor {
     pub(crate) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {

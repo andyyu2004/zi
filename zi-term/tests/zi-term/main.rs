@@ -4,8 +4,8 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use asciicast::Asciicast;
-use tui::backend::CrosstermBackend;
 use tui::Terminal;
+use tui::backend::CrosstermBackend;
 use zi::OpenFlags;
 
 #[tokio::test]
@@ -114,17 +114,13 @@ where
     let name = name.replace(|c: char| c.is_whitespace(), "-");
     let dir = PathBuf::from("tests/zi-term/asciicasts");
 
-    let cast = Asciicast::new(
-        width,
-        height,
-        [
-            asciicast::Event {
-                kind: asciicast::EventKind::Output(String::from_utf8(bytes).unwrap()),
-                time_us: 0,
-            },
-            asciicast::Event { kind: asciicast::EventKind::Output(String::from("\n")), time_us: 1 },
-        ],
-    );
+    let cast = Asciicast::new(width, height, [
+        asciicast::Event {
+            kind: asciicast::EventKind::Output(String::from_utf8(bytes).unwrap()),
+            time_us: 0,
+        },
+        asciicast::Event { kind: asciicast::EventKind::Output(String::from("\n")), time_us: 1 },
+    ]);
 
     let path = dir.join(format!("{name}.cast"));
 

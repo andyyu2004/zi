@@ -4,9 +4,9 @@ use std::{fmt, iter};
 
 use stdx::merge::Merge;
 
+use crate::Mode;
 use crate::editor::Action;
 use crate::input::KeyEvent;
-use crate::Mode;
 
 mod macros;
 

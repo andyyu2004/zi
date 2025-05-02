@@ -1,6 +1,6 @@
 use super::*;
-use crate::event::{self, HandlerResult};
 use crate::Editor;
+use crate::event::{self, HandlerResult};
 
 mod lsp;
 
@@ -14,7 +14,9 @@ impl Editor {
         });
 
         event::subscribe_with::<event::WillChangeMode>(|editor, event| {
-            if let (Mode::Insert, Mode::Normal) = (event.from, event.to) { editor.insert_to_normal() }
+            if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
+                editor.insert_to_normal()
+            }
             HandlerResult::Continue
         });
 
