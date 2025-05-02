@@ -39,6 +39,8 @@ impl Editor {
             // Cannot use parallel iterator as it doesn't sort.
             let walk = ignore::WalkBuilder::new(path)
                 .max_depth(Some(1))
+                .hidden(false)
+                .ignore(false)
                 .sort_by_file_path(|a, b| {
                     if a.is_dir() && !b.is_dir() {
                         cmp::Ordering::Less
