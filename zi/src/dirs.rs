@@ -30,7 +30,7 @@ fn dirs() -> &'static Dirs {
             std::fs::create_dir_all(&config_dir).expect("couldn't create config directory");
         }
 
-        let plugin_path = std::env::var("ZI_PLUGIN_PATH").ok().unwrap_or_else(String::new);
+        let plugin_path = std::env::var("ZI_PLUGIN_PATH").ok().unwrap_or_default();
         let plugin_dirs = Box::leak(plugin_path.split(':').map(PathBuf::from).collect::<Box<_>>());
 
         Dirs { grammar_dir, plugin_dirs, config_dir }

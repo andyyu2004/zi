@@ -244,8 +244,7 @@ impl zi::LanguageService for LanguageService {
                     .language_config
                     .languages
                     .get(&buf.file_type())
-                    .map(|c| &c.language_services)
-                    .map_or(false, |servers| servers.contains(&service_id))
+                    .map(|c| &c.language_services).is_some_and(|servers| servers.contains(&service_id))
                 {
                     return HandlerResult::Continue;
                 }

@@ -245,7 +245,7 @@ impl<'a, M, K, V> PairedKeymap<'a, M, K, V> {
     }
 }
 
-impl<'a, M, K, V> DynKeymap<M, K, V> for PairedKeymap<'a, M, K, V>
+impl<M, K, V> DynKeymap<M, K, V> for PairedKeymap<'_, M, K, V>
 where
     M: Eq + Hash + Clone,
     K: Eq + Hash + Clone + fmt::Debug,
