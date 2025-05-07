@@ -66,6 +66,11 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor, editor.motion(Active, motion::NextChar))
     }
 
+    fn inside_bracket(editor: &mut Editor) {
+        use zi_textobject::{Within, delimiter};
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Paren)));
+    }
+
     fn goto_definition(editor: &mut Editor) {
         let fut = editor.goto_definition(Active);
         editor.spawn("go to definition", fut);
@@ -322,6 +327,9 @@ pub(super) fn new() -> Keymap {
                 "k" => prev_line,
                 "j" => next_line,
                 "l" => next_char,
+                "i" => {
+                    "b" => inside_bracket,
+                },
             });
 
             Keymap::from(hashmap! {
@@ -373,8 +381,6 @@ pub(super) fn new() -> Keymap {
                     "l" => next_char,
                     "j" => next_line,
                     "k" => prev_line,
-                    // "j" => move_down,
-                    // "k" => move_up,
                     "o" => open_newline,
                     "w" => next_word,
                     "b" => prev_word,

@@ -123,8 +123,5 @@ impl Registry {
 
 pub type AsyncHandlerResult = Result<HandlerResult>;
 
-/// Marker trait for a synchronous event.
-// pub trait Event: Any + Send + Sync {}
-
 /// Marker trait for an asynchronous event.
 pub trait AsyncEvent: Any + Clone + Send + Sync {}
