@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
 use stdx::merge::Merge;
+use zi_textobject::{Around, Within, delimiter};
 
 use crate::editor::{Action, SaveFlags, set_error_if};
 use crate::input::KeyEvent;
@@ -66,9 +67,60 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor, editor.motion(Active, motion::NextChar))
     }
 
-    fn inside_bracket(editor: &mut Editor) {
-        use zi_textobject::{Within, delimiter};
+    fn inside_paren(editor: &mut Editor) {
         set_error_if!(editor, editor.text_object(Active, Within(delimiter::Paren)));
+    }
+
+    fn inside_bracket(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Bracket)));
+    }
+
+    fn inside_brace(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Brace)));
+    }
+
+    fn inside_quote(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Quote)));
+    }
+
+    fn inside_apostrophe(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Apostrophe)));
+    }
+
+    fn inside_backtick(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Backtick)));
+    }
+
+    fn inside_angle_bracket(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Within(delimiter::AngleBracket)));
+    }
+
+    fn around_paren(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Paren)));
+    }
+
+    fn around_bracket(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Bracket)));
+    }
+
+    fn around_brace(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Brace)));
+    }
+
+    fn around_quote(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Quote)));
+    }
+
+    fn around_apostrophe(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Apostrophe)));
+    }
+
+    fn around_backtick(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Backtick)));
+    }
+
+    fn around_angle_bracket(editor: &mut Editor) {
+        set_error_if!(editor, editor.text_object(Active, Around(delimiter::AngleBracket)));
     }
 
     fn goto_definition(editor: &mut Editor) {
@@ -328,7 +380,40 @@ pub(super) fn new() -> Keymap {
                 "j" => next_line,
                 "l" => next_char,
                 "i" => {
-                    "b" => inside_bracket,
+                    "b" => inside_paren,
+                    "(" => inside_paren,
+                    ")" => inside_paren,
+
+                    "B" => inside_bracket,
+                    "{" => inside_brace,
+                    "}" => inside_brace,
+
+                    "<" => inside_angle_bracket,
+                    ">" => inside_angle_bracket,
+
+                    "[" => inside_bracket,
+                    "]" => inside_bracket,
+
+                    "'" => inside_apostrophe,
+                    "\"" => inside_quote,
+                    "`" => inside_backtick,
+                },
+                "a" => {
+                    "b" => around_paren,
+                    "(" => around_paren,
+                    ")" => around_paren,
+
+                    "B" => around_brace,
+                    "{" => around_brace,
+                    "}" => around_brace,
+
+                    "<" => around_angle_bracket,
+                    ">" => around_angle_bracket,
+                    "[" => around_bracket,
+                    "]" => around_bracket,
+                    "'" => around_apostrophe,
+                    "\"" => around_quote,
+                    "`" => around_backtick,
                 },
             });
 

@@ -3,6 +3,11 @@ pub trait Delimiter {
     const CLOSE: char;
 }
 
+impl<D: Delimiter> Delimiter for &D {
+    const OPEN: char = D::OPEN;
+    const CLOSE: char = D::CLOSE;
+}
+
 pub trait SymmetricDelimiter: Delimiter {
     const DELIMITER: char = Self::OPEN;
 }

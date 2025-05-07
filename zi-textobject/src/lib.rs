@@ -1,5 +1,6 @@
 #![feature(iter_map_windows)]
 
+mod around;
 pub mod delimiter;
 mod matchit;
 pub mod motion;
@@ -10,6 +11,7 @@ use std::ops;
 use zi_core::PointOrByte;
 use zi_text::{AnyText, Text as _, TextSlice};
 
+pub use self::around::Around;
 pub use self::matchit::MatchIt;
 pub use self::motion::{Motion, MotionFlags};
 pub use self::until::Until;
