@@ -27,16 +27,21 @@ pub(super) fn new() -> Keymap {
 
     fn delete_till_end_of_line(editor: &mut Editor) {
         delete_operator_pending(editor);
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
+        set_error_if!(editor: editor.text_object(Active, zi_textobject::Until('\n')));
     }
 
     fn change_till_end_of_line(editor: &mut Editor) {
         change_operator_pending(editor);
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Until('\n')));
+        set_error_if!(editor: editor.text_object(Active, zi_textobject::Until('\n')));
     }
 
     fn insert_mode(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
+    }
+
+    fn insert_start_of_line(editor: &mut Editor) {
+        set_error_if!(editor: editor.motion(Active, motion::StartOfLine));
+        insert_mode(editor);
     }
 
     fn command_mode(editor: &mut Editor) {
@@ -44,7 +49,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn insert_newline(editor: &mut Editor) {
-        set_error_if!(editor, editor.insert_char(Active, '\n'));
+        set_error_if!(editor: editor.insert_char(Active, '\n'));
     }
 
     fn normal_mode(editor: &mut Editor) {
@@ -52,75 +57,75 @@ pub(super) fn new() -> Keymap {
     }
 
     fn prev_line(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::PrevLine))
+        set_error_if!(editor: editor.motion(Active, motion::PrevLine))
     }
 
     fn next_line(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::NextLine))
+        set_error_if!(editor: editor.motion(Active, motion::NextLine))
     }
 
     fn prev_char(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::PrevChar))
+        set_error_if!(editor: editor.motion(Active, motion::PrevChar))
     }
 
     fn next_char(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::NextChar))
+        set_error_if!(editor: editor.motion(Active, motion::NextChar))
     }
 
     fn inside_paren(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Paren)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Paren)));
     }
 
     fn inside_bracket(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Bracket)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Bracket)));
     }
 
     fn inside_brace(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Brace)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Brace)));
     }
 
     fn inside_quote(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Quote)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Quote)));
     }
 
     fn inside_apostrophe(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Apostrophe)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Apostrophe)));
     }
 
     fn inside_backtick(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::Backtick)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::Backtick)));
     }
 
     fn inside_angle_bracket(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Within(delimiter::AngleBracket)));
+        set_error_if!(editor: editor.text_object(Active, Within(delimiter::AngleBracket)));
     }
 
     fn around_paren(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Paren)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Paren)));
     }
 
     fn around_bracket(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Bracket)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Bracket)));
     }
 
     fn around_brace(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Brace)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Brace)));
     }
 
     fn around_quote(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Quote)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Quote)));
     }
 
     fn around_apostrophe(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Apostrophe)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Apostrophe)));
     }
 
     fn around_backtick(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::Backtick)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::Backtick)));
     }
 
     fn around_angle_bracket(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, Around(delimiter::AngleBracket)));
+        set_error_if!(editor: editor.text_object(Active, Around(delimiter::AngleBracket)));
     }
 
     fn goto_definition(editor: &mut Editor) {
@@ -174,35 +179,35 @@ pub(super) fn new() -> Keymap {
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
         editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
-        set_error_if!(editor, editor.insert_char(Active, '\n'));
+        set_error_if!(editor: editor.insert_char(Active, '\n'));
     }
 
     fn next_token(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::NextToken));
+        set_error_if!(editor: editor.motion(Active, motion::NextToken));
     }
 
     fn prev_token(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::PrevToken));
+        set_error_if!(editor: editor.motion(Active, motion::PrevToken));
     }
 
     fn next_word(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::NextWord))
+        set_error_if!(editor: editor.motion(Active, motion::NextWord))
     }
 
     fn prev_word(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::PrevWord));
+        set_error_if!(editor: editor.motion(Active, motion::PrevWord));
     }
 
     fn matchit(editor: &mut Editor) {
-        set_error_if!(editor, editor.motion(Active, motion::MatchIt))
+        set_error_if!(editor: editor.motion(Active, motion::MatchIt))
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::inclusive()));
+        set_error_if!(editor: editor.text_object(Active, zi_textobject::Line::inclusive()));
     }
 
     fn text_object_current_line_exclusive(editor: &mut Editor) {
-        set_error_if!(editor, editor.text_object(Active, zi_textobject::Line::exclusive()));
+        set_error_if!(editor: editor.text_object(Active, zi_textobject::Line::exclusive()));
     }
 
     fn append_eol(editor: &mut Editor) {
@@ -287,11 +292,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn undo(editor: &mut Editor) {
-        set_error_if!(editor, editor.undo(Active))
+        set_error_if!(editor: editor.undo(Active))
     }
 
     fn redo(editor: &mut Editor) {
-        set_error_if!(editor, editor.redo(Active))
+        set_error_if!(editor: editor.redo(Active))
     }
 
     fn search(editor: &mut Editor) {
@@ -304,7 +309,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn backspace(editor: &mut Editor) {
-        set_error_if!(editor, editor.delete_char(Active));
+        set_error_if!(editor: editor.delete_char(Active));
     }
 
     fn jump_forward(editor: &mut Editor) {
@@ -332,11 +337,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn tab(editor: &mut Editor) {
-        set_error_if!(editor, editor.tab())
+        set_error_if!(editor: editor.tab())
     }
 
     fn backtab(editor: &mut Editor) {
-        set_error_if!(editor, editor.backtab())
+        set_error_if!(editor: editor.backtab())
     }
 
     fn trigger_completion(editor: &mut Editor) {
@@ -344,7 +349,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn execute_buffered_command(editor: &mut Editor) {
-        set_error_if!(editor, editor.execute_buffered_command());
+        set_error_if!(editor: editor.execute_buffered_command());
     }
 
     fn goto_next_match(editor: &mut Editor) {
@@ -462,6 +467,7 @@ pub(super) fn new() -> Keymap {
                     ":" => command_mode,
                     "/" => search,
                     "i" => insert_mode,
+                    "I" => insert_start_of_line,
                     "h" => prev_char,
                     "l" => next_char,
                     "j" => next_line,

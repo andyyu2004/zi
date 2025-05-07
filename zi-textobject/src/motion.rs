@@ -201,3 +201,28 @@ impl Motion for PrevLine {
         MotionFlags::USE_TARGET_COLUMN
     }
 }
+
+pub struct StartOfLine;
+
+impl Motion for StartOfLine {
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        let line_idx = text.byte_to_line(text.point_or_byte_to_byte(p));
+        let start_byte = text.line_to_byte(line_idx);
+        let line = text.line(line_idx).unwrap();
+        (start_byte
+            + line.chars().take_while(|c| c.is_whitespace()).map(|c| c.len_utf8()).sum::<usize>())
+        .into()
+    }
+}
+
+impl TextObject for StartOfLine {
+    fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        let start = text.point_or_byte_to_byte(self.motion(text, byte.into()));
+        assert!(start <= byte, "start of line should be before or at the current byte");
+        Some(start..byte)
+    }
+
+    fn default_kind(&self) -> TextObjectKind {
+        TextObjectKind::Linewise
+    }
+}

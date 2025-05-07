@@ -222,7 +222,7 @@ macro_rules! set_error {
 use set_error;
 
 macro_rules! set_error_if {
-    ($editor:ident, $error:expr) => {
+    ($editor:ident: $error:expr) => {
         if let Err(err) = $error {
             $crate::editor::set_error!($editor, err);
         }
