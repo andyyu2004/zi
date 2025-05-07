@@ -17,6 +17,7 @@ impl Motion for MatchIt {
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
         let Some(a) = text.char_at_point_or_byte(p) else { return p };
         let (target, forward) = match a {
+            // NOTE maybe can make sure of delimiter abstraction
             '(' => (')', true),
             ')' => ('(', false),
             '[' => (']', true),
