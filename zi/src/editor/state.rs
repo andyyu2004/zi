@@ -9,6 +9,7 @@ pub(super) enum State {
     Command(CommandState),
     Visual(VisualState),
     OperatorPending(OperatorPendingState),
+    ReplacePending,
 }
 
 impl Default for State {
@@ -25,6 +26,7 @@ impl State {
             Mode::Command => State::Command(Default::default()),
             Mode::Visual => State::Visual(Default::default()),
             Mode::OperatorPending(op) => State::OperatorPending(OperatorPendingState::new(op)),
+            Mode::ReplacePending => State::ReplacePending,
         }
     }
 
@@ -40,6 +42,7 @@ impl State {
             State::Command(..) => Mode::Command,
             State::Visual(..) => Mode::Visual,
             State::OperatorPending(state) => Mode::OperatorPending(state.operator),
+            State::ReplacePending => Mode::ReplacePending,
         }
     }
 }

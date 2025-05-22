@@ -14,12 +14,13 @@ pub enum Mode {
     Command,
     Visual,
     OperatorPending(Operator),
+    ReplacePending,
 }
 
 impl fmt::Display for Mode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
-            Mode::Normal | Mode::OperatorPending(_) => "",
+            Mode::Normal | Mode::OperatorPending(_) | Mode::ReplacePending => "",
             Mode::Command => "COMMAND",
             Mode::Insert => "INSERT",
             Mode::Visual => "VISUAL",

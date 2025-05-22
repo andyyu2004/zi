@@ -61,6 +61,7 @@ interface editor {
         insert,
         visual,
         command,
+        replace-pending,
         operator-pending(operator),
     }
 

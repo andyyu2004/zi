@@ -1202,7 +1202,10 @@ impl Editor {
                 Ok(())
             }
             // TODO
-            State::Visual(..) | State::Command(..) | State::OperatorPending(_) => Ok(()),
+            State::Visual(..)
+            | State::Command(..)
+            | State::OperatorPending(_)
+            | State::ReplacePending => Ok(()),
         }
     }
 
@@ -1223,7 +1226,10 @@ impl Editor {
                 Ok(())
             }
             // TODO
-            State::Visual(..) | State::Command(..) | State::OperatorPending(_) => Ok(()),
+            State::Visual(..)
+            | State::Command(..)
+            | State::OperatorPending(_)
+            | State::ReplacePending => Ok(()),
         }
     }
 

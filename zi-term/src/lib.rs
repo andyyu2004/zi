@@ -44,7 +44,9 @@ impl<B: Backend + io::Write> App<B> {
                 let style = match editor.mode() {
                     zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
                     zi::Mode::Insert | zi::Mode::Command => SetCursorStyle::SteadyBar,
-                    zi::Mode::OperatorPending(..) => SetCursorStyle::SteadyUnderScore,
+                    zi::Mode::OperatorPending(..) | zi::Mode::ReplacePending => {
+                        SetCursorStyle::SteadyUnderScore
+                    }
                 };
                 execute!(self.term.backend_mut(), cursor::Show, style)?;
 

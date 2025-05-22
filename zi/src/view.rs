@@ -384,12 +384,14 @@ impl View {
 
         let pos = Point::new(line_idx, pos.col());
 
-        // Normal mode not allowed to move past the end of the line.
+        // Non-insert modes not allowed to move past the end of the line.
         let k = match mode {
             Mode::Insert => 0,
-            Mode::Normal | Mode::Command | Mode::Visual | Mode::OperatorPending(..) => {
-                line.chars().next_back().map_or(0, |c| c.len_utf8())
-            }
+            Mode::Normal
+            | Mode::Command
+            | Mode::Visual
+            | Mode::OperatorPending(..)
+            | Mode::ReplacePending => line.chars().next_back().map_or(0, |c| c.len_utf8()),
         };
 
         let max_col = Col::from(line_len.saturating_sub(k));
