@@ -38,6 +38,7 @@ pub struct KnownFileTypes {
     pub json: FileType,
     pub picker: FileType,
     pub explorer: FileType,
+    pub zig: FileType,
 }
 
 fn ft(ft: &str) -> FileType {
@@ -67,6 +68,7 @@ impl FileType {
             haskell: ft("haskell"),
             toml: ft("toml"),
             json: ft("json"),
+            zig: ft("zig"),
             picker: ft("picker"),
             explorer: ft("explorer"),
         })
@@ -85,6 +87,7 @@ impl FileType {
                 Some("js") => filetype!(javascript),
                 Some("ts") => filetype!(typescript),
                 Some("hs") => filetype!(haskell),
+                Some("zig") => filetype!(zig),
                 _ => filetype!(text),
             },
             None => filetype!(text),

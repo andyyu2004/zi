@@ -109,6 +109,7 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
         .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
+        .add_language(filetype!(zig), LanguageConfig::new(["zls".into()]))
         .add_language(
             filetype!(javascript),
             LanguageConfig::new(["typescript-language-server".into()]),
@@ -117,6 +118,7 @@ fn configure(editor: &mut zi::Editor) {
             filetype!(typescript),
             LanguageConfig::new(["typescript-language-server".into()]),
         )
+        .add_language_service("zls", LanguageServerConfig::new("zls", []))
         .add_language_service("fsautocomplete", LanguageServerConfig::new("fsautocomplete", []))
         .add_language_service(
             "rust-analyzer",
