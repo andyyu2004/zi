@@ -916,6 +916,13 @@ impl Editor {
 
         tracing::trace!(%key, "handling key");
         match key.code() {
+            KeyCode::Char(c) if matches!(mode, Mode::ReplacePending) => {
+                self.set_mode(Mode::Insert);
+                self.move_cursor(Active, Direction::Right, 1);
+                let _ = self.delete_char(Active);
+                let _ = self.insert_char(Active, c);
+                self.set_mode(Mode::Normal);
+            }
             KeyCode::Char(_c) if matches!(mode, Mode::Insert | Mode::Command) => {
                 let (res, buffered) = keymap.on_key(mode, key);
                 match res {
@@ -938,7 +945,7 @@ impl Editor {
                 TrieResult::Found(f) => f(self),
                 TrieResult::Partial => (),
                 TrieResult::Nothing => {
-                    if matches!(mode, Mode::OperatorPending(_)) {
+                    if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
                         self.set_mode(Mode::Normal)
                     }
                 }

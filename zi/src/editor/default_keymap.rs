@@ -39,6 +39,10 @@ pub(super) fn new() -> Keymap {
         editor.set_mode(Mode::Insert);
     }
 
+    fn replace_pending(editor: &mut Editor) {
+        editor.set_mode(Mode::ReplacePending);
+    }
+
     fn insert_start_of_line(editor: &mut Editor) {
         set_error_if!(editor: editor.motion(Active, motion::StartOfLine));
         insert_mode(editor);
@@ -448,6 +452,9 @@ pub(super) fn new() -> Keymap {
                 Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
                     "y" => text_object_current_line_exclusive,
                 })),
+                Mode::ReplacePending => trie!({
+                    "<ESC>" | "<C-c>" => normal_mode,
+                }),
                 Mode::Normal => trie!({
                     "<C-s>" => save,
                     "<C-o>" => jump_back,
@@ -457,6 +464,7 @@ pub(super) fn new() -> Keymap {
                     "<C-e>" => scroll_line_down,
                     "<C-y>" => scroll_line_up,
                     "<Tab>" => tab,
+                    "r" => replace_pending,
                     "m" => tmp_create_mark_test,
                     "d" => delete_operator_pending,
                     "c" => change_operator_pending,
