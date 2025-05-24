@@ -18,7 +18,7 @@ fuzz_target!(|inputs: zi::input::KeySequence| {
     .into_iter()
     .map(KeyEvent::from);
 
-    let inputs = inputs.into_iter().chain(quit_sequence.cycle());
+    let inputs = inputs.into_iter().chain(quit_sequence);
 
     let (width, height) = (24, 10);
     let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, zi::Size::new(width, height));

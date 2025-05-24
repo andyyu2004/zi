@@ -673,8 +673,7 @@ impl Editor {
         }
     }
 
-    #[doc(hidden)]
-    pub fn check_quit(&self) -> bool {
+    fn should_quit(&self) -> bool {
         if self.tree.is_empty() {
             self.notify_quit.notify_one();
             return true;
@@ -793,7 +792,7 @@ impl Editor {
             }
 
             // Don't immediately break here as we want to finish handling any events first
-            if self.check_quit() {
+            if self.should_quit() {
                 // TODO if we don't break here some assertions fail
                 break;
             }

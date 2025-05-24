@@ -34,7 +34,7 @@ async fn run(seq: KeySequence) -> Result<()> {
     ]
     .into_iter()
     .map(KeyEvent::from);
-    let inputs = seq.into_iter().chain(quit_sequence.cycle());
+    let inputs = seq.into_iter().chain(quit_sequence);
     let inputs = futures_util::stream::iter(inputs.into_iter().map(zi::input::Event::Key).map(Ok));
 
     editor
