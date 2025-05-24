@@ -9,7 +9,8 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 harness!(test, "tests/regression/fuzz", r"^.*/*");
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
+#[tracing_test::traced_test]
 async fn test(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path)?;
     let u = Unstructured::new(&bytes);

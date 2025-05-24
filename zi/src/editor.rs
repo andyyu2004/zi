@@ -27,7 +27,7 @@ use std::{cmp, fmt, io, mem};
 
 use anyhow::{anyhow, bail};
 use futures_util::stream::FuturesUnordered;
-use futures_util::{FutureExt, Stream, StreamExt};
+use futures_util::{Stream, StreamExt};
 use ignore::WalkState;
 use slotmap::SlotMap;
 use stdx::path::{PathExt, Relative};
@@ -131,8 +131,6 @@ pub struct Editor {
     command_handlers: HashMap<Word, Handler>,
     // plugins: Plugins,
     notify_quit: Notify,
-    notify_idle: &'static Notify,
-    is_idle: bool,
     backend: Box<dyn Backend>,
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
 }
@@ -373,7 +371,6 @@ pub struct Tasks {
     requests: ChannelStream<Request>,
     callbacks: UnboundedChannelStream<CallbackFuture>,
     notify_redraw: &'static Notify,
-    notify_idle: &'static Notify,
 }
 
 impl Editor {
@@ -428,9 +425,6 @@ impl Editor {
         //     callbacks_tx: callbacks_tx.clone(),
         // });
 
-        static NOTIFY_IDLE: OnceLock<Notify> = OnceLock::new();
-        let notify_idle = NOTIFY_IDLE.get_or_init(Default::default);
-
         drop(theme);
         let mut editor = Self {
             buffers,
@@ -441,14 +435,12 @@ impl Editor {
             requests_tx,
             // plugins,
             empty_buffer,
-            notify_idle,
             settings,
             backend: Box::new(backend),
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
             diagnostics: Default::default(),
-            is_idle: Default::default(),
             notify_quit: Default::default(),
             view_groups: Default::default(),
             language_config: Default::default(),
@@ -468,7 +460,6 @@ impl Editor {
             requests: ChannelStream(requests_rx),
             callbacks: UnboundedChannelStream(callbacks_rx),
             notify_redraw,
-            notify_idle,
         })
     }
 
@@ -696,19 +687,6 @@ impl Editor {
         self.status_error.as_deref()
     }
 
-    /// A hack for tests to wait for background tasks to complete.
-    #[doc(hidden)]
-    pub fn wait_until_idle(&mut self) -> impl Future + 'static {
-        let Self { is_idle, notify_idle, .. } = *self;
-        async move {
-            if !is_idle {
-                let mut fut = pin!(notify_idle.notified());
-                fut.as_mut().enable();
-                fut.await;
-            }
-        }
-    }
-
     pub fn set_error(&mut self, error: impl fmt::Display) {
         // TODO push all the corresponding tracing error in here
         set_error!(self, error);
@@ -764,7 +742,7 @@ impl Editor {
     pub async fn run(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
-        Tasks { requests, callbacks, notify_redraw, notify_idle }: Tasks,
+        Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
         Self::subscribe_async_hooks().await;
@@ -812,16 +790,6 @@ impl Editor {
                     },
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
-            }
-
-            if callbacks.as_mut().peek().now_or_never().is_none()
-                && requests.as_mut().peek().now_or_never().is_none()
-            {
-                self.is_idle = true;
-                notify_idle.notify_waiters();
-                notify_idle.notify_one();
-            } else {
-                self.is_idle = false;
             }
 
             // Don't immediately break here as we want to finish handling any events first
