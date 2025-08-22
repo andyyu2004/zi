@@ -1,5 +1,4 @@
 #![feature(
-    array_chunks,
     iter_array_chunks,
     coroutines,
     iter_from_coroutine,
@@ -600,13 +599,11 @@ impl<const N: usize> Leaf<N> {
         }
 
         let entries = builder.finish();
-        let mut chunks = entries.array_chunks::<N>();
+        let (chunks, remainder) = entries.as_chunks::<N>();
+        let mut chunks = chunks.iter();
         let (chunk, used_remainder) = match chunks.next() {
             Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-            None => (
-                ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"),
-                true,
-            ),
+            None => (ArrayVec::try_from(remainder).expect("remainder can't be too large"), true),
         };
 
         self.extents = chunk;
@@ -614,14 +611,14 @@ impl<const N: usize> Leaf<N> {
 
         *summary = self.summarize();
 
-        if chunks.len() == 0 && (used_remainder || chunks.remainder().is_empty()) {
+        if chunks.len() == 0 && (used_remainder || remainder.is_empty()) {
             return None;
         }
 
-        let rem = if chunks.remainder().is_empty() {
+        let rem = if remainder.is_empty() {
             None
         } else {
-            Some(ArrayVec::try_from(chunks.remainder()).expect("remainder can't be too large"))
+            Some(ArrayVec::try_from(remainder).expect("remainder can't be too large"))
         };
 
         Some(

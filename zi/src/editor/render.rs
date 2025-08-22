@@ -213,28 +213,28 @@ impl Editor {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let search_highlights = self
-            .search_state
-            .hlsearch
-            .then(|| self.search_state.matches())
-            .unwrap_or_default()
-            .iter()
-            .enumerate()
-            .filter_map(|(i, mat)| {
-                let range = text.byte_range_to_point_range(&mat.byte_range);
-                if range.end().line() < line_offset {
-                    return None;
-                }
+        let search_highlights = if self.search_state.hlsearch {
+            self.search_state.matches()
+        } else {
+            Default::default()
+        }
+        .iter()
+        .enumerate()
+        .filter_map(|(i, mat)| {
+            let range = text.byte_range_to_point_range(&mat.byte_range);
+            if range.end().line() < line_offset {
+                return None;
+            }
 
-                let hl_name = if self.search_state.current_match_idx() == i {
-                    HighlightName::CURRENT_SEARCH
-                } else {
-                    HighlightName::SEARCH
-                };
+            let hl_name = if self.search_state.current_match_idx() == i {
+                HighlightName::CURRENT_SEARCH
+            } else {
+                HighlightName::SEARCH
+            };
 
-                let style = self.highlight_id_by_name(hl_name).style(&theme)?;
-                Some((range, style))
-            });
+            let style = self.highlight_id_by_name(hl_name).style(&theme)?;
+            Some((range, style))
+        });
 
         let highlights = view_highlights
             .range_merge(search_highlights)

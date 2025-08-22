@@ -28,7 +28,7 @@ pub struct WasmBackend {}
 impl zi::Backend for WasmBackend {
     fn new_syntax(&mut self, ft: zi::FileType) -> io::Result<Option<Box<dyn zi::Syntax>>> {
         Ok(self::syntax::Syntax::for_file_type(ft)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?
+            .map_err(io::Error::other)?
             .map(|syntax| Box::new(syntax) as Box<dyn zi::Syntax>))
     }
 }
