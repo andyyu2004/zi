@@ -151,30 +151,6 @@ impl From<char> for Event {
     }
 }
 
-#[cfg(feature = "crossterm")]
-impl TryFrom<crossterm::event::Event> for Event {
-    type Error = ();
-
-    fn try_from(event: crossterm::event::Event) -> Result<Self, Self::Error> {
-        match event {
-            crossterm::event::Event::Key(event) => match event.code {
-                // weird crossterm case, we just convert this to `<S-Tab>`
-                crossterm::event::KeyCode::BackTab => Ok(Event::Key(KeyEvent::new(
-                    KeyCode::Tab,
-                    KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
-                ))),
-                _ => Ok(Event::Key(KeyEvent::new(
-                    event.code.try_into()?,
-                    event.modifiers.try_into()?,
-                ))),
-            },
-
-            crossterm::event::Event::Resize(width, height) => Ok(Event::Resize(width, height)),
-            _ => Err(()),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KeyEvent {
