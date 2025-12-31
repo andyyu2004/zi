@@ -12,8 +12,6 @@ pub enum Event {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 pub enum KeyCode {
     Backspace,
     Enter,
@@ -29,31 +27,7 @@ pub enum KeyCode {
     Delete,
     Insert,
     Esc,
-    #[cfg_attr(feature = "serde", serde(rename = "f1", alias = "F1"))]
-    F1,
-    #[cfg_attr(feature = "serde", serde(rename = "f2", alias = "F2"))]
-    F2,
-    #[cfg_attr(feature = "serde", serde(rename = "f3", alias = "F3"))]
-    F3,
-    #[cfg_attr(feature = "serde", serde(rename = "f4", alias = "F4"))]
-    F4,
-    #[cfg_attr(feature = "serde", serde(rename = "f5", alias = "F5"))]
-    F5,
-    #[cfg_attr(feature = "serde", serde(rename = "f6", alias = "F6"))]
-    F6,
-    #[cfg_attr(feature = "serde", serde(rename = "f7", alias = "F7"))]
-    F7,
-    #[cfg_attr(feature = "serde", serde(rename = "f8", alias = "F8"))]
-    F8,
-    #[cfg_attr(feature = "serde", serde(rename = "f9", alias = "F9"))]
-    F9,
-    #[cfg_attr(feature = "serde", serde(rename = "f10", alias = "F10"))]
-    F10,
-    #[cfg_attr(feature = "serde", serde(rename = "f11", alias = "F11"))]
-    F11,
-    #[cfg_attr(feature = "serde", serde(rename = "f12", alias = "F12"))]
-    F12,
-    #[cfg_attr(feature = "serde", serde(untagged))]
+    F(u8),
     Char(char),
 }
 
@@ -83,21 +57,7 @@ impl TryFrom<crossterm::event::KeyCode> for KeyCode {
             crossterm::event::KeyCode::Delete => Ok(KeyCode::Delete),
             crossterm::event::KeyCode::Insert => Ok(KeyCode::Insert),
             crossterm::event::KeyCode::Esc => Ok(KeyCode::Esc),
-            crossterm::event::KeyCode::F(n) => match n {
-                1 => Ok(KeyCode::F1),
-                2 => Ok(KeyCode::F2),
-                3 => Ok(KeyCode::F3),
-                4 => Ok(KeyCode::F4),
-                5 => Ok(KeyCode::F5),
-                6 => Ok(KeyCode::F6),
-                7 => Ok(KeyCode::F7),
-                8 => Ok(KeyCode::F8),
-                9 => Ok(KeyCode::F9),
-                10 => Ok(KeyCode::F10),
-                11 => Ok(KeyCode::F11),
-                12 => Ok(KeyCode::F12),
-                _ => Err(()),
-            },
+            crossterm::event::KeyCode::F(n) => Ok(KeyCode::F(n)),
             crossterm::event::KeyCode::Char(c) => Ok(KeyCode::Char(c)),
             _ => Err(()),
         }
@@ -121,18 +81,7 @@ impl fmt::Display for KeyCode {
             KeyCode::Delete => write!(f, "{}", keys::DELETE),
             KeyCode::Insert => write!(f, "{}", keys::INSERT),
             KeyCode::Esc => write!(f, "{}", keys::ESC),
-            KeyCode::F1 => write!(f, "f1"),
-            KeyCode::F2 => write!(f, "f2"),
-            KeyCode::F3 => write!(f, "f3"),
-            KeyCode::F4 => write!(f, "f4"),
-            KeyCode::F5 => write!(f, "f5"),
-            KeyCode::F6 => write!(f, "f6"),
-            KeyCode::F7 => write!(f, "f7"),
-            KeyCode::F8 => write!(f, "f8"),
-            KeyCode::F9 => write!(f, "f9"),
-            KeyCode::F10 => write!(f, "f10"),
-            KeyCode::F11 => write!(f, "f11"),
-            KeyCode::F12 => write!(f, "f12"),
+            KeyCode::F(n) => write!(f, "f{n}"),
             KeyCode::Char(c) => write!(f, "{c}"),
         }
     }
