@@ -209,6 +209,72 @@ pub struct KeyEvent {
     modifiers: KeyModifiers,
 }
 
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for KeyEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(|mut errs: Vec<_>| serde::de::Error::custom(errs.swap_remove(0)))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for KeyEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(&self.to_string())
+    }
+}
+
+impl FromStr for KeyEvent {
+    type Err = Vec<chumsky::error::Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        key_event().then_ignore(chumsky::primitive::end()).parse(s)
+    }
+}
+
+impl fmt::Display for KeyEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.code {
+            // special case, print <S-y> as just Y
+            KeyCode::Char(c) if self.modifiers == KeyModifiers::SHIFT => {
+                assert!(c.is_uppercase());
+                return write!(f, "{c}");
+            }
+            _ => (),
+        };
+
+        if self.modifiers.is_empty() {
+            if self.code.is_special() {
+                write!(f, "<{}>", self.code)
+            } else {
+                write!(f, "{}", self.code)
+            }
+        } else {
+            write!(f, "<")?;
+            for modifier in self.modifiers.iter() {
+                write!(
+                    f,
+                    "{}-",
+                    match modifier {
+                        KeyModifiers::CONTROL => "C",
+                        KeyModifiers::SHIFT => "S",
+                        KeyModifiers::ALT => "A",
+                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
+                    }
+                )?;
+            }
+
+            write!(f, "{}>", self.code)
+        }
+    }
+}
+
 impl KeyEvent {
     pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Self {
         // normalize
@@ -294,40 +360,24 @@ impl FromStr for KeySequence {
     }
 }
 
-impl fmt::Display for KeyEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.code {
-            // special case, print <S-y> as just Y
-            KeyCode::Char(c) if self.modifiers == KeyModifiers::SHIFT => {
-                assert!(c.is_uppercase());
-                return write!(f, "{c}");
-            }
-            _ => (),
-        };
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for KeySequence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(|mut errs: Vec<_>| serde::de::Error::custom(errs.swap_remove(0)))
+    }
+}
 
-        if self.modifiers.is_empty() {
-            if self.code.is_special() {
-                write!(f, "<{}>", self.code)
-            } else {
-                write!(f, "{}", self.code)
-            }
-        } else {
-            write!(f, "<")?;
-            for modifier in self.modifiers.iter() {
-                write!(
-                    f,
-                    "{}-",
-                    match modifier {
-                        KeyModifiers::CONTROL => "C",
-                        KeyModifiers::SHIFT => "S",
-                        KeyModifiers::ALT => "A",
-                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
-                    }
-                )?;
-            }
-
-            write!(f, "{}>", self.code)
-        }
+#[cfg(feature = "serde")]
+impl serde::Serialize for KeySequence {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(&self.to_string())
     }
 }
 
@@ -399,14 +449,6 @@ fn key_event() -> impl Parser<char, KeyEvent, Error = chumsky::error::Simple<cha
         .map(|code| KeyEvent::new(code, KeyModifiers::empty()));
 
     choice((modified_key, unmodified_key))
-}
-
-impl FromStr for KeyEvent {
-    type Err = Vec<chumsky::error::Simple<char>>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        key_event().then_ignore(chumsky::primitive::end()).parse(s)
-    }
 }
 
 pub(crate) mod keys {

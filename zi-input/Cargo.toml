@@ -15,3 +15,4 @@ workspace = true
 
 [features]
 serde = ["dep:serde"]
+arbitrary = ["dep:arbitrary", "bitflags/arbitrary"]
