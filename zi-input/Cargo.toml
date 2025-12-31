@@ -15,4 +15,5 @@ workspace = true
 
 [features]
 serde = ["dep:serde"]
+crossterm = ["dep:crossterm"]
 arbitrary = ["dep:arbitrary", "bitflags/arbitrary"]
