@@ -1,4 +1,3 @@
-#![feature(array_windows)]
 pub mod bomb;
 pub mod bound;
 pub mod iter;

@@ -109,8 +109,8 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
             builder.append(leaf);
         }
 
-        if let Some(rem) = chunks.into_remainder() {
-            let array = ArrayVec::from_iter(rem);
+        let array = ArrayVec::from_iter(chunks.into_remainder());
+        if !array.is_empty() {
             builder.append(Leaf::from(array));
         }
 
