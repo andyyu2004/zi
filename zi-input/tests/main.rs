@@ -1,4 +1,4 @@
-use crate::input::{KeyEvent, KeySequence};
+use zi_input::{KeyEvent, KeySequence};
 
 #[test]
 fn parse_key_event() {

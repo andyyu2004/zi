@@ -12,6 +12,7 @@ libfuzzer-sys = "0.4"
 futures-util = { workspace = true }
 futures-executor = { workspace = true }
 zi = { workspace = true, features = ["arbitrary"] }
+zi-input = { workspace = true }
 tui = { path = "../zi-tui", package = "zi-tui" }
 tokio = { workspace = true, default-features = false, features = ["rt-multi-thread"] }
 

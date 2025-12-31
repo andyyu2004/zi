@@ -38,6 +38,7 @@ use tokio::sync::{Notify, oneshot};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
+use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
 use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
@@ -56,7 +57,6 @@ use crate::buffer::{
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::completion::Completion;
 use crate::event::EventHandler;
-use crate::input::{Event, KeyCode, KeyEvent, KeySequence};
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::language_service::LanguageServiceInstance;
 use crate::layout::Layer;
@@ -456,11 +456,14 @@ impl Editor {
         editor.resize(size);
         Self::subscribe_sync_hooks();
 
-        (editor, Tasks {
-            requests: ChannelStream(requests_rx),
-            callbacks: UnboundedChannelStream(callbacks_rx),
-            notify_redraw,
-        })
+        (
+            editor,
+            Tasks {
+                requests: ChannelStream(requests_rx),
+                callbacks: UnboundedChannelStream(callbacks_rx),
+                notify_redraw,
+            },
+        )
     }
 
     pub fn language_service(
@@ -717,7 +720,7 @@ impl Editor {
     pub fn handle_input(&mut self, event: impl Into<Event>) {
         match event.into() {
             Event::Key(key) => self.handle_key_event(key),
-            Event::Resize(size) => self.resize(size),
+            Event::Resize(width, height) => self.resize(Size::new(width, height)),
         }
     }
 

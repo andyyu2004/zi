@@ -3,13 +3,11 @@ use std::str::FromStr;
 
 use chumsky::Parser;
 
-use crate::Size;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Event {
     Key(KeyEvent),
-    Resize(Size),
+    Resize(u16, u16),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -147,9 +145,7 @@ impl TryFrom<crossterm::event::Event> for Event {
                 ))),
             },
 
-            crossterm::event::Event::Resize(width, height) => {
-                Ok(Event::Resize(Size::new(width, height)))
-            }
+            crossterm::event::Event::Resize(width, height) => Ok(Event::Resize(width, height)),
             _ => Err(()),
         }
     }
@@ -267,12 +263,16 @@ impl fmt::Display for KeyEvent {
         } else {
             write!(f, "<")?;
             for modifier in self.modifiers.iter() {
-                write!(f, "{}-", match modifier {
-                    KeyModifiers::CONTROL => "C",
-                    KeyModifiers::SHIFT => "S",
-                    KeyModifiers::ALT => "A",
-                    _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
-                })?;
+                write!(
+                    f,
+                    "{}-",
+                    match modifier {
+                        KeyModifiers::CONTROL => "C",
+                        KeyModifiers::SHIFT => "S",
+                        KeyModifiers::ALT => "A",
+                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
+                    }
+                )?;
             }
 
             write!(f, "{}>", self.code)
@@ -378,6 +378,3 @@ pub(crate) mod keys {
     pub(crate) const LESS_THAN: &str = "lt";
     pub(crate) const GREATER_THAN: &str = "gt";
 }
-
-#[cfg(test)]
-mod tests;

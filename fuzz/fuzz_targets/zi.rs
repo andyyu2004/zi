@@ -2,9 +2,9 @@
 
 use futures_util::stream;
 use libfuzzer_sys::fuzz_target;
-use zi::input::{KeyCode, KeyEvent};
+use zi_input::{KeyCode, KeyEvent};
 
-fuzz_target!(|inputs: zi::input::KeySequence| {
+fuzz_target!(|inputs: zi_input::KeySequence| {
     // Keep inputting a quit sequence until we're done otherwise we will get stuck on one iteration.
     let quit_sequence = [
         KeyCode::Esc,
@@ -23,7 +23,7 @@ fuzz_target!(|inputs: zi::input::KeySequence| {
     let (width, height) = (24, 10);
     let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, zi::Size::new(width, height));
     let mut frame = TestFrame { buffer: tui::Buffer::empty(tui::Rect::new(0, 0, width, height)) };
-    let inputs = stream::iter(inputs.map(zi::input::Event::Key).map(Ok));
+    let inputs = stream::iter(inputs.map(zi_input::Event::Key).map(Ok));
 
     futures_executor::block_on(editor.run(inputs, tasks, |editor| {
         // don't use `term.draw()` as it's very slow

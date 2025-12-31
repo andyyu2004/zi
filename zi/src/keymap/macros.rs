@@ -30,7 +30,7 @@ macro_rules! trie {
             let mut map = ::std::collections::HashMap::with_capacity(cap);
             $(
                 $(
-                    let key = $key.parse::<$crate::input::KeyEvent>().expect("failed to parse key event");
+                    let key = $key.parse::<zi_input::KeyEvent>().expect("failed to parse key event");
                     let duplicate = map.insert(
                         key.clone(),
                         trie!(@trie $value)

@@ -1,5 +1,7 @@
 #![feature(try_blocks, type_alias_impl_trait, coroutines, iter_from_coroutine)]
 
+pub use zi_input as input;
+
 pub mod buffer;
 pub mod command;
 mod completion;
@@ -7,7 +9,6 @@ mod config;
 pub mod dirs;
 mod editor;
 pub mod event;
-pub mod input;
 mod jump;
 mod keymap;
 mod language;

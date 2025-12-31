@@ -1,10 +1,10 @@
 use std::sync::OnceLock;
 
 use stdx::merge::Merge;
+use zi_input::KeyEvent;
 use zi_textobject::{Around, Within, delimiter};
 
 use crate::editor::{Action, SaveFlags, set_error_if};
-use crate::input::KeyEvent;
 use crate::keymap::Keymap;
 use crate::{
     Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment, hashmap, motion, trie,

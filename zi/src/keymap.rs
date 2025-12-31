@@ -3,10 +3,10 @@ use std::hash::Hash;
 use std::{fmt, iter};
 
 use stdx::merge::Merge;
+use zi_input::KeyEvent;
 
 use crate::Mode;
 use crate::editor::Action;
-use crate::input::KeyEvent;
 
 mod macros;
 
