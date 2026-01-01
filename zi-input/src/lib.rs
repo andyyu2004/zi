@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use chumsky::Parser;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Event {
     Key(KeyEvent),
@@ -34,7 +34,7 @@ impl TryFrom<crossterm::event::Event> for Event {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum KeyCode {
     Backspace,
@@ -112,7 +112,7 @@ impl fmt::Display for KeyCode {
 }
 
 bitflags::bitflags! {
-    #[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash, Default)]
+    #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Hash, Default)]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub struct KeyModifiers: u8 {
         const NONE = 0b0000_0000;
@@ -151,7 +151,7 @@ impl From<char> for Event {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct KeyEvent {
     code: KeyCode,
