@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
 
 use anyhow::{anyhow, bail};
+use arboard::Clipboard;
 use futures_util::stream::FuturesUnordered;
 use futures_util::{Stream, StreamExt};
 use ignore::WalkState;
@@ -133,6 +134,7 @@ pub struct Editor {
     notify_quit: Notify,
     backend: Box<dyn Backend>,
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
+    clipboard: Clipboard,
 }
 
 macro_rules! mode {
@@ -436,6 +438,7 @@ impl Editor {
             // plugins,
             empty_buffer,
             settings,
+            clipboard: Clipboard::new().unwrap(),
             backend: Box::new(backend),
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
@@ -1395,7 +1398,7 @@ impl Editor {
         let mut motion_kind = obj.default_kind();
         let flags = obj.flags();
 
-        let text = self[buf].text();
+        let text = self.buffers[buf].text();
 
         let cursor = self[view].cursor();
         let target_col = self[view].cursor_target_col();
@@ -1480,11 +1483,17 @@ impl Editor {
                 };
                 (deltas, Some(cursor))
             }
-            Operator::Yank => todo!(),
+            Operator::Yank => {
+                let text = text.byte_slice(range).to_cow();
+                if let Err(err) = self.clipboard.set_text(text) {
+                    set_error!(self, err);
+                }
+                (Deltas::empty(), None)
+            }
         };
 
         match operator {
-            // `c` snapshot the buffer before the edit, and delete saves it after
+            // NOTE: `c` snapshots the buffer before the edit, and `d` saves it after
             Operator::Change => {
                 self[buf].snapshot_cursor(start_point);
                 self[buf].snapshot(SnapshotFlags::empty())
@@ -1516,7 +1525,7 @@ impl Editor {
                 }
                 self.set_mode(Mode::Normal)
             }
-            Operator::Yank => {}
+            Operator::Yank => self.set_mode(Mode::Normal),
         }
 
         if let Some(new_cursor) = new_cursor {

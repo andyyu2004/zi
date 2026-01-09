@@ -62,6 +62,10 @@ impl<'a> Deltas<'a> {
         Self { deltas }
     }
 
+    pub fn empty() -> Self {
+        Self::new(std::iter::empty())
+    }
+
     pub fn single(range: impl Into<DeltaRange>, text: impl Into<Cow<'a, str>>) -> Self {
         Deltas::new([Delta::new(range, text)])
     }
