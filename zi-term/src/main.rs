@@ -122,7 +122,7 @@ fn configure(editor: &mut zi::Editor) {
         .add_language_service("fsautocomplete", LanguageServerConfig::new("fsautocomplete", []))
         .add_language_service(
             "rust-analyzer",
-            LanguageServerConfig::new("ra-multiplex", ["client".into()]),
+            LanguageServerConfig::new("lspmux", ["client".into()]),
         )
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
