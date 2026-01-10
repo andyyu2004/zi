@@ -6,11 +6,11 @@ all: tree-sitter-install-rust \
 	tree-sitter-install-go \
 	tree-sitter-install-json \
 	tree-sitter-install-c \
-	tree-sitter-install-fsharp
-	# tree-sitter-install-typescript \
+	tree-sitter-install-typescript
+	# tree-sitter-install-fsharp
 
-# clean:
-# 	rm -rf tree-sitter-rust tree-sitter-go tree-sitter-json tree-sitter-c
+clean:
+	rm -rf tree-sitter-*
 
 tree-sitter-install-%: tree-sitter-%.wasm
 	mkdir -p ~/.local/share/zi/grammars/$*
