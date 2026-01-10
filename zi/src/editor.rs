@@ -9,6 +9,7 @@ mod events;
 mod lsp_requests;
 mod marks;
 mod pickers;
+mod register;
 mod render;
 mod search;
 mod state;
@@ -40,13 +41,16 @@ use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
-use zi_text::{AnyText, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice};
+use zi_text::{
+    AnyText, Delta, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice,
+};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
 use self::diagnostics::BufferDiagnostics;
 pub use self::errors::EditError;
+use self::register::Registers;
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -113,6 +117,7 @@ pub struct Editor {
     pub view_groups: SlotMap<ViewGroupId, ViewGroup>,
     pub active_language_services: HashMap<LanguageServiceId, LanguageServiceInstance>,
     pub language_config: language::Config,
+    registers: Registers,
     namespaces: SlotMap<NamespaceId, Namespace>,
     default_namespace: NamespaceId,
     // We key diagnostics by `path` instead of `BufferId` as it is valid to send diagnostics for an unloaded buffer.
@@ -443,6 +448,7 @@ impl Editor {
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
             command_handlers: command::builtin_handlers(),
+            registers: Default::default(),
             diagnostics: Default::default(),
             notify_quit: Default::default(),
             view_groups: Default::default(),
@@ -1380,16 +1386,26 @@ impl Editor {
         self.settings().theme.clone()
     }
 
-    pub fn paste(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
-        let text = match self.clipboard.get_text() {
-            Ok(text) => text,
-            Err(err) => {
-                set_error!(self, err);
-                return Ok(());
-            }
+    pub fn paste_after(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
+        // FIXME very naive implementation.
+        let Some(reg) = self.registers.get(Registers::UNNAMED).cloned() else {
+            return Ok(());
         };
 
-        self.insert(selector, &text)
+        match reg.kind {
+            register::RegisterKind::Charwise => self.insert(selector, &reg.content),
+            register::RegisterKind::Linewise => {
+                let (view, buf) = self.get(selector);
+                let cursor = self[view].cursor();
+                let text = self[buf].text();
+                let line_start_byte = text.line_to_byte(cursor.line() + 1).min(text.len_bytes());
+                let deltas =
+                    Deltas::new([Delta::insert_at(line_start_byte, format!("{}\n", &reg.content))]);
+                self.edit(buf, &deltas)?;
+                self.move_cursor(view, Direction::Down, 1);
+                Ok(())
+            }
+        }
     }
 
     /// Applies the text object to the pending operator if there is one.
@@ -1407,7 +1423,7 @@ impl Editor {
 
         let &OperatorPendingState { operator } = state;
 
-        let mut motion_kind = obj.default_kind();
+        let mut obj_kind = obj.default_kind();
         let flags = obj.flags();
 
         let text = self.buffers[buf].text();
@@ -1434,7 +1450,7 @@ impl Editor {
 
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
             && end_point.col() == 0
-            && motion_kind == TextObjectKind::Charwise
+            && obj_kind == TextObjectKind::Charwise
             && line_count > 1;
 
         if end_adjusted {
@@ -1448,7 +1464,7 @@ impl Editor {
             // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
             // updates the cursor before this point.
             if text.inindent(start_point) {
-                motion_kind = TextObjectKind::Linewise;
+                obj_kind = TextObjectKind::Linewise;
             } else {
                 let line_idx = end_point.line() - 1;
                 let line_above = text.line(line_idx).expect("must be in-bounds");
@@ -1463,19 +1479,18 @@ impl Editor {
 
         // Another neovim special case inherited from vi.
         // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L1468-L1484
-        if motion_kind == TextObjectKind::Charwise
+        if obj_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
             && text.inindent(end_point)
             && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
         {
-            motion_kind = TextObjectKind::Linewise;
+            obj_kind = TextObjectKind::Linewise;
         }
 
         // If we're in a special case for linewise motions that are charwise by default,
         // extend the range to include the full start and end lines.
-        if obj.default_kind() == TextObjectKind::Charwise && motion_kind == TextObjectKind::Linewise
-        {
+        if obj.default_kind() == TextObjectKind::Charwise && obj_kind == TextObjectKind::Linewise {
             let start_line = start_point.line();
             let start_byte = text.line_to_byte(start_line);
             let end_byte = text.line_to_byte(start_line + line_count);
@@ -1485,7 +1500,7 @@ impl Editor {
         let (deltas, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
                 let deltas = Deltas::delete(range.clone());
-                let cursor = match motion_kind {
+                let cursor = match obj_kind {
                     // linewise deletions move the line but maintain the column
                     TextObjectKind::Linewise => {
                         PointOrByte::Point(start_point.with_col(cursor.col()))
@@ -1497,9 +1512,10 @@ impl Editor {
             }
             Operator::Yank => {
                 let text = text.byte_slice(range).to_cow();
-                if let Err(err) = self.clipboard.set_text(text) {
+                if let Err(err) = self.clipboard.set_text(text.clone()) {
                     set_error!(self, err);
                 }
+                self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, text);
                 (Deltas::empty(), None)
             }
         };
@@ -1522,7 +1538,7 @@ impl Editor {
         match operator {
             Operator::Change => self.set_mode(Mode::Insert),
             Operator::Delete => {
-                match motion_kind {
+                match obj_kind {
                     TextObjectKind::Linewise => {
                         let cursor = match start_char {
                             // Special case if the motion started at the newline of the prior line.
@@ -1543,7 +1559,7 @@ impl Editor {
         if let Some(new_cursor) = new_cursor {
             // some conditions where the cursor column is set to the old value
             // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L6348-L6354
-            let (new_cursor, flags) = if motion_kind.is_linewise()
+            let (new_cursor, flags) = if obj_kind.is_linewise()
                 && !end_adjusted
                 && matches!(operator, Operator::Delete)
             {

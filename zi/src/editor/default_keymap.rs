@@ -36,7 +36,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn paste(editor: &mut Editor) {
-        set_error_if!(editor: editor.paste(Active));
+        set_error_if!(editor: editor.paste_after(Active));
     }
 
     fn insert_mode(editor: &mut Editor) {
