@@ -124,4 +124,6 @@ impl Registry {
 pub type AsyncHandlerResult = Result<HandlerResult>;
 
 /// Marker trait for an asynchronous event.
+/// This means the handlers can be async functions and the
+/// `dispatch_async` call must be awaited.
 pub trait AsyncEvent: Any + Clone + Send + Sync {}

@@ -1511,7 +1511,7 @@ impl Editor {
                 (deltas, Some(cursor))
             }
             Operator::Yank => {
-                let text = text.byte_slice(range).to_cow();
+                let text = text.byte_slice(range.clone()).to_cow();
                 if let Err(err) = self.clipboard.set_text(text.clone()) {
                     set_error!(self, err);
                 }
@@ -1583,6 +1583,11 @@ impl Editor {
                     view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
                 }
             };
+        }
+
+        match operator {
+            Operator::Delete | Operator::Change => {}
+            Operator::Yank => self.dispatch(event::DidYankText { buf, range }),
         }
 
         Ok(())

@@ -73,6 +73,14 @@ pub struct DidInitializeLanguageService {
 impl Event for DidInitializeLanguageService {}
 
 #[derive(Debug, Clone)]
+pub struct DidYankText {
+    pub buf: BufferId,
+    pub range: std::ops::Range<usize>,
+}
+
+impl Event for DidYankText {}
+
+#[derive(Debug, Clone)]
 pub struct WillSaveBuffer {
     pub buf: BufferId,
 }
