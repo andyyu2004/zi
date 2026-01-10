@@ -71,7 +71,7 @@ smallvec = "2.0.0-alpha.6"
 tokio = { version = "1.37.0", default-features = false }
 tokio-stream = "0.1.15"
 tokio-util = { version = "0.7.10", default-features = false }
-tree-sitter = { version = "0.24.3" }
+tree-sitter = { version = "0.26.3" }
 tracing = "0.1.40"
 ustr = "1"
 url = "2"

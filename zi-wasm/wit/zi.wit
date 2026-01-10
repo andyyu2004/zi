@@ -45,7 +45,7 @@ interface command {
 
     resource handler {
         constructor();
-        exec: func(cmd: string, args: list<string>) -> ();
+        exec: func(cmd: string, args: list<string>);
     }
 }
 
@@ -79,13 +79,13 @@ interface editor {
 
     insert: func(text: string) -> result<_, edit-error>;
     get-mode: func() -> mode;
-    set-mode: func(mode: mode) -> ();
+    set-mode: func(mode: mode);
     get-active-view: func() -> view;
 
     resource view {
         get-buffer: func() -> buffer;
         get-cursor: func() -> point;
-        set-cursor: func(pos: point) -> ();
+        set-cursor: func(pos: point);
     }
 
     resource buffer {

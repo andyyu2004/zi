@@ -30,8 +30,9 @@ impl zi::Syntax for Syntax {
         self.tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            parser.parse_with(
+            parser.parse_with_options(
                 &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap_or(""),
+                None,
                 None,
             )
         });
@@ -50,9 +51,10 @@ impl zi::Syntax for Syntax {
         let prev_tree = PARSER.with(|parser| {
             let mut parser = parser.borrow_mut();
             parser.set_language(&self.language).unwrap();
-            if let Some(tree) = parser.parse_with(
+            if let Some(tree) = parser.parse_with_options(
                 &mut |byte, _point| text.byte_slice(byte..).chunks().next().unwrap_or(""),
                 self.tree.as_ref(),
+                None,
             ) {
                 self.tree.replace(tree)
             } else {
@@ -100,7 +102,6 @@ thread_local! {
     static PARSER: RefCell<Parser> = {
         let mut parser = Parser::new();
         parser.set_wasm_store(tree_sitter::WasmStore::new(ENGINE.get_or_init(Default::default)).unwrap()).unwrap();
-        parser.set_timeout_micros(500_000);
 
         // TODO we should use this feature as otherwise it times out quite easily
         parser.set_included_ranges(&[]).expect("passed invalid ranges");

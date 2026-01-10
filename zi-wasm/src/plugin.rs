@@ -34,7 +34,6 @@ fn v(res: Resource<api::editor::View>) -> ViewId {
     ViewId::from(KeyData::from_ffi(res.rep() as u64))
 }
 
-#[async_trait::async_trait]
 impl api::editor::HostView for Client {
     async fn get_buffer(
         &mut self,
@@ -57,14 +56,12 @@ impl api::editor::HostView for Client {
     }
 }
 
-#[async_trait::async_trait]
 impl api::editor::HostBuffer for Client {
     async fn drop(&mut self, _rep: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
 
-#[async_trait::async_trait]
 impl api::editor::Host for Client {
     async fn insert(&mut self, text: String) -> Result<(), api::editor::EditError> {
         Ok(self.with(move |editor| editor.insert(Active, &text)).await?)
@@ -427,13 +424,16 @@ mod test {
                     let init = lifecycle.call_initialize(&mut store).await?;
 
                     use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
-                    assert_eq!(init, InitializeResult {
-                        commands: vec![Command {
-                            name: "foo".into(),
-                            arity: Arity { min: 0, max: 1 },
-                            opts: CommandFlags::RANGE
-                        }]
-                    });
+                    assert_eq!(
+                        init,
+                        InitializeResult {
+                            commands: vec![Command {
+                                name: "foo".into(),
+                                arity: Arity { min: 0, max: 1 },
+                                opts: CommandFlags::RANGE
+                            }]
+                        }
+                    );
                     let handler = plugin.zi_api_command().handler();
                     let handler_resource = handler.call_constructor(&mut store).await?;
                     handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;
