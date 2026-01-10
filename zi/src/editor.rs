@@ -1380,6 +1380,18 @@ impl Editor {
         self.settings().theme.clone()
     }
 
+    pub fn paste(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
+        let text = match self.clipboard.get_text() {
+            Ok(text) => text,
+            Err(err) => {
+                set_error!(self, err);
+                return Ok(());
+            }
+        };
+
+        self.insert(selector, &text)
+    }
+
     /// Applies the text object to the pending operator if there is one.
     /// Conceptually this function is quite simple, but there are lot of quirks to match neovim.
     /// If there a question about why it is this way, the answer is probably "because neovim does it".

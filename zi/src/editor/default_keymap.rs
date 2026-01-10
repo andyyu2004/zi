@@ -35,6 +35,10 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor: editor.text_object(Active, zi_textobject::Until('\n')));
     }
 
+    fn paste(editor: &mut Editor) {
+        set_error_if!(editor: editor.paste(Active));
+    }
+
     fn insert_mode(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
     }
@@ -481,6 +485,7 @@ pub(super) fn new() -> Keymap {
                     "j" => next_line,
                     "k" => prev_line,
                     "o" => open_newline,
+                    "p" => paste,
                     "w" => next_word,
                     "b" => prev_word,
                     "W" => next_token,
