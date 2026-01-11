@@ -307,6 +307,10 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor: editor.redo(Active))
     }
 
+    fn dot_repeat(editor: &mut Editor) {
+        editor.dot_repeat();
+    }
+
     fn search(editor: &mut Editor) {
         let _ = editor.search("");
     }
@@ -494,6 +498,7 @@ pub(super) fn new() -> Keymap {
                     "A" => append_eol,
                     "u" => undo,
                     "<C-r>" => redo,
+                    "." => dot_repeat,
                     "<C-h>" => focus_left,
                     "<C-j>" => focus_down,
                     "<C-k>" => focus_up,

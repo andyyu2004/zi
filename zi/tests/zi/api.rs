@@ -2,6 +2,7 @@ mod command;
 mod completion;
 mod config;
 mod cursor;
+mod dot;
 mod edit;
 mod marks;
 mod motion;

@@ -30,11 +30,6 @@ impl State {
         }
     }
 
-    pub(super) fn transition(self, to: Mode) -> State {
-        // any state specific code can be done here
-        State::new(to)
-    }
-
     pub(super) fn mode(&self) -> Mode {
         match self {
             State::Normal(..) => Mode::Normal,

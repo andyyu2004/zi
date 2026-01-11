@@ -4,6 +4,7 @@ mod config;
 pub(crate) mod cursor;
 mod default_keymap;
 mod diagnostics;
+mod dot;
 mod errors;
 mod events;
 mod lsp_requests;
@@ -49,6 +50,7 @@ use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
 use self::diagnostics::BufferDiagnostics;
+use self::dot::Dot;
 pub use self::errors::EditError;
 use self::register::Registers;
 pub use self::search::Match;
@@ -157,6 +159,7 @@ pub struct Editor {
     backend: Box<dyn Backend>,
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
     clipboard: Result<Clipboard, Arc<arboard::Error>>,
+    dot: Dot,
 }
 
 macro_rules! mode {
@@ -476,6 +479,7 @@ impl Editor {
             search_state: Default::default(),
             status_error: Default::default(),
             plugin_managers: Default::default(),
+            dot: Default::default(),
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -906,6 +910,17 @@ impl Editor {
         self.status_error = None;
         let mode = mode!(self);
 
+        // Save the key if we're in Normal mode (it might be the start of a change)
+        if mode == Mode::Normal
+            && !self.dot.is_replaying()
+            // FIXME: assuming here that '.' is not remapped
+            && !matches!(key.code(), KeyCode::Char('.'))
+        {
+            self.dot.save_normal_key(&key);
+        }
+
+        self.dot.maybe_record(&key);
+
         let mut empty = Keymap::default();
         let (_, buf) = get!(self);
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
@@ -954,6 +969,27 @@ impl Editor {
         mode!(self)
     }
 
+    /// Replay the last change (dot repeat)
+    pub fn dot_repeat(&mut self) {
+        // Collect the events to replay (we can't borrow self.dot while replaying)
+        let events: Vec<_> = self.dot.events().to_vec();
+
+        if events.is_empty() {
+            return;
+        }
+
+        // Mark that we're replaying to prevent recording during the replay
+        self.dot.start_replaying();
+
+        // Replay each recorded event
+        for event in events {
+            self.handle_key_event(event);
+        }
+
+        // Stop replaying
+        self.dot.stop_replaying();
+    }
+
     pub fn execute<C>(&mut self, cmd: C) -> crate::Result<()>
     where
         C: TryInto<Command>,
@@ -999,7 +1035,7 @@ impl Editor {
         let from = mode!(self);
 
         self.dispatch(event::WillChangeMode { from, to });
-        self.state = mem::take(&mut self.state).transition(to);
+        self.state = State::new(to);
         self.dispatch(event::DidChangeMode { from, to });
     }
 
@@ -1105,6 +1141,14 @@ impl Editor {
 
     pub fn focus_direction(&mut self, direction: Direction) -> ViewId {
         self.tree.focus_direction(direction)
+    }
+
+    pub fn repeat_last_insert(&mut self) -> Result<(), EditError> {
+        for kev in self.dot.events().to_vec() {
+            self.handle_key_event(kev);
+        }
+
+        Ok(())
     }
 
     // Bad API used in tests for now
