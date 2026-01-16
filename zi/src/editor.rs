@@ -92,6 +92,23 @@ bitflags::bitflags! {
     }
 }
 
+// Ergonomic closure like clipboard access macro.
+// This exists for two reasons:
+// - We don't use a function so we can do partial borrows of `self`
+// - We want to hide the `Arc` error handling boilerplate. The arc is necessary as the error is not clone.
+macro_rules! with_clipboard {
+    ($self:expr, |$cb:ident| $body:expr) => {
+        match &mut $self.clipboard {
+            Ok(cb) => {
+                let $cb = cb;
+                let res = $body;
+                res.map_err(Arc::new)
+            }
+            Err(err) => Err(Arc::clone(err)),
+        }
+    };
+}
+
 fn pool() -> &'static rayon::ThreadPool {
     static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
     POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().build().unwrap())
@@ -139,7 +156,7 @@ pub struct Editor {
     notify_quit: Notify,
     backend: Box<dyn Backend>,
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
-    clipboard: Clipboard,
+    clipboard: Result<Clipboard, Arc<arboard::Error>>,
 }
 
 macro_rules! mode {
@@ -443,7 +460,7 @@ impl Editor {
             // plugins,
             empty_buffer,
             settings,
-            clipboard: Clipboard::new().unwrap(),
+            clipboard: Clipboard::new().map_err(Arc::new),
             backend: Box::new(backend),
             keymap: default_keymap::new(),
             tree: layout::ViewTree::new(size, active_view),
@@ -1512,7 +1529,7 @@ impl Editor {
             }
             Operator::Yank => {
                 let text = text.byte_slice(range.clone()).to_cow();
-                if let Err(err) = self.clipboard.set_text(text.clone()) {
+                if let Err(err) = with_clipboard!(self, |cb| cb.set_text(text.clone())) {
                     set_error!(self, err);
                 }
                 self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, text);
