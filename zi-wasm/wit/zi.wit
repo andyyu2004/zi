@@ -45,7 +45,7 @@ interface command {
 
     resource handler {
         constructor();
-        exec: func(cmd: string, args: list<string>);
+        exec: func(cmd: string, args: list<string>, force: bool);
     }
 }
 

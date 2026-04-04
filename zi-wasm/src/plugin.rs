@@ -116,9 +116,10 @@ impl PluginManager {
         name: Word,
         range: Option<CommandRange>,
         args: Box<[Word]>,
+        force: bool,
     ) -> wasmtime::Result<()> {
         let client = self.plugin_client(id)?;
-        client.execute(name, range, args).await
+        client.execute(name, range, args, force).await
     }
 }
 
@@ -135,9 +136,10 @@ impl PluginClient {
         name: Word,
         range: Option<CommandRange>,
         args: Box<[Word]>,
+        force: bool,
     ) -> wasmtime::Result<()> {
         let (tx, rx) = oneshot::channel();
-        self.0.send(PluginRequest::ExecuteCommand { name, range, args, tx }).await?;
+        self.0.send(PluginRequest::ExecuteCommand { name, range, args, force, tx }).await?;
         rx.await?
     }
 }
@@ -149,7 +151,13 @@ struct PluginState {
 type Responder<T> = oneshot::Sender<wasmtime::Result<T>>;
 
 enum PluginRequest {
-    ExecuteCommand { name: Word, range: Option<CommandRange>, args: Box<[Word]>, tx: Responder<()> },
+    ExecuteCommand {
+        name: Word,
+        range: Option<CommandRange>,
+        args: Box<[Word]>,
+        force: bool,
+        tx: Responder<()>,
+    },
 }
 
 #[async_trait::async_trait]
@@ -292,6 +300,7 @@ impl PluginHost {
                     _client: Client,
                     range: Option<CommandRange>,
                     args: Box<[Word]>,
+                    force: bool,
                 ) -> BoxFuture<'static, Result<(), zi::Error>> {
                     let sender = self.sender.clone();
                     let name = self.name.clone();
@@ -302,6 +311,7 @@ impl PluginHost {
                                 name: name.clone(),
                                 range,
                                 args,
+                                force,
                                 tx,
                             })
                             .await?;
@@ -350,7 +360,7 @@ impl PluginHost {
 
     async fn handle_request(&mut self, req: PluginRequest) -> wasmtime::Result<()> {
         match req {
-            PluginRequest::ExecuteCommand { name, range, args, tx } => {
+            PluginRequest::ExecuteCommand { name, range, args, tx, force } => {
                 let _ = range;
                 let handler = self.handler.expect("handler not initialized");
                 self.plugin
@@ -361,6 +371,7 @@ impl PluginHost {
                         handler,
                         &name,
                         &args.iter().map(|s| s.as_ref()).collect::<Box<_>>(),
+                        force,
                     )
                     .await?;
                 let _ = tx.send(Ok(()));
@@ -436,7 +447,7 @@ mod test {
                     );
                     let handler = plugin.zi_api_command().handler();
                     let handler_resource = handler.call_constructor(&mut store).await?;
-                    handler.call_exec(&mut store, handler_resource, "foo", &["a"]).await?;
+                    handler.call_exec(&mut store, handler_resource, "foo", &["a"], false).await?;
                     handler_resource.resource_drop_async(&mut store).await?;
 
                     lifecycle.call_shutdown(&mut store).await?;

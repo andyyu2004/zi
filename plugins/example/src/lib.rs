@@ -27,7 +27,7 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, cmd: String, _args: Vec<String>) {
+    fn exec(&self, cmd: String, _args: Vec<String>, _force: bool) {
         match &cmd[..] {
             "foo" => editor::set_mode(Mode::Insert),
             _ => unreachable!("unexpected command: `{cmd}`"),

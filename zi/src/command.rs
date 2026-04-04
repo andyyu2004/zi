@@ -8,7 +8,7 @@ use chumsky::Parser;
 use chumsky::primitive::end;
 use chumsky::text::{digits, ident, newline, whitespace};
 use futures_core::future::BoxFuture;
-use futures_util::FutureExt;
+use futures_util::{FutureExt, future};
 use smol_str::SmolStr;
 
 use crate::editor::SaveFlags;
@@ -144,20 +144,18 @@ fn command() -> impl Parser<char, Command, Error = chumsky::error::Simple<char>>
 fn command_kind() -> impl Parser<char, CommandKind, Error = chumsky::error::Simple<char>> {
     use chumsky::prelude::*;
 
-    // A generic command is just a bunch of whitespace separated words.
-    // The first word is the command, the rest are string arguments.
-
     ident()
         .or(digits(10))
         .separated_by(filter(|&c: &char| c.is_whitespace() && c != '\n').ignored().repeated())
         .at_least(1)
         .allow_leading()
         .allow_trailing()
-        .map(|words| {
+        .then(just('!').or_not())
+        .map(|(words, bang)| {
             let mut words = words.into_iter().map(|s| Word::try_from(s).unwrap());
             let cmd = words.next().expect("expect at least 1 word");
             let args = words.collect::<Box<_>>();
-            CommandKind::Generic(cmd, args)
+            CommandKind::Generic { cmd, args, force: bang.is_some() }
         })
 }
 
@@ -220,14 +218,17 @@ impl TryFrom<&str> for Word {
 }
 
 pub enum CommandKind {
-    Generic(Word, Box<[Word]>),
+    Generic { cmd: Word, args: Box<[Word]>, force: bool },
 }
 
 impl fmt::Debug for CommandKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CommandKind::Generic(cmd, args) => {
+            CommandKind::Generic { cmd, args, force } => {
                 write!(f, "{cmd}")?;
+                if *force {
+                    write!(f, "!")?;
+                }
                 for arg in args.iter() {
                     write!(f, " {arg}")?;
                 }
@@ -250,6 +251,7 @@ pub trait Executor: Send + Sync {
         client: Client,
         range: Option<CommandRange>,
         args: Box<[Word]>,
+        force: bool,
     ) -> BoxFuture<'static, Result<(), Error>>;
 }
 
@@ -257,7 +259,7 @@ struct CommandExecutorFn<F>(F);
 
 impl<F> Executor for CommandExecutorFn<F>
 where
-    F: Fn(Client, Option<CommandRange>, Box<[Word]>) -> BoxFuture<'static, Result<(), Error>>
+    F: Fn(Client, Option<CommandRange>, Box<[Word]>, bool) -> BoxFuture<'static, Result<(), Error>>
         + Send
         + Sync,
 {
@@ -266,18 +268,19 @@ where
         client: Client,
         range: Option<CommandRange>,
         args: Box<[Word]>,
+        force: bool,
     ) -> BoxFuture<'static, Result<(), Error>> {
-        (self.0)(client, range, args)
+        (self.0)(client, range, args, force)
     }
 }
 
 pub fn executor_fn<Fut>(
-    f: impl Fn(Client, Option<CommandRange>, Box<[Word]>) -> Fut + Send + Sync + 'static,
+    f: impl Fn(Client, Option<CommandRange>, Box<[Word]>, bool) -> Fut + Send + Sync + 'static,
 ) -> impl Executor
 where
     Fut: Future<Output = crate::Result<()>> + Send + 'static,
 {
-    CommandExecutorFn(move |client, range, args| f(client, range, args).boxed())
+    CommandExecutorFn(move |client, range, args, force| f(client, range, args, force).boxed())
 }
 
 impl From<RangeInclusive<u8>> for Arity {
@@ -312,9 +315,10 @@ impl Handler {
         editor: &Editor,
         range: Option<CommandRange>,
         args: Box<[Word]>,
+        force: bool,
     ) -> Result<(), Error> {
         self.check(range.as_ref(), &args)?;
-        let fut = self.executor.execute(editor.client(), range, args);
+        let fut = self.executor.execute(editor.client(), range, args, force);
         editor.spawn("command handler", fut);
         Ok(())
     }
@@ -359,7 +363,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("q").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.close_view(Active)).await;
@@ -370,11 +374,37 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("w").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let () =
-                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
+                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
+                Ok(())
+            }),
+        ),
+        Handler::new(
+            Word::try_from("wa").unwrap(),
+            Arity::ZERO,
+            CommandFlags::empty(),
+            executor_fn(|client, range, args, force| async move {
+                assert!(range.is_none());
+                assert!(args.is_empty());
+                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+                let futs: Vec<_> = client
+                    .with(move |editor| {
+                        let buf_ids: Vec<_> = editor
+                            .buffers()
+                            .filter(|b| {
+                                b.file_path().is_some()
+                                    && (force || b.flags().contains(BufferFlags::DIRTY))
+                            })
+                            .map(|b| b.id())
+                            .collect();
+                        buf_ids.into_iter().map(|id| editor.save(id, save_flags)).collect()
+                    })
+                    .await;
+
+                future::try_join_all(futs).await?;
                 Ok(())
             }),
         ),
@@ -382,11 +412,11 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("wq").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let () =
-                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
+                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
                 client.with(|editor| editor.close_view(Active)).await;
                 Ok(())
             }),
@@ -395,11 +425,11 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("x").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let () =
-                    client.with(|editor| editor.save(Active, SaveFlags::empty())).await.await?;
+                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
                 client.with(|editor| editor.close_view(Active)).await;
                 Ok(())
             }),
@@ -408,7 +438,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("e").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
@@ -441,7 +471,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("jumps").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
 
@@ -453,7 +483,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("inspect").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.inspect(Active)).await;
@@ -464,7 +494,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("explore").unwrap(),
             Arity::ZERO,
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
                 client.with(|editor| editor.open_file_explorer(".")).await;
@@ -475,7 +505,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             Word::try_from("set").unwrap(),
             Arity::exact(2),
             CommandFlags::empty(),
-            executor_fn(|client, range, args| async move {
+            executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.len() == 2);
 

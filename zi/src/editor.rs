@@ -88,6 +88,7 @@ bitflags::bitflags! {
         const FORCE = 1 << 3;
     }
 
+    #[derive(Default, Clone, Copy, PartialEq, Eq)]
     pub struct SaveFlags: u32 {
         /// Flush the buffer to disk even if it's not dirty
         const FORCE = 1 << 0;
@@ -998,9 +999,9 @@ impl Editor {
         let cmd: Command = cmd.try_into()?;
         let range = cmd.range();
         match cmd.kind() {
-            CommandKind::Generic(cmd, args) => {
+            CommandKind::Generic { cmd, args, force } => {
                 if let Some(handler) = self.command_handlers.get(cmd) {
-                    handler.execute(self, range.cloned(), args.clone())?;
+                    handler.execute(self, range.cloned(), args.clone(), *force)?;
                 } else {
                     anyhow::bail!("unknown command: {cmd}")
                 }

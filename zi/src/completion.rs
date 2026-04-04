@@ -166,7 +166,7 @@ impl ActiveCompletionState {
                 )
                 .map(|score| nucleo::Match { idx: idx as u32, score: score as u32 })
         }));
-        self.matches.sort_by(|a, b| b.score.cmp(&a.score));
+        self.matches.sort_by_key(|m| std::cmp::Reverse(m.score));
 
         self.widget_state.borrow_mut().select(None);
     }

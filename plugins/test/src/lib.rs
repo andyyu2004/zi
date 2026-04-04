@@ -27,7 +27,7 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, cmd: String, _args: Vec<String>) {
+    fn exec(&self, cmd: String, _args: Vec<String>, _force: bool) {
         assert_eq!(cmd, "foo", "unexpected command");
     }
 }
