@@ -1,6 +1,5 @@
 //! Testing utilities for zi
 
-#![feature(closure_track_caller, stmt_expr_attributes, try_blocks)]
 
 use std::future::IntoFuture;
 use std::io;

@@ -1,4 +1,3 @@
-#![feature(try_blocks, type_alias_impl_trait, coroutines, iter_from_coroutine)]
 
 pub use zi_input as input;
 

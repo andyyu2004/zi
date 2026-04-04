@@ -1,4 +1,4 @@
-#![feature(coroutines, iter_from_coroutine, type_alias_impl_trait, impl_trait_in_assoc_type)]
+#![feature(coroutines, iter_from_coroutine)]
 
 mod cow_str_impl;
 mod cursor;

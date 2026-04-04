@@ -2,8 +2,7 @@
     iter_array_chunks,
     coroutines,
     iter_from_coroutine,
-    debug_closure_helpers,
-    iter_map_windows
+    debug_closure_helpers
 )]
 
 mod bitbag;
