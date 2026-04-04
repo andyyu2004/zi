@@ -101,6 +101,79 @@ impl api::editor::HostView for HostState {
         command::inspect(&self.client, view_id).await
     }
 
+    async fn insert(
+        &mut self,
+        view: Resource<api::editor::View>,
+        text: String,
+    ) -> Result<(), api::editor::EditError> {
+        let view_id = self.get_view(&view);
+        Ok(self.client.with(move |editor| editor.insert(view_id, &text)).await?)
+    }
+
+    async fn delete_char(
+        &mut self,
+        view: Resource<api::editor::View>,
+    ) -> Result<(), api::editor::EditError> {
+        let view_id = self.get_view(&view);
+        Ok(self.client.with(move |editor| editor.delete_char(view_id)).await?)
+    }
+
+    async fn paste_after(
+        &mut self,
+        view: Resource<api::editor::View>,
+    ) -> Result<(), api::editor::EditError> {
+        let view_id = self.get_view(&view);
+        Ok(self.client.with(move |editor| editor.paste_after(view_id)).await?)
+    }
+
+    async fn undo(
+        &mut self,
+        view: Resource<api::editor::View>,
+    ) -> Result<bool, api::editor::EditError> {
+        let view_id = self.get_view(&view);
+        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
+        Ok(self.client.with(move |editor| editor.undo(buf_id)).await?)
+    }
+
+    async fn redo(
+        &mut self,
+        view: Resource<api::editor::View>,
+    ) -> Result<bool, api::editor::EditError> {
+        let view_id = self.get_view(&view);
+        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
+        Ok(self.client.with(move |editor| editor.redo(buf_id)).await?)
+    }
+
+    async fn scroll(
+        &mut self,
+        view: Resource<api::editor::View>,
+        direction: api::editor::Direction,
+        amount: u32,
+    ) {
+        let view_id = self.get_view(&view);
+        let dir = zi::Direction::from(direction);
+        self.client
+            .with(move |editor| editor.scroll(view_id, dir, amount as usize))
+            .await
+    }
+
+    async fn align(
+        &mut self,
+        view: Resource<api::editor::View>,
+        alignment: api::editor::VerticalAlignment,
+    ) {
+        let view_id = self.get_view(&view);
+        let align = zi::VerticalAlignment::from(alignment);
+        self.client
+            .with(move |editor| editor.align_view(view_id, align))
+            .await
+    }
+
+    async fn focus(&mut self, view: Resource<api::editor::View>) {
+        let view_id = self.get_view(&view);
+        self.client.with(move |editor| editor.focus(view_id)).await
+    }
+
     async fn drop(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
         self.views.remove(&view.rep());
         Ok(())
@@ -108,6 +181,35 @@ impl api::editor::HostView for HostState {
 }
 
 impl api::editor::HostBuffer for HostState {
+    async fn get_file_path(
+        &mut self,
+        buf: Resource<api::editor::Buffer>,
+    ) -> Option<String> {
+        let buf_id = self.buffers[&buf.rep()];
+        self.client
+            .with(move |editor| {
+                editor.buffer(buf_id).file_path().map(|p| p.to_string_lossy().into_owned())
+            })
+            .await
+    }
+
+    async fn get_flags(
+        &mut self,
+        buf: Resource<api::editor::Buffer>,
+    ) -> api::editor::BufferFlags {
+        let buf_id = self.buffers[&buf.rep()];
+        self.client
+            .with(move |editor| editor.buffer(buf_id).flags().into())
+            .await
+    }
+
+    async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> u32 {
+        let buf_id = self.buffers[&buf.rep()];
+        self.client
+            .with(move |editor| editor.buffer(buf_id).text().len_lines() as u32)
+            .await
+    }
+
     async fn drop(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
         self.buffers.remove(&buf.rep());
         Ok(())

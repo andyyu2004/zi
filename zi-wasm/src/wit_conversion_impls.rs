@@ -69,6 +69,40 @@ impl From<api::editor::Point> for Point {
     }
 }
 
+impl From<api::editor::Direction> for zi::Direction {
+    fn from(dir: api::editor::Direction) -> Self {
+        match dir {
+            api::editor::Direction::Left => zi::Direction::Left,
+            api::editor::Direction::Right => zi::Direction::Right,
+            api::editor::Direction::Up => zi::Direction::Up,
+            api::editor::Direction::Down => zi::Direction::Down,
+        }
+    }
+}
+
+impl From<api::editor::VerticalAlignment> for zi::VerticalAlignment {
+    fn from(align: api::editor::VerticalAlignment) -> Self {
+        match align {
+            api::editor::VerticalAlignment::Top => zi::VerticalAlignment::Top,
+            api::editor::VerticalAlignment::Center => zi::VerticalAlignment::Center,
+            api::editor::VerticalAlignment::Bottom => zi::VerticalAlignment::Bottom,
+        }
+    }
+}
+
+impl From<zi::BufferFlags> for api::editor::BufferFlags {
+    fn from(flags: zi::BufferFlags) -> Self {
+        let mut out = api::editor::BufferFlags::empty();
+        if flags.contains(zi::BufferFlags::READONLY) {
+            out |= api::editor::BufferFlags::READONLY;
+        }
+        if flags.contains(zi::BufferFlags::DIRTY) {
+            out |= api::editor::BufferFlags::DIRTY;
+        }
+        out
+    }
+}
+
 impl From<command::Arity> for zi::command::Arity {
     fn from(arity: command::Arity) -> Self {
         zi::command::Arity { min: arity.min, max: arity.max }

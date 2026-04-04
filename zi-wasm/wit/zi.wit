@@ -92,6 +92,24 @@ interface editor {
     open-file-explorer: func(path: string);
     set-option: func(key: string, value: string) -> result<_, string>;
 
+    enum direction {
+        left,
+        right,
+        up,
+        down,
+    }
+
+    enum vertical-alignment {
+        top,
+        center,
+        bottom,
+    }
+
+    flags buffer-flags {
+        readonly,
+        dirty,
+    }
+
     resource view {
         get-buffer: func() -> buffer;
         get-cursor: func() -> point;
@@ -99,9 +117,20 @@ interface editor {
         close: func();
         save: func(force: bool) -> result<_, string>;
         inspect: func();
+        insert: func(text: string) -> result<_, edit-error>;
+        delete-char: func() -> result<_, edit-error>;
+        paste-after: func() -> result<_, edit-error>;
+        undo: func() -> result<bool, edit-error>;
+        redo: func() -> result<bool, edit-error>;
+        scroll: func(direction: direction, amount: u32);
+        align: func(alignment: vertical-alignment);
+        focus: func();
     }
 
     resource buffer {
+        get-file-path: func() -> option<string>;
+        get-flags: func() -> buffer-flags;
+        len-lines: func() -> u32;
     }
 }
 
