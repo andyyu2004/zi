@@ -8,11 +8,11 @@ pub use self::plugin::PluginManager;
 
 mod wit {
     wasmtime::component::bindgen!({
-        async: true,
-        tracing: true,
         ownership: Borrowing {
             duplicate_if_necessary: true
         },
+        imports: { default: async },
+        exports: { default: async },
         with: {},
         additional_derives: [
             Clone,

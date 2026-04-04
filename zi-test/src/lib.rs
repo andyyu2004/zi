@@ -1,6 +1,5 @@
 //! Testing utilities for zi
 
-
 use std::future::IntoFuture;
 use std::io;
 use std::path::PathBuf;
@@ -60,7 +59,7 @@ impl TestContext {
     }
 
     pub fn tempdir(&self) -> io::Result<PathBuf> {
-        tempfile::tempdir().map(|dir| dir.into_path())
+        tempfile::tempdir().map(|dir| dir.keep())
     }
 
     pub fn tempfile(&self, content: &str) -> io::Result<PathBuf> {

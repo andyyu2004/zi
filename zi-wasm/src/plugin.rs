@@ -23,7 +23,7 @@ pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
     ENGINE.get_or_init(|| {
         let mut config = wasmtime::Config::new();
-        config.wasm_component_model(true).async_support(true);
+        config.wasm_component_model(true);
         Engine::new(&config).expect("configuration should be valid")
     })
 }
@@ -95,7 +95,7 @@ impl PluginManager {
         self.plugins.write().insert(PluginState { client: PluginClient(tx) })
     }
 
-    fn with_plugin<F, T>(&self, id: PluginId, f: F) -> wasmtime::Result<T>
+    fn with_plugin<F, T>(&self, id: PluginId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&PluginState) -> T,
     {
@@ -106,7 +106,7 @@ impl PluginManager {
             .map(f)
     }
 
-    fn plugin_client(&self, id: PluginId) -> wasmtime::Result<PluginClient> {
+    fn plugin_client(&self, id: PluginId) -> anyhow::Result<PluginClient> {
         self.with_plugin(id, |state| state.client.clone())
     }
 
@@ -117,9 +117,10 @@ impl PluginManager {
         range: Option<CommandRange>,
         args: Box<[Word]>,
         force: bool,
-    ) -> wasmtime::Result<()> {
+    ) -> anyhow::Result<()> {
         let client = self.plugin_client(id)?;
-        client.execute(name, range, args, force).await
+        client.execute(name, range, args, force).await?;
+        Ok(())
     }
 }
 
@@ -137,7 +138,7 @@ impl PluginClient {
         range: Option<CommandRange>,
         args: Box<[Word]>,
         force: bool,
-    ) -> wasmtime::Result<()> {
+    ) -> anyhow::Result<()> {
         let (tx, rx) = oneshot::channel();
         self.0.send(PluginRequest::ExecuteCommand { name, range, args, force, tx }).await?;
         rx.await?
@@ -148,7 +149,7 @@ struct PluginState {
     client: PluginClient,
 }
 
-type Responder<T> = oneshot::Sender<wasmtime::Result<T>>;
+type Responder<T> = oneshot::Sender<anyhow::Result<T>>;
 
 enum PluginRequest {
     ExecuteCommand {
@@ -166,7 +167,7 @@ impl zi::plugin::PluginManager for PluginManager {
         "wasm"
     }
 
-    async fn start(self: Arc<Self>, client: Client) -> wasmtime::Result<()> {
+    async fn start(self: Arc<Self>, client: Client) -> anyhow::Result<()> {
         let engine = engine();
 
         let components = self.load_plugin_components(engine).await?;
@@ -181,10 +182,13 @@ impl zi::plugin::PluginManager for PluginManager {
                 async move {
                     let component = component?;
                     let mut store = Store::new(engine, client);
-                    Plugin::add_to_linker(&mut linker, |client| client)?;
+                    Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(
+                        &mut linker,
+                        |state| state,
+                    )?;
                     let plugin = Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
-                    Ok::<_, wasmtime::Error>(PluginHost::new(plugins, store, plugin))
+                    Ok::<_, anyhow::Error>(PluginHost::new(plugins, store, plugin))
                 }
             })
             .filter_map(|res| async {
@@ -224,7 +228,7 @@ impl PluginManager {
     async fn load_plugin_components(
         &self,
         engine: &'static Engine,
-    ) -> io::Result<impl Stream<Item = wasmtime::Result<Component>>> {
+    ) -> io::Result<impl Stream<Item = anyhow::Result<Component>>> {
         let dirs = futures_util::stream::iter(dirs::plugin());
         let entries = dirs
             .then(|dir| async move {
@@ -268,7 +272,7 @@ impl PluginHost {
         Self { manager, store, plugin, handler: None }
     }
 
-    pub async fn start(mut self) -> wasmtime::Result<()> {
+    pub async fn start(mut self) -> anyhow::Result<()> {
         let dep = self.plugin.zi_api_dependency();
         let name = dep.call_get_name(&mut self.store).await?;
 
@@ -349,7 +353,7 @@ impl PluginHost {
         Ok(())
     }
 
-    async fn shutdown(&mut self) -> wasmtime::Result<()> {
+    async fn shutdown(&mut self) -> anyhow::Result<()> {
         self.plugin.zi_api_lifecycle().call_shutdown(&mut self.store).await?;
         if let Some(handler) = self.handler.take() {
             handler.resource_drop_async(&mut self.store).await?;
@@ -358,7 +362,7 @@ impl PluginHost {
         Ok(())
     }
 
-    async fn handle_request(&mut self, req: PluginRequest) -> wasmtime::Result<()> {
+    async fn handle_request(&mut self, req: PluginRequest) -> anyhow::Result<()> {
         match req {
             PluginRequest::ExecuteCommand { name, range, args, tx, force } => {
                 let _ = range;
@@ -396,12 +400,14 @@ mod test {
         engine: &Engine,
         store: &mut Store,
         plugin_paths: &[impl AsRef<Path>],
-    ) -> wasmtime::Result<Box<[Plugin]>> {
+    ) -> anyhow::Result<Box<[Plugin]>> {
         let mut plugins = Vec::with_capacity(plugin_paths.len());
         let mut linker = Linker::new(engine);
         for path in plugin_paths {
             let component = Component::from_file(engine, path)?;
-            Plugin::add_to_linker(&mut linker, |client| client)?;
+            Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |state| {
+                state
+            })?;
             let plugin = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
             plugins.push(plugin);
         }
@@ -411,7 +417,7 @@ mod test {
 
     #[tokio::test]
     #[cfg_attr(test, mutants::skip)]
-    async fn smoke() -> wasmtime::Result<()> {
+    async fn smoke() -> anyhow::Result<()> {
         let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
 
         let engine = engine();

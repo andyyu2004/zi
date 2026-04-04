@@ -15,7 +15,7 @@ smol_str = { workspace = true }
 futures-util = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
 # The version of wasmtime must match dependency that tree-sitter takes on wasmtie
-wasmtime = { version = "33", features = ["component-model"] }
+wasmtime = { version = "43", features = ["component-model", "component-model-async"] }
 streaming-iterator = { workspace = true }
 tokio = { workspace = true, features = ["sync", "io-std"] }
 tokio-stream = { workspace = true, features = ["fs"] }

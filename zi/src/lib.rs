@@ -1,4 +1,3 @@
-
 pub use zi_input as input;
 
 pub mod buffer;
@@ -56,15 +55,3 @@ pub use self::view::{VerticalAlignment, View};
 
 pub type Error = anyhow::Error;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-// mod wit {
-//     wasmtime::component::bindgen!({
-//         async: true,
-//         tracing: true,
-//         ownership: Borrowing {
-//             duplicate_if_necessary: true
-//         },
-//         with: {}
-//     });
-// }
-//
