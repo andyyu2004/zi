@@ -1,4 +1,4 @@
-use api::command::{self, Arity, Command, CommandFlags};
+use api::command::{self, Arity, Command, CommandError, CommandFlags};
 use api::dependency;
 use api::lifecycle::{self, InitializeResult};
 use bindings::zi::api::editor::*;
@@ -27,8 +27,11 @@ impl command::GuestHandler for CommandHandler {
         Self
     }
 
-    fn exec(&self, cmd: String, _args: Vec<String>, _force: bool) {
-        assert_eq!(cmd, "foo", "unexpected command");
+    fn exec(&self, cmd: String, _args: Vec<String>, _force: bool) -> Result<(), CommandError> {
+        if cmd != "foo" {
+            return Err(CommandError::Message(format!("unexpected command: `{cmd}`")));
+        }
+        Ok(())
     }
 }
 

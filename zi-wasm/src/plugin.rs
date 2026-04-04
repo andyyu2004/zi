@@ -1,10 +1,12 @@
+use std::collections::HashMap;
 use std::io;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, Stream, StreamExt, TryStreamExt};
 use parking_lot::RwLock;
-use slotmap::{Key as _, KeyData, SlotMap};
+use slotmap::SlotMap;
 use smol_str::SmolStr;
 use tokio::select;
 use tokio::sync::mpsc::{self, Sender};
@@ -13,8 +15,8 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 pub use wasmtime::Engine;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
-use zi::command::{CommandRange, Handler, Word};
-use zi::{Active, Client, Point, ViewId, dirs};
+use zi::command::{self, CommandRange, Handler, Word};
+use zi::{Active, BufferId, Client, Point, ViewId, dirs};
 
 use crate::wit::Plugin;
 use crate::wit::zi::api;
@@ -28,56 +30,133 @@ pub fn engine() -> &'static Engine {
     })
 }
 
-pub type Store = wasmtime::Store<Client>;
-
-fn v(res: Resource<api::editor::View>) -> ViewId {
-    ViewId::from(KeyData::from_ffi(res.rep() as u64))
+pub struct HostState {
+    client: Client,
+    // Need some mappings from wasm ui32 wasm resource rep to slotmap u64 keys.
+    views: HashMap<u32, ViewId>,
+    buffers: HashMap<u32, BufferId>,
+    next_rep: AtomicU32,
 }
 
-impl api::editor::HostView for Client {
+impl HostState {
+    fn new(client: Client) -> Self {
+        Self { client, views: HashMap::new(), buffers: HashMap::new(), next_rep: AtomicU32::new(1) }
+    }
+
+    fn client(&self) -> &Client {
+        &self.client
+    }
+
+    fn push_view(&mut self, id: ViewId) -> Resource<api::editor::View> {
+        let rep = self.next_rep.fetch_add(1, Ordering::Relaxed);
+        self.views.insert(rep, id);
+        Resource::new_own(rep)
+    }
+
+    fn get_view(&self, res: &Resource<api::editor::View>) -> ViewId {
+        self.views[&res.rep()]
+    }
+
+    fn push_buffer(&mut self, id: BufferId) -> Resource<api::editor::Buffer> {
+        let rep = self.next_rep.fetch_add(1, Ordering::Relaxed);
+        self.buffers.insert(rep, id);
+        Resource::new_own(rep)
+    }
+}
+
+pub type Store = wasmtime::Store<HostState>;
+
+impl api::editor::HostView for HostState {
     async fn get_buffer(
         &mut self,
         view: Resource<api::editor::View>,
     ) -> Resource<api::editor::Buffer> {
-        let bufnr = self.with(move |editor| editor.view(v(view)).buffer()).await;
-        Resource::new_own(bufnr.data().as_ffi() as u32)
+        let view_id = self.get_view(&view);
+        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
+        self.push_buffer(buf_id)
     }
 
     async fn get_cursor(&mut self, view: Resource<api::editor::View>) -> api::editor::Point {
-        self.with(move |editor| editor.view(v(view)).cursor().into()).await
+        let view_id = self.get_view(&view);
+        self.client.with(move |editor| editor.view(view_id).cursor().into()).await
     }
 
     async fn set_cursor(&mut self, view: Resource<api::editor::View>, pos: api::editor::Point) {
-        self.with(move |editor| editor.set_cursor(v(view), Point::from(pos))).await
+        let view_id = self.get_view(&view);
+        self.client.with(move |editor| editor.set_cursor(view_id, Point::from(pos))).await
     }
 
-    async fn drop(&mut self, _rep: Resource<api::editor::View>) -> wasmtime::Result<()> {
+    async fn close(&mut self, view: Resource<api::editor::View>) {
+        let view_id = self.get_view(&view);
+        command::close_view(&self.client, view_id).await
+    }
+
+    async fn save(&mut self, view: Resource<api::editor::View>, force: bool) -> Result<(), String> {
+        let view_id = self.get_view(&view);
+        command::save(&self.client, view_id, force).await.map_err(|e| e.to_string())
+    }
+
+    async fn inspect(&mut self, view: Resource<api::editor::View>) {
+        let view_id = self.get_view(&view);
+        command::inspect(&self.client, view_id).await
+    }
+
+    async fn drop(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
+        self.views.remove(&view.rep());
         Ok(())
     }
 }
 
-impl api::editor::HostBuffer for Client {
-    async fn drop(&mut self, _rep: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
+impl api::editor::HostBuffer for HostState {
+    async fn drop(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
+        self.buffers.remove(&buf.rep());
         Ok(())
     }
 }
 
-impl api::editor::Host for Client {
+impl api::editor::Host for HostState {
     async fn insert(&mut self, text: String) -> Result<(), api::editor::EditError> {
-        Ok(self.with(move |editor| editor.insert(Active, &text)).await?)
+        Ok(self.client.with(move |editor| editor.insert(Active, &text)).await?)
     }
 
     async fn get_mode(&mut self) -> api::editor::Mode {
-        self.with(|editor| editor.mode()).await.into()
+        self.client.with(|editor| editor.mode()).await.into()
     }
 
     async fn set_mode(&mut self, mode: api::editor::Mode) {
-        self.with(move |editor| editor.set_mode(mode.into())).await
+        self.client.with(move |editor| editor.set_mode(mode.into())).await
     }
 
     async fn get_active_view(&mut self) -> Resource<api::editor::View> {
-        let v = self.with(|editor| editor.view(Active).id().data().as_ffi() as u32).await;
-        Resource::new_own(v)
+        let view_id = self.client.with(|editor| editor.view(Active).id()).await;
+        self.push_view(view_id)
+    }
+
+    async fn save_all(&mut self, force: bool) -> Result<(), String> {
+        command::save_all(&self.client, force).await.map_err(|e| e.to_string())
+    }
+
+    async fn reload(&mut self) -> Result<(), String> {
+        command::reload(&self.client).await.map_err(|e| e.to_string())
+    }
+
+    async fn open_jump_list(&mut self) {
+        self.client
+            .with(|editor| {
+                editor.open_jump_list(Active);
+            })
+            .await
+    }
+
+    async fn open_file_explorer(&mut self, path: String) {
+        self.client.with(move |editor| editor.open_file_explorer(path)).await
+    }
+
+    async fn set_option(&mut self, key: String, value: String) -> Result<(), String> {
+        self.client
+            .with(move |editor| command::set_option(editor, &key, &value))
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -181,7 +260,7 @@ impl zi::plugin::PluginManager for PluginManager {
                 let mut linker = Linker::new(engine);
                 async move {
                     let component = component?;
-                    let mut store = Store::new(engine, client);
+                    let mut store = Store::new(engine, HostState::new(client));
                     Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(
                         &mut linker,
                         |state| state,
@@ -327,6 +406,7 @@ impl PluginHost {
 
             self.store
                 .data()
+                .client()
                 .with(move |editor| {
                     editor.register_command(Handler::new(
                         name.clone(),
@@ -367,7 +447,8 @@ impl PluginHost {
             PluginRequest::ExecuteCommand { name, range, args, tx, force } => {
                 let _ = range;
                 let handler = self.handler.expect("handler not initialized");
-                self.plugin
+                let result = self
+                    .plugin
                     .zi_api_command()
                     .handler()
                     .call_exec(
@@ -378,7 +459,7 @@ impl PluginHost {
                         force,
                     )
                     .await?;
-                let _ = tx.send(Ok(()));
+                let _ = tx.send(result.map_err(|e| anyhow::anyhow!("{e}")));
             }
         }
 
@@ -422,7 +503,7 @@ mod test {
 
         let engine = engine();
 
-        let mut store = Store::new(engine, editor.client());
+        let mut store = Store::new(engine, HostState::new(editor.client()));
 
         let local = LocalSet::new();
         local.spawn_local(editor.test_run(tasks));
@@ -453,7 +534,10 @@ mod test {
                     );
                     let handler = plugin.zi_api_command().handler();
                     let handler_resource = handler.call_constructor(&mut store).await?;
-                    handler.call_exec(&mut store, handler_resource, "foo", &["a"], false).await?;
+                    handler
+                        .call_exec(&mut store, handler_resource, "foo", &["a"], false)
+                        .await?
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
                     handler_resource.resource_drop_async(&mut store).await?;
 
                     lifecycle.call_shutdown(&mut store).await?;

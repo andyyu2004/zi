@@ -11,10 +11,8 @@ use futures_core::future::BoxFuture;
 use futures_util::{FutureExt, future};
 use smol_str::SmolStr;
 
-use crate::editor::SaveFlags;
-// use crate::plugin::PluginId;
-// use crate::wit::exports::zi::api::command::{Arity, CommandFlags};
-use crate::{Active, BufferFlags, Client, Editor, Error, OpenFlags};
+use crate::editor::{SaveFlags, Selector};
+use crate::{Active, BufferFlags, Client, Editor, Error, OpenFlags, ViewId};
 
 pub struct Commands(Box<[Command]>);
 
@@ -366,7 +364,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                client.with(|editor| editor.close_view(Active)).await;
+                close_view(&client, Active).await;
                 Ok(())
             }),
         ),
@@ -377,9 +375,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
-                Ok(())
+                save(&client, Active, force).await
             }),
         ),
         Handler::new(
@@ -389,23 +385,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-                let futs: Vec<_> = client
-                    .with(move |editor| {
-                        let buf_ids: Vec<_> = editor
-                            .buffers()
-                            .filter(|b| {
-                                b.file_path().is_some()
-                                    && (force || b.flags().contains(BufferFlags::DIRTY))
-                            })
-                            .map(|b| b.id())
-                            .collect();
-                        buf_ids.into_iter().map(|id| editor.save(id, save_flags)).collect()
-                    })
-                    .await;
-
-                future::try_join_all(futs).await?;
-                Ok(())
+                save_all(&client, force).await
             }),
         ),
         Handler::new(
@@ -415,9 +395,8 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
-                client.with(|editor| editor.close_view(Active)).await;
+                save(&client, Active, force).await?;
+                close_view(&client, Active).await;
                 Ok(())
             }),
         ),
@@ -428,9 +407,8 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-                let () = client.with(move |editor| editor.save(Active, save_flags)).await.await?;
-                client.with(|editor| editor.close_view(Active)).await;
+                save(&client, Active, force).await?;
+                close_view(&client, Active).await;
                 Ok(())
             }),
         ),
@@ -441,30 +419,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-
-                client
-                    .with(|editor| {
-                        let buf = editor.buffer(Active);
-                        let Some(path) = buf.file_path() else { return async { Ok(()) }.boxed() };
-                        if buf.flags().contains(BufferFlags::DIRTY) {
-                            return async { Err(anyhow::anyhow!("buffer is dirty")) }.boxed();
-                        }
-
-                        let mut open_flags = OpenFlags::FORCE;
-                        if buf.flags().contains(BufferFlags::READONLY) {
-                            open_flags |= OpenFlags::READONLY;
-                        }
-
-                        let fut = editor.open(path, open_flags);
-                        async {
-                            fut?.await?;
-                            Ok(())
-                        }
-                        .boxed()
-                    })
-                    .await
-                    .await?;
-                Ok(())
+                reload(&client).await
             }),
         ),
         Handler::new(
@@ -486,7 +441,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
                 assert!(args.is_empty());
-                client.with(|editor| editor.inspect(Active)).await;
+                inspect(&client, Active).await;
                 Ok(())
             }),
         ),
@@ -509,7 +464,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
                 assert!(range.is_none());
                 assert!(args.len() == 2);
 
-                client.with(move |editor| set(editor, &args[0], &args[1])).await
+                client.with(move |editor| set_option(editor, &args[0], &args[1])).await
             }),
         ),
     ]
@@ -518,16 +473,76 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
     .collect()
 }
 
-fn set(editor: &Editor, key: &Word, value: &Word) -> crate::Result<()> {
+pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> {
     let buf = editor.buffer(Active).settings();
     let view = editor.view(Active).settings();
 
-    match key.as_str() {
+    match key {
         "tabstop" | "ts" | "tabwidth" => buf.tab_width.write(value.parse()?),
         "numberwidth" | "nuw" => view.line_number_width.write(value.parse()?),
         "numberstyle" | "nus" => view.line_number_style.write(value.parse()?),
         _ => anyhow::bail!("unknown parameter: `{key}`"),
     }
+    Ok(())
+}
+
+pub async fn close_view(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
+    client.with(move |editor| editor.close_view(selector)).await
+}
+
+pub async fn save(client: &Client, selector: impl Selector<ViewId> + Send + 'static, force: bool) -> crate::Result<()> {
+    let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+    client.with(move |editor| {
+        let view = selector.select(editor);
+        editor.save(view, save_flags)
+    }).await.await?;
+    Ok(())
+}
+
+pub async fn inspect(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
+    client.with(move |editor| editor.inspect(selector)).await
+}
+
+pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
+    let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+    let futs: Vec<_> = client
+        .with(move |editor| {
+            let buf_ids: Vec<_> = editor
+                .buffers()
+                .filter(|b| {
+                    b.file_path().is_some()
+                        && (force || b.flags().contains(BufferFlags::DIRTY))
+                })
+                .map(|b| b.id())
+                .collect();
+            buf_ids.into_iter().map(|id| editor.save(id, save_flags)).collect()
+        })
+        .await;
+    future::try_join_all(futs).await?;
+    Ok(())
+}
+
+pub async fn reload(client: &Client) -> crate::Result<()> {
+    client
+        .with(|editor| {
+            let buf = editor.buffer(Active);
+            let Some(path) = buf.file_path() else { return async { Ok(()) }.boxed() };
+            if buf.flags().contains(BufferFlags::DIRTY) {
+                return async { Err(anyhow::anyhow!("buffer is dirty")) }.boxed();
+            }
+            let mut open_flags = OpenFlags::FORCE;
+            if buf.flags().contains(BufferFlags::READONLY) {
+                open_flags |= OpenFlags::READONLY;
+            }
+            let fut = editor.open(path, open_flags);
+            async {
+                fut?.await?;
+                Ok(())
+            }
+            .boxed()
+        })
+        .await
+        .await?;
     Ok(())
 }
 

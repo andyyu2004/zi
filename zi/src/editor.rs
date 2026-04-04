@@ -1882,7 +1882,7 @@ impl Editor {
         self.align_view(&selector, alignment);
     }
 
-    pub(crate) fn inspect(&mut self, selector: impl Selector<ViewId>) {
+    pub fn inspect(&mut self, selector: impl Selector<ViewId>) {
         let inspector_view = self.view(selector).id();
         self.split(inspector_view, Direction::Up, tui::Constraint::Percentage(70));
         let buf = self.buffers.insert_with_key(|id| Buffer::new(InspectorBuffer::new(id)));

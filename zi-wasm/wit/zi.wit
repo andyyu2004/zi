@@ -43,9 +43,13 @@ interface command {
         opts: command-flags,
     }
 
+    variant command-error {
+        message(string),
+    }
+
     resource handler {
         constructor();
-        exec: func(cmd: string, args: list<string>, force: bool);
+        exec: func(cmd: string, args: list<string>, force: bool) -> result<_, command-error>;
     }
 }
 
@@ -82,10 +86,19 @@ interface editor {
     set-mode: func(mode: mode);
     get-active-view: func() -> view;
 
+    save-all: func(force: bool) -> result<_, string>;
+    reload: func() -> result<_, string>;
+    open-jump-list: func();
+    open-file-explorer: func(path: string);
+    set-option: func(key: string, value: string) -> result<_, string>;
+
     resource view {
         get-buffer: func() -> buffer;
         get-cursor: func() -> point;
         set-cursor: func(pos: point);
+        close: func();
+        save: func(force: bool) -> result<_, string>;
+        inspect: func();
     }
 
     resource buffer {
