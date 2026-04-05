@@ -29,11 +29,15 @@ impl Selection {
                 let mut content = String::new();
                 for line_idx in *start_line..=*end_line {
                     if let Some(line) = text.line(line_idx) {
-                        let extracted: String =
-                            line.chars().skip(*start_col).take(*end_col - *start_col + 1).collect();
                         if !content.is_empty() {
                             content.push('\n');
                         }
+                        let extracted: String = line
+                            .chars()
+                            .filter(|c| *c != '\n')
+                            .skip(*start_col)
+                            .take(*end_col - *start_col + 1)
+                            .collect();
                         content.push_str(&extracted);
                     }
                 }
@@ -65,8 +69,17 @@ impl Selection {
             Self::Block { start_line, end_line, start_col, end_col } => {
                 let max_col = *end_col + 1;
                 (*start_line..=*end_line)
-                    .map(|line| {
-                        PointRange::new(Point::new(line, *start_col), Point::new(line, max_col))
+                    .filter_map(|line| {
+                        let line_len =
+                            text.line(line).map(|l| l.len_bytes().saturating_sub(1)).unwrap_or(0);
+                        if *start_col > line_len {
+                            return None;
+                        }
+                        let clamped_end = max_col.min(line_len + 1);
+                        Some(PointRange::new(
+                            Point::new(line, *start_col),
+                            Point::new(line, clamped_end),
+                        ))
                     })
                     .collect()
             }

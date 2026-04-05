@@ -118,6 +118,36 @@ async fn visual_charwise_multiline_yank() {
 }
 
 #[tokio::test]
+async fn visual_block_yank_with_empty_lines() {
+    let cx = new("abc\n\nghi").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("<C-v>jjly").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "ab\n\ngh");
+        assert_eq!(reg.kind, zi::RegisterKind::Charwise);
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_block_yank_with_short_lines() {
+    let cx = new("abcde\nab\nabcde").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 1));
+        editor.input("<C-v>jjllly").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "bcde\nb\nbcde");
+        assert_eq!(reg.kind, zi::RegisterKind::Charwise);
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
 async fn visual_line_single_line_yank() {
     let cx = new("only").await;
     cx.with(|editor| {
