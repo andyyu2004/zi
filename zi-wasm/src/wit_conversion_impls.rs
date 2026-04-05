@@ -10,6 +10,8 @@ impl From<zi::Mode> for api::editor::Mode {
             zi::Mode::Insert => api::editor::Mode::Insert,
             zi::Mode::Command => api::editor::Mode::Command,
             zi::Mode::Visual => api::editor::Mode::Visual,
+            zi::Mode::VisualLine => api::editor::Mode::VisualLine,
+            zi::Mode::VisualBlock => api::editor::Mode::VisualBlock,
             zi::Mode::OperatorPending(op) => api::editor::Mode::OperatorPending(op.into()),
             zi::Mode::ReplacePending => api::editor::Mode::ReplacePending,
         }
@@ -23,6 +25,8 @@ impl From<api::editor::Mode> for zi::Mode {
             api::editor::Mode::Insert => zi::Mode::Insert,
             api::editor::Mode::Command => zi::Mode::Command,
             api::editor::Mode::Visual => zi::Mode::Visual,
+            api::editor::Mode::VisualLine => zi::Mode::VisualLine,
+            api::editor::Mode::VisualBlock => zi::Mode::VisualBlock,
             api::editor::Mode::OperatorPending(op) => zi::Mode::OperatorPending(op.into()),
             api::editor::Mode::ReplacePending => zi::Mode::ReplacePending,
         }

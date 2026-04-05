@@ -14,6 +14,7 @@ mod register;
 mod render;
 mod search;
 mod state;
+pub mod visual;
 
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -53,6 +54,7 @@ use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
 pub use self::errors::EditError;
 use self::register::Registers;
+pub use self::register::{Register, RegisterKind};
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -321,7 +323,8 @@ macro_rules! get_ref {
     }};
 }
 
-pub(crate) use {get, get_ref};
+pub(crate) use get;
+pub(crate) use get_ref;
 
 pub(crate) type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
 
@@ -970,6 +973,32 @@ impl Editor {
         mode!(self)
     }
 
+    pub fn visual_anchor(&self) -> Option<Point> {
+        self.state.visual_anchor()
+    }
+
+    pub fn visual_selection(&self, selector: impl Selector<ViewId>) -> Option<visual::VisualSelection> {
+        let anchor = self.state.visual_anchor()?;
+        let view = selector.select(self);
+        let cursor = self[view].cursor();
+        let (start, end) = if anchor <= cursor { (anchor, cursor) } else { (cursor, anchor) };
+
+        Some(match mode!(self) {
+            Mode::Visual => visual::VisualSelection::Charwise { start, end },
+            Mode::VisualLine => visual::VisualSelection::Line {
+                start_line: start.line(),
+                end_line: end.line(),
+            },
+            Mode::VisualBlock => visual::VisualSelection::Block {
+                start_line: start.line(),
+                end_line: end.line(),
+                start_col: start.col().min(end.col()),
+                end_col: start.col().max(end.col()),
+            },
+            _ => return None,
+        })
+    }
+
     /// Replay the last change (dot repeat)
     pub fn dot_repeat(&mut self) {
         // Collect the events to replay (we can't borrow self.dot while replaying)
@@ -1037,6 +1066,12 @@ impl Editor {
 
         self.dispatch(event::WillChangeMode { from, to });
         self.state = State::new(to);
+
+        if matches!(to, Mode::Visual | Mode::VisualLine | Mode::VisualBlock) {
+            let anchor = self.cursor(Active);
+            self.state.set_visual_anchor(anchor);
+        }
+
         self.dispatch(event::DidChangeMode { from, to });
     }
 
@@ -1251,6 +1286,8 @@ impl Editor {
             }
             // TODO
             State::Visual(..)
+            | State::VisualLine(..)
+            | State::VisualBlock(..)
             | State::Command(..)
             | State::OperatorPending(_)
             | State::ReplacePending => Ok(()),
@@ -1275,6 +1312,8 @@ impl Editor {
             }
             // TODO
             State::Visual(..)
+            | State::VisualLine(..)
+            | State::VisualBlock(..)
             | State::Command(..)
             | State::OperatorPending(_)
             | State::ReplacePending => Ok(()),
@@ -1446,6 +1485,24 @@ impl Editor {
 
     pub fn theme(&self) -> Setting<Theme> {
         self.settings().theme.clone()
+    }
+
+    pub fn visual_yank(&mut self, selector: impl Selector<ViewId> + Copy) {
+        let Some(sel) = self.visual_selection(selector) else { return };
+        let view = selector.select(self);
+        let buf = self[view].buffer();
+        let content = sel.content(self[buf].text());
+        let kind = sel.register_kind();
+
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content.clone())) {
+            set_error!(self, err);
+        }
+        self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
+        self.set_mode(Mode::Normal);
+    }
+
+    pub fn register(&self, name: char) -> Option<&register::Register> {
+        self.registers.get(name)
     }
 
     pub fn paste_after(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
@@ -2120,6 +2177,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Active;
 
 impl Selector<ViewId> for Active {

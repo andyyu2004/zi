@@ -14,3 +14,4 @@ mod search;
 mod tab;
 mod undo;
 mod view;
+mod visual;

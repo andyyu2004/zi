@@ -41,8 +41,8 @@ pub use self::command::{Command, Commands};
 pub use self::completion::CompletionProvider;
 pub use self::config::Setting;
 pub use self::editor::{
-    Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, Resource,
-    SaveFlags, Tasks,
+    Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, Register,
+    RegisterKind, Resource, SaveFlags, Tasks, visual::VisualSelection,
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};

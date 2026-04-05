@@ -228,8 +228,8 @@ impl Nvim {
             "n" => ensure!(matches!(editor.mode(), zi::Mode::Normal)),
             "no" => ensure!(matches!(editor.mode(), zi::Mode::OperatorPending(_))),
             "v" => ensure!(editor.mode() == zi::Mode::Visual),
-            // "V" => zi::Mode::VisualLine,
-            // "\x16" => zi::Mode::VisualBlock,
+            "V" => ensure!(editor.mode() == zi::Mode::VisualLine),
+            "\x16" => ensure!(editor.mode() == zi::Mode::VisualBlock),
             _ => panic!("unknown mode: {vi_mode}"),
         };
 

@@ -390,6 +390,8 @@ impl View {
             Mode::Normal
             | Mode::Command
             | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock
             | Mode::OperatorPending(..)
             | Mode::ReplacePending => line.chars().next_back().map_or(0, |c| c.len_utf8()),
         };

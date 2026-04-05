@@ -1,5 +1,5 @@
 use crate::completion::Completion;
-use crate::{Mode, Operator};
+use crate::{Mode, Operator, Point};
 
 /// Per mode state
 #[derive(Debug)]
@@ -8,6 +8,8 @@ pub(super) enum State {
     Insert(InsertState),
     Command(CommandState),
     Visual(VisualState),
+    VisualLine(VisualLineState),
+    VisualBlock(VisualBlockState),
     OperatorPending(OperatorPendingState),
     ReplacePending,
 }
@@ -25,6 +27,8 @@ impl State {
             Mode::Insert => State::Insert(Default::default()),
             Mode::Command => State::Command(Default::default()),
             Mode::Visual => State::Visual(Default::default()),
+            Mode::VisualLine => State::VisualLine(Default::default()),
+            Mode::VisualBlock => State::VisualBlock(Default::default()),
             Mode::OperatorPending(op) => State::OperatorPending(OperatorPendingState::new(op)),
             Mode::ReplacePending => State::ReplacePending,
         }
@@ -36,8 +40,28 @@ impl State {
             State::Insert(..) => Mode::Insert,
             State::Command(..) => Mode::Command,
             State::Visual(..) => Mode::Visual,
+            State::VisualLine(..) => Mode::VisualLine,
+            State::VisualBlock(..) => Mode::VisualBlock,
             State::OperatorPending(state) => Mode::OperatorPending(state.operator),
             State::ReplacePending => Mode::ReplacePending,
+        }
+    }
+
+    pub(super) fn visual_anchor(&self) -> Option<Point> {
+        match self {
+            State::Visual(s) => Some(s.anchor),
+            State::VisualLine(s) => Some(s.anchor),
+            State::VisualBlock(s) => Some(s.anchor),
+            _ => None,
+        }
+    }
+
+    pub(super) fn set_visual_anchor(&mut self, anchor: Point) {
+        match self {
+            State::Visual(s) => s.anchor = anchor,
+            State::VisualLine(s) => s.anchor = anchor,
+            State::VisualBlock(s) => s.anchor = anchor,
+            _ => {}
         }
     }
 }
@@ -68,8 +92,38 @@ impl Default for CommandState {
     }
 }
 
-#[derive(Debug, Default)]
-pub(super) struct VisualState {}
+#[derive(Debug)]
+pub(super) struct VisualState {
+    pub(super) anchor: Point,
+}
+
+impl Default for VisualState {
+    fn default() -> Self {
+        Self { anchor: Point::default() }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct VisualLineState {
+    pub(super) anchor: Point,
+}
+
+impl Default for VisualLineState {
+    fn default() -> Self {
+        Self { anchor: Point::default() }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct VisualBlockState {
+    pub(super) anchor: Point,
+}
+
+impl Default for VisualBlockState {
+    fn default() -> Self {
+        Self { anchor: Point::default() }
+    }
+}
 
 #[derive(Debug)]
 pub(super) struct OperatorPendingState {
