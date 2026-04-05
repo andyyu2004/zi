@@ -11,35 +11,33 @@ pub(super) struct Dot {
     recording: bool,
     /// Whether we're currently replaying (to prevent recording during replay)
     replaying: bool,
-    /// The last key pressed in Normal mode (to capture the initial command)
-    last_normal_key: Option<KeyEvent>,
+    /// Keys pressed in Normal mode before a recording starts
+    normal_keys: Vec<KeyEvent>,
 }
 
 impl Dot {
     /// Start recording a new change operation
     pub(super) fn start_recording(&mut self) {
         self.events.clear();
-        // If we have a last_normal_key, it's the key that triggered this mode change
-        // so we should include it in the recording
-        if let Some(key) = self.last_normal_key.take() {
-            self.events.push(key);
-        }
+        self.events.append(&mut self.normal_keys);
         self.recording = true;
     }
 
     /// Save a key pressed in Normal mode (before we know if it's a change)
     pub(super) fn save_normal_key(&mut self, key: &KeyEvent) {
         if !self.replaying {
-            self.last_normal_key = Some(key.clone());
+            self.normal_keys.push(key.clone());
         }
+    }
+
+    pub(super) fn clear_normal_keys(&mut self) {
+        self.normal_keys.clear();
     }
 
     /// Finalize recording of a Normal mode change
     /// Called when a buffer change is detected while in Normal mode
     pub(super) fn finalize_normal_mode_change(&mut self) {
-        // Only finalize if we have a saved key and we're not already recording
-        if self.last_normal_key.is_some() && !self.recording && !self.replaying {
-            // Start recording (which will include the last_normal_key)
+        if !self.normal_keys.is_empty() && !self.recording && !self.replaying {
             self.start_recording();
             self.stop_recording();
         }

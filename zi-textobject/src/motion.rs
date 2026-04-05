@@ -24,14 +24,6 @@ pub trait Motion: TextObject {
     fn motion_flags(&self) -> MotionFlags {
         MotionFlags::empty()
     }
-
-    #[inline]
-    fn repeat(self, n: usize) -> Repeat<Self>
-    where
-        Self: Sized,
-    {
-        Repeat { inner: self, n }
-    }
 }
 
 impl Motion for &dyn Motion {

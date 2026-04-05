@@ -1,5 +1,5 @@
 use zi_core::PointOrByte;
-use zi_textobject::{Motion, motion};
+use zi_textobject::{TextObject, motion};
 
 use super::{Selector, get, get_ref, mode};
 use crate::view::SetCursorFlags;
@@ -48,19 +48,23 @@ impl Editor {
         direction: Direction,
         amt: usize,
     ) -> Point {
-        let motion = match direction {
-            Direction::Left => &motion::PrevChar as &dyn Motion,
-            Direction::Right => &motion::NextChar,
-            Direction::Up => &motion::PrevLine,
-            Direction::Down => &motion::NextLine,
-        }
-        .repeat(amt);
-
         if let Mode::OperatorPending(_) = self.mode() {
             self.set_mode(Mode::Normal);
         }
 
-        self.motion(selector, motion).expect("this only returns errors in operator-pending mode")
+        macro_rules! do_motion {
+            ($m:expr) => {
+                self.motion(selector, $m.repeat(amt))
+                    .expect("this only returns errors in operator-pending mode")
+            };
+        }
+
+        match direction {
+            Direction::Left => do_motion!(motion::PrevChar),
+            Direction::Right => do_motion!(motion::NextChar),
+            Direction::Up => do_motion!(motion::PrevLine),
+            Direction::Down => do_motion!(motion::NextLine),
+        }
     }
 
     #[inline]

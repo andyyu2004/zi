@@ -13,6 +13,26 @@ use crate::{
 pub(super) fn new() -> Keymap {
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
 
+    macro_rules! count_fn {
+        ($name:ident, $digit:expr) => {
+            fn $name(editor: &mut Editor) {
+                let n = editor.take_count().unwrap_or(0) * 10 + $digit;
+                editor.set_count(n);
+            }
+        };
+    }
+
+    count_fn!(count_0, 0);
+    count_fn!(count_1, 1);
+    count_fn!(count_2, 2);
+    count_fn!(count_3, 3);
+    count_fn!(count_4, 4);
+    count_fn!(count_5, 5);
+    count_fn!(count_6, 6);
+    count_fn!(count_7, 7);
+    count_fn!(count_8, 8);
+    count_fn!(count_9, 9);
+
     fn delete_operator_pending(editor: &mut Editor) {
         editor.set_mode(Mode::OperatorPending(Operator::Delete));
     }
@@ -417,6 +437,19 @@ pub(super) fn new() -> Keymap {
     // Apparently the key event parser is slow, so we need to cache the keymap to help fuzzing run faster.
     KEYMAP
         .get_or_init(|| {
+            let count_trie = trie!({
+                "0" => count_0,
+                "1" => count_1,
+                "2" => count_2,
+                "3" => count_3,
+                "4" => count_4,
+                "5" => count_5,
+                "6" => count_6,
+                "7" => count_7,
+                "8" => count_8,
+                "9" => count_9,
+            });
+
             let operator_pending_trie = trie!({
                 "<ESC>" | "<C-c>" => normal_mode,
                 "w" => next_word,
@@ -482,19 +515,19 @@ pub(super) fn new() -> Keymap {
                         "d" => normal_mode,
                     },
                 }),
-                Mode::OperatorPending(Operator::Delete) => operator_pending_trie.clone().merge(trie!({
+                Mode::OperatorPending(Operator::Delete) => count_trie.clone().merge(operator_pending_trie.clone()).merge(trie!({
                     "d" => text_object_current_line_inclusive,
                 })),
-                Mode::OperatorPending(Operator::Change) => operator_pending_trie.clone().merge(trie!({
+                Mode::OperatorPending(Operator::Change) => count_trie.clone().merge(operator_pending_trie.clone()).merge(trie!({
                     "c" => text_object_current_line_exclusive,
                 })),
-                Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
+                Mode::OperatorPending(Operator::Yank) => count_trie.clone().merge(operator_pending_trie).merge(trie!({
                     "y" => text_object_current_line_exclusive,
                 })),
                 Mode::ReplacePending => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                 }),
-                Mode::Visual => trie!({
+                Mode::Visual => count_trie.clone().merge(trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                     "h" => prev_char,
                     "l" => next_char,
@@ -514,8 +547,8 @@ pub(super) fn new() -> Keymap {
                     "g" => {
                         "g" => goto_start,
                     },
-                }),
-                Mode::VisualLine => trie!({
+                })),
+                Mode::VisualLine => count_trie.clone().merge(trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                     "j" => next_line,
                     "k" => prev_line,
@@ -528,8 +561,8 @@ pub(super) fn new() -> Keymap {
                     "g" => {
                         "g" => goto_start,
                     },
-                }),
-                Mode::VisualBlock => trie!({
+                })),
+                Mode::VisualBlock => count_trie.clone().merge(trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                     "h" => prev_char,
                     "l" => next_char,
@@ -548,8 +581,8 @@ pub(super) fn new() -> Keymap {
                     "g" => {
                         "g" => goto_start,
                     },
-                }),
-                Mode::Normal => trie!({
+                })),
+                Mode::Normal => count_trie.merge(trie!({
                     "<C-s>" => save,
                     "<C-o>" => jump_back,
                     "<C-i>" => jump_forward,
@@ -631,7 +664,7 @@ pub(super) fn new() -> Keymap {
                         "j" | "<C-j>" => focus_down,
                         "l" | "<C-l>" => focus_right,
                     },
-                }),
+                })),
             })
         })
         .clone()

@@ -104,6 +104,7 @@ broken_intra_doc_links = "warn"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
+single-range-in-vec-init = "allow"
 complexity = { level = "warn", priority = -1 }
 correctness = { level = "deny", priority = -1 }
 perf = { level = "deny", priority = -1 }

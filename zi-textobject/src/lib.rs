@@ -60,6 +60,14 @@ pub trait TextObject {
     fn flags(&self) -> TextObjectFlags {
         TextObjectFlags::empty()
     }
+
+    #[inline]
+    fn repeat(self, n: usize) -> Repeat<Self>
+    where
+        Self: Sized,
+    {
+        Repeat { inner: self, n }
+    }
 }
 
 impl TextObject for &dyn Motion {
@@ -143,8 +151,19 @@ pub struct Repeat<M> {
 impl<M: TextObject> TextObject for Repeat<M> {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        let _ = (text, byte);
-        todo!();
+        let first = self.inner.byte_range(text, byte)?;
+        let mut start = first.start;
+        let mut end = first.end;
+        for _ in 1..self.n {
+            match self.inner.byte_range(text, end) {
+                Some(next) => {
+                    start = start.min(next.start);
+                    end = end.max(next.end);
+                }
+                None => break,
+            }
+        }
+        Some(start..end)
     }
 
     #[inline]

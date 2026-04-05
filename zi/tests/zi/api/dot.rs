@@ -311,21 +311,16 @@ async fn dot_no_change_recorded() {
 async fn dot_repeat_with_count() {
     let cx = new("line1\nline2\nline3\nline4\nline5\nline6").await;
 
-    // Test: Currently counts are not implemented, so 2dd just deletes one line
-    // The '2' is treated as a motion/no-op, then dd deletes the line
-    // When we replay with dot, it should replay the same sequence
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         editor.input("2dd").unwrap();
-        // Based on actual behavior: only deletes one line (line1)
-        assert_eq!(editor.text(zi::Active).to_string(), "line2\nline3\nline4\nline5\nline6\n");
+        assert_eq!(editor.text(zi::Active).to_string(), "line3\nline4\nline5\nline6\n");
     })
     .await;
 
     cx.with(|editor| {
         editor.input(".").unwrap();
-        // Should replay the same: delete one line (line2)
-        assert_eq!(editor.text(zi::Active).to_string(), "line3\nline4\nline5\nline6\n");
+        assert_eq!(editor.text(zi::Active).to_string(), "line5\nline6\n");
     })
     .await;
 

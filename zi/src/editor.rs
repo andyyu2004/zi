@@ -163,6 +163,7 @@ pub struct Editor {
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
     clipboard: Result<Clipboard, Arc<arboard::Error>>,
     dot: Dot,
+    count: Option<usize>,
 }
 
 macro_rules! mode {
@@ -484,6 +485,7 @@ impl Editor {
             status_error: Default::default(),
             plugin_managers: Default::default(),
             dot: Default::default(),
+            count: None,
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -957,9 +959,15 @@ impl Editor {
                 }
             }
             _ => match keymap.on_key(mode, key).0 {
-                TrieResult::Found(f) => f(self),
+                TrieResult::Found(f) => {
+                    f(self);
+                    if mode == Mode::Normal && mode!(self) == Mode::Normal && self.count.is_none() {
+                        self.dot.clear_normal_keys();
+                    }
+                }
                 TrieResult::Partial => (),
                 TrieResult::Nothing => {
+                    self.count = None;
                     if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
                         self.set_mode(Mode::Normal)
                     }
@@ -971,6 +979,14 @@ impl Editor {
     #[inline]
     pub fn mode(&self) -> Mode {
         mode!(self)
+    }
+
+    pub(crate) fn take_count(&mut self) -> Option<usize> {
+        self.count.take()
+    }
+
+    pub(crate) fn set_count(&mut self, n: usize) {
+        self.count = Some(n);
     }
 
     pub fn visual_anchor(&self) -> Option<Point> {
@@ -1516,7 +1532,8 @@ impl Editor {
                 }
             }
 
-            let target_mode = if operator == Operator::Change { Mode::Insert } else { Mode::Normal };
+            let target_mode =
+                if operator == Operator::Change { Mode::Insert } else { Mode::Normal };
             let (view, buf) = get!(self: view);
             if operator == Operator::Delete {
                 buf.snapshot_cursor(start_point);
@@ -1592,6 +1609,8 @@ impl Editor {
         selector: impl Selector<ViewId>,
         obj: impl TextObject,
     ) -> Result<(), EditError> {
+        let n = self.take_count().unwrap_or(1);
+        let obj = obj.repeat(n);
         let (view, buf) = self.get(selector);
 
         // text objects only have meaning in operator pending mode
@@ -1774,6 +1793,7 @@ impl Editor {
         selector: impl Selector<ViewId>,
         motion: impl Motion,
     ) -> Result<Point, EditError> {
+        let motion = motion.repeat(self.take_count().unwrap_or(1));
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let view_id = view.id();
