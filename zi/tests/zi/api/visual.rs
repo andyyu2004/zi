@@ -161,3 +161,90 @@ async fn visual_line_single_line_yank() {
     .await;
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn visual_charwise_delete() {
+    let cx = new("hello").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("vlld").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        assert_eq!(editor.text(zi::Active), "lo\n");
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "hel");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_charwise_delete_x() {
+    let cx = new("hello").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("vllx").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        assert_eq!(editor.text(zi::Active), "lo\n");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_line_delete() {
+    let cx = new("first\nsecond\nthird").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("Vjd").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        assert_eq!(editor.text(zi::Active), "third\n");
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "first\nsecond\n");
+        assert_eq!(reg.kind, zi::RegisterKind::Linewise);
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_block_delete() {
+    let cx = new("abc\ndef\nghi").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("<C-v>jjld").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Normal);
+        assert_eq!(editor.text(zi::Active), "c\nf\ni\n");
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "ab\nde\ngh");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_charwise_change() {
+    let cx = new("hello").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("vllc").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Insert);
+        assert_eq!(editor.text(zi::Active), "lo\n");
+        let reg = editor.register('"').unwrap();
+        assert_eq!(reg.content, "hel");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn visual_line_change() {
+    let cx = new("first\nsecond\nthird").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("Vjc").unwrap();
+        assert_eq!(editor.mode(), zi::Mode::Insert);
+        assert_eq!(editor.text(zi::Active), "\nthird\n");
+    })
+    .await;
+    cx.cleanup().await;
+}

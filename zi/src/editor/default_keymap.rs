@@ -80,6 +80,14 @@ pub(super) fn new() -> Keymap {
         editor.visual_yank(Active);
     }
 
+    fn visual_delete(editor: &mut Editor) {
+        editor.visual_delete(Active);
+    }
+
+    fn visual_change(editor: &mut Editor) {
+        editor.visual_change(Active);
+    }
+
     fn prev_line(editor: &mut Editor) {
         set_error_if!(editor: editor.motion(Active, motion::PrevLine))
     }
@@ -492,6 +500,8 @@ pub(super) fn new() -> Keymap {
                     "%" => matchit,
                     "G" => goto_end,
                     "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
                     "V" => visual_line_mode,
                     "<C-v>" => visual_block_mode,
                     "g" => {
@@ -504,6 +514,8 @@ pub(super) fn new() -> Keymap {
                     "k" => prev_line,
                     "G" => goto_end,
                     "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
                     "v" => visual_mode,
                     "<C-v>" => visual_block_mode,
                     "g" => {
@@ -522,6 +534,8 @@ pub(super) fn new() -> Keymap {
                     "B" => prev_token,
                     "G" => goto_end,
                     "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
                     "v" => visual_mode,
                     "V" => visual_line_mode,
                     "g" => {

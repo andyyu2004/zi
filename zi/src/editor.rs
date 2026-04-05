@@ -1481,7 +1481,7 @@ impl Editor {
         self.settings().theme.clone()
     }
 
-    pub fn visual_yank(&mut self, selector: impl Selector<ViewId> + Copy) {
+    pub fn visual_op(&mut self, operator: Operator, selector: impl Selector<ViewId> + Copy) {
         let Some(sel) = self.visual_selection(selector) else { return };
         let view = selector.select(self);
         let buf = self[view].buffer();
@@ -1492,7 +1492,70 @@ impl Editor {
             set_error!(self, err);
         }
         self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
-        self.set_mode(Mode::Normal);
+
+        if matches!(operator, Operator::Delete | Operator::Change) {
+            let byte_ranges = sel.byte_ranges(self[buf].text());
+            let start_point = sel.start_point();
+
+            if operator == Operator::Change {
+                self[buf].snapshot_cursor(start_point);
+                self[buf].snapshot(SnapshotFlags::empty());
+            }
+
+            let is_linewise_change =
+                operator == Operator::Change && matches!(sel, visual::Selection::Line { .. });
+            for range in &byte_ranges {
+                let deltas = if is_linewise_change {
+                    Deltas::new([Delta::new(range.clone(), "\n")])
+                } else {
+                    Deltas::delete(range.clone())
+                };
+                if let Err(err) = self.edit(view, &deltas) {
+                    set_error!(self, err);
+                    return;
+                }
+            }
+
+            let target_mode = if operator == Operator::Change { Mode::Insert } else { Mode::Normal };
+            let (view, buf) = get!(self: view);
+            if operator == Operator::Delete {
+                buf.snapshot_cursor(start_point);
+                buf.snapshot(SnapshotFlags::empty());
+            }
+            let area = self.tree.view_area(view.id());
+            view.set_cursor_bytewise(
+                target_mode,
+                area,
+                buf,
+                buf.text().point_to_byte(start_point),
+                SetCursorFlags::empty(),
+            );
+            self.set_mode(target_mode);
+        } else {
+            let start_point = sel.start_point();
+            let (view, buf) = get!(self: view);
+            let area = self.tree.view_area(view.id());
+            view.set_cursor_bytewise(
+                Mode::Normal,
+                area,
+                buf,
+                buf.text().point_to_byte(start_point),
+                SetCursorFlags::empty(),
+            );
+            self.set_mode(Mode::Normal);
+        }
+    }
+
+    pub fn visual_yank(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Yank, selector);
+    }
+
+    pub fn visual_delete(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Delete, selector);
+    }
+
+    pub fn visual_change(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Change, selector);
     }
 
     pub fn register(&self, name: char) -> Option<&register::Register> {

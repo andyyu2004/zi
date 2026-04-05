@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use zi_core::{Point, PointRange};
 use zi_text::{PointRangeExt, Text, TextBase, TextSlice};
 
@@ -50,6 +52,46 @@ impl Selection {
         match self {
             Self::Charwise { .. } | Self::Block { .. } => RegisterKind::Charwise,
             Self::Line { .. } => RegisterKind::Linewise,
+        }
+    }
+
+    pub fn byte_ranges(&self, text: &(impl Text + ?Sized)) -> Vec<Range<usize>> {
+        match self {
+            Self::Charwise { start, end } => {
+                let start_byte = text.point_to_byte(*start);
+                let end_byte =
+                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, |c| c.len_utf8());
+                vec![start_byte..end_byte]
+            }
+            Self::Line { start_line, end_line } => {
+                let start_byte = text.line_to_byte(*start_line);
+                let end_byte =
+                    text.try_line_to_byte(*end_line + 1).unwrap_or_else(|| text.len_bytes());
+                vec![start_byte..end_byte]
+            }
+            Self::Block { start_line, end_line, start_col, end_col } => {
+                let mut ranges = Vec::new();
+                for line_idx in (*start_line..=*end_line).rev() {
+                    if let Some(line) = text.line(line_idx) {
+                        let line_len = line.len_bytes().saturating_sub(1);
+                        if *start_col > line_len {
+                            continue;
+                        }
+                        let line_start = text.line_to_byte(line_idx);
+                        let col_end = (*end_col + 1).min(line_len);
+                        ranges.push((line_start + *start_col)..(line_start + col_end));
+                    }
+                }
+                ranges
+            }
+        }
+    }
+
+    pub fn start_point(&self) -> Point {
+        match self {
+            Self::Charwise { start, .. } => *start,
+            Self::Line { start_line, .. } => Point::new(*start_line, 0),
+            Self::Block { start_line, start_col, .. } => Point::new(*start_line, *start_col),
         }
     }
 

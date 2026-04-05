@@ -47,6 +47,7 @@ macro_rules! t {
 // t!(r"(?s)[ -~]*", "[wbjk]+", nvim_word_motions);
 
 const I: &str = r"(?s)[A-z][ -~\n]*[A-z]";
+const I_NO_TRAILING_SPACE: &str = r"(?s)[A-z][!-~\n]*[A-z]";
 
 t!(I, "<ESC>", nvim_test);
 t!(I, "[WBhjkl]+", nvim_token_motions);
@@ -56,6 +57,12 @@ t!(I, "[dWBhjkl]+", nvim_delete_operator);
 t!(I, "d([uWB]|(<ESC>))+<ESC>", nvim_undo_delete_word);
 t!(I, "([ucdWB]|(<ESC>))+<ESC>", nvim_undo);
 t!(I, "[CDWBhjkl]", nvim_big_cd);
+t!(I, "v[jk]+y", nvim_visual_yank);
+t!(I, "v[jk]+d", nvim_visual_delete);
+t!(I_NO_TRAILING_SPACE, "v[jk]+c<ESC>", nvim_visual_change);
+t!(I, "V[jk]*d", nvim_visual_line_delete);
+t!(I, "V[jk]*y", nvim_visual_line_yank);
+t!(I_NO_TRAILING_SPACE, "V[jk]*c<ESC>", nvim_visual_line_change);
 
 /// Useful to test a particular case
 #[test]
@@ -65,8 +72,9 @@ fn scratch() {
         run(text, inputs, CompareFlags::empty())
     }
 
-    test("AA", "ccuu<ESC>");
-    // test("A\n  a", "Wlkdkj");
+    test("abcde", "Vy");
+    test("abcde\nfghij", "vjd");
+    test("first\nsecond\nthird", "Vjc<ESC>");
 }
 
 #[track_caller]
