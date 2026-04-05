@@ -236,8 +236,20 @@ impl Editor {
             Some((range, style))
         });
 
+        let visual_highlights: Vec<(PointRange, _)> =
+            if let Some(sel) = self.visual_selection(view.id()) {
+                let style = self
+                    .highlight_id_by_name(HighlightName::VISUAL)
+                    .style(&theme)
+                    .unwrap_or_else(|| theme.default_style());
+                sel.point_ranges(text).into_iter().map(|r| (r, style)).collect()
+            } else {
+                vec![]
+            };
+
         let highlights = view_highlights
             .range_merge(search_highlights)
+            .range_merge(visual_highlights.into_iter())
             .map(|(range, style)| (range - Offset::new(line_offset, 0), style));
 
         let text = buf.text();

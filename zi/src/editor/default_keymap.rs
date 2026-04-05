@@ -64,6 +64,30 @@ pub(super) fn new() -> Keymap {
         editor.set_mode(Mode::Normal);
     }
 
+    fn visual_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::Visual);
+    }
+
+    fn visual_line_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::VisualLine);
+    }
+
+    fn visual_block_mode(editor: &mut Editor) {
+        editor.set_mode(Mode::VisualBlock);
+    }
+
+    fn visual_yank(editor: &mut Editor) {
+        editor.visual_yank(Active);
+    }
+
+    fn visual_delete(editor: &mut Editor) {
+        editor.visual_delete(Active);
+    }
+
+    fn visual_change(editor: &mut Editor) {
+        editor.visual_change(Active);
+    }
+
     fn prev_line(editor: &mut Editor) {
         set_error_if!(editor: editor.motion(Active, motion::PrevLine))
     }
@@ -463,6 +487,61 @@ pub(super) fn new() -> Keymap {
                 Mode::ReplacePending => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
                 }),
+                Mode::Visual => trie!({
+                    "<ESC>" | "<C-c>" => normal_mode,
+                    "h" => prev_char,
+                    "l" => next_char,
+                    "j" => next_line,
+                    "k" => prev_line,
+                    "w" => next_word,
+                    "b" => prev_word,
+                    "W" => next_token,
+                    "B" => prev_token,
+                    "%" => matchit,
+                    "G" => goto_end,
+                    "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
+                    "V" => visual_line_mode,
+                    "<C-v>" => visual_block_mode,
+                    "g" => {
+                        "g" => goto_start,
+                    },
+                }),
+                Mode::VisualLine => trie!({
+                    "<ESC>" | "<C-c>" => normal_mode,
+                    "j" => next_line,
+                    "k" => prev_line,
+                    "G" => goto_end,
+                    "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
+                    "v" => visual_mode,
+                    "<C-v>" => visual_block_mode,
+                    "g" => {
+                        "g" => goto_start,
+                    },
+                }),
+                Mode::VisualBlock => trie!({
+                    "<ESC>" | "<C-c>" => normal_mode,
+                    "h" => prev_char,
+                    "l" => next_char,
+                    "j" => next_line,
+                    "k" => prev_line,
+                    "w" => next_word,
+                    "b" => prev_word,
+                    "W" => next_token,
+                    "B" => prev_token,
+                    "G" => goto_end,
+                    "y" => visual_yank,
+                    "d" | "x" => visual_delete,
+                    "c" => visual_change,
+                    "v" => visual_mode,
+                    "V" => visual_line_mode,
+                    "g" => {
+                        "g" => goto_start,
+                    },
+                }),
                 Mode::Normal => trie!({
                     "<C-s>" => save,
                     "<C-o>" => jump_back,
@@ -482,6 +561,9 @@ pub(super) fn new() -> Keymap {
                     "%" => matchit,
                     ":" => command_mode,
                     "/" => search,
+                    "v" => visual_mode,
+                    "V" => visual_line_mode,
+                    "<C-v>" => visual_block_mode,
                     "i" => insert_mode,
                     "I" => insert_start_of_line,
                     "h" => prev_char,

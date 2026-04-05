@@ -1,5 +1,6 @@
+use super::{Active, Editor};
 use crate::completion::Completion;
-use crate::{Mode, Operator};
+use crate::{Mode, Operator, Point};
 
 /// Per mode state
 #[derive(Debug)]
@@ -8,6 +9,8 @@ pub(super) enum State {
     Insert(InsertState),
     Command(CommandState),
     Visual(VisualState),
+    VisualLine(VisualState),
+    VisualBlock(VisualState),
     OperatorPending(OperatorPendingState),
     ReplacePending,
 }
@@ -19,12 +22,14 @@ impl Default for State {
 }
 
 impl State {
-    pub(super) fn new(mode: Mode) -> Self {
+    pub(super) fn new(editor: &Editor, mode: Mode) -> Self {
         match mode {
             Mode::Normal => State::Normal(Default::default()),
             Mode::Insert => State::Insert(Default::default()),
             Mode::Command => State::Command(Default::default()),
-            Mode::Visual => State::Visual(Default::default()),
+            Mode::Visual => State::Visual(VisualState { anchor: editor.cursor(Active) }),
+            Mode::VisualLine => State::VisualLine(VisualState { anchor: editor.cursor(Active) }),
+            Mode::VisualBlock => State::VisualBlock(VisualState { anchor: editor.cursor(Active) }),
             Mode::OperatorPending(op) => State::OperatorPending(OperatorPendingState::new(op)),
             Mode::ReplacePending => State::ReplacePending,
         }
@@ -36,8 +41,19 @@ impl State {
             State::Insert(..) => Mode::Insert,
             State::Command(..) => Mode::Command,
             State::Visual(..) => Mode::Visual,
+            State::VisualLine(..) => Mode::VisualLine,
+            State::VisualBlock(..) => Mode::VisualBlock,
             State::OperatorPending(state) => Mode::OperatorPending(state.operator),
             State::ReplacePending => Mode::ReplacePending,
+        }
+    }
+
+    pub(super) fn visual_anchor(&self) -> Option<Point> {
+        match self {
+            State::Visual(s) => Some(s.anchor),
+            State::VisualLine(s) => Some(s.anchor),
+            State::VisualBlock(s) => Some(s.anchor),
+            _ => None,
         }
     }
 }
@@ -68,8 +84,10 @@ impl Default for CommandState {
     }
 }
 
-#[derive(Debug, Default)]
-pub(super) struct VisualState {}
+#[derive(Debug)]
+pub(super) struct VisualState {
+    pub(super) anchor: Point,
+}
 
 #[derive(Debug)]
 pub(super) struct OperatorPendingState {

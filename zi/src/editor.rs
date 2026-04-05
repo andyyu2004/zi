@@ -14,6 +14,7 @@ mod register;
 mod render;
 mod search;
 mod state;
+pub mod visual;
 
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -53,6 +54,7 @@ use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
 pub use self::errors::EditError;
 use self::register::Registers;
+pub use self::register::{Register, RegisterKind};
 pub use self::search::Match;
 use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
@@ -321,7 +323,8 @@ macro_rules! get_ref {
     }};
 }
 
-pub(crate) use {get, get_ref};
+pub(crate) use get;
+pub(crate) use get_ref;
 
 pub(crate) type EditorCallback = Box<dyn FnOnce(&mut Editor) -> Result<(), Error> + Send>;
 
@@ -970,6 +973,31 @@ impl Editor {
         mode!(self)
     }
 
+    pub fn visual_anchor(&self) -> Option<Point> {
+        self.state.visual_anchor()
+    }
+
+    pub fn visual_selection(&self, selector: impl Selector<ViewId>) -> Option<visual::Selection> {
+        let anchor = self.state.visual_anchor()?;
+        let view = selector.select(self);
+        let cursor = self[view].cursor();
+        let (start, end) = if anchor <= cursor { (anchor, cursor) } else { (cursor, anchor) };
+
+        match mode!(self) {
+            Mode::Visual => Some(visual::Selection::Charwise { start, end }),
+            Mode::VisualLine => {
+                Some(visual::Selection::Line { start_line: start.line(), end_line: end.line() })
+            }
+            Mode::VisualBlock => Some(visual::Selection::Block {
+                start_line: start.line(),
+                end_line: end.line(),
+                start_col: start.col().min(end.col()),
+                end_col: start.col().max(end.col()),
+            }),
+            _ => None,
+        }
+    }
+
     /// Replay the last change (dot repeat)
     pub fn dot_repeat(&mut self) {
         // Collect the events to replay (we can't borrow self.dot while replaying)
@@ -1036,7 +1064,8 @@ impl Editor {
         let from = mode!(self);
 
         self.dispatch(event::WillChangeMode { from, to });
-        self.state = State::new(to);
+        self.state = State::new(self, to);
+
         self.dispatch(event::DidChangeMode { from, to });
     }
 
@@ -1251,6 +1280,8 @@ impl Editor {
             }
             // TODO
             State::Visual(..)
+            | State::VisualLine(..)
+            | State::VisualBlock(..)
             | State::Command(..)
             | State::OperatorPending(_)
             | State::ReplacePending => Ok(()),
@@ -1275,6 +1306,8 @@ impl Editor {
             }
             // TODO
             State::Visual(..)
+            | State::VisualLine(..)
+            | State::VisualBlock(..)
             | State::Command(..)
             | State::OperatorPending(_)
             | State::ReplacePending => Ok(()),
@@ -1446,6 +1479,87 @@ impl Editor {
 
     pub fn theme(&self) -> Setting<Theme> {
         self.settings().theme.clone()
+    }
+
+    pub fn visual_op(&mut self, operator: Operator, selector: impl Selector<ViewId> + Copy) {
+        let Some(sel) = self.visual_selection(selector) else { return };
+        let view = selector.select(self);
+        let buf = self[view].buffer();
+        let content = sel.content(self[buf].text());
+        let kind = sel.register_kind();
+
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content.clone())) {
+            set_error!(self, err);
+        }
+        self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
+
+        if matches!(operator, Operator::Delete | Operator::Change) {
+            let byte_ranges = sel.byte_ranges(self[buf].text());
+            let start_point = sel.start_point();
+
+            if operator == Operator::Change {
+                self[buf].snapshot_cursor(start_point);
+                self[buf].snapshot(SnapshotFlags::empty());
+            }
+
+            let is_linewise_change =
+                operator == Operator::Change && matches!(sel, visual::Selection::Line { .. });
+            for range in &byte_ranges {
+                let deltas = if is_linewise_change {
+                    Deltas::new([Delta::new(range.clone(), "\n")])
+                } else {
+                    Deltas::delete(range.clone())
+                };
+                if let Err(err) = self.edit(view, &deltas) {
+                    set_error!(self, err);
+                    return;
+                }
+            }
+
+            let target_mode = if operator == Operator::Change { Mode::Insert } else { Mode::Normal };
+            let (view, buf) = get!(self: view);
+            if operator == Operator::Delete {
+                buf.snapshot_cursor(start_point);
+                buf.snapshot(SnapshotFlags::empty());
+            }
+            let area = self.tree.view_area(view.id());
+            view.set_cursor_bytewise(
+                target_mode,
+                area,
+                buf,
+                buf.text().point_to_byte(start_point),
+                SetCursorFlags::empty(),
+            );
+            self.set_mode(target_mode);
+        } else {
+            let start_point = sel.start_point();
+            let (view, buf) = get!(self: view);
+            let area = self.tree.view_area(view.id());
+            view.set_cursor_bytewise(
+                Mode::Normal,
+                area,
+                buf,
+                buf.text().point_to_byte(start_point),
+                SetCursorFlags::empty(),
+            );
+            self.set_mode(Mode::Normal);
+        }
+    }
+
+    pub fn visual_yank(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Yank, selector);
+    }
+
+    pub fn visual_delete(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Delete, selector);
+    }
+
+    pub fn visual_change(&mut self, selector: impl Selector<ViewId> + Copy) {
+        self.visual_op(Operator::Change, selector);
+    }
+
+    pub fn register(&self, name: char) -> Option<&register::Register> {
+        self.registers.get(name)
     }
 
     pub fn paste_after(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
@@ -2120,6 +2234,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Active;
 
 impl Selector<ViewId> for Active {

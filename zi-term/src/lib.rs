@@ -42,7 +42,7 @@ impl<B: Backend + io::Write> App<B> {
                 // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
                 // Looks much less janky if we set the cursor before rendering.
                 let style = match editor.mode() {
-                    zi::Mode::Normal | zi::Mode::Visual => SetCursorStyle::SteadyBlock,
+                    zi::Mode::Normal | zi::Mode::Visual | zi::Mode::VisualLine | zi::Mode::VisualBlock => SetCursorStyle::SteadyBlock,
                     zi::Mode::Insert | zi::Mode::Command => SetCursorStyle::SteadyBar,
                     zi::Mode::OperatorPending(..) | zi::Mode::ReplacePending => {
                         SetCursorStyle::SteadyUnderScore

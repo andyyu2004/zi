@@ -64,6 +64,8 @@ interface editor {
         normal,
         insert,
         visual,
+        visual-line,
+        visual-block,
         command,
         replace-pending,
         operator-pending(operator),
