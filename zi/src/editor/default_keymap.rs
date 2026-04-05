@@ -214,6 +214,13 @@ pub(super) fn new() -> Keymap {
         set_error_if!(editor: editor.insert_char(Active, '\n'));
     }
 
+    fn open_newline_above(editor: &mut Editor) {
+        editor.set_mode(Mode::Insert);
+        editor.set_cursor(Active, editor.cursor(Active).with_col(0));
+        set_error_if!(editor: editor.insert_char(Active, '\n'));
+        set_error_if!(editor: editor.motion(Active, motion::PrevLine));
+    }
+
     fn next_token(editor: &mut Editor) {
         set_error_if!(editor: editor.motion(Active, motion::NextToken));
     }
@@ -571,6 +578,7 @@ pub(super) fn new() -> Keymap {
                     "j" => next_line,
                     "k" => prev_line,
                     "o" => open_newline,
+                    "O" => open_newline_above,
                     "p" => paste,
                     "w" => next_word,
                     "b" => prev_word,
