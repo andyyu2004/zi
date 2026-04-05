@@ -1,13 +1,20 @@
 GRAMMAR_DIR = ~/.local/share/zi/grammars
 
-RUST_VERSION     = v0.24.2
-GO_VERSION       = v0.23.4
-JSON_VERSION     = v0.24.8
-C_VERSION        = v0.23.5
+RUST_VERSION       = v0.24.2
+GO_VERSION         = v0.23.4
+JSON_VERSION       = v0.24.8
+C_VERSION          = v0.23.5
 TYPESCRIPT_VERSION = v0.23.2
-FSHARP_VERSION   = main
+PYTHON_VERSION     = v0.25.0
+BASH_VERSION       = v0.25.1
+CSS_VERSION        = v0.25.0
+HTML_VERSION       = v0.23.2
+YAML_VERSION       = v0.7.2
+TOML_VERSION       = v0.7.0
+MARKDOWN_VERSION   = v0.5.3
+FSHARP_VERSION     = main
 
-GRAMMARS = rust go json c typescript
+GRAMMARS = rust go json c typescript python bash css html yaml toml markdown
 
 .PHONY: all clean install $(addprefix install-,$(GRAMMARS))
 
@@ -17,7 +24,7 @@ clean:
 	rm -rf tree-sitter-*
 
 define grammar_repo
-$(if $(filter fsharp,$1),ionide,tree-sitter)
+$(if $(filter fsharp,$1),ionide,$(if $(filter yaml toml markdown,$1),tree-sitter-grammars,tree-sitter))
 endef
 
 define grammar_url
@@ -42,6 +49,12 @@ $(eval $(call install_grammar,rust,RUST))
 $(eval $(call install_grammar,go,GO))
 $(eval $(call install_grammar,json,JSON))
 $(eval $(call install_grammar,c,C))
+$(eval $(call install_grammar,python,PYTHON))
+$(eval $(call install_grammar,bash,BASH))
+$(eval $(call install_grammar,css,CSS))
+$(eval $(call install_grammar,html,HTML))
+$(eval $(call install_grammar,yaml,YAML))
+$(eval $(call install_grammar,toml,TOML))
 
 install-typescript: $(GRAMMAR_DIR)/typescript/language.wasm $(GRAMMAR_DIR)/typescript/highlights.scm
 
@@ -55,22 +68,33 @@ $(GRAMMAR_DIR)/typescript/highlights.scm: tree-sitter-typescript
 	mkdir -p $(GRAMMAR_DIR)/typescript
 	cp tree-sitter-typescript/queries/highlights.scm $(GRAMMAR_DIR)/typescript/highlights.scm
 
-tree-sitter-rust:
-	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-rust/archive/refs/tags/$(RUST_VERSION).tar.gz | tar xz
-	mv tree-sitter-rust-$(subst v,,$(RUST_VERSION)) $@
+install-markdown: $(GRAMMAR_DIR)/markdown/language.wasm $(GRAMMAR_DIR)/markdown/highlights.scm
 
-tree-sitter-go:
-	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-go/archive/refs/tags/$(GO_VERSION).tar.gz | tar xz
-	mv tree-sitter-go-$(subst v,,$(GO_VERSION)) $@
+$(GRAMMAR_DIR)/markdown/language.wasm:
+	mkdir -p $(GRAMMAR_DIR)/markdown
+	curl --fail --silent --show-error -L \
+		https://github.com/tree-sitter-grammars/tree-sitter-markdown/releases/download/$(MARKDOWN_VERSION)/tree-sitter-markdown.wasm \
+		-o $(GRAMMAR_DIR)/markdown/language.wasm
 
-tree-sitter-json:
-	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-json/archive/refs/tags/$(JSON_VERSION).tar.gz | tar xz
-	mv tree-sitter-json-$(subst v,,$(JSON_VERSION)) $@
+$(GRAMMAR_DIR)/markdown/highlights.scm: tree-sitter-markdown
+	mkdir -p $(GRAMMAR_DIR)/markdown
+	cp tree-sitter-markdown/tree-sitter-markdown/queries/highlights.scm $(GRAMMAR_DIR)/markdown/highlights.scm
 
-tree-sitter-c:
-	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-c/archive/refs/tags/$(C_VERSION).tar.gz | tar xz
-	mv tree-sitter-c-$(subst v,,$(C_VERSION)) $@
+define fetch_source
+tree-sitter-$1:
+	curl --silent --show-error -L https://github.com/$(call grammar_repo,$1)/tree-sitter-$1/archive/refs/tags/$($2_VERSION).tar.gz | tar xz
+	mv tree-sitter-$1-$$(subst v,,$($2_VERSION)) $$@
+endef
 
-tree-sitter-typescript:
-	curl --silent --show-error -L https://github.com/tree-sitter/tree-sitter-typescript/archive/refs/tags/$(TYPESCRIPT_VERSION).tar.gz | tar xz
-	mv tree-sitter-typescript-$(subst v,,$(TYPESCRIPT_VERSION)) $@
+$(eval $(call fetch_source,rust,RUST))
+$(eval $(call fetch_source,go,GO))
+$(eval $(call fetch_source,json,JSON))
+$(eval $(call fetch_source,c,C))
+$(eval $(call fetch_source,typescript,TYPESCRIPT))
+$(eval $(call fetch_source,python,PYTHON))
+$(eval $(call fetch_source,bash,BASH))
+$(eval $(call fetch_source,css,CSS))
+$(eval $(call fetch_source,html,HTML))
+$(eval $(call fetch_source,yaml,YAML))
+$(eval $(call fetch_source,toml,TOML))
+$(eval $(call fetch_source,markdown,MARKDOWN))

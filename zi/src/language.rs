@@ -39,6 +39,8 @@ pub struct KnownFileTypes {
     pub picker: FileType,
     pub explorer: FileType,
     pub zig: FileType,
+    pub python: FileType,
+    pub yaml: FileType,
 }
 
 fn ft(ft: &str) -> FileType {
@@ -71,6 +73,8 @@ impl FileType {
             zig: ft("zig"),
             picker: ft("picker"),
             explorer: ft("explorer"),
+            python: ft("python"),
+            yaml: ft("yaml"),
         })
     }
 
