@@ -977,26 +977,25 @@ impl Editor {
         self.state.visual_anchor()
     }
 
-    pub fn visual_selection(&self, selector: impl Selector<ViewId>) -> Option<visual::VisualSelection> {
+    pub fn visual_selection(&self, selector: impl Selector<ViewId>) -> Option<visual::Selection> {
         let anchor = self.state.visual_anchor()?;
         let view = selector.select(self);
         let cursor = self[view].cursor();
         let (start, end) = if anchor <= cursor { (anchor, cursor) } else { (cursor, anchor) };
 
-        Some(match mode!(self) {
-            Mode::Visual => visual::VisualSelection::Charwise { start, end },
-            Mode::VisualLine => visual::VisualSelection::Line {
-                start_line: start.line(),
-                end_line: end.line(),
-            },
-            Mode::VisualBlock => visual::VisualSelection::Block {
+        match mode!(self) {
+            Mode::Visual => Some(visual::Selection::Charwise { start, end }),
+            Mode::VisualLine => {
+                Some(visual::Selection::Line { start_line: start.line(), end_line: end.line() })
+            }
+            Mode::VisualBlock => Some(visual::Selection::Block {
                 start_line: start.line(),
                 end_line: end.line(),
                 start_col: start.col().min(end.col()),
                 end_col: start.col().max(end.col()),
-            },
-            _ => return None,
-        })
+            }),
+            _ => None,
+        }
     }
 
     /// Replay the last change (dot repeat)
