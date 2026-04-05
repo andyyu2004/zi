@@ -1064,12 +1064,7 @@ impl Editor {
         let from = mode!(self);
 
         self.dispatch(event::WillChangeMode { from, to });
-        self.state = State::new(to);
-
-        if matches!(to, Mode::Visual | Mode::VisualLine | Mode::VisualBlock) {
-            let anchor = self.cursor(Active);
-            self.state.set_visual_anchor(anchor);
-        }
+        self.state = State::new(self, to);
 
         self.dispatch(event::DidChangeMode { from, to });
     }
