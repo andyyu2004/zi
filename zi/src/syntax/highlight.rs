@@ -111,7 +111,7 @@ impl Default for Theme {
                 hi!(Hl::DIRECTORY => fg=0x268bd200),
                 hi!(Hl::SEARCH => bg=0x00445400),
                 hi!(Hl::CURRENT_SEARCH => fg=0xeb773400 bg=0x00445400),
-                hi!(Hl::VISUAL => bg=0x07364200),
+                hi!(Hl::VISUAL => bg=0x28485800),
                 hi!(Hl::ERROR => underline),
                 hi!(Hl::WARNING => underline),
                 hi!(Hl::INFO => underline),
