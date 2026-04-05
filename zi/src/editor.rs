@@ -985,8 +985,8 @@ impl Editor {
         self.count.take()
     }
 
-    pub(crate) fn set_count(&mut self, n: usize) {
-        self.count = Some(n);
+    pub(crate) fn update_count(&mut self, f: impl FnOnce(Option<usize>) -> usize) {
+        self.count = Some(f(self.count));
     }
 
     pub fn visual_anchor(&self) -> Option<Point> {

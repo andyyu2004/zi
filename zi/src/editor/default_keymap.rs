@@ -16,8 +16,7 @@ pub(super) fn new() -> Keymap {
     macro_rules! count_fn {
         ($name:ident, $digit:expr) => {
             fn $name(editor: &mut Editor) {
-                let n = editor.take_count().unwrap_or(0) * 10 + $digit;
-                editor.set_count(n);
+                editor.update_count(|count| count.unwrap_or(0) * 10 + $digit);
             }
         };
     }
