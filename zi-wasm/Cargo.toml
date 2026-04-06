@@ -9,6 +9,7 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
 zi = { workspace = true }
+zi-lsp = { workspace = true }
 slotmap = { workspace = true }
 mutants = { workspace = true }
 smol_str = { workspace = true }

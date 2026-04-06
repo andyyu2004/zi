@@ -2320,6 +2320,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
+name = "plugin-config"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.34.0",
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "plugin-example"
 version = "0.1.0"
 dependencies = [
@@ -5129,7 +5137,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zi",
- "zi-lsp",
  "zi-tui",
  "zi-wasm",
 ]
@@ -5198,6 +5205,7 @@ dependencies = [
  "tree-sitter",
  "wasmtime",
  "zi",
+ "zi-lsp",
 ]
 
 [[package]]

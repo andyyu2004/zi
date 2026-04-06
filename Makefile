@@ -1,4 +1,5 @@
 GRAMMAR_DIR = ~/.local/share/zi/grammars
+PLUGIN_DIR  = ~/.local/share/zi/plugins
 
 RUST_VERSION       = v0.24.2
 GO_VERSION         = v0.23.4
@@ -16,9 +17,14 @@ FSHARP_VERSION     = main
 
 GRAMMARS = rust go json c typescript python bash css html yaml toml markdown
 
-.PHONY: all clean install $(addprefix install-,$(GRAMMARS))
+.PHONY: all clean install $(addprefix install-,$(GRAMMARS)) config
 
-all: $(addprefix install-,$(GRAMMARS))
+all: $(addprefix install-,$(GRAMMARS)) config
+
+config:
+	cargo build -p plugin-config --target wasm32-wasip1 --release
+	mkdir -p $(PLUGIN_DIR)
+	cp target/wasm32-wasip1/release/plugin_config.wasm $(PLUGIN_DIR)/plugin_config.wasm
 
 clean:
 	rm -rf tree-sitter-*

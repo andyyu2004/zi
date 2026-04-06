@@ -16,7 +16,8 @@ use tokio_stream::wrappers::ReadDirStream;
 pub use wasmtime::Engine;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 use zi::command::{self, CommandRange, Handler, Word};
-use zi::{Active, BufferId, Client, Point, ViewId, dirs};
+use zi::{Active, BufferId, Client, LanguageConfig, Point, ViewId, dirs};
+use zi_lsp::LanguageServerConfig;
 
 use crate::wit::Plugin;
 use crate::wit::zi::api;
@@ -259,6 +260,28 @@ impl api::editor::Host for HostState {
             .with(move |editor| command::set_option(editor, &key, &value))
             .await
             .map_err(|e| e.to_string())
+    }
+
+    async fn register_language(&mut self, filetype: String, language_services: Vec<String>) {
+        self.client
+            .with(move |editor| {
+                let services = language_services.iter().map(|s| s.as_str().into()).collect::<Vec<_>>();
+                editor
+                    .language_config_mut()
+                    .add_language(zi::FileType::from_name(&filetype), LanguageConfig::new(services));
+            })
+            .await
+    }
+
+    async fn register_language_server(&mut self, id: String, command: String, args: Vec<String>) {
+        self.client
+            .with(move |editor| {
+                let args = args.into_iter().map(Into::into).collect::<Vec<std::ffi::OsString>>();
+                editor
+                    .language_config_mut()
+                    .add_language_service(id.as_str(), LanguageServerConfig::new(command, args));
+            })
+            .await
     }
 }
 

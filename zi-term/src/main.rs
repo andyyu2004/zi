@@ -11,8 +11,6 @@ use tracing_subscriber::EnvFilter;
 use tui::Terminal;
 use tui::backend::CrosstermBackend;
 use zi::input::Event;
-use zi::{LanguageConfig, filetype};
-use zi_lsp::LanguageServerConfig;
 
 #[derive(Parser)]
 struct Opts {
@@ -46,8 +44,6 @@ async fn main() -> anyhow::Result<()> {
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
     let (mut editor, tasks) = zi::Editor::new(zi_wasm::WasmBackend::default(), term.size()?);
-
-    configure(&mut editor);
 
     assert!(editor.register_plugin_manager(zi_wasm::PluginManager::default()).is_none());
 
@@ -95,50 +91,4 @@ async fn main() -> anyhow::Result<()> {
     app.run(&mut editor, events, tasks).await?;
 
     Ok(())
-}
-
-fn configure(editor: &mut zi::Editor) {
-    editor
-        .language_config_mut()
-        .add_language(filetype!(rust), LanguageConfig::new(["rust-analyzer".into()]))
-        .add_language(filetype!(fsharp), LanguageConfig::new(["fsautocomplete".into()]))
-        .add_language(filetype!(text), LanguageConfig::new([]))
-        .add_language(filetype!(toml), LanguageConfig::new([]))
-        .add_language(filetype!(json), LanguageConfig::new([]))
-        .add_language(filetype!(yaml), LanguageConfig::new([]))
-        .add_language(filetype!(python), LanguageConfig::new(["pyright".into()]))
-        .add_language(filetype!(haskell), LanguageConfig::new(["hls".into()]))
-        .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
-        .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
-        .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
-        .add_language(filetype!(zig), LanguageConfig::new(["zls".into()]))
-        .add_language(
-            filetype!(javascript),
-            LanguageConfig::new(["typescript-language-server".into()]),
-        )
-        .add_language(
-            filetype!(typescript),
-            LanguageConfig::new(["typescript-language-server".into()]),
-        )
-        .add_language_service("zls", LanguageServerConfig::new("zls", []))
-        .add_language_service("fsautocomplete", LanguageServerConfig::new("fsautocomplete", []))
-        .add_language_service(
-            "rust-analyzer",
-            LanguageServerConfig::new("lspmux", ["client".into()]),
-        )
-        .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
-        .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
-        .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
-        .add_language_service(
-            "pyright",
-            LanguageServerConfig::new("pyright-langserver", ["--stdio".into()]),
-        )
-        .add_language_service(
-            "hls",
-            LanguageServerConfig::new("haskell-language-server-wrapper", ["--lsp".into()]),
-        )
-        .add_language_service(
-            "typescript-language-server",
-            LanguageServerConfig::new("typescript-language-server", ["--stdio".into()]),
-        );
 }

@@ -93,6 +93,8 @@ interface editor {
     open-jump-list: func();
     open-file-explorer: func(path: string);
     set-option: func(key: string, value: string) -> result<_, string>;
+    register-language: func(filetype: string, language-services: list<string>);
+    register-language-server: func(id: string, command: string, args: list<string>);
 
     enum direction {
         left,
