@@ -41,6 +41,7 @@ pub struct KnownFileTypes {
     pub zig: FileType,
     pub python: FileType,
     pub yaml: FileType,
+    pub nix: FileType,
 }
 
 fn ft(ft: &str) -> FileType {
@@ -75,6 +76,7 @@ impl FileType {
             explorer: ft("explorer"),
             python: ft("python"),
             yaml: ft("yaml"),
+            nix: ft("nix"),
         })
     }
 
@@ -96,6 +98,9 @@ impl FileType {
                 Some("ts") => filetype!(typescript),
                 Some("hs") => filetype!(haskell),
                 Some("zig") => filetype!(zig),
+                Some("py") => filetype!(python),
+                Some("yaml") | Some("yml") => filetype!(yaml),
+                Some("nix") => filetype!(nix),
                 _ => filetype!(text),
             },
             None => filetype!(text),

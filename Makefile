@@ -13,9 +13,10 @@ HTML_VERSION       = v0.23.2
 YAML_VERSION       = v0.7.2
 TOML_VERSION       = v0.7.0
 MARKDOWN_VERSION   = v0.5.3
+NIX_VERSION        = v0.3.0
 FSHARP_VERSION     = main
 
-GRAMMARS = rust go json c typescript python bash css html yaml toml markdown
+GRAMMARS = rust go json c typescript python bash css html yaml toml markdown nix
 
 .PHONY: all clean install $(addprefix install-,$(GRAMMARS)) config
 
@@ -86,6 +87,16 @@ $(GRAMMAR_DIR)/markdown/highlights.scm: tree-sitter-markdown
 	mkdir -p $(GRAMMAR_DIR)/markdown
 	cp tree-sitter-markdown/tree-sitter-markdown/queries/highlights.scm $(GRAMMAR_DIR)/markdown/highlights.scm
 
+install-nix: $(GRAMMAR_DIR)/nix/language.wasm $(GRAMMAR_DIR)/nix/highlights.scm
+
+$(GRAMMAR_DIR)/nix/language.wasm: tree-sitter-nix
+	mkdir -p $(GRAMMAR_DIR)/nix
+	cd tree-sitter-nix && tree-sitter build --wasm -o ../$@
+
+$(GRAMMAR_DIR)/nix/highlights.scm: tree-sitter-nix
+	mkdir -p $(GRAMMAR_DIR)/nix
+	cp tree-sitter-nix/queries/highlights.scm $(GRAMMAR_DIR)/nix/highlights.scm
+
 define fetch_source
 tree-sitter-$1:
 	curl --silent --show-error -L https://github.com/$(call grammar_repo,$1)/tree-sitter-$1/archive/refs/tags/$($2_VERSION).tar.gz | tar xz
@@ -104,3 +115,7 @@ $(eval $(call fetch_source,html,HTML))
 $(eval $(call fetch_source,yaml,YAML))
 $(eval $(call fetch_source,toml,TOML))
 $(eval $(call fetch_source,markdown,MARKDOWN))
+
+tree-sitter-nix:
+	curl --silent --show-error -L https://github.com/nix-community/tree-sitter-nix/archive/refs/tags/$(NIX_VERSION).tar.gz | tar xz
+	mv tree-sitter-nix-$(subst v,,$(NIX_VERSION)) $@

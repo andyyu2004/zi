@@ -48,6 +48,7 @@ impl lifecycle::Guest for Component {
         editor::register_language("zig", &["zls"]);
         editor::register_language("javascript", &["typescript-language-server"]);
         editor::register_language("typescript", &["typescript-language-server"]);
+        editor::register_language("nix", &["nil"]);
 
         editor::register_language_server("zls", "zls", &[]);
         editor::register_language_server("fsautocomplete", "fsautocomplete", &[]);
@@ -57,6 +58,7 @@ impl lifecycle::Guest for Component {
         editor::register_language_server("clangd", "clangd", &[]);
         editor::register_language_server("pyright", "pyright-langserver", &["--stdio"]);
         editor::register_language_server("hls", "haskell-language-server-wrapper", &["--lsp"]);
+        editor::register_language_server("nil", "nil", &[]);
         editor::register_language_server(
             "typescript-language-server",
             "typescript-language-server",
