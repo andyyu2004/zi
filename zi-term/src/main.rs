@@ -112,6 +112,7 @@ fn configure(editor: &mut zi::Editor) {
         .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
         .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
         .add_language(filetype!(zig), LanguageConfig::new(["zls".into()]))
+        .add_language(filetype!(nix), LanguageConfig::new(["nil".into()]))
         .add_language(
             filetype!(javascript),
             LanguageConfig::new(["typescript-language-server".into()]),
@@ -126,6 +127,7 @@ fn configure(editor: &mut zi::Editor) {
             "rust-analyzer",
             LanguageServerConfig::new("lspmux", ["client".into()]),
         )
+        .add_language_service("nil", LanguageServerConfig::new("nil", []))
         .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
         .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
         .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
