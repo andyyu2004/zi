@@ -19,7 +19,7 @@ impl fmt::Display for FileType {
 
 impl fmt::Debug for FileType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self}")
+        write!(f, "{}", self)
     }
 }
 
@@ -78,10 +78,6 @@ impl FileType {
             yaml: ft("yaml"),
             nix: ft("nix"),
         })
-    }
-
-    pub fn from_name(name: &str) -> Self {
-        Self(ustr(name))
     }
 
     pub fn detect(path: &Path) -> Self {
