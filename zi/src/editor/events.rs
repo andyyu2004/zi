@@ -18,26 +18,9 @@ impl Editor {
             HandlerResult::Continue
         });
 
-        event::subscribe_with::<event::WillChangeMode>(|editor, event| {
-            if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
-                editor.insert_to_normal();
-            }
-
-            HandlerResult::Continue
-        });
-
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
             if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
                 editor.refresh_semantic_tokens(Active.select(editor));
-            }
-
-            // Handle dot repeat recording based on mode transitions
-            if !editor.dot.is_replaying() {
-                if Dot::should_start_recording(event.from, event.to) {
-                    editor.dot.start_recording();
-                } else if Dot::should_stop_recording(event.from, event.to) {
-                    editor.dot.stop_recording();
-                }
             }
 
             HandlerResult::Continue
@@ -76,15 +59,6 @@ impl Editor {
 
             if let Completion::Active(state) = &mut state.completion {
                 state.update_query(None);
-            }
-
-            HandlerResult::Continue
-        });
-
-        // Detect normal mode changes for dot repeat
-        event::subscribe_with::<event::DidChangeBuffer>(|editor, _event| {
-            if editor.mode() == Mode::Normal && !editor.dot.is_replaying() {
-                editor.dot.finalize_normal_mode_change();
             }
 
             HandlerResult::Continue

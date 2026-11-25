@@ -1024,8 +1024,20 @@ impl Editor {
     pub fn set_mode(&mut self, to: Mode) {
         let from = mode!(self);
 
+        if let (Mode::Insert, Mode::Normal) = (from, to) {
+            self.insert_to_normal();
+        }
+
         self.dispatch(event::WillChangeMode { from, to });
         self.state = State::new(self, to);
+
+        if !self.dot.is_replaying() {
+            if Dot::should_start_recording(from, to) {
+                self.dot.start_recording();
+            } else if Dot::should_stop_recording(from, to) {
+                self.dot.stop_recording();
+            }
+        }
 
         self.dispatch(event::DidChangeMode { from, to });
     }
@@ -1376,6 +1388,10 @@ impl Editor {
 
         if self[buf].flags().contains(BufferFlags::READONLY) {
             return Err(EditError::Readonly);
+        }
+
+        if self.mode() == Mode::Normal && !self.dot.is_replaying() {
+            self.dot.finalize_normal_mode_change();
         }
 
         // Ensure the buffer ends with a newline before performing an insert.
