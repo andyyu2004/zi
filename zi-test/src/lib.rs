@@ -59,13 +59,14 @@ impl TestContext {
     }
 
     pub fn tempdir(&self) -> io::Result<PathBuf> {
-        tempfile::tempdir().map(|dir| dir.keep())
+        tempfile::tempdir()?.keep().canonicalize()
     }
 
     pub fn tempfile(&self, content: &str) -> io::Result<PathBuf> {
         let file = tempfile::NamedTempFile::new()?;
         std::fs::write(file.path(), content)?;
         let (_file, path) = file.keep()?;
+        let path = path.canonicalize()?;
         assert!(path.exists());
         debug_assert_eq!(std::fs::read_to_string(&path)?, content);
         Ok(path)
