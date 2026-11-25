@@ -88,7 +88,7 @@ impl Editor {
             .filter_map(|&server| {
                 self.active_language_services[&server]
                     .completion_capabilities()
-                    .map(|_| Provider::Lsp(LspCompletionProvider { server }))
+                    .map(|()| Provider::Lsp(LspCompletionProvider { server }))
             })
             .chain(
                 COMPLETION_PROVIDERS

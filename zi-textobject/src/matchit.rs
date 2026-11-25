@@ -31,34 +31,31 @@ impl Motion for MatchIt {
 
         let mut depth = 0;
         let mut byte = text.point_or_byte_to_byte(p);
-        match forward {
-            true => {
-                for c in text.byte_slice(byte..).chars() {
-                    if c == a {
-                        depth += 1;
-                    } else if c == target {
-                        assert!(depth > 0);
-                        depth -= 1;
-                        if depth == 0 {
-                            return byte.into();
-                        }
+        if forward {
+            for c in text.byte_slice(byte..).chars() {
+                if c == a {
+                    depth += 1;
+                } else if c == target {
+                    assert!(depth > 0);
+                    depth -= 1;
+                    if depth == 0 {
+                        return byte.into();
                     }
-
-                    byte += c.len_utf8();
                 }
+
+                byte += c.len_utf8();
             }
-            false => {
-                for c in text.byte_slice(..byte).chars().rev() {
-                    byte -= c.len_utf8();
-                    if c == target {
-                        if depth == 0 {
-                            return byte.into();
-                        }
-                        assert!(depth > 0);
-                        depth -= 1;
-                    } else if c == a {
-                        depth += 1;
+        } else {
+            for c in text.byte_slice(..byte).chars().rev() {
+                byte -= c.len_utf8();
+                if c == target {
+                    if depth == 0 {
+                        return byte.into();
                     }
+                    assert!(depth > 0);
+                    depth -= 1;
+                } else if c == a {
+                    depth += 1;
                 }
             }
         }

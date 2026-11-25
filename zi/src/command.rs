@@ -95,7 +95,7 @@ impl Command {
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(range) = &self.range {
-            write!(f, "{:?} ", range)?;
+            write!(f, "{range:?} ")?;
         }
 
         write!(f, "{:?}", self.kind)?;
@@ -227,7 +227,7 @@ impl fmt::Debug for CommandKind {
                 if *force {
                     write!(f, "!")?;
                 }
-                for arg in args.iter() {
+                for arg in args {
                     write!(f, " {arg}")?;
                 }
             }

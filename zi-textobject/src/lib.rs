@@ -342,7 +342,7 @@ impl NextToken {
                 assert_eq!(chars.next(), Some('\n'));
                 // if the cursor is at the end of a line, the next word is the first word of the next line.
                 // However, we don't want to chop the trailing newline if there is one.
-                return byte + chars.peek().is_some() as usize;
+                return byte + usize::from(chars.peek().is_some());
             }
             _ => (),
         }

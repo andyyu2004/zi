@@ -16,7 +16,7 @@ async fn setup(
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, _| {
+            .request::<request::Initialize, _>(move |(), _| {
                 let encoding = position_encoding.clone();
                 async move {
                     Ok(lsp_types::InitializeResult {

@@ -281,8 +281,8 @@ impl Nvim {
         let buf = nvim.create_buf(false, true).await?;
         nvim.set_current_buf(&buf).await?;
         let win = nvim.get_current_win().await?;
-        win.set_width(width as i64).await?;
-        win.set_height(height as i64).await?;
+        win.set_width(i64::from(width)).await?;
+        win.set_height(i64::from(height)).await?;
 
         Ok(Nvim { nvim, join_handle, child })
     }

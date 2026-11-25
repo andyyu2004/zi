@@ -354,7 +354,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
             let text = editor[buf].text();
 
             let mut s = String::new();
-            for item in items.iter() {
+            for item in &items {
                 writeln!(s, "{item}")?;
             }
 

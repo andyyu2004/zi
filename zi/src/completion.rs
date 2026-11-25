@@ -49,8 +49,8 @@ impl Completion {
 
             tracing::debug!(initial_query = ?query, trigger = ?trigger, range = ?replacement_range, "activating completion");
             *self = Completion::Active(ActiveCompletionState {
-                query,
                 replacement_range,
+                query,
                 ..Default::default()
             });
         }
@@ -83,7 +83,7 @@ impl ActiveCompletionState {
             None => {
                 state.select(None);
                 drop(state);
-                Some(self.generate_delta(self.query.to_owned()))
+                Some(self.generate_delta(self.query.clone()))
             }
             Some(idx) => {
                 state.select(Some(idx));
@@ -164,7 +164,7 @@ impl ActiveCompletionState {
                     Utf32Str::new(item.filter_text.as_ref().unwrap_or(&item.label), &mut buf),
                     &mut self.matcher,
                 )
-                .map(|score| nucleo::Match { idx: idx as u32, score: score as u32 })
+                .map(|score| nucleo::Match { idx: idx as u32, score: u32::from(score) })
         }));
         self.matches.sort_by_key(|m| std::cmp::Reverse(m.score));
 

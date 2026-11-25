@@ -289,7 +289,7 @@ impl TryFrom<&str> for KeySequence {
 
 impl fmt::Display for KeySequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for key in self.0.iter() {
+        for key in &self.0 {
             write!(f, "{key}")?;
         }
         Ok(())

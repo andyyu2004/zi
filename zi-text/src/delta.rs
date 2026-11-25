@@ -42,7 +42,7 @@ impl<'a> Deltas<'a> {
         deltas.sort_by_key(|d| (d.range().start, d.range().end));
 
         deltas.iter().zip(deltas.iter().skip(1)).for_each(|(a, b)| {
-            assert!(a.range().end <= b.range().start, "deltas must not overlap: {a:?} and {b:?}",);
+            assert!(a.range().end <= b.range().start, "deltas must not overlap: {a:?} and {b:?}");
         });
 
         Self { deltas }

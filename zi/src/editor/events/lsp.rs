@@ -11,7 +11,7 @@ impl Editor {
                 .with(move |editor| {
                     let buffer = &editor[event.buf];
                     let buf_config = buffer.settings();
-                    let tab_size = *buf_config.tab_width.read() as u32;
+                    let tab_size = u32::from(*buf_config.tab_width.read());
                     let format = *buf_config.format_on_save.read();
 
                     let buf_version = buffer.version();

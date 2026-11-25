@@ -86,7 +86,7 @@ impl fmt::Display for EncodedRange {
 
 impl EncodedRange {
     pub fn new(encoding: PositionEncoding, range: PointRange) -> Self {
-        Self { encoding, range }
+        Self { range, encoding }
     }
 
     pub fn start(&self) -> EncodedPoint {

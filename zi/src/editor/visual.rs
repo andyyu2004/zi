@@ -104,7 +104,7 @@ impl Selection {
             }
             Self::Line { start_line, end_line } => (*start_line..=*end_line)
                 .map(|line| {
-                    let line_len = text.line(line).map(|l| l.len_bytes()).unwrap_or(0);
+                    let line_len = text.line(line).map_or(0, |l| l.len_bytes());
                     PointRange::new(Point::new(line, 0), Point::new(line, line_len))
                 })
                 .collect(),
@@ -113,7 +113,7 @@ impl Selection {
                 (*start_line..=*end_line)
                     .filter_map(|line| {
                         let line_len =
-                            text.line(line).map(|l| l.len_bytes().saturating_sub(1)).unwrap_or(0);
+                            text.line(line).map_or(0, |l| l.len_bytes().saturating_sub(1));
                         if *start_col > line_len {
                             return None;
                         }

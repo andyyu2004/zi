@@ -252,8 +252,8 @@ where
     V: Clone,
 {
     fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
-        use State::*;
-        use TrieResult::*;
+        use State::{Both, Left, Right};
+        use TrieResult::{Found, Nothing, Partial};
 
         let (lhs, lbuf, rhs, rbuf) = match self.state {
             State::Both => {

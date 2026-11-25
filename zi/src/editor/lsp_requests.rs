@@ -201,7 +201,7 @@ impl Editor {
         ft: FileType,
     ) -> Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
-            for service_id in config.language_services.iter().cloned() {
+            for service_id in config.language_services.iter().copied() {
                 if self.active_language_services.contains_key(&service_id) {
                     // Language server already running
                     continue;
@@ -318,7 +318,7 @@ impl Editor {
         let path = location
             .url
             .to_file_path()
-            .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
+            .map_err(|()| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
 
         let from = self.current_location();
         let open_fut =

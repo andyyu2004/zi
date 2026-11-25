@@ -269,7 +269,7 @@ impl PluginManager {
         self.plugins
             .read()
             .get(id)
-            .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}",))
+            .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}"))
             .map(f)
     }
 

@@ -116,7 +116,7 @@ impl From<u32> for MarkId {
     fn from(raw: u32) -> MarkId {
         let version = raw >> 20;
         let index = raw << 12 >> 12;
-        MarkId::from(KeyData::from_ffi((version as u64) << 32 | index as u64))
+        MarkId::from(KeyData::from_ffi(u64::from(version) << 32 | u64::from(index)))
     }
 }
 

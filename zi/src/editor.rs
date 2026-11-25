@@ -1398,8 +1398,8 @@ impl Editor {
                 return None;
             }
 
-            let start = if k != len { rng.random_range(k..=len) } else { k };
-            let end = if start != len { rng.random_range(start..=len) } else { start };
+            let start = if k == len { k } else { rng.random_range(k..=len) };
+            let end = if start == len { start } else { rng.random_range(start..=len) };
             k = end + 1;
             let range = start..end;
 

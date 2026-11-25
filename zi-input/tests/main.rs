@@ -10,7 +10,7 @@ fn parse_key_event() {
             panic!("case: `{s}` should parse but failed to parse with error: `{err:?}`")
         });
         let x = parsed.to_string();
-        assert_eq!(parsed, x.parse::<KeyEvent>().unwrap(), "case: raw=`{s}` to_string=`{x}`",);
+        assert_eq!(parsed, x.parse::<KeyEvent>().unwrap(), "case: raw=`{s}` to_string=`{x}`");
     }
 }
 
@@ -47,6 +47,6 @@ fn parse_key_sequence() {
             panic!("case: `{s}` should parse but failed to parse with error: `{err:?}`")
         });
         let x = parsed.to_string();
-        assert_eq!(parsed, x.parse::<KeySequence>().unwrap(), "case: raw=`{s}` to_string=`{x}`",);
+        assert_eq!(parsed, x.parse::<KeySequence>().unwrap(), "case: raw=`{s}` to_string=`{x}`");
     }
 }

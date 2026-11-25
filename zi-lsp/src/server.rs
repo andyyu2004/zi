@@ -10,7 +10,7 @@ use zi_event::HandlerResult;
 
 use crate::{EditorExt, client, from_proto, to_proto};
 
-/// async_lsp::LanguageServer -> zi::LanguageService
+/// `async_lsp::LanguageServer` -> `zi::LanguageService`
 // We box the inner server instead of making it generic to make downcasting to this type possible.
 pub struct LanguageService {
     _client: zi::LanguageClient,

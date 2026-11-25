@@ -349,7 +349,7 @@ impl Editor {
             "diagnostics",
             split_ratio,
             |editor, injector| {
-                for (path, server_diags) in editor.diagnostics.iter() {
+                for (path, server_diags) in &editor.diagnostics {
                     for diag in &server_diags.read().1 {
                         if let Err(()) = injector.push(DiagnosticEntry {
                             path: path.clone(),

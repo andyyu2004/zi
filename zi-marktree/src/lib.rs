@@ -185,7 +185,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 while let Some((mut offset, node)) = q.pop_front() {
                     match node {
                         Node::Internal(inode) => {
-                            for child in inode.children().iter() {
+                            for child in inode.children() {
                                 let summary = child.summary();
                                 if (offset..offset + summary.bytes).intersects(&(start..end)) {
                                     // Child node has intersection with the relevant range,
@@ -496,7 +496,7 @@ impl<const N: usize> Leaf<N> {
         let mut offset = 0;
 
         for extent in &mut self.extents {
-            if extent.keys.remove(id as u64) {
+            if extent.keys.remove(u64::from(id)) {
                 // Fast path if the flags are empty.
                 assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
@@ -799,7 +799,7 @@ mod key {
         const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
 
         pub fn new(id: u32, flag: Flags) -> Self {
-            Self(id as u64 | ((flag.bits() as u64) << 32))
+            Self(u64::from(id) | (u64::from(flag.bits()) << 32))
         }
 
         #[inline]
@@ -921,16 +921,15 @@ impl LeafSlice<'_> {
     fn get_left(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
         for extent in self.extents {
-            if extent.keys.contains(id as u64) {
+            if extent.keys.contains(u64::from(id)) {
                 // Fast path if the flags are empty.
                 return Some(offset);
-            } else {
-                // Otherwise, scan
-                for key in extent.keys() {
-                    if key.id() == id {
-                        assert!(!key.flags().contains(Flags::END));
-                        return Some(offset);
-                    }
+            }
+            // Otherwise, scan
+            for key in extent.keys() {
+                if key.id() == id {
+                    assert!(!key.flags().contains(Flags::END));
+                    return Some(offset);
                 }
             }
 
@@ -946,16 +945,15 @@ impl LeafSlice<'_> {
         let mut offset = 0;
 
         for extent in self.extents.iter().rev() {
-            if extent.keys.contains(id as u64) {
+            if extent.keys.contains(u64::from(id)) {
                 // Fast path if the flags are empty.
                 return Some(offset + extent.len());
-            } else {
-                // Otherwise, scan.
-                // Technically we should scan from the right.
-                for key in extent.keys() {
-                    if key.id() == id {
-                        return Some(offset + extent.len());
-                    }
+            }
+            // Otherwise, scan.
+            // Technically we should scan from the right.
+            for key in extent.keys() {
+                if key.id() == id {
+                    return Some(offset + extent.len());
                 }
             }
 

@@ -19,7 +19,7 @@ impl fmt::Display for FileType {
 
 impl fmt::Debug for FileType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -95,7 +95,7 @@ impl FileType {
                 Some("hs") => filetype!(haskell),
                 Some("zig") => filetype!(zig),
                 Some("py") => filetype!(python),
-                Some("yaml") | Some("yml") => filetype!(yaml),
+                Some("yaml" | "yml") => filetype!(yaml),
                 Some("nix") => filetype!(nix),
                 _ => filetype!(text),
             },
@@ -155,7 +155,7 @@ impl Config {
         for (lang, config) in &languages {
             for server in &*config.language_services {
                 if !language_servers.contains_key(server) {
-                    bail!("language server `{server}` for language `{lang}` is not defined",)
+                    bail!("language server `{server}` for language `{lang}` is not defined")
                 }
             }
         }

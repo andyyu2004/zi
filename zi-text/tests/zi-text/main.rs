@@ -246,7 +246,7 @@ fn text_annotations() {
             assert!(text.lines().count() <= 2, "should not have multiline strings: got {text:?}");
             match ann {
                 Some(ann) => s.push_str(&format!("{text:?} -> {ann}\n")),
-                None => s.push_str(&format!("{text:?}\n",)),
+                None => s.push_str(&format!("{text:?}\n")),
             }
         }
 
