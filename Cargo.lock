@@ -5408,6 +5408,7 @@ dependencies = [
  "anyhow",
  "async-lsp",
  "async-process",
+ "dyn-clone",
  "futures-util",
  "rand 0.10.4",
  "serde_json",

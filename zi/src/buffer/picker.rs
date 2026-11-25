@@ -7,7 +7,7 @@ use nucleo::pattern::{CaseMatching, Normalization};
 use zi_text::TextMut;
 
 use super::*;
-use crate::editor::{Action, get};
+use crate::editor::Action;
 use crate::lstypes::TextExt;
 use crate::{
     Active, Direction, Mode, OpenFlags, VerticalAlignment, ViewId, filetype, hashmap, lstypes, trie,
@@ -237,11 +237,11 @@ impl<P: Picker> PickerBuffer<P> {
     }
 
     fn confirm(editor: &mut Editor) {
-        let (_, picker_buf) = get!(editor as Self);
+        let (_, picker_buf) = editor.db.view_and_buffer_as::<Self>(editor.tree().active());
         let display_view = picker_buf.display_view;
         let cursor = editor.view(display_view).cursor();
 
-        let (_, picker_buf) = get!(editor as Self);
+        let (_, picker_buf) = editor.db.view_and_buffer_as::<Self>(editor.tree().active());
         let picker = picker_buf.picker;
         if let Some(item) = picker_buf.item(cursor.line() as u32) {
             picker.confirm(editor, item);
@@ -262,7 +262,7 @@ impl<P: Picker> PickerBuffer<P> {
     fn select(editor: &mut Editor, direction: Direction) {
         assert!(direction.is_vertical());
 
-        let (_, picker_buf) = get!(editor as Self);
+        let (_, picker_buf) = editor.db.view_and_buffer_as::<Self>(editor.tree().active());
         let display_view = picker_buf.display_view;
         let buf_id = picker_buf.id;
         editor.move_cursor(display_view, direction, 1);
