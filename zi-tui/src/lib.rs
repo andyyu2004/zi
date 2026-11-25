@@ -16,7 +16,7 @@ pub use ratatui::widgets::{
     Clear, List, ListDirection, ListItem, ListState, StatefulWidget, StatefulWidgetRef, Widget,
     WidgetRef,
 };
-pub use ratatui::{Frame, Terminal, backend};
+pub use ratatui::{Frame, Terminal, TerminalOptions, Viewport, backend};
 
 /// Convenience trait to allow replacing the frame with a faster implementation for testing.
 pub trait DynFrame {
