@@ -331,7 +331,13 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         }
     }
 
-    fn pre_render(&mut self, _: Internal, client: &Client, _view: &View, _area: tui::Rect) {
+    fn pre_render(
+        &mut self,
+        _: Internal,
+        client: &Client,
+        _view: &crate::db::View,
+        _area: tui::Rect,
+    ) {
         if !self.nucleo.tick(10).changed {
             return;
         }

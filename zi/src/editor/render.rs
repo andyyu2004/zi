@@ -25,7 +25,7 @@ impl Editor {
         // not visible and we don't need to render them.
         self.tree.views().for_each(|view| {
             let view = &self.db.views[view];
-            let buf = &mut self.db.buffers[view.buffer()];
+            let buf = self.db.buffers.get_mut(view.buffer()).expect("bad buffer id").buffer;
             let area = self.tree.view_area(view.id());
             buf.pre_render(&client, view, area);
         });
@@ -175,7 +175,7 @@ impl Editor {
         let theme = theme.read();
         let mut query_cursor = tree_sitter::QueryCursor::new();
         query_cursor.set_match_limit(256);
-        let view = &self[view];
+        let view = self.view(view);
         let buf = self.buffer(view.buffer());
         let text = buf.text();
 

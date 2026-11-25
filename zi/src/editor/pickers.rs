@@ -7,7 +7,7 @@ impl Editor {
 
         fn inner(editor: &mut Editor, path: &Path) {
             let mut injector = None;
-            let buf = editor.db.buffers.insert_with_key(|id| {
+            let buf = editor.db.insert_buffer(|id| {
                 let (explorer, inj) = ExplorerBuffer::new(
                     id,
                     path.to_path_buf(),
@@ -117,8 +117,8 @@ impl Editor {
         self.set_mode(Mode::Insert);
 
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
-        let preview = self.db.views.insert_with_key(|id| {
-            let view = View::new(id, preview_buf).with_group(view_group);
+        let preview = self.db.insert_view(preview_buf, Some(view_group), |id| {
+            let view = View::new(id);
             view.settings().line_number_style.write(tui::LineNumberStyle::None);
             view
         });
@@ -131,7 +131,7 @@ impl Editor {
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
         let theme = self.theme();
         let theme = theme.read();
-        self.db.views[display_view].set_buffer(self.db.buffers.insert_with_key(|id| {
+        let display_buf = self.db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
@@ -141,14 +141,15 @@ impl Editor {
                 &theme,
                 None,
             ))
-        }));
+        });
+        self.db.set_buffer(display_view, display_buf);
 
         let search_view = self.split(Active, Direction::Up, tui::Constraint::Max(1));
         assert_eq!(self.tree().active(), search_view);
 
         // ensure all views are in the same group so they close together
-        self.db.views[display_view].set_group(view_group);
-        self.db.views[search_view].set_group(view_group);
+        self.db.set_group(display_view, view_group);
+        self.db.set_group(search_view, view_group);
 
         event::subscribe_with::<event::DidCloseView>({
             move |editor, event| {
@@ -163,7 +164,7 @@ impl Editor {
         });
 
         let mut injector = None;
-        let picker_buf = self.db.buffers.insert_with_key(|id| {
+        let picker_buf = self.db.insert_buffer(|id| {
             let mut picker = PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
             injector = Some(picker.injector());
             if let Some(source) = dynamic_source {

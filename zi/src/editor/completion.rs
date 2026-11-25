@@ -89,7 +89,7 @@ impl Editor {
         }
 
         let view = view.select(self);
-        let buf = self[view].buffer();
+        let buf = self.view(view).buffer();
         let providers = active_servers_of!(self, buf)
             .filter_map(|&server| {
                 self.active_language_services[&server]

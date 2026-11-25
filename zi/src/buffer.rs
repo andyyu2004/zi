@@ -25,7 +25,7 @@ use crate::editor::Selector;
 use crate::keymap::Keymap;
 use crate::private::Internal;
 use crate::syntax::{HighlightId, Syntax, Theme};
-use crate::{Client, Editor, FileType, Point, PointRange, Size, Url, View};
+use crate::{Client, Editor, FileType, Point, PointRange, Size, Url};
 
 impl Selector<Self> for BufferId {
     #[inline]
@@ -201,7 +201,7 @@ impl Buffer {
         self.inner.on_leave(Internal(()));
     }
 
-    pub(crate) fn pre_render(&mut self, client: &Client, view: &View, area: tui::Rect) {
+    pub(crate) fn pre_render(&mut self, client: &Client, view: &crate::db::View, area: tui::Rect) {
         self.inner.pre_render(Internal(()), client, view, area);
     }
 
@@ -237,7 +237,7 @@ impl Buffer {
     pub(crate) fn overlay_highlights<'a>(
         &'a self,
         editor: &'a Editor,
-        view: &View,
+        view: &crate::db::View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         self.inner.overlay_highlights(editor, view, size)
@@ -328,7 +328,7 @@ pub(crate) trait BufferInternal: Send + Sync {
     fn overlay_highlights<'a>(
         &'a self,
         editor: &'a Editor,
-        view: &View,
+        view: &crate::db::View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         let _ = (editor, view, size);
@@ -348,7 +348,13 @@ pub(crate) trait BufferInternal: Send + Sync {
     }
 
     /// Called just before rendering the buffer, returns whether the buffer needs to be re-rendered.
-    fn pre_render(&mut self, _: Internal, _client: &Client, view: &View, _area: tui::Rect) {
+    fn pre_render(
+        &mut self,
+        _: Internal,
+        _client: &Client,
+        view: &crate::db::View,
+        _area: tui::Rect,
+    ) {
         assert_eq!(self.id(), view.buffer());
     }
 
@@ -485,7 +491,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
     fn overlay_highlights<'a>(
         &'a self,
         editor: &'a Editor,
-        view: &View,
+        view: &crate::db::View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         self.as_ref().overlay_highlights(editor, view, size)
@@ -505,7 +511,13 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn pre_render(&mut self, internal: Internal, client: &Client, view: &View, area: tui::Rect) {
+    fn pre_render(
+        &mut self,
+        internal: Internal,
+        client: &Client,
+        view: &crate::db::View,
+        area: tui::Rect,
+    ) {
         self.as_mut().pre_render(internal, client, view, area);
     }
 
