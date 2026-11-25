@@ -9,8 +9,8 @@ bitflags = { workspace = true }
 crop = { workspace = true }
 smallvec = { workspace = true }
 stdx = { workspace = true }
-tinyset = { version = "0.4.15", default-features = false }
-croaring = "1.1.0"
+tinyset = { version = "0.5", default-features = false }
+croaring = "2"
 
 [dev-dependencies]
 divan = { workspace = true }

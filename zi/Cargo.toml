@@ -30,7 +30,7 @@ directories-next = "2.0.0"
 smol_str = { workspace = true }
 arbitrary = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
-grep = "0.3.1"
+grep = "0.4"
 async-trait = { workspace = true }
 url = { workspace = true }
 stdx = { workspace = true }
@@ -59,7 +59,7 @@ zi-test = { workspace = true }
 regex = { workspace = true }
 mimalloc = { workspace = true }
 tempfile = { workspace = true}
-datatest-stable = "0.2.3"
+datatest-stable = "0.3"
 tracing-test.workspace = true
 
 [features]

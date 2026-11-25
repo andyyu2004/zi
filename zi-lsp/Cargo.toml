@@ -14,7 +14,7 @@ tracing = { workspace = true }
 zi-event = { workspace = true }
 zi = { workspace = true, features = ["rand"] }
 stdx = { workspace = true }
-tower = "0.4.13"
+tower = "0.5"
 
 [dev-dependencies]
 zi-test = { workspace = true }
