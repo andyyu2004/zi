@@ -43,7 +43,7 @@ pub use self::config::Setting;
 pub use self::editor::visual::Selection;
 pub use self::editor::{
     Active, Backend, Client, DummyBackend, EditError, Editor, Match, OpenFlags, Register,
-    RegisterKind, Resource, SaveFlags, Tasks,
+    RegisterKind, SaveFlags, Tasks,
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};

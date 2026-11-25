@@ -1,7 +1,7 @@
 use zi_core::PointOrByte;
 use zi_textobject::{TextObject, motion};
 
-use super::{Selector, get, get_ref, mode};
+use super::{Selector, mode};
 use crate::view::SetCursorFlags;
 use crate::{Direction, Editor, Mode, Point, ViewId};
 
@@ -13,7 +13,7 @@ impl Editor {
 
     pub fn cursor_byte(&self, selector: impl Selector<ViewId>) -> usize {
         let view = selector.select(self);
-        let (view, buf) = get_ref!(self: view);
+        let (view, buf) = self.db.view_and_buffer(view);
         let point = view.cursor();
         buf.text().point_to_byte(point)
     }
@@ -36,7 +36,7 @@ impl Editor {
         flags: SetCursorFlags,
     ) {
         let view_id = selector.select(self);
-        let (view, buf) = get!(self: view_id);
+        let (view, buf) = self.db.view_and_buffer_mut(view_id);
         let area = self.tree.view_area(view.id());
         view.set_cursor_linewise(mode!(self), area, buf, pos.into(), flags);
     }
@@ -70,7 +70,7 @@ impl Editor {
     #[inline]
     pub fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
         let view_id = selector.select(self);
-        let (view, buf) = get!(self: view_id);
+        let (view, buf) = self.db.view_and_buffer_mut(view_id);
         let area = self.tree.view_area(view.id());
         view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty());
     }

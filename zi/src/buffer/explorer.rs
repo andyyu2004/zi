@@ -5,7 +5,7 @@ use std::sync::Arc;
 use nucleo::Nucleo;
 
 use super::*;
-use crate::editor::{Action, get};
+use crate::editor::Action;
 use crate::syntax::HighlightName;
 use crate::{Mode, filetype, hashmap, trie};
 
@@ -39,7 +39,7 @@ where
         let keymap = {
             let noop: Action = |_| {};
             let confirm: Action = |editor| {
-                let (view, buf) = get!(editor as Self);
+                let (view, buf) = editor.db.view_and_buffer_as::<Self>(editor.tree().active());
                 let cursor = view.cursor();
                 if let Some(data) = buf
                     .nucleo

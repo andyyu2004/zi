@@ -7,7 +7,7 @@ impl Editor {
 
         fn inner(editor: &mut Editor, path: &Path) {
             let mut injector = None;
-            let buf = editor.buffers.insert_with_key(|id| {
+            let buf = editor.db.buffers.insert_with_key(|id| {
                 let (explorer, inj) = ExplorerBuffer::new(
                     id,
                     path.to_path_buf(),
@@ -67,7 +67,7 @@ impl Editor {
 
     pub(super) fn open_static_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
@@ -75,12 +75,12 @@ impl Editor {
     where
         P: Picker,
     {
-        self.open_picker::<P>(view_group_url, path, split_ratio, None, f)
+        self.open_picker::<P>(view_group, path, split_ratio, None, f)
     }
 
     fn open_dynamic_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
@@ -89,7 +89,7 @@ impl Editor {
         P: Picker,
     {
         self.open_picker::<P>(
-            view_group_url,
+            view_group,
             path,
             split_ratio,
             Some(Arc::new(dynamic_source)),
@@ -99,7 +99,7 @@ impl Editor {
 
     fn open_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         dynamic_source: Option<DynamicHandler<P::Entry>>,
@@ -109,7 +109,7 @@ impl Editor {
         P: Picker,
     {
         let prev_mode = mode!(self);
-        let view_group = match self.create_view_group(view_group_url) {
+        let view_group = match self.create_view_group(view_group) {
             Ok(view_group) => view_group,
             Err(id) => return id,
         };
@@ -117,7 +117,7 @@ impl Editor {
         self.set_mode(Mode::Insert);
 
         let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
-        let preview = self.views.insert_with_key(|id| {
+        let preview = self.db.views.insert_with_key(|id| {
             let view = View::new(id, preview_buf).with_group(view_group);
             view.settings().line_number_style.write(tui::LineNumberStyle::None);
             view
@@ -131,7 +131,7 @@ impl Editor {
         let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
         let theme = self.theme();
         let theme = theme.read();
-        self.views[display_view].set_buffer(self.buffers.insert_with_key(|id| {
+        self.db.views[display_view].set_buffer(self.db.buffers.insert_with_key(|id| {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
@@ -147,13 +147,13 @@ impl Editor {
         assert_eq!(self.tree().active(), search_view);
 
         // ensure all views are in the same group so they close together
-        self.views[display_view].set_group(view_group);
-        self.views[search_view].set_group(view_group);
+        self.db.views[display_view].set_group(view_group);
+        self.db.views[search_view].set_group(view_group);
 
         event::subscribe_with::<event::DidCloseView>({
             move |editor, event| {
                 // restore the mode if the picker view group is closed
-                if editor.views[event.view].group() == Some(view_group) {
+                if editor.db.views[event.view].group() == Some(view_group) {
                     editor.set_mode(prev_mode);
                     event::HandlerResult::Unsubscribe
                 } else {
@@ -163,7 +163,7 @@ impl Editor {
         });
 
         let mut injector = None;
-        let picker_buf = self.buffers.insert_with_key(|id| {
+        let picker_buf = self.db.buffers.insert_with_key(|id| {
             let mut picker = PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
             injector = Some(picker.injector());
             if let Some(source) = dynamic_source {
@@ -208,7 +208,7 @@ impl Editor {
         let view = self.view(selector).id();
         let split_ratio = *self.settings().generic_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<_>>(
-            Url::parse("view-group://jumps").unwrap(),
+            "jumps",
             "jumps",
             split_ratio,
             move |editor, injector| {
@@ -226,7 +226,7 @@ impl Editor {
         let path = path.as_ref();
         let split_ratio = *self.settings().file_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<stdx::path::Display>>(
-            Url::parse("view-group://files").unwrap(),
+            "files",
             path,
             split_ratio,
             |_editor, injector| {
@@ -297,7 +297,7 @@ impl Editor {
         let ratio = *self.settings().generic_picker_split_ratio.read();
 
         let vg_id = self.open_static_picker::<BufferPicker<MarkEntry>>(
-            Url::parse("view-group://marks").unwrap(),
+            "marks",
             "marks",
             ratio,
             |editor, injector| {
@@ -345,7 +345,7 @@ impl Editor {
 
         let split_ratio = *self.settings().diagnostics_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<DiagnosticEntry>>(
-            Url::parse("view-group://diagnostics").unwrap(),
+            "diagnostics",
             "diagnostics",
             split_ratio,
             |editor, injector| {
@@ -396,7 +396,7 @@ impl Editor {
         let path = path.as_ref().to_path_buf();
         let split_ratio = *self.settings().global_search_split_ratio.read();
         self.open_dynamic_picker::<BufferPicker<Entry>>(
-            Url::parse("view-group://search").unwrap(),
+            "search",
             "search",
             split_ratio,
             move |injector, query| {

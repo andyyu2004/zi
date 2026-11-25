@@ -210,7 +210,7 @@ impl zi::LanguageService for LanguageService {
             let buf = event.buf;
             let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
             if !editor
-                .language_config
+                .language_config()
                 .languages
                 .get(&editor[buf].file_type())
                 .is_some_and(|c| c.language_services.contains(&service_id))
@@ -249,21 +249,22 @@ impl zi::LanguageService for LanguageService {
         zi::event::subscribe_with::<event::DidChangeBuffer>(move |editor, event| {
             tracing::trace!(buf = ?event.buf, "buffer did change");
 
-            let buf = &editor.buffers[event.buf];
-            if let (Some(service), Some(uri)) =
-                (editor.active_language_services.get_mut(&service_id), buf.file_url().cloned())
+            let buf = &editor[event.buf];
+            if !editor
+                .language_config()
+                .languages
+                .get(&buf.file_type())
+                .map(|c| &c.language_services)
+                .is_some_and(|servers| servers.contains(&service_id))
             {
-                if !editor
-                    .language_config
-                    .languages
-                    .get(&buf.file_type())
-                    .map(|c| &c.language_services)
-                    .is_some_and(|servers| servers.contains(&service_id))
-                {
-                    return HandlerResult::Continue;
-                }
+                return HandlerResult::Continue;
+            }
 
-                let service = crate::downcast_mut(&mut **service);
+            let uri = buf.file_url().cloned();
+            let version = buf.version() as i32;
+            let new_text = dyn_clone::clone_box(buf.text());
+            if let (Some(service), Some(uri)) = (editor.language_service(service_id), uri) {
+                let service = crate::downcast_mut(service);
 
                 let encoding = service.position_encoding();
 
@@ -279,7 +280,6 @@ impl zi::LanguageService for LanguageService {
                 };
 
                 tracing::debug!(%uri, ?service_id, "lsp did_change");
-                let version = buf.version() as i32;
                 let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
                 fn build_rope(text: impl Text) -> Rope {
@@ -310,19 +310,15 @@ impl zi::LanguageService for LanguageService {
                                 "old lsp text desynced"
                             );
                             text.edit(&event.deltas);
-                            debug_assert_eq!(
-                                *text,
-                                buf.text().to_string(),
-                                "new lsp text desynced"
-                            );
+                            debug_assert_eq!(*text, new_text.to_string(), "new lsp text desynced");
                             to_proto::deltas(encoding, event.old_text.as_ref(), &event.deltas)
                         } else {
-                            *text = build_rope(buf.text());
+                            *text = build_rope(new_text.as_ref());
                             // If a version is skipped somehow, send the full text.
                             vec![lsp_types::TextDocumentContentChangeEvent {
                                 range: None,
                                 range_length: None,
-                                text: buf.text().to_string(),
+                                text: new_text.to_string(),
                             }]
                         };
                         *prev_version = version;

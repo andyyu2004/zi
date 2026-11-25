@@ -8,7 +8,7 @@ use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use url::Url;
 
-use super::{Result, Selector, active_servers_of, callback_with_timeout, event, get};
+use super::{Result, Selector, active_servers_of, callback_with_timeout, event};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{LanguageServiceInstance, lstypes};
 use crate::lstypes::{TextExt, WorkspaceFolder};
@@ -153,7 +153,7 @@ impl Editor {
         let res = active_servers_of!(self, view)
             .find(|server_id| has_cap(&*self.active_language_services[server_id]))
             .and_then(|server_id| {
-                let (view, buf) = get!(self: view);
+                let (view, buf) = self.db.view_and_buffer_mut(view);
                 let url = buf.file_url().cloned()?;
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
@@ -294,7 +294,7 @@ impl Editor {
             }
             _ => {
                 self.open_static_picker::<BufferPicker<_>>(
-                    Url::parse("view-group://lsp/picker").unwrap(),
+                    "lsp/picker",
                     "/",
                     (1, 1),
                     move |_, injector| {
@@ -344,12 +344,12 @@ impl Editor {
     ) -> Option<impl Future<Output = Result<()>>> {
         let buf = selector.select(self);
 
-        let buf_version = self.buffers[buf].version();
+        let buf_version = self.db.buffers[buf].version();
         tracing::info!(?buf, buf_version, "requesting semantic tokens");
 
         let client = self.client();
 
-        let url = self.buffers[buf].file_url().cloned()?;
+        let url = self.db.buffers[buf].file_url().cloned()?;
 
         let Some((server, _caps)) = active_servers_of!(self, buf).find_map(|&server| {
             self.active_language_services[&server]
@@ -391,7 +391,7 @@ impl Editor {
         let (server_ids, futs) = active_servers_of!(self, buf)
             .filter_map(|&server_id| {
                 self.active_language_services[&server_id].diagnostic_capabilities()?;
-                let url = self.buffers[buf].file_url()?;
+                let url = self.db.buffers[buf].file_url()?;
                 let server = self.active_language_services.get_mut(&server_id).unwrap();
                 let fut = server
                     .document_diagnostic(lstypes::DocumentDiagnosticParams { url: url.clone() });

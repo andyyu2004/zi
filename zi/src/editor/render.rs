@@ -7,9 +7,8 @@ use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::{IteratorRangeExt, Offset, PointRange};
 use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
 
-use super::{Editor, State, get_ref};
+use super::{Editor, State};
 use crate::completion::Completion;
-use crate::editor::Resource;
 use crate::syntax::HighlightName;
 use crate::{Active, ViewId};
 
@@ -25,8 +24,8 @@ impl Editor {
         // Only iterate over the views that are in the view tree, as otherwise they are definitely
         // not visible and we don't need to render them.
         self.tree.views().for_each(|view| {
-            let view = &self.views[view];
-            let buf = &mut self.buffers[view.buffer()];
+            let view = &self.db.views[view];
+            let buf = &mut self.db.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
             buf.pre_render(&client, view, area);
         });
@@ -34,7 +33,7 @@ impl Editor {
         self.tree.render(self, frame.buffer_mut());
 
         // HACK probably there is a nicer way to not special case the cmd and statusline
-        let (view, buf) = get_ref!(self);
+        let (view, buf) = self.db.view_and_buffer(self.tree.active());
         let path = buf.file_path();
         let path = path.as_ref().map(|p| p.display());
         let display = path
