@@ -137,6 +137,8 @@ struct_field_names = "allow"
 single_match_else = "allow"
 # Helper fns, consts and imports often sit next to their only use inside a function.
 items_after_statements = "allow"
+# `Default::default()` is preferred where the type is clear from context.
+default_trait_access = "allow"
 
 # Restriction lints
 allow_attributes = "warn"
