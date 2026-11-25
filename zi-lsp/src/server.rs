@@ -206,6 +206,15 @@ impl zi::LanguageService for LanguageService {
         zi::event::subscribe_with::<event::DidOpenBuffer>(move |editor, event| {
             let buf = event.buf;
             let Some(url) = editor[buf].file_url().cloned() else { return HandlerResult::Continue };
+            if !editor
+                .language_config
+                .languages
+                .get(&editor[buf].file_type())
+                .is_some_and(|c| c.language_services.contains(&service_id))
+            {
+                return HandlerResult::Continue;
+            }
+
             let params = lsp_types::DidOpenTextDocumentParams {
                 text_document: lsp_types::TextDocumentItem {
                     uri: url.clone(),
@@ -215,12 +224,13 @@ impl zi::LanguageService for LanguageService {
                 },
             };
 
-            // TODO should ignore any open events not related to this language server.
-            // See below
-
             if let Some(server) = editor.language_server(service_id) {
+                if server.texts.contains_key(&url) {
+                    return HandlerResult::Continue;
+                }
+
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
-                server.texts.entry(url).or_insert((
+                server.texts.insert(url, (
                     params.text_document.version,
                     Rope::from(params.text_document.text.as_str()),
                 ));
