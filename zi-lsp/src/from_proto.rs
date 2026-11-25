@@ -27,10 +27,10 @@ pub fn goto_definition(
                 links
                     .into_iter()
                     .filter_map(|link| {
-                        location(encoding, lsp_types::Location {
-                            uri: link.target_uri,
-                            range: link.target_range,
-                        })
+                        location(
+                            encoding,
+                            lsp_types::Location { uri: link.target_uri, range: link.target_range },
+                        )
                     })
                     .collect(),
             )

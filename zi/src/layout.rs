@@ -88,7 +88,7 @@ impl ViewTree {
     ) {
         assert_ne!(view, new, "cannot split a view into itself");
         assert!(self.views().all(|v| v != new), "cannot split into an existing view");
-        self.top_mut().split(view, new, direction, constraint)
+        self.top_mut().split(view, new, direction, constraint);
     }
 
     pub fn focus_direction(&mut self, direction: Direction) -> ViewId {
@@ -96,7 +96,7 @@ impl ViewTree {
     }
 
     pub fn focus(&mut self, view: ViewId) {
-        self.top_mut().focus(view)
+        self.top_mut().focus(view);
     }
 
     pub fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
@@ -191,7 +191,7 @@ impl Layer {
             self.views().any(|v| v == view),
             "cannot focus on a view that doesn't exist in layer"
         );
-        self.active = view
+        self.active = view;
     }
 }
 
@@ -355,7 +355,7 @@ impl Container {
                         self.insert(i, new, direction);
                     } else {
                         // otherwise, we create a new container
-                        child.split(view, new, direction, constraint)
+                        child.split(view, new, direction, constraint);
                     }
                 }
                 Node::Container(c) => c.split(view, new, direction, constraint),

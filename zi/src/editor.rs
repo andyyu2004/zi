@@ -239,7 +239,7 @@ pub(crate) type Action = fn(&mut Editor);
 static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
 
 fn request_redraw() {
-    NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
+    NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one();
 }
 
 macro_rules! set_error {
@@ -388,7 +388,7 @@ impl Client {
         desc: &'static str,
         fut: impl Future<Output = Result<()>> + Send + 'static,
     ) {
-        self.with(move |editor| editor.spawn(desc, fut)).await
+        self.with(move |editor| editor.spawn(desc, fut)).await;
     }
 
     /// Send a callback to the editor to be executed.
@@ -969,7 +969,7 @@ impl Editor {
                 TrieResult::Nothing => {
                     self.count = None;
                     if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
-                        self.set_mode(Mode::Normal)
+                        self.set_mode(Mode::Normal);
                     }
                 }
             },
@@ -1720,7 +1720,7 @@ impl Editor {
             // NOTE: `c` snapshots the buffer before the edit, and `d` saves it after
             Operator::Change => {
                 self[buf].snapshot_cursor(start_point);
-                self[buf].snapshot(SnapshotFlags::empty())
+                self[buf].snapshot(SnapshotFlags::empty());
             }
             Operator::Delete if text.is_empty() => {
                 self.set_mode(Mode::Normal);
@@ -1747,7 +1747,7 @@ impl Editor {
                     }
                     TextObjectKind::Charwise => self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY),
                 }
-                self.set_mode(Mode::Normal)
+                self.set_mode(Mode::Normal);
             }
             Operator::Yank => self.set_mode(Mode::Normal),
         }
@@ -1896,7 +1896,7 @@ impl Editor {
     // Don't think we want this to be a public api, used for tests for now
     #[doc(hidden)]
     pub fn clear_undo(&mut self, selector: impl Selector<BufferId>) {
-        self.buffer_mut(selector).clear_undo()
+        self.buffer_mut(selector).clear_undo();
     }
 
     fn close_buffer(&mut self, buf: BufferId) {
@@ -2075,7 +2075,7 @@ impl Editor {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
-        view.align(area, buf, alignment)
+        view.align(area, buf, alignment);
     }
 
     pub fn jump_to(&mut self, loc: impl Into<Location>) {
@@ -2168,7 +2168,7 @@ impl Editor {
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<(), Error>> + Send + 'static,
     ) {
-        self.callback(desc, fut, |_, ()| Ok(()))
+        self.callback(desc, fut, |_, ()| Ok(()));
     }
 
     pub(crate) fn callback<R: Send + 'static>(
@@ -2213,8 +2213,8 @@ async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Resu
     let buf = reader.fill_buf().await?;
     if let [0xEF, 0xBB, 0xBF, ..] = buf {
         // Skip the BOM before decoding. This means we won't preserve it on save but we don't care.
-        reader.consume(3)
-    };
+        reader.consume(3);
+    }
 
     loop {
         let buf = reader.fill_buf().await?;
@@ -2278,7 +2278,7 @@ fn callback<R: Send + 'static>(
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
     f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
-    callback_with_timeout(tx, desc, Duration::from_secs(3), fut, f)
+    callback_with_timeout(tx, desc, Duration::from_secs(3), fut, f);
 }
 
 fn callback_with_timeout<R: Send + 'static>(

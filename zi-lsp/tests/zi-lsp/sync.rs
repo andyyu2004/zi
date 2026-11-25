@@ -7,7 +7,10 @@ use super::*;
 
 #[tokio::test]
 async fn lsp_sync_multiple_servers() -> zi::Result<()> {
-    fn server(opens: Arc<AtomicUsize>, changes: Arc<AtomicUsize>) -> FakeLanguageServerTemplate<()> {
+    fn server(
+        opens: Arc<AtomicUsize>,
+        changes: Arc<AtomicUsize>,
+    ) -> FakeLanguageServerTemplate<()> {
         FakeLanguageServer::builder()
             .request::<request::Initialize, _>(|_, _| async {
                 Ok(lsp_types::InitializeResult {
@@ -61,8 +64,7 @@ async fn lsp_sync_multiple_servers() -> zi::Result<()> {
     }
     cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "x"))).await.unwrap();
 
-    let [a_opens, a_changes, b_opens, b_changes] =
-        counts.map(|c| c.load(atomic::Ordering::SeqCst));
+    let [a_opens, a_changes, b_opens, b_changes] = counts.map(|c| c.load(atomic::Ordering::SeqCst));
     assert_eq!((a_opens, b_opens), (1, 1), "didOpen count per server");
     assert_eq!((a_changes, b_changes), (1, 1), "didChange count per server");
 

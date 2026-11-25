@@ -487,20 +487,27 @@ pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> 
 }
 
 pub async fn close_view(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
-    client.with(move |editor| editor.close_view(selector)).await
+    client.with(move |editor| editor.close_view(selector)).await;
 }
 
-pub async fn save(client: &Client, selector: impl Selector<ViewId> + Send + 'static, force: bool) -> crate::Result<()> {
+pub async fn save(
+    client: &Client,
+    selector: impl Selector<ViewId> + Send + 'static,
+    force: bool,
+) -> crate::Result<()> {
     let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-    client.with(move |editor| {
-        let view = selector.select(editor);
-        editor.save(view, save_flags)
-    }).await.await?;
+    client
+        .with(move |editor| {
+            let view = selector.select(editor);
+            editor.save(view, save_flags)
+        })
+        .await
+        .await?;
     Ok(())
 }
 
 pub async fn inspect(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
-    client.with(move |editor| editor.inspect(selector)).await
+    client.with(move |editor| editor.inspect(selector)).await;
 }
 
 pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
@@ -510,8 +517,7 @@ pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
             let buf_ids: Vec<_> = editor
                 .buffers()
                 .filter(|b| {
-                    b.file_path().is_some()
-                        && (force || b.flags().contains(BufferFlags::DIRTY))
+                    b.file_path().is_some() && (force || b.flags().contains(BufferFlags::DIRTY))
                 })
                 .map(|b| b.id())
                 .collect();

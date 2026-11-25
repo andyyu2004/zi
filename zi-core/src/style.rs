@@ -195,7 +195,8 @@ macro_rules! style {
     };
 }
 
-pub use {modifier, style};
+pub use modifier;
+pub use style;
 
 #[cfg(test)]
 mod tests {

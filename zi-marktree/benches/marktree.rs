@@ -62,8 +62,8 @@ fn bench_marktree_delete<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
             )
         })
         .bench_local_values(|mut tree| {
-            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i + k)))
-        })
+            (0..1_000).for_each(|i| assert_eq!(tree.delete(Id(i)), Some(i..i + k)));
+        });
 }
 
 #[divan::bench(consts = LEAF_SIZES)]

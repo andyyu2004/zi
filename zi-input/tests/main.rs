@@ -22,7 +22,7 @@ fn parse_key_event_fail() {
             parsed.is_err(),
             "case: `{s}` should fail to parse but parsed as `{:?}`",
             parsed.unwrap()
-        )
+        );
     }
 }
 

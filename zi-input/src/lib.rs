@@ -196,7 +196,7 @@ impl fmt::Display for KeyEvent {
                 return write!(f, "{c}");
             }
             _ => (),
-        };
+        }
 
         if self.modifiers.is_empty() {
             if self.code.is_special() {

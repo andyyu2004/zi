@@ -231,7 +231,7 @@ impl Nvim {
             "V" => ensure!(editor.mode() == zi::Mode::VisualLine),
             "\x16" => ensure!(editor.mode() == zi::Mode::VisualBlock),
             _ => panic!("unknown mode: {vi_mode}"),
-        };
+        }
 
         let vi_cursor = zi::Point::new(line as usize, col as usize);
         ensure_eq(vi_cursor, zi_cursor, vi_lines, zi_lines, flags)?;

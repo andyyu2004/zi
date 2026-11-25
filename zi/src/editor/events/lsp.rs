@@ -75,7 +75,7 @@ impl Editor {
 
     pub(super) fn refresh_semantic_tokens(&mut self, buf: BufferId) {
         if let Some(fut) = self.request_semantic_tokens(buf) {
-            self.spawn("semantic tokens", fut.map_err(Into::into))
-        };
+            self.spawn("semantic tokens", fut.map_err(Into::into));
+        }
     }
 }

@@ -501,7 +501,7 @@ proptest::proptest! {
                     tree.insert(at, id).width(width);
                 }
                 Action::Delete(id) => {
-                    assert_eq!(tree.delete(id), insertions.remove(&id))
+                    assert_eq!(tree.delete(id), insertions.remove(&id));
                 }
             }
 

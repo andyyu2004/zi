@@ -655,7 +655,7 @@ where
                     }
 
                     if start_col > j {
-                        yield (line_idx, slice(&line, j..start_col), None)
+                        yield (line_idx, slice(&line, j..start_col), None);
                     }
 
                     if end_col >= line_len_bytes {
@@ -670,7 +670,7 @@ where
                             line_idx,
                             format!("{:width$}", "", width = end_col - line_len_bytes).into(),
                             Some(annotation),
-                        )
+                        );
                     } else {
                         yield (line_idx, slice(&line, start_col..end_col), Some(annotation));
                     }

@@ -28,7 +28,7 @@ impl Editor {
             let view = &self.views[view];
             let buf = &mut self.buffers[view.buffer()];
             let area = self.tree.view_area(view.id());
-            buf.pre_render(&client, view, area)
+            buf.pre_render(&client, view, area);
         });
 
         self.tree.render(self, frame.buffer_mut());

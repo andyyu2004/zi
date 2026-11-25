@@ -1,9 +1,4 @@
-#![feature(
-    iter_array_chunks,
-    coroutines,
-    iter_from_coroutine,
-    debug_closure_helpers
-)]
+#![feature(iter_array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
 mod bitbag;
 mod builder;
@@ -556,7 +551,7 @@ impl<const N: usize> Leaf<N> {
                 cmp::Ordering::Greater => {
                     // The offset is before the start of the replacement range.
                     // Copy the chunk of the extent that precedes the replacement range.
-                    builder.push_raw(start - offset, keys.drain())
+                    builder.push_raw(start - offset, keys.drain());
                 }
                 cmp::Ordering::Equal => {
                     // The interval starts exactly at offset, move it to the right by pushing the gap first.
@@ -592,7 +587,7 @@ impl<const N: usize> Leaf<N> {
         }
 
         if let Some(gap) = gap {
-            builder.push_raw(gap, keys)
+            builder.push_raw(gap, keys);
         } else if !keys.is_empty() {
             builder.push_raw(0, keys);
         }
@@ -1119,14 +1114,14 @@ impl Sub for ByteMetric {
 impl AddAssign for ByteMetric {
     #[inline]
     fn add_assign(&mut self, other: Self) {
-        self.0 += other.0
+        self.0 += other.0;
     }
 }
 
 impl SubAssign for ByteMetric {
     #[inline]
     fn sub_assign(&mut self, other: Self) {
-        self.0 -= other.0
+        self.0 -= other.0;
     }
 }
 

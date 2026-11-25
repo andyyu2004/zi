@@ -106,7 +106,7 @@ where
 
     let client = editor.client();
     tokio::spawn(async move {
-        editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
+        editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap();
     });
     f(client.clone()).await?;
 

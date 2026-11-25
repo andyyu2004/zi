@@ -20,7 +20,7 @@ impl Editor {
 
         event::subscribe_with::<event::WillChangeMode>(|editor, event| {
             if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
-                editor.insert_to_normal()
+                editor.insert_to_normal();
             }
 
             HandlerResult::Continue
@@ -28,7 +28,7 @@ impl Editor {
 
         event::subscribe_with::<event::DidChangeMode>(|editor, event| {
             if let (Mode::Insert, Mode::Normal) = (event.from, event.to) {
-                editor.refresh_semantic_tokens(Active.select(editor))
+                editor.refresh_semantic_tokens(Active.select(editor));
             }
 
             // Handle dot repeat recording based on mode transitions
@@ -75,7 +75,7 @@ impl Editor {
             };
 
             if let Completion::Active(state) = &mut state.completion {
-                state.update_query(None)
+                state.update_query(None);
             }
 
             HandlerResult::Continue

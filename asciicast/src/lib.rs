@@ -37,7 +37,7 @@ impl Asciicast {
             line.clear();
             if r.read_line(&mut line)? == 0 {
                 break;
-            };
+            }
 
             let (time_us, code, data): (f64, &str, String) = serde_json::from_str(&line)?;
             let time_us = (time_us * 1_000_000.0) as u64;

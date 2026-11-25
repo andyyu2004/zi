@@ -69,7 +69,7 @@ t!(I_NO_TRAILING_SPACE, "V[jk]*c<ESC>", nvim_visual_line_change);
 fn scratch() {
     #[allow(unused)]
     fn test(text: &str, inputs: &str) {
-        run(text, inputs, CompareFlags::empty())
+        run(text, inputs, CompareFlags::empty());
     }
 
     test("abcde", "Vy");
@@ -83,5 +83,5 @@ fn run(text: impl Into<String>, inputs: &str, flags: CompareFlags) {
         let fixture = Fixture::new([TestCase::new(text, inputs)]);
         let nvim = nvim(&fixture).await;
         fixture.nvim_vs_zi_with(nvim, flags).await.unwrap();
-    })
+    });
 }

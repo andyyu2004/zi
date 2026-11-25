@@ -23,7 +23,7 @@ impl MarkBuilder {
     }
 
     pub fn insert<Id: MarkTreeId, const N: usize>(self, tree: &mut MarkTree<Id, N>, id: Id) {
-        drop(Inserter { tree, id, builder: self })
+        drop(Inserter { tree, id, builder: self });
     }
 
     pub fn width(mut self, width: usize) -> Self {

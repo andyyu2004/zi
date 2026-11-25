@@ -61,7 +61,7 @@ impl Editor {
                         break;
                     }
                 }
-            })
+            });
         }
     }
 
@@ -448,7 +448,7 @@ impl Editor {
                                 WalkState::Continue
                             }
                         })
-                    })
+                    });
                 });
             },
         )

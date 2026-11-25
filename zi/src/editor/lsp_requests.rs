@@ -158,9 +158,12 @@ impl Editor {
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 tracing::debug!(%url, %point, "language request definition");
-                let fut = f(&mut **server, lstypes::GotoDefinitionParams {
-                    at: lstypes::TextDocumentPointParams { url, point },
-                });
+                let fut = f(
+                    &mut **server,
+                    lstypes::GotoDefinitionParams {
+                        at: lstypes::TextDocumentPointParams { url, point },
+                    },
+                );
                 Some(fut)
             });
 
@@ -326,7 +329,7 @@ impl Editor {
             client
                 .with(move |editor| {
                     if let Some(point) = editor.text(buf).decode_point(location.range.start()) {
-                        editor.jump(from, Location::new(buf, point))
+                        editor.jump(from, Location::new(buf, point));
                     }
                 })
                 .await;
@@ -421,7 +424,7 @@ impl Editor {
                             tracing::warn!(?url, "ignoring non-file related document diagnostics");
                             continue;
                         };
-                        editor.replace_diagnostics(path, None, related)
+                        editor.replace_diagnostics(path, None, related);
                     }
                     Ok(())
                 });

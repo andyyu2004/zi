@@ -108,19 +108,19 @@ pub(super) fn new() -> Keymap {
     }
 
     fn prev_line(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevLine))
+        set_error_if!(editor: editor.motion(Active, motion::PrevLine));
     }
 
     fn next_line(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextLine))
+        set_error_if!(editor: editor.motion(Active, motion::NextLine));
     }
 
     fn prev_char(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevChar))
+        set_error_if!(editor: editor.motion(Active, motion::PrevChar));
     }
 
     fn next_char(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextChar))
+        set_error_if!(editor: editor.motion(Active, motion::NextChar));
     }
 
     fn inside_paren(editor: &mut Editor) {
@@ -249,7 +249,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn next_word(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextWord))
+        set_error_if!(editor: editor.motion(Active, motion::NextWord));
     }
 
     fn prev_word(editor: &mut Editor) {
@@ -257,7 +257,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn matchit(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::MatchIt))
+        set_error_if!(editor: editor.motion(Active, motion::MatchIt));
     }
 
     fn text_object_current_line_inclusive(editor: &mut Editor) {
@@ -346,15 +346,15 @@ pub(super) fn new() -> Keymap {
     }
 
     fn view_only(editor: &mut Editor) {
-        editor.view_only(editor.view(Active).id())
+        editor.view_only(editor.view(Active).id());
     }
 
     fn undo(editor: &mut Editor) {
-        set_error_if!(editor: editor.undo(Active))
+        set_error_if!(editor: editor.undo(Active));
     }
 
     fn redo(editor: &mut Editor) {
-        set_error_if!(editor: editor.redo(Active))
+        set_error_if!(editor: editor.redo(Active));
     }
 
     fn dot_repeat(editor: &mut Editor) {
@@ -399,15 +399,15 @@ pub(super) fn new() -> Keymap {
     }
 
     fn tab(editor: &mut Editor) {
-        set_error_if!(editor: editor.tab())
+        set_error_if!(editor: editor.tab());
     }
 
     fn backtab(editor: &mut Editor) {
-        set_error_if!(editor: editor.backtab())
+        set_error_if!(editor: editor.backtab());
     }
 
     fn trigger_completion(editor: &mut Editor) {
-        editor.trigger_completion(None)
+        editor.trigger_completion(None);
     }
 
     fn execute_buffered_command(editor: &mut Editor) {
