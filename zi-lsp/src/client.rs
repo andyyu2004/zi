@@ -10,7 +10,7 @@ use zi::lstypes;
 
 use crate::{EditorExt, from_proto};
 
-/// Adaptor to convert zi::LanguageClient -> async_lsp::LanguageClient
+/// Adaptor to convert `zi::LanguageClient` -> `async_lsp::LanguageClient`
 pub struct LanguageClient(zi::LanguageClient);
 
 impl LanguageClient {

@@ -16,7 +16,7 @@ async fn setup(
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, _| {
+            .request::<request::Initialize, _>(move |(), _| {
                 let encoding = position_encoding.clone();
                 async move {
                     Ok(lsp_types::InitializeResult {
@@ -54,7 +54,7 @@ async fn setup(
 async fn lsp_definition_utf8() -> zi::Result<()> {
     let cx = new("").await;
 
-    setup(&cx, lsp_types::PositionEncodingKind::UTF8, lsp_range!(0:4..0:5), r#"ab©de"#).await?;
+    setup(&cx, lsp_types::PositionEncodingKind::UTF8, lsp_range!(0:4..0:5), r"ab©de").await?;
 
     cx.with(move |editor| editor.goto_definition(zi::Active)).await.await?;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;
@@ -67,7 +67,7 @@ async fn lsp_definition_utf8() -> zi::Result<()> {
 async fn lsp_definition_utf16() -> zi::Result<()> {
     let cx = new("").await;
 
-    setup(&cx, lsp_types::PositionEncodingKind::UTF16, lsp_range!(0:3..0:4), r#"ab©de"#).await?;
+    setup(&cx, lsp_types::PositionEncodingKind::UTF16, lsp_range!(0:3..0:4), r"ab©de").await?;
 
     cx.with(move |editor| editor.goto_definition(zi::Active)).await.await?;
     cx.with(|editor| assert_eq!(editor.view(zi::Active).cursor(), zi::Point::new(0, 4))).await;

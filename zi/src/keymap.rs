@@ -62,9 +62,8 @@ where
             self.last_mode = Some(mode.clone());
         }
 
-        let trie = match self.maps.get(&mode) {
-            Some(trie) => trie,
-            None => return (TrieResult::Nothing, vec![key]),
+        let Some(trie) = self.maps.get(&mode) else {
+            return (TrieResult::Nothing, vec![key]);
         };
 
         self.buffer.push(key);
@@ -147,9 +146,8 @@ where
     where
         K: 'a,
     {
-        let k = match keys.next() {
-            Some(k) => k,
-            None => return TrieResult::Partial,
+        let Some(k) = keys.next() else {
+            return TrieResult::Partial;
         };
 
         match self.children.get(k) {
@@ -183,7 +181,7 @@ where
                 TrieNode::Trie(trie) => trie.insert(keys, value),
                 TrieNode::Value(_) => match entry.insert(mk_new_node(keys, value)) {
                     TrieNode::Value(v) => Some(v),
-                    _ => unreachable!("we know it's a value"),
+                    TrieNode::Trie(_) => unreachable!("we know it's a value"),
                 },
             },
             Entry::Vacant(entry) => {
@@ -252,8 +250,8 @@ where
     V: Clone,
 {
     fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
-        use State::*;
-        use TrieResult::*;
+        use State::{Both, Left, Right};
+        use TrieResult::{Found, Nothing, Partial};
 
         let (lhs, lbuf, rhs, rbuf) = match self.state {
             State::Both => {
@@ -271,6 +269,7 @@ where
             }
         };
 
+        #[expect(clippy::match_same_arms, reason = "one arm per (lhs, rhs) pair reads as a table")]
         let (v, buf, state) = match (lhs, rhs) {
             (_, Found(v)) => (Found(v), rbuf, Both),
             // This case means the right side has a binding that "shadows" the same binding on the left side.

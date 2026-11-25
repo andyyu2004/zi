@@ -169,7 +169,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
         let end = match text.line(cursor.line()) {
             Some(line) => {
                 let line_byte_width =
-                    line.chars().take(size.width as usize).map(|c| c.len_utf8()).sum::<usize>();
+                    line.chars().take(size.width as usize).map(char::len_utf8).sum::<usize>();
                 size.width.max(line_byte_width as u16)
             }
             _ => size.width,
@@ -213,9 +213,10 @@ impl<X: Text + Clone> TextBuffer<X> {
             |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
         );
 
-        if text.as_text_mut().is_none() && !flags.contains(BufferFlags::READONLY) {
-            panic!("must set readonly buffer flag for readonly text implementations")
-        }
+        assert!(
+            text.as_text_mut().is_some() || flags.contains(BufferFlags::READONLY),
+            "must set readonly buffer flag for readonly text implementations"
+        );
 
         // let mut syntax = match Syntax::for_file_type(ft) {
         //     Ok(syntax) => syntax,

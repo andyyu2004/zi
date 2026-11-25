@@ -20,7 +20,7 @@ type SubscriptionId = u64;
 #[derive(Default)]
 pub struct Registry {
     // map<event_type, [(subscription_id, handler)]> in subscription order
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     handlers: parking_lot::RwLock<
         FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedEventHandler + Send + Sync>)>>,
     >,
@@ -30,7 +30,7 @@ pub struct Registry {
     garbage: SegQueue<(TypeId, SubscriptionId)>,
     async_garbage: SegQueue<(TypeId, SubscriptionId)>,
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     async_handlers: tokio::sync::RwLock<
         FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>)>>,
     >,
@@ -42,8 +42,9 @@ fn registry() -> &'static Registry {
     REGISTRY.get_or_init(Registry::default)
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "callers hand the event over")]
 pub fn dispatch(editor: &mut Editor, event: impl Event) {
-    registry().dispatch(editor, &event)
+    registry().dispatch(editor, &event);
 }
 
 pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) -> Result<()> {
@@ -51,7 +52,7 @@ pub async fn dispatch_async(client: &Client, event: impl AsyncEvent) -> Result<(
 }
 
 pub fn subscribe<E: Event>(handler: impl EventHandler<Editor, Event = E>) {
-    registry().subscribe(handler)
+    registry().subscribe(handler);
 }
 
 pub fn subscribe_with<E: Event>(
@@ -61,7 +62,7 @@ pub fn subscribe_with<E: Event>(
 }
 
 pub async fn subscribe_async<E: AsyncEvent>(handler: impl AsyncEventHandler<Event = E>) {
-    registry().subscribe_async(handler).await
+    registry().subscribe_async(handler).await;
 }
 
 pub async fn subscribe_async_with<E, Fut>(f: impl Fn(Client, E) -> Fut + Send + Sync + 'static)
@@ -69,7 +70,7 @@ where
     E: AsyncEvent,
     Fut: Future<Output = AsyncHandlerResult> + Send + 'static,
 {
-    subscribe_async(async_handler(f)).await
+    subscribe_async(async_handler(f)).await;
 }
 
 impl Registry {

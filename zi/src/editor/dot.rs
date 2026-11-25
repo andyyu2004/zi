@@ -79,9 +79,7 @@ impl Dot {
     pub(super) fn should_start_recording(from: Mode, to: Mode) -> bool {
         matches!(
             (from, to),
-            (Mode::Normal, Mode::Insert)
-                | (Mode::Normal, Mode::OperatorPending(_))
-                | (Mode::Normal, Mode::ReplacePending)
+            (Mode::Normal, Mode::Insert | Mode::OperatorPending(_) | Mode::ReplacePending)
         )
     }
 

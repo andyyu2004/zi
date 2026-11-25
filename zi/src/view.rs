@@ -285,7 +285,7 @@ impl View {
 
         let flags = match direction {
             Direction::Up | Direction::Down => SetCursorFlags::USE_TARGET_COLUMN,
-            _ => SetCursorFlags::empty(),
+            Direction::Left | Direction::Right => SetCursorFlags::empty(),
         };
 
         self.set_cursor_linewise(mode, size, buf, pos, flags)
@@ -309,6 +309,7 @@ impl View {
             "not applicable for bytewise cursor movement"
         );
 
+        #[expect(clippy::todo, reason = "no bytewise motion sets START_OF_LINE yet")]
         if flags.contains(SetCursorFlags::START_OF_LINE) {
             todo!()
         }
@@ -324,7 +325,7 @@ impl View {
             let mut chars = text.byte_slice(..).chars().rev().peekable();
             if !insert {
                 // move cursor back if not in insert mode
-                byte -= chars.next().map_or(0, |c| c.len_utf8());
+                byte -= chars.next().map_or(0, char::len_utf8);
             }
             chars
         } else {
@@ -393,7 +394,7 @@ impl View {
             | Mode::VisualLine
             | Mode::VisualBlock
             | Mode::OperatorPending(..)
-            | Mode::ReplacePending => line.chars().next_back().map_or(0, |c| c.len_utf8()),
+            | Mode::ReplacePending => line.chars().next_back().map_or(0, char::len_utf8),
         };
 
         let max_col = Col::from(line_len.saturating_sub(k));
@@ -515,7 +516,7 @@ impl View {
     /// In particular, it does not copy the group.
     pub(crate) fn split_from(id: ViewId, view: View) -> Self {
         assert_ne!(id, view.id);
-        Self { id, group: None, ..view.clone() }
+        Self { id, group: None, ..view }
     }
 
     pub fn jump_list(&self) -> &JumpList<Location> {

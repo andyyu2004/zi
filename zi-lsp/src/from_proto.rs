@@ -27,10 +27,10 @@ pub fn goto_definition(
                 links
                     .into_iter()
                     .filter_map(|link| {
-                        location(encoding, lsp_types::Location {
-                            uri: link.target_uri,
-                            range: link.target_range,
-                        })
+                        location(
+                            encoding,
+                            lsp_types::Location { uri: link.target_uri, range: link.target_range },
+                        )
                     })
                     .collect(),
             )
@@ -110,6 +110,10 @@ pub fn diagnostic(
 ) -> Option<lstypes::Diagnostic> {
     Some(lstypes::Diagnostic {
         range: encoded_range(encoding, diag.range),
+        #[expect(
+            clippy::match_same_arms,
+            reason = "ERROR is spelled out next to the other severities"
+        )]
         severity: match diag.severity {
             Some(lsp_types::DiagnosticSeverity::ERROR) => Severity::Error,
             Some(lsp_types::DiagnosticSeverity::WARNING) => Severity::Warning,

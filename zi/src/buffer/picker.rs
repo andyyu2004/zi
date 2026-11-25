@@ -99,7 +99,7 @@ where
         let preview = move |editor: &mut Editor, buf: BufferId| {
             editor.set_buffer(self.preview, buf);
             if let Some(point) = point.and_then(|p| editor.text(buf).decode_point(p)) {
-                editor.reveal(self.preview, point, VerticalAlignment::Center)
+                editor.reveal(self.preview, point, VerticalAlignment::Center);
             }
         };
 
@@ -153,7 +153,7 @@ where
                 editor.reveal(Active, point, VerticalAlignment::Center);
             }
             Ok(())
-        })
+        });
     }
 }
 
@@ -354,7 +354,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
             let text = editor[buf].text();
 
             let mut s = String::new();
-            for item in items.iter() {
+            for item in &items {
                 writeln!(s, "{item}")?;
             }
 
@@ -368,7 +368,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
     }
 
     fn on_leave(&mut self, _: Internal) {
-        self.cancel.cancel()
+        self.cancel.cancel();
     }
 
     fn as_any(&self) -> &dyn Any {

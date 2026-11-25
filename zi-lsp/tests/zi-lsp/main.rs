@@ -88,7 +88,9 @@ macro_rules! lsp_change_event {
     };
 }
 
-use {lsp_change_event, lsp_pos, lsp_range};
+use lsp_change_event;
+use lsp_pos;
+use lsp_range;
 
 trait TestContextExt {
     async fn setup_lang_server<St: Send + Sync + Clone + 'static>(
@@ -124,7 +126,7 @@ impl TestContextExt for TestContext {
                 .add_language(ft, zi::LanguageConfig::new([server_id]))
                 .add_language_service(server_id, server.finish(st));
         })
-        .await
+        .await;
     }
 }
 
@@ -210,7 +212,6 @@ impl<St> FakeLanguageServerBuilder<St> {
         self
     }
 
-    #[allow(dead_code)]
     pub fn notification<N: Notification>(
         mut self,
         handler: impl Fn(&mut St, N::Params) -> zi_lsp::Result<()> + Send + Sync + 'static,

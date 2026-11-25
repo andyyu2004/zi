@@ -20,7 +20,7 @@ impl Editor {
         range: impl RangeBounds<usize>,
     ) {
         let ns = namespace.select(self);
-        self.buffer_mut(selector).clear_marks(ns, range)
+        self.buffer_mut(selector).clear_marks(ns, range);
     }
 
     #[inline]

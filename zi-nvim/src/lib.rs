@@ -132,9 +132,9 @@ impl Fixture {
 
 pub struct Nvim {
     nvim: nvim_rs::Neovim<nvim_rs::compat::tokio::Compat<ChildStdin>>,
-    #[allow(unused)]
+    #[expect(unused, reason = "kept so the nvim process lives as long as Nvim")]
     join_handle: tokio::task::JoinHandle<Result<(), Box<LoopError>>>,
-    #[allow(unused)]
+    #[expect(unused, reason = "kept so the nvim process lives as long as Nvim")]
     child: tokio::process::Child,
 }
 
@@ -231,10 +231,10 @@ impl Nvim {
             "V" => ensure!(editor.mode() == zi::Mode::VisualLine),
             "\x16" => ensure!(editor.mode() == zi::Mode::VisualBlock),
             _ => panic!("unknown mode: {vi_mode}"),
-        };
+        }
 
         let vi_cursor = zi::Point::new(line as usize, col as usize);
-        ensure_eq(vi_cursor, zi_cursor, vi_lines, zi_lines, flags)?;
+        ensure_eq(vi_cursor, zi_cursor, &vi_lines, &zi_lines, flags)?;
 
         Ok(())
     }
@@ -243,11 +243,11 @@ impl Nvim {
 fn ensure_eq(
     vi_cursor: zi::Point,
     zi_cursor: zi::Point,
-    vi_lines: String,
-    zi_lines: String,
+    vi_lines: &str,
+    zi_lines: &str,
     _flags: CompareFlags,
 ) -> Result<(), anyhow::Error> {
-    ensure_lines_eq(&vi_lines, &zi_lines)?;
+    ensure_lines_eq(vi_lines, zi_lines)?;
     ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
     Ok(())
 }
@@ -281,8 +281,8 @@ impl Nvim {
         let buf = nvim.create_buf(false, true).await?;
         nvim.set_current_buf(&buf).await?;
         let win = nvim.get_current_win().await?;
-        win.set_width(width as i64).await?;
-        win.set_height(height as i64).await?;
+        win.set_width(i64::from(width)).await?;
+        win.set_height(i64::from(height)).await?;
 
         Ok(Nvim { nvim, join_handle, child })
     }

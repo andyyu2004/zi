@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::path::MAIN_SEPARATOR;
 use std::sync::Arc;
 
@@ -139,9 +140,9 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
 
         let snapshot = self.nucleo.snapshot();
         self.text.clear();
-        let n = snapshot.matched_item_count().min(area.height as u32);
+        let n = snapshot.matched_item_count().min(u32::from(area.height));
         for item in snapshot.matched_items(..n) {
-            self.text.push_str(&format!("{}\n", item.data));
+            writeln!(self.text, "{}", item.data).expect("writing to a String can't fail");
         }
     }
 

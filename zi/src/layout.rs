@@ -88,7 +88,7 @@ impl ViewTree {
     ) {
         assert_ne!(view, new, "cannot split a view into itself");
         assert!(self.views().all(|v| v != new), "cannot split into an existing view");
-        self.top_mut().split(view, new, direction, constraint)
+        self.top_mut().split(view, new, direction, constraint);
     }
 
     pub fn focus_direction(&mut self, direction: Direction) -> ViewId {
@@ -96,11 +96,11 @@ impl ViewTree {
     }
 
     pub fn focus(&mut self, view: ViewId) {
-        self.top_mut().focus(view)
+        self.top_mut().focus(view);
     }
 
     pub fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
-        self.layers.iter().flat_map(|layer| layer.views())
+        self.layers.iter().flat_map(Layer::views)
     }
 
     pub fn top(&self) -> &Layer {
@@ -191,7 +191,7 @@ impl Layer {
             self.views().any(|v| v == view),
             "cannot focus on a view that doesn't exist in layer"
         );
-        self.active = view
+        self.active = view;
     }
 }
 
@@ -206,7 +206,7 @@ impl Node {
         match self {
             Node::View(id) if *id == view => Some(area),
             Node::Container(container) => container.area(area, view),
-            _ => None,
+            Node::View(_) => None,
         }
     }
 
@@ -247,7 +247,7 @@ impl Node {
         match self {
             Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.close_view(view),
-            _ => TraverseResult::Continue,
+            Node::View(_) => TraverseResult::Continue,
         }
     }
 
@@ -262,7 +262,7 @@ impl Node {
         match self {
             Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.next_view(view, direction),
-            _ => TraverseResult::Continue,
+            Node::View(_) => TraverseResult::Continue,
         }
     }
 }
@@ -355,24 +355,24 @@ impl Container {
                         self.insert(i, new, direction);
                     } else {
                         // otherwise, we create a new container
-                        child.split(view, new, direction, constraint)
+                        child.split(view, new, direction, constraint);
                     }
                 }
                 Node::Container(c) => c.split(view, new, direction, constraint),
-                _ => continue,
+                Node::View(_) => {}
             }
         }
     }
 
     fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
-        self.children.iter().flat_map(|child| child.views())
+        self.children.iter().flat_map(Node::views)
     }
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {
         for i in 0..self.children.len() {
             let child = &mut self.children[i];
             match child.close_view(view) {
-                TraverseResult::Continue => continue,
+                TraverseResult::Continue => {}
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
                 TraverseResult::Propagate => {
                     if self.children.len() == 1 {
@@ -400,7 +400,7 @@ impl Container {
     fn next_view(&self, view: ViewId, direction: Direction) -> TraverseResult<ViewId> {
         for (i, child) in self.children.iter().enumerate() {
             match child.next_view(view, direction) {
-                TraverseResult::Continue => continue,
+                TraverseResult::Continue => {}
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
                 TraverseResult::Propagate => {
                     if self.direction != direction.into() {

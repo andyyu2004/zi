@@ -239,7 +239,7 @@ pub(crate) type Action = fn(&mut Editor);
 static NOTIFY_REDRAW: OnceLock<Notify> = OnceLock::new();
 
 fn request_redraw() {
-    NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one()
+    NOTIFY_REDRAW.get().expect("editor was not initialized").notify_one();
 }
 
 macro_rules! set_error {
@@ -306,7 +306,7 @@ macro_rules! get_ref {
         $crate::editor::get_ref!($editor: view_id as $ty)
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
-        #[allow(unused_imports)]
+        #[allow(unused_imports, reason = "only needed when the view is not already a ViewId")]
         use $crate::view::HasViewId as _;
         let view_id = $view.view_id();
         let view = &mut $editor.views[view_id];
@@ -317,7 +317,6 @@ macro_rules! get_ref {
         $crate::editor::get_ref!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
-        #[allow(unused_imports)]
         let view = &$editor.views[$view];
         let buf = &$editor.buffers[view.buffer()];
         (view, buf)
@@ -358,7 +357,7 @@ impl<T> Stream for UnboundedChannelStream<T> {
 }
 
 struct Request {
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
     tx: oneshot::Sender<Box<dyn Any + Send>>,
 }
@@ -388,7 +387,7 @@ impl Client {
         desc: &'static str,
         fut: impl Future<Output = Result<()>> + Send + 'static,
     ) {
-        self.with(move |editor| editor.spawn(desc, fut)).await
+        self.with(move |editor| editor.spawn(desc, fut)).await;
     }
 
     /// Send a callback to the editor to be executed.
@@ -524,7 +523,9 @@ impl Editor {
         self.tree.size()
     }
 
-    fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
+    fn check_open(path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
+        use std::io::Read;
+
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
         }
@@ -535,13 +536,16 @@ impl Editor {
 
         if path.exists() {
             // Try ensure that the file does not contains non-utf8 data.
-            use std::io::Read;
             let mut buf = [0u8; 1024];
             let n = File::open(path.as_path())?.read(&mut buf)?;
             match content_inspector::inspect(&buf[..n]) {
                 content_inspector::ContentType::UTF_8
                 | content_inspector::ContentType::UTF_8_BOM => {}
-                _ => {
+                content_inspector::ContentType::BINARY
+                | content_inspector::ContentType::UTF_16LE
+                | content_inspector::ContentType::UTF_16BE
+                | content_inspector::ContentType::UTF_32LE
+                | content_inspector::ContentType::UTF_32BE => {
                     return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data"));
                 }
             }
@@ -563,7 +567,7 @@ impl Editor {
     ) -> io::Result<impl Future<Output = Result<BufferId>> + 'static> {
         let theme = self.theme().clone();
         let mut path = path.as_ref().to_path_buf();
-        self.check_open(&mut path, open_flags)?;
+        Self::check_open(&mut path, open_flags)?;
 
         let ft = FileType::detect(&path);
         let syntax = self.backend.new_syntax(ft)?;
@@ -596,7 +600,7 @@ impl Editor {
 
         let client = self.client();
         Ok(async move {
-            #[allow(clippy::too_many_arguments)]
+            #[expect(clippy::too_many_arguments, reason = "inner helper, called once")]
             async fn execute<T: Text + Clone + 'static>(
                 client: &Client,
                 plan: Plan,
@@ -787,10 +791,13 @@ impl Editor {
 
         render(self)?;
 
-        let mut plugin_manager_handles = FuturesUnordered::from_iter(
-            self.plugin_managers.values().cloned().map(|m| tokio::spawn(m.start(self.client()))),
-        )
-        .fuse();
+        let mut plugin_manager_handles = self
+            .plugin_managers
+            .values()
+            .cloned()
+            .map(|m| tokio::spawn(m.start(self.client())))
+            .collect::<FuturesUnordered<_>>()
+            .fuse();
 
         let mut requests = pin!(requests.fuse().peekable());
         let mut callbacks = pin!(callbacks.buffer_unordered(128).peekable());
@@ -907,7 +914,12 @@ impl Editor {
                 self.update_search();
                 Ok(())
             }
-            _ => unreachable!(),
+            State::Normal(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => unreachable!(),
         }
     }
 
@@ -932,6 +944,10 @@ impl Editor {
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
         tracing::trace!(%key, "handling key");
+        #[expect(
+            clippy::wildcard_enum_match_arm,
+            reason = "every other key goes through the keymap"
+        )]
         match key.code() {
             KeyCode::Char(c) if matches!(mode, Mode::ReplacePending) => {
                 self.set_mode(Mode::Insert);
@@ -948,13 +964,9 @@ impl Editor {
                 }
 
                 for event in buffered {
-                    match event.code() {
-                        KeyCode::Char(c) => {
-                            if let Err(err) = self.handle_insert(c) {
-                                set_error!(self, err);
-                            }
-                        }
-                        _ => unreachable!(),
+                    let KeyCode::Char(c) = event.code() else { unreachable!() };
+                    if let Err(err) = self.handle_insert(c) {
+                        set_error!(self, err);
                     }
                 }
             }
@@ -969,7 +981,7 @@ impl Editor {
                 TrieResult::Nothing => {
                     self.count = None;
                     if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
-                        self.set_mode(Mode::Normal)
+                        self.set_mode(Mode::Normal);
                     }
                 }
             },
@@ -1010,7 +1022,11 @@ impl Editor {
                 start_col: start.col().min(end.col()),
                 end_col: start.col().max(end.col()),
             }),
-            _ => None,
+            Mode::Normal
+            | Mode::Insert
+            | Mode::Command
+            | Mode::OperatorPending(_)
+            | Mode::ReplacePending => None,
         }
     }
 
@@ -1209,7 +1225,13 @@ impl Editor {
                 self.update_search();
                 Ok(())
             }
-            _ => {
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => {
                 let view = selector.select(self);
                 let (view, buf) = get!(self: view);
                 if buf.flags().contains(BufferFlags::READONLY) {
@@ -1281,7 +1303,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_next() {
-                        self.apply_completion_delta(delta);
+                        self.apply_completion_delta(&delta);
                     }
                 } else {
                     let (view, buf) = self.get(Active);
@@ -1313,7 +1335,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_prev() {
-                        self.apply_completion_delta(delta);
+                        self.apply_completion_delta(&delta);
                     }
                 } else {
                     // TODO
@@ -1398,8 +1420,8 @@ impl Editor {
                 return None;
             }
 
-            let start = if k != len { rng.random_range(k..=len) } else { k };
-            let end = if start != len { rng.random_range(start..=len) } else { start };
+            let start = if k == len { k } else { rng.random_range(k..=len) };
+            let end = if start == len { start } else { rng.random_range(start..=len) };
             k = end + 1;
             let range = start..end;
 
@@ -1720,7 +1742,7 @@ impl Editor {
             // NOTE: `c` snapshots the buffer before the edit, and `d` saves it after
             Operator::Change => {
                 self[buf].snapshot_cursor(start_point);
-                self[buf].snapshot(SnapshotFlags::empty())
+                self[buf].snapshot(SnapshotFlags::empty());
             }
             Operator::Delete if text.is_empty() => {
                 self.set_mode(Mode::Normal);
@@ -1747,7 +1769,7 @@ impl Editor {
                     }
                     TextObjectKind::Charwise => self[buf].snapshot(SnapshotFlags::ALLOW_EMPTY),
                 }
-                self.set_mode(Mode::Normal)
+                self.set_mode(Mode::Normal);
             }
             Operator::Yank => self.set_mode(Mode::Normal),
         }
@@ -1803,7 +1825,13 @@ impl Editor {
                 self.text_object(view_id, motion)?;
                 Ok(self[view_id].cursor())
             }
-            _ => {
+            Mode::Normal
+            | Mode::Insert
+            | Mode::Command
+            | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock
+            | Mode::ReplacePending => {
                 self.search_state.hlsearch = false;
 
                 let text = buf.text();
@@ -1896,7 +1924,7 @@ impl Editor {
     // Don't think we want this to be a public api, used for tests for now
     #[doc(hidden)]
     pub fn clear_undo(&mut self, selector: impl Selector<BufferId>) {
-        self.buffer_mut(selector).clear_undo()
+        self.buffer_mut(selector).clear_undo();
     }
 
     fn close_buffer(&mut self, buf: BufferId) {
@@ -2075,7 +2103,7 @@ impl Editor {
         let view = selector.select(self);
         let (view, buf) = get!(self: view);
         let area = self.tree.view_area(view.id());
-        view.align(area, buf, alignment)
+        view.align(area, buf, alignment);
     }
 
     pub fn jump_to(&mut self, loc: impl Into<Location>) {
@@ -2105,13 +2133,9 @@ impl Editor {
 
     pub(crate) fn search_mode(&mut self) {
         self.set_mode(Mode::Command);
-        match &mut self.state {
-            State::Command(state) => {
-                state.buffer.clear();
-                state.buffer.push('/');
-            }
-            _ => unreachable!(),
-        }
+        let State::Command(state) = &mut self.state else { unreachable!() };
+        state.buffer.clear();
+        state.buffer.push('/');
     }
 
     pub fn jump_forward(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
@@ -2144,11 +2168,11 @@ impl Editor {
     }
 
     pub fn goto_next_match(&mut self) -> Option<Match> {
-        self.goto_match(|s| s.next_match())
+        self.goto_match(search::SearchState::next_match)
     }
 
     pub fn goto_prev_match(&mut self) -> Option<Match> {
-        self.goto_match(|s| s.prev_match())
+        self.goto_match(search::SearchState::prev_match)
     }
 
     // Bit odd for a method with this name to require a mutable reference.
@@ -2168,7 +2192,7 @@ impl Editor {
         desc: impl fmt::Display + Send + 'static,
         fut: impl Future<Output = Result<(), Error>> + Send + 'static,
     ) {
-        self.callback(desc, fut, |_, ()| Ok(()))
+        self.callback(desc, fut, |_, ()| Ok(()));
     }
 
     pub(crate) fn callback<R: Send + 'static>(
@@ -2184,7 +2208,13 @@ impl Editor {
     pub fn command_buffer(&self) -> Option<&str> {
         match &self.state {
             State::Command(state) => Some(&state.buffer),
-            _ => None,
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => None,
         }
     }
 
@@ -2213,8 +2243,8 @@ async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Resu
     let buf = reader.fill_buf().await?;
     if let [0xEF, 0xBB, 0xBF, ..] = buf {
         // Skip the BOM before decoding. This means we won't preserve it on save but we don't care.
-        reader.consume(3)
-    };
+        reader.consume(3);
+    }
 
     loop {
         let buf = reader.fill_buf().await?;
@@ -2278,7 +2308,7 @@ fn callback<R: Send + 'static>(
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
     f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
-    callback_with_timeout(tx, desc, Duration::from_secs(3), fut, f)
+    callback_with_timeout(tx, desc, Duration::from_secs(3), fut, f);
 }
 
 fn callback_with_timeout<R: Send + 'static>(

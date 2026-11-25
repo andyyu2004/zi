@@ -232,7 +232,7 @@ dyn_clone::clone_trait_object!(AnyText);
 // This is just a primarily a convenience for tests.
 impl PartialEq<str> for dyn AnyText + '_ {
     #[inline]
-    #[allow(clippy::cmp_owned)]
+    #[expect(clippy::cmp_owned, reason = "convenience for tests")]
     fn eq(&self, other: &str) -> bool {
         self.to_string() == other
     }
@@ -489,7 +489,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
     fn indent(&self) -> usize {
         self.chars()
             .take_while(|c: &char| c.is_whitespace() && !matches!(c, '\n'))
-            .map(|c| c.len_utf8())
+            .map(char::len_utf8)
             .sum::<usize>()
     }
 
@@ -655,7 +655,7 @@ where
                     }
 
                     if start_col > j {
-                        yield (line_idx, slice(&line, j..start_col), None)
+                        yield (line_idx, slice(&line, j..start_col), None);
                     }
 
                     if end_col >= line_len_bytes {
@@ -670,7 +670,7 @@ where
                             line_idx,
                             format!("{:width$}", "", width = end_col - line_len_bytes).into(),
                             Some(annotation),
-                        )
+                        );
                     } else {
                         yield (line_idx, slice(&line, start_col..end_col), Some(annotation));
                     }

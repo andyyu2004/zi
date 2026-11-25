@@ -104,7 +104,7 @@ impl PointRange {
     pub fn new(start: impl Into<Point>, end: impl Into<Point>) -> Self {
         let start = start.into();
         let end = end.into();
-        assert!(start <= end, "start must be less than end: {} !<= {}", start, end);
+        assert!(start <= end, "start must be less than end: {start} !<= {end}");
         Self { start, end }
     }
 

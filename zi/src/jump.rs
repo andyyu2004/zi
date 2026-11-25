@@ -93,7 +93,7 @@ impl<T: PartialEq> JumpList<T> {
                 // If we're already full, the push is going to drop an element so we adjust the index accordingly
                 current = current
                     .checked_sub(1)
-                    .expect("we can't be full and empty because we've checked capacity > 0")
+                    .expect("we can't be full and empty because we've checked capacity > 0");
             }
             self.push(from);
         }

@@ -101,7 +101,7 @@ fn marktree_range_iter() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "id.0 = 281474976710656")]
 fn marktree_id_too_large() {
     let mut tree = new(10);
     tree.insert(0, Id(1 << 48));
@@ -242,11 +242,11 @@ fn marktree_bulk_insert() {
         let mut tree = new(LEN);
         let k = 500;
         let values = (0..k).map(|i| (i, Id(i))).collect::<Vec<_>>();
-        values.iter().for_each(|&(at, i)| {
+        for &(at, i) in &values {
             tree.insert(at, i);
             assert_eq!(tree.len(), LEN);
             assert_iter_eq(tree.range(..).map(|(a, _)| a), (0..=at).map(|i| i..i));
-        });
+        }
     }
 
     check::<2>();
@@ -501,7 +501,7 @@ proptest::proptest! {
                     tree.insert(at, id).width(width);
                 }
                 Action::Delete(id) => {
-                    assert_eq!(tree.delete(id), insertions.remove(&id))
+                    assert_eq!(tree.delete(id), insertions.remove(&id));
                 }
             }
 

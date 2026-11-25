@@ -46,7 +46,7 @@ impl TestContext {
             .with(move |editor| {
                 let mut term = Terminal::new(TestBackend::new(size.width, size.height)).unwrap();
                 term.draw(|frame| editor.render(frame)).unwrap();
-                expect.assert_eq(&render(term.backend_mut()))
+                expect.assert_eq(&render(term.backend_mut()));
             })
             .await;
     }
@@ -110,9 +110,7 @@ impl TestContext {
         handle.abort();
 
         if let Err(err) = handle.await {
-            if err.is_panic() {
-                panic!("editor panicked: {err}");
-            }
+            assert!(!err.is_panic(), "editor panicked: {err}");
         }
     }
 
@@ -158,7 +156,7 @@ impl IntoFuture for TestContextBuilder {
 
             let client = editor.client();
             let handle = tokio::spawn(async move {
-                editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap()
+                editor.run(futures_util::stream::empty(), tasks, |_editor| Ok(())).await.unwrap();
             });
 
             TestContext {

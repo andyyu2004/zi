@@ -1,9 +1,4 @@
-#![feature(
-    iter_array_chunks,
-    coroutines,
-    iter_from_coroutine,
-    debug_closure_helpers
-)]
+#![feature(iter_array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
 
 mod bitbag;
 mod builder;
@@ -190,7 +185,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 while let Some((mut offset, node)) = q.pop_front() {
                     match node {
                         Node::Internal(inode) => {
-                            for child in inode.children().iter() {
+                            for child in inode.children() {
                                 let summary = child.summary();
                                 if (offset..offset + summary.bytes).intersects(&(start..end)) {
                                     // Child node has intersection with the relevant range,
@@ -308,7 +303,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         #[cfg(debug_assertions)]
         {
             // Ensure that the summaries are all correct by resummarizing the tree.
-            #[allow(unused)]
+            #[expect(unused, reason = "kept for debugging summaries")]
             #[track_caller]
             fn summarize<const N: usize>(node: &Arc<Node<ARITY, Leaf<N>>>) -> Summary {
                 let summary = match node.as_ref() {
@@ -501,21 +496,21 @@ impl<const N: usize> Leaf<N> {
         let mut offset = 0;
 
         for extent in &mut self.extents {
-            if extent.keys.remove(id as u64) {
+            if extent.keys.remove(u64::from(id)) {
                 // Fast path if the flags are empty.
                 assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
-            } else {
-                // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
-                let mut iter = extent.keys.iter();
-                while let Some(key) = iter.next() {
-                    let key = Key::from_raw(key);
-                    if key.id() == id {
-                        drop(iter);
-                        assert!(extent.keys.remove(key.into_raw()));
-                        assert!(summary.ids.remove(id).is_some());
-                        return Some(offset);
-                    }
+            }
+
+            // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
+            let mut iter = extent.keys.iter();
+            while let Some(key) = iter.next() {
+                let key = Key::from_raw(key);
+                if key.id() == id {
+                    drop(iter);
+                    assert!(extent.keys.remove(key.into_raw()));
+                    assert!(summary.ids.remove(id).is_some());
+                    return Some(offset);
                 }
             }
 
@@ -544,7 +539,7 @@ impl<const N: usize> Leaf<N> {
 
             if extent_end < start || offset > end {
                 // If the extent range does not intersect the replacement range just copy
-                builder.push_extent(extent);
+                builder.push_extent(&extent);
                 offset += k;
 
                 continue;
@@ -556,7 +551,7 @@ impl<const N: usize> Leaf<N> {
                 cmp::Ordering::Greater => {
                     // The offset is before the start of the replacement range.
                     // Copy the chunk of the extent that precedes the replacement range.
-                    builder.push_raw(start - offset, keys.drain())
+                    builder.push_raw(start - offset, keys.drain());
                 }
                 cmp::Ordering::Equal => {
                     // The interval starts exactly at offset, move it to the right by pushing the gap first.
@@ -592,7 +587,7 @@ impl<const N: usize> Leaf<N> {
         }
 
         if let Some(gap) = gap {
-            builder.push_raw(gap, keys)
+            builder.push_raw(gap, keys);
         } else if !keys.is_empty() {
             builder.push_raw(0, keys);
         }
@@ -762,7 +757,7 @@ mod extent_builder {
         }
 
         #[track_caller]
-        pub fn push_extent(&mut self, extent: Extent) {
+        pub fn push_extent(&mut self, extent: &Extent) {
             self.push_raw(extent.len(), extent.keys().map(Key::into_raw));
         }
     }
@@ -804,7 +799,7 @@ mod key {
         const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
 
         pub fn new(id: u32, flag: Flags) -> Self {
-            Self(id as u64 | ((flag.bits() as u64) << 32))
+            Self(u64::from(id) | (u64::from(flag.bits()) << 32))
         }
 
         #[inline]
@@ -926,16 +921,15 @@ impl LeafSlice<'_> {
     fn get_left(&self, id: u32) -> Option<usize> {
         let mut offset = 0;
         for extent in self.extents {
-            if extent.keys.contains(id as u64) {
+            if extent.keys.contains(u64::from(id)) {
                 // Fast path if the flags are empty.
                 return Some(offset);
-            } else {
-                // Otherwise, scan
-                for key in extent.keys() {
-                    if key.id() == id {
-                        assert!(!key.flags().contains(Flags::END));
-                        return Some(offset);
-                    }
+            }
+            // Otherwise, scan
+            for key in extent.keys() {
+                if key.id() == id {
+                    assert!(!key.flags().contains(Flags::END));
+                    return Some(offset);
                 }
             }
 
@@ -951,16 +945,15 @@ impl LeafSlice<'_> {
         let mut offset = 0;
 
         for extent in self.extents.iter().rev() {
-            if extent.keys.contains(id as u64) {
+            if extent.keys.contains(u64::from(id)) {
                 // Fast path if the flags are empty.
                 return Some(offset + extent.len());
-            } else {
-                // Otherwise, scan.
-                // Technically we should scan from the right.
-                for key in extent.keys() {
-                    if key.id() == id {
-                        return Some(offset + extent.len());
-                    }
+            }
+            // Otherwise, scan.
+            // Technically we should scan from the right.
+            for key in extent.keys() {
+                if key.id() == id {
+                    return Some(offset + extent.len());
                 }
             }
 
@@ -977,8 +970,8 @@ impl Summarize for LeafSlice<'_> {
     #[inline]
     fn summarize(&self) -> Self::Summary {
         Summary {
-            bytes: self.extents.iter().map(|extent| extent.len()).sum(),
-            ids: FromIterator::from_iter(self.extents.iter().flat_map(|extent| extent.ids())),
+            bytes: self.extents.iter().map(Extent::len).sum(),
+            ids: FromIterator::from_iter(self.extents.iter().flat_map(Extent::ids)),
         }
     }
 }
@@ -1119,14 +1112,14 @@ impl Sub for ByteMetric {
 impl AddAssign for ByteMetric {
     #[inline]
     fn add_assign(&mut self, other: Self) {
-        self.0 += other.0
+        self.0 += other.0;
     }
 }
 
 impl SubAssign for ByteMetric {
     #[inline]
     fn sub_assign(&mut self, other: Self) {
-        self.0 -= other.0
+        self.0 -= other.0;
     }
 }
 

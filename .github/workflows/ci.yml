@@ -38,6 +38,37 @@ jobs:
           done
           echo "run=$(jq -cn '$ARGS.positional' --args "${run[@]}")" >>"$GITHUB_OUTPUT"
 
+  clippy:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.run), 'clippy')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            extra-substituters = https://nix-cache.andyyu.io
+            extra-trusted-public-keys = nix-cache.andyyu.io-1:+SGDInebCOChTtOfCeGffBw3qjb73Sq/FSDIj4K+CbU=
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cmd-format: nix develop -c {0}
+          key: ${{ hashFiles('flake.lock') }}
+          save-if: ${{ github.event_name != 'merge_group' }}
+
+      - name: Clippy
+        run: nix develop -c cargo clippy --workspace --exclude 'plugin-*' --all-targets -- -D warnings
+
+      - name: Clippy (plugins)
+        run: nix develop -c cargo clippy -p 'plugin-*' --target wasm32-unknown-unknown --all-targets -- -D warnings
+
+      - name: Record the pass
+        env:
+          NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
+        run: .github/niks3-push.sh "$(nix eval --raw ".#ci.x86_64-linux.$GITHUB_JOB")"
+
   test:
     needs: plan
     if: contains(fromJSON(needs.plan.outputs.run), 'test')

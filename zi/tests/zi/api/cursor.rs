@@ -101,13 +101,13 @@ async fn move_cursor_horizontal_no_newline() {
 
 #[tokio::test]
 async fn vertical_move_cursor_remembers_column() {
-    let cx = new(r#"foo
+    let cx = new(r"foo
 test
 
 longer line!
 short
 
-"#)
+")
     .await;
 
     cx.with(|editor| {

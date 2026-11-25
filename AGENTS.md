@@ -10,6 +10,7 @@ zi is a vim-like terminal editor in Rust. Cargo workspace, nightly toolchain.
 - Outside the nix shell, grammars are read from `ZI_GRAMMAR_DIR` if set, otherwise the platform data dir (`~/Library/Application Support/zi/grammars` on macOS, `~/.local/share/zi/grammars` on Linux).
 - Wasm plugins under `plugins/` don't build with a plain cargo build. The plugin smoke test builds its own; to run zi with plugins, use `just build-plugins`.
 - Run `cargo fmt` before committing.
+- Lint as CI does: `cargo clippy --workspace --exclude 'plugin-*' --all-targets -- -D warnings`, and for plugins `cargo clippy -p 'plugin-*' --target wasm32-unknown-unknown --all-targets -- -D warnings`. Lints are configured in the root `Cargo.toml`; silence one locally with `#[expect(clippy::..., reason = "...")]`, not `#[allow]`.
 - Logs: `ZI_LOG` takes a tracing filter (`ZI_LOG=zi=debug,zi_lsp=debug`). Tests write logs to their own output, so nextest shows them for a failing test (`--success-output immediate` for passing ones). Language servers' stderr is logged under the `zi_lsp::stderr` target.
 
 ## Conventions

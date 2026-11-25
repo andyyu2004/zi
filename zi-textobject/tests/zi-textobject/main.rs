@@ -7,6 +7,7 @@ use zi_text::Rope;
 use zi_textobject::*;
 
 #[track_caller]
+#[expect(clippy::needless_pass_by_value, reason = "callers pass literals")]
 fn check_range(
     obj: &impl TextObject,
     text: &str,
@@ -177,7 +178,7 @@ fn motion_prev_char() {
     let motion = PrevChar;
 
     check(&motion, "a", 1, 0);
-    check(&motion, "---------\u{a002d}-\u{fe2c}\0---\u{a05cc}\n", 25, 21)
+    check(&motion, "---------\u{a002d}-\u{fe2c}\0---\u{a05cc}\n", 25, 21);
 }
 
 #[test]

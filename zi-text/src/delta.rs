@@ -42,7 +42,7 @@ impl<'a> Deltas<'a> {
         deltas.sort_by_key(|d| (d.range().start, d.range().end));
 
         deltas.iter().zip(deltas.iter().skip(1)).for_each(|(a, b)| {
-            assert!(a.range().end <= b.range().start, "deltas must not overlap: {a:?} and {b:?}",);
+            assert!(a.range().end <= b.range().start, "deltas must not overlap: {a:?} and {b:?}");
         });
 
         Self { deltas }
@@ -82,7 +82,9 @@ impl<'a> Deltas<'a> {
         // Reminder that this iterator returns deltas are sorted by their start point in descending order.
         for delta in self.iter() {
             let shift = delta.text().len() as isize - delta.range().len() as isize;
-            inverse_deltas.iter_mut().for_each(|d| d.shift(shift));
+            for d in &mut inverse_deltas {
+                d.shift(shift);
+            }
 
             let inverse = delta.apply(text);
             inverse_deltas.push(inverse);
@@ -102,7 +104,7 @@ impl<'a> Deltas<'a> {
 
     pub fn is_identity(&self) -> bool {
         // There are more cases where a delta is an identity,
-        self.deltas.iter().all(|d| d.is_identity())
+        self.deltas.iter().all(Delta::is_identity)
     }
 
     pub fn insert_at(at: usize, text: impl Into<Cow<'a, str>>) -> Self {
@@ -114,7 +116,7 @@ impl<'a> Deltas<'a> {
     }
 
     pub fn to_owned(&self) -> Deltas<'static> {
-        Deltas::new(self.deltas.iter().map(|d| d.to_owned()))
+        Deltas::new(self.deltas.iter().map(Delta::to_owned))
     }
 }
 

@@ -185,7 +185,7 @@ impl Buffer {
     }
 
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
-        self.edit_flags(deltas, EditFlags::empty())
+        self.edit_flags(deltas, EditFlags::empty());
     }
 
     pub fn edit_flags(&mut self, deltas: &Deltas<'_>, flags: EditFlags) {
@@ -371,12 +371,12 @@ pub(crate) trait BufferInternal: Send + Sync {
 impl dyn BufferInternal + '_ {
     #[inline]
     pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
-        self.history_mut(Internal(())).and_then(|h| h.redo())
+        self.history_mut(Internal(())).and_then(BufferHistory::redo)
     }
 
     #[inline]
     pub(crate) fn undo(&mut self) -> Option<UndoEntry> {
-        self.history_mut(Internal(())).and_then(|h| h.undo())
+        self.history_mut(Internal(())).and_then(BufferHistory::undo)
     }
 
     #[inline]
@@ -389,14 +389,14 @@ impl dyn BufferInternal + '_ {
     #[inline]
     pub(crate) fn snapshot(&mut self, flags: SnapshotFlags) {
         if let Some(h) = self.history_mut(Internal(())) {
-            h.snapshot(flags)
+            h.snapshot(flags);
         }
     }
 
     #[inline]
     pub(crate) fn snapshot_cursor(&mut self, cursor: Point) {
         if let Some(h) = self.history_mut(Internal(())) {
-            h.snapshot_cursor(cursor)
+            h.snapshot_cursor(cursor);
         }
     }
 }
@@ -475,7 +475,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
 
     #[inline]
     fn edit_flags(&mut self, internal: Internal, deltas: &Deltas<'_>, flags: EditFlags) {
-        self.as_mut().edit_flags(internal, deltas, flags)
+        self.as_mut().edit_flags(internal, deltas, flags);
     }
 
     #[inline]
@@ -518,7 +518,7 @@ impl BufferInternal for Box<dyn BufferInternal> {
 
     #[inline]
     fn pre_render(&mut self, internal: Internal, client: &Client, view: &View, area: tui::Rect) {
-        self.as_mut().pre_render(internal, client, view, area)
+        self.as_mut().pre_render(internal, client, view, area);
     }
 
     #[inline]
