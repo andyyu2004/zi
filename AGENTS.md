@@ -19,6 +19,7 @@ zi is a vim-like terminal editor in Rust. Cargo workspace, nightly toolchain.
 
 - Each git worktree needs its own `CARGO_TARGET_DIR`. Workspace crates get the same artifact names in every worktree, so a shared target dir lets builds overwrite each other and tests run another worktree's code.
 
-## Issues
+## Issues and merging
 
-- Bugs and design work are tracked in the private repo `andyyu2004/zi-tracking`. Reference it from PRs as `andyyu2004/zi-tracking#N`.
+- Bugs and design work are tracked in the private repo `zi-editor/zi-tracking`. Close them from PRs with `Fixes zi-editor/zi-tracking#N`.
+- `master` only takes pull requests, through the merge queue, and needs CI's `test` check. Repo settings and the ruleset are managed in terraform (`~/.dotfiles/terraform/github/zi.tf`), not the GitHub UI.
