@@ -335,10 +335,10 @@ fn text_annotations() {
     );
 
     check(
-        r#"package main
+        r"package main
 
 func main() {}
-"#,
+",
         [
             ("0:0..0:7", "keyword|cursorline"),
             ("0:7..0:50", "cursorline"),

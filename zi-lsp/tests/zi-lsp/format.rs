@@ -6,7 +6,7 @@ use super::*;
 async fn lsp_format() -> zi::Result<()> {
     let cx = new("").await;
 
-    let path = cx.tempfile(r#"abc"#)?;
+    let path = cx.tempfile(r"abc")?;
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder

@@ -33,10 +33,10 @@ async fn search_switch_buffers() {
 
 #[tokio::test]
 async fn search_cursor() {
-    let cx = new(r#"a
+    let cx = new(r"a
 a
 a
-a"#)
+a")
     .await;
     cx.with(|editor| {
         editor.set_cursor(Active, (0, 0));
@@ -51,10 +51,10 @@ a"#)
 #[tokio::test]
 async fn search_smoke() {
     // TODO what if we switch active buffers and a match is out of range etc
-    let cx = new(r#"abc
+    let cx = new(r"abc
 def
 abc
-"#)
+")
     .await;
 
     cx.with(|editor| {

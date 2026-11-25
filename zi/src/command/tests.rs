@@ -6,25 +6,25 @@ use super::{Command, Commands};
 fn parse_commands() {
     for (src, expect) in [
         (
-            r#"set x y; set y z"#,
-            expect![[r#"
+            r"set x y; set y z",
+            expect![[r"
                 set x y;set y z;
-            "#]],
+            "]],
         ),
         (
             // trailing semicolon
-            r#"set x y; set y z;"#,
-            expect![[r#"
+            r"set x y; set y z;",
+            expect![[r"
                 set x y;set y z;
-            "#]],
+            "]],
         ),
         (
             // newline separator
-            r#"set x y
-set y z"#,
-            expect![[r#"
+            r"set x y
+set y z",
+            expect![[r"
                 set x y;set y z;
-            "#]],
+            "]],
         ),
     ] {
         match src.parse::<Commands>() {
@@ -39,21 +39,21 @@ fn parse_command() {
     for (src, expect) in [
         (
             "foo",
-            expect![[r#"
+            expect![[r"
             foo
-        "#]],
+        "]],
         ),
         (
             "foo bar",
-            expect![[r#"
+            expect![[r"
             foo bar
-        "#]],
+        "]],
         ),
         (
             "set x y",
-            expect![[r#"
+            expect![[r"
                 set x y
-            "#]],
+            "]],
         ),
         (":extra colon", expect![[r#"found ":""#]]),
         (" \n", expect![[r#"found "\n""#]]),
