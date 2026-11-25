@@ -524,7 +524,9 @@ impl Editor {
         self.tree.size()
     }
 
-    fn check_open(&self, path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
+    fn check_open(path: &mut PathBuf, open_flags: OpenFlags) -> io::Result<()> {
+        use std::io::Read;
+
         if path.exists() && !path.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a file"));
         }
@@ -535,13 +537,16 @@ impl Editor {
 
         if path.exists() {
             // Try ensure that the file does not contains non-utf8 data.
-            use std::io::Read;
             let mut buf = [0u8; 1024];
             let n = File::open(path.as_path())?.read(&mut buf)?;
             match content_inspector::inspect(&buf[..n]) {
                 content_inspector::ContentType::UTF_8
                 | content_inspector::ContentType::UTF_8_BOM => {}
-                _ => {
+                content_inspector::ContentType::BINARY
+                | content_inspector::ContentType::UTF_16LE
+                | content_inspector::ContentType::UTF_16BE
+                | content_inspector::ContentType::UTF_32LE
+                | content_inspector::ContentType::UTF_32BE => {
                     return Err(io::Error::new(io::ErrorKind::InvalidData, "non-utf8 data"));
                 }
             }
@@ -563,7 +568,7 @@ impl Editor {
     ) -> io::Result<impl Future<Output = Result<BufferId>> + 'static> {
         let theme = self.theme().clone();
         let mut path = path.as_ref().to_path_buf();
-        self.check_open(&mut path, open_flags)?;
+        Self::check_open(&mut path, open_flags)?;
 
         let ft = FileType::detect(&path);
         let syntax = self.backend.new_syntax(ft)?;
@@ -787,10 +792,13 @@ impl Editor {
 
         render(self)?;
 
-        let mut plugin_manager_handles = FuturesUnordered::from_iter(
-            self.plugin_managers.values().cloned().map(|m| tokio::spawn(m.start(self.client()))),
-        )
-        .fuse();
+        let mut plugin_manager_handles = self
+            .plugin_managers
+            .values()
+            .cloned()
+            .map(|m| tokio::spawn(m.start(self.client())))
+            .collect::<FuturesUnordered<_>>()
+            .fuse();
 
         let mut requests = pin!(requests.fuse().peekable());
         let mut callbacks = pin!(callbacks.buffer_unordered(128).peekable());
@@ -1281,7 +1289,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_next() {
-                        self.apply_completion_delta(delta);
+                        self.apply_completion_delta(&delta);
                     }
                 } else {
                     let (view, buf) = self.get(Active);
@@ -1313,7 +1321,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_prev() {
-                        self.apply_completion_delta(delta);
+                        self.apply_completion_delta(&delta);
                     }
                 } else {
                     // TODO

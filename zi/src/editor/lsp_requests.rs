@@ -179,6 +179,7 @@ impl Editor {
         }
     }
 
+    #[expect(clippy::unused_self, reason = "the root will come from per-server config")]
     fn lsp_root_path(&self, _server: LanguageServiceId) -> PathBuf {
         // TODO this should be configurable per language server
         std::env::current_dir().unwrap()

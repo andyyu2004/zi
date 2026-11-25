@@ -70,7 +70,7 @@ impl Motion for PrevToken {
 impl Motion for NextWord {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        self.mv(text, p).0.into()
+        Self::mv(text, p).0.into()
     }
 }
 
@@ -84,7 +84,7 @@ impl Motion for PrevWord {
 impl Motion for NextToken {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        self.mv(text, p, false).into()
+        Self::mv(text, p, false).into()
     }
 }
 

@@ -82,7 +82,9 @@ impl<'a> Deltas<'a> {
         // Reminder that this iterator returns deltas are sorted by their start point in descending order.
         for delta in self.iter() {
             let shift = delta.text().len() as isize - delta.range().len() as isize;
-            inverse_deltas.iter_mut().for_each(|d| d.shift(shift));
+            for d in &mut inverse_deltas {
+                d.shift(shift);
+            }
 
             let inverse = delta.apply(text);
             inverse_deltas.push(inverse);

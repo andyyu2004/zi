@@ -337,7 +337,7 @@ impl zi::plugin::PluginManager for PluginManager {
     async fn start(self: Arc<Self>, client: Client) -> anyhow::Result<()> {
         let engine = engine();
 
-        let components = self.load_plugin_components(engine).await?;
+        let components = Self::load_plugin_components(engine);
 
         let mut join_set = JoinSet::new();
 
@@ -392,10 +392,9 @@ impl zi::plugin::PluginManager for PluginManager {
 }
 
 impl PluginManager {
-    async fn load_plugin_components(
-        &self,
+    fn load_plugin_components(
         engine: &'static Engine,
-    ) -> io::Result<impl Stream<Item = anyhow::Result<Component>>> {
+    ) -> impl Stream<Item = anyhow::Result<Component>> {
         let dirs = futures_util::stream::iter(dirs::plugin());
         let entries = dirs
             .then(|dir| async move {
@@ -404,14 +403,14 @@ impl PluginManager {
             })
             .try_flatten();
 
-        Ok(entries.map_err(Into::into).try_filter_map(move |entry| async move {
+        entries.map_err(Into::into).try_filter_map(move |entry| async move {
             if !entry.file_type().await?.is_file() {
                 return Ok(None);
             }
 
             let component = Component::from_file(engine, entry.path())?;
             Ok(Some(component))
-        }))
+        })
     }
 }
 

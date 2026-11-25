@@ -80,11 +80,15 @@ impl LanguageClient {
 
 impl fmt::Debug for LanguageClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LanguageClient").field("server", &self.service_id).finish()
+        f.debug_struct("LanguageClient").field("server", &self.service_id).finish_non_exhaustive()
     }
 }
 
 /// An abstraction of language server requests. Notifications are handled via the event system.
+#[expect(
+    clippy::unimplemented,
+    reason = "requests are only sent when the matching capability is set"
+)]
 pub trait LanguageService {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 

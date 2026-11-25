@@ -42,6 +42,7 @@ fn registry() -> &'static Registry {
     REGISTRY.get_or_init(Registry::default)
 }
 
+#[expect(clippy::needless_pass_by_value, reason = "callers hand the event over")]
 pub fn dispatch(editor: &mut Editor, event: impl Event) {
     registry().dispatch(editor, &event);
 }

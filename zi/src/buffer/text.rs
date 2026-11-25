@@ -213,9 +213,10 @@ impl<X: Text + Clone> TextBuffer<X> {
             |_url| Url::parse(&format!("buffer://{}", path.display())).unwrap(),
         );
 
-        if text.as_text_mut().is_none() && !flags.contains(BufferFlags::READONLY) {
-            panic!("must set readonly buffer flag for readonly text implementations")
-        }
+        assert!(
+            text.as_text_mut().is_some() || flags.contains(BufferFlags::READONLY),
+            "must set readonly buffer flag for readonly text implementations"
+        );
 
         // let mut syntax = match Syntax::for_file_type(ft) {
         //     Ok(syntax) => syntax,

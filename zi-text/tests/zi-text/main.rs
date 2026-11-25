@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::io::Read;
 
 use expect_test::{Expect, expect};
@@ -230,6 +230,7 @@ fn try_line_to_byte() {
 #[test]
 fn text_annotations() {
     #[track_caller]
+    #[expect(clippy::needless_pass_by_value, reason = "expect-test helpers take Expect by value")]
     fn check<T: Copy + fmt::Display>(
         text: impl Text,
         highlights: impl IntoIterator<Item = (&'static str, T)>,
@@ -245,8 +246,8 @@ fn text_annotations() {
         for (_, text, ann) in chunks {
             assert!(text.lines().count() <= 2, "should not have multiline strings: got {text:?}");
             match ann {
-                Some(ann) => s.push_str(&format!("{text:?} -> {ann}\n")),
-                None => s.push_str(&format!("{text:?}\n")),
+                Some(ann) => writeln!(s, "{text:?} -> {ann}").unwrap(),
+                None => writeln!(s, "{text:?}").unwrap(),
             }
         }
 

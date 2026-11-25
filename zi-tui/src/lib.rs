@@ -209,7 +209,9 @@ where
 
             // Tabs are currently not rendered at all. We replace them with spaces for rendering purposes.
             // https://github.com/ratatui-org/ratatui/issues/876
-            spans.iter_mut().for_each(|span| replace_tabs(self.tab_width as usize, span));
+            for span in &mut spans {
+                replace_tabs(self.tab_width as usize, span);
+            }
 
             lines.push(Line::default().spans(spans));
         }

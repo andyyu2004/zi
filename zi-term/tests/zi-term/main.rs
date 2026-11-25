@@ -132,7 +132,7 @@ where
         [
             asciicast::Event {
                 kind: asciicast::EventKind::Output(normalize_paths(
-                    String::from_utf8(bytes).unwrap(),
+                    &String::from_utf8(bytes).unwrap(),
                 )),
                 time_us: 0,
             },
@@ -157,14 +157,14 @@ where
     Ok(())
 }
 
-fn normalize_paths(output: String) -> String {
+fn normalize_paths(output: &str) -> String {
     const PLACEHOLDER: &str = "<zi-term>/";
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize().unwrap();
     let dir = format!("{}/", dir.display());
     assert!(dir.len() >= PLACEHOLDER.len());
 
     let mut normalized = String::with_capacity(output.len());
-    let mut rest = output.as_str();
+    let mut rest = output;
     while let Some(i) = rest.find(&dir) {
         normalized.push_str(&rest[..i]);
         normalized.push_str(PLACEHOLDER);

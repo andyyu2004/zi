@@ -240,7 +240,7 @@ impl TextObject for PrevToken {
 pub struct NextWord;
 
 impl NextWord {
-    pub(crate) fn mv(&self, text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
+    pub(crate) fn mv(text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
         let mut byte = text.point_or_byte_to_byte(p.into());
         let mut chars = text.byte_slice(byte..).chars();
 
@@ -282,7 +282,7 @@ impl TextObject for NextWord {
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
-        let (end, just_crossed_newline) = self.mv(text, start);
+        let (end, just_crossed_newline) = Self::mv(text, start);
         // Exclude the newline character if using as a range
         // e.g. dw does not delete the line break
         Some(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
@@ -329,7 +329,6 @@ impl NextToken {
     // that word becomes the end of the operated text, not the first word in the
     // next line.
     pub(crate) fn mv(
-        &self,
         text: &dyn AnyText,
         p: impl Into<PointOrByte>,
         stop_before_newline: bool,
@@ -383,7 +382,7 @@ impl TextObject for NextToken {
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
-        Some(start..self.mv(text, start, true))
+        Some(start..Self::mv(text, start, true))
     }
 
     #[inline]

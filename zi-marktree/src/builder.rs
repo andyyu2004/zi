@@ -109,7 +109,7 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
             builder.append(leaf);
         }
 
-        let array = ArrayVec::from_iter(chunks.into_remainder());
+        let array = chunks.into_remainder().collect::<ArrayVec<_, _>>();
         if !array.is_empty() {
             builder.append(Leaf::from(array));
         }

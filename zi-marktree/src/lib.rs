@@ -500,17 +500,17 @@ impl<const N: usize> Leaf<N> {
                 // Fast path if the flags are empty.
                 assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
-            } else {
-                // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
-                let mut iter = extent.keys.iter();
-                while let Some(key) = iter.next() {
-                    let key = Key::from_raw(key);
-                    if key.id() == id {
-                        drop(iter);
-                        assert!(extent.keys.remove(key.into_raw()));
-                        assert!(summary.ids.remove(id).is_some());
-                        return Some(offset);
-                    }
+            }
+
+            // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
+            let mut iter = extent.keys.iter();
+            while let Some(key) = iter.next() {
+                let key = Key::from_raw(key);
+                if key.id() == id {
+                    drop(iter);
+                    assert!(extent.keys.remove(key.into_raw()));
+                    assert!(summary.ids.remove(id).is_some());
+                    return Some(offset);
                 }
             }
 
@@ -539,7 +539,7 @@ impl<const N: usize> Leaf<N> {
 
             if extent_end < start || offset > end {
                 // If the extent range does not intersect the replacement range just copy
-                builder.push_extent(extent);
+                builder.push_extent(&extent);
                 offset += k;
 
                 continue;
@@ -757,7 +757,7 @@ mod extent_builder {
         }
 
         #[track_caller]
-        pub fn push_extent(&mut self, extent: Extent) {
+        pub fn push_extent(&mut self, extent: &Extent) {
             self.push_raw(extent.len(), extent.keys().map(Key::into_raw));
         }
     }

@@ -206,7 +206,7 @@ impl Node {
         match self {
             Node::View(id) if *id == view => Some(area),
             Node::Container(container) => container.area(area, view),
-            _ => None,
+            Node::View(_) => None,
         }
     }
 
@@ -247,7 +247,7 @@ impl Node {
         match self {
             Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.close_view(view),
-            _ => TraverseResult::Continue,
+            Node::View(_) => TraverseResult::Continue,
         }
     }
 
@@ -262,7 +262,7 @@ impl Node {
         match self {
             Node::View(v) if *v == view => TraverseResult::Propagate,
             Node::Container(c) => c.next_view(view, direction),
-            _ => TraverseResult::Continue,
+            Node::View(_) => TraverseResult::Continue,
         }
     }
 }
@@ -359,7 +359,7 @@ impl Container {
                     }
                 }
                 Node::Container(c) => c.split(view, new, direction, constraint),
-                _ => continue,
+                Node::View(_) => {}
             }
         }
     }
@@ -372,7 +372,7 @@ impl Container {
         for i in 0..self.children.len() {
             let child = &mut self.children[i];
             match child.close_view(view) {
-                TraverseResult::Continue => continue,
+                TraverseResult::Continue => {}
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
                 TraverseResult::Propagate => {
                     if self.children.len() == 1 {
@@ -400,7 +400,7 @@ impl Container {
     fn next_view(&self, view: ViewId, direction: Direction) -> TraverseResult<ViewId> {
         for (i, child) in self.children.iter().enumerate() {
             match child.next_view(view, direction) {
-                TraverseResult::Continue => continue,
+                TraverseResult::Continue => {}
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
                 TraverseResult::Propagate => {
                     if self.direction != direction.into() {

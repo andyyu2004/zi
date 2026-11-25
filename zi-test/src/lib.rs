@@ -110,9 +110,7 @@ impl TestContext {
         handle.abort();
 
         if let Err(err) = handle.await {
-            if err.is_panic() {
-                panic!("editor panicked: {err}");
-            }
+            assert!(!err.is_panic(), "editor panicked: {err}");
         }
     }
 

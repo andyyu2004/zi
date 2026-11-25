@@ -311,9 +311,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
             .is_empty();
     }
 
-    if !any_non_empty {
-        panic!("no non-empty deltas were applied");
-    }
+    assert!(any_non_empty, "no non-empty deltas were applied");
 
     assert_eq!(
         *rx.borrow(),

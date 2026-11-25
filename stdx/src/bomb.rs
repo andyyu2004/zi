@@ -31,9 +31,11 @@ impl DropBomb {
 
 impl Drop for DropBomb {
     fn drop(&mut self) {
-        if self.inner.count.load(atomic::Ordering::Acquire) > 0 && !std::thread::panicking() {
-            panic!("{}", self.inner.msg)
-        }
+        assert!(
+            self.inner.count.load(atomic::Ordering::Acquire) == 0 || std::thread::panicking(),
+            "{}",
+            self.inner.msg
+        );
     }
 }
 

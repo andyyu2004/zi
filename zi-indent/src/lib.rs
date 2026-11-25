@@ -23,6 +23,7 @@ pub fn indent(config: Config, text: &(impl Text + ?Sized), line_idx: usize) -> I
     Indent::Bytes(indent)
 }
 
+#[derive(Clone, Copy)]
 pub struct Config {
     pub tab_width: u8,
 }

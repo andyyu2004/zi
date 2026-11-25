@@ -105,6 +105,7 @@ async fn test_split() {
 }
 
 #[tokio::test]
+#[expect(clippy::many_single_char_names, reason = "views are named as in the layout diagram")]
 async fn test_directional_focus() {
     let cx = new("").await;
     cx.with(|editor| {

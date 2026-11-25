@@ -40,7 +40,7 @@ fn range_segments() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "start must be less than end")]
 fn invalid_range() {
     r("1:5..1:1");
 }
@@ -48,6 +48,7 @@ fn invalid_range() {
 #[test]
 fn range_merge_iter() {
     #[track_caller]
+    #[expect(clippy::needless_pass_by_value, reason = "expect-test helpers take Expect by value")]
     fn check(
         xs: impl IntoIterator<Item = (&'static str, &'static str)>,
         ys: impl IntoIterator<Item = (&'static str, &'static str)>,

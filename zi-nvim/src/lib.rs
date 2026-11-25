@@ -234,7 +234,7 @@ impl Nvim {
         }
 
         let vi_cursor = zi::Point::new(line as usize, col as usize);
-        ensure_eq(vi_cursor, zi_cursor, vi_lines, zi_lines, flags)?;
+        ensure_eq(vi_cursor, zi_cursor, &vi_lines, &zi_lines, flags)?;
 
         Ok(())
     }
@@ -243,11 +243,11 @@ impl Nvim {
 fn ensure_eq(
     vi_cursor: zi::Point,
     zi_cursor: zi::Point,
-    vi_lines: String,
-    zi_lines: String,
+    vi_lines: &str,
+    zi_lines: &str,
     _flags: CompareFlags,
 ) -> Result<(), anyhow::Error> {
-    ensure_lines_eq(&vi_lines, &zi_lines)?;
+    ensure_lines_eq(vi_lines, zi_lines)?;
     ensure!(vi_cursor == zi_cursor, "vi: {vi_cursor:?}\nzi: {zi_cursor:?}");
     Ok(())
 }

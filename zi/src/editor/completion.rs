@@ -52,7 +52,7 @@ impl Editor {
         });
     }
 
-    pub(super) fn apply_completion_delta(&mut self, delta: Delta<'_>) {
+    pub(super) fn apply_completion_delta(&mut self, delta: &Delta<'_>) {
         let delta = delta.to_owned();
         let new_cursor = delta.range().start + delta.text().len();
         self.edit(Active, &Deltas::new([delta])).expect("valid delta");
