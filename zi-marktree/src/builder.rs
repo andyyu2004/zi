@@ -23,7 +23,7 @@ impl MarkBuilder {
     }
 
     pub fn insert<Id: MarkTreeId, const N: usize>(self, tree: &mut MarkTree<Id, N>, id: Id) {
-        drop(Inserter { tree, id, builder: self })
+        drop(Inserter { tree, id, builder: self });
     }
 
     pub fn width(mut self, width: usize) -> Self {
@@ -109,7 +109,7 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
             builder.append(leaf);
         }
 
-        let array = ArrayVec::from_iter(chunks.into_remainder());
+        let array = chunks.into_remainder().collect::<ArrayVec<_, _>>();
         if !array.is_empty() {
             builder.append(Leaf::from(array));
         }

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::io::Read;
 
 use expect_test::{Expect, expect};
@@ -188,12 +188,12 @@ proptest! {
     // Alo skipping \r as usually it's followed by \n.
     #[test]
     fn text_impls(s in "[^\r\u{b}\u{c}\u{85}\u{2028}\u{2029}]*") {
-        test(&s)
+        test(&s);
     }
 
     #[test]
     fn text_impls_ascii(s in "[ -~]*") {
-        test(&s)
+        test(&s);
     }
 }
 
@@ -230,6 +230,7 @@ fn try_line_to_byte() {
 #[test]
 fn text_annotations() {
     #[track_caller]
+    #[expect(clippy::needless_pass_by_value, reason = "expect-test helpers take Expect by value")]
     fn check<T: Copy + fmt::Display>(
         text: impl Text,
         highlights: impl IntoIterator<Item = (&'static str, T)>,
@@ -245,8 +246,8 @@ fn text_annotations() {
         for (_, text, ann) in chunks {
             assert!(text.lines().count() <= 2, "should not have multiline strings: got {text:?}");
             match ann {
-                Some(ann) => s.push_str(&format!("{text:?} -> {ann}\n")),
-                None => s.push_str(&format!("{text:?}\n",)),
+                Some(ann) => writeln!(s, "{text:?} -> {ann}").unwrap(),
+                None => writeln!(s, "{text:?}").unwrap(),
             }
         }
 
@@ -255,40 +256,59 @@ fn text_annotations() {
 
     check::<i32>("", [], expect![""]);
 
-    check("abc", [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:3", 3)], expect![[r#"
+    check(
+        "abc",
+        [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:3", 3)],
+        expect![[r#"
             "a" -> 1
             "b" -> 2
             "c" -> 3
             "\n"
-        "#]]);
+        "#]],
+    );
 
     // allowed to annotate past the end of the text
-    check("abc", [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:4", 3)], expect![[r#"
+    check(
+        "abc",
+        [("0:0..0:1", 1), ("0:1..0:2", 2), ("0:2..0:4", 3)],
+        expect![[r#"
             "a" -> 1
             "b" -> 2
             "c" -> 3
             " " -> 3
             "\n"
-        "#]]);
+        "#]],
+    );
 
     // indexed by byte, not char
-    check("ab©d", [("0:0..0:2", 'x'), ("0:2..0:4", 'y'), ("0:4..0:5", 'z')], expect![[r#"
+    check(
+        "ab©d",
+        [("0:0..0:2", 'x'), ("0:2..0:4", 'y'), ("0:4..0:5", 'z')],
+        expect![[r#"
             "ab" -> x
             "©" -> y
             "d" -> z
             "\n"
-        "#]]);
+        "#]],
+    );
 
-    check("1\n2\n3\n", [("0:0..0:1", 1), ("1:0..1:1", 2), ("2:0..2:1", 3)], expect![[r#"
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:1", 1), ("1:0..1:1", 2), ("2:0..2:1", 3)],
+        expect![[r#"
             "1" -> 1
             "\n"
             "2" -> 2
             "\n"
             "3" -> 3
             "\n"
-        "#]]);
+        "#]],
+    );
 
-    check("1\n2\n3\n", [("0:0..0:1", 1), ("1:0..1:1", 2), ("2:0..2:3", 3)], expect![[r#"
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:1", 1), ("1:0..1:1", 2), ("2:0..2:3", 3)],
+        expect![[r#"
             "1" -> 1
             "\n"
             "2" -> 2
@@ -296,9 +316,13 @@ fn text_annotations() {
             "3" -> 3
             "  " -> 3
             "\n"
-        "#]]);
+        "#]],
+    );
 
-    check("1\n2\n3\n", [("0:0..0:2", 1), ("1:0..1:3", 2), ("2:0..2:3", 3)], expect![[r#"
+    check(
+        "1\n2\n3\n",
+        [("0:0..0:2", 1), ("1:0..1:3", 2), ("2:0..2:3", 3)],
+        expect![[r#"
             "1" -> 1
             " " -> 1
             "\n"
@@ -308,13 +332,14 @@ fn text_annotations() {
             "3" -> 3
             "  " -> 3
             "\n"
-        "#]]);
+        "#]],
+    );
 
     check(
-        r#"package main
+        r"package main
 
 func main() {}
-"#,
+",
         [
             ("0:0..0:7", "keyword|cursorline"),
             ("0:7..0:50", "cursorline"),

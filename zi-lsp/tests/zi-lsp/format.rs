@@ -6,11 +6,11 @@ use super::*;
 async fn lsp_format() -> zi::Result<()> {
     let cx = new("").await;
 
-    let path = cx.tempfile(r#"abc"#)?;
+    let path = cx.tempfile(r"abc")?;
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(|_, _| async {
+            .request::<request::Initialize, _>(|(), _| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         document_formatting_provider: Some(OneOf::Left(true)),

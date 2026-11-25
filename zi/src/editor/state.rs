@@ -50,10 +50,12 @@ impl State {
 
     pub(super) fn visual_anchor(&self) -> Option<Point> {
         match self {
-            State::Visual(s) => Some(s.anchor),
-            State::VisualLine(s) => Some(s.anchor),
-            State::VisualBlock(s) => Some(s.anchor),
-            _ => None,
+            State::Visual(s) | State::VisualLine(s) | State::VisualBlock(s) => Some(s.anchor),
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Command(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => None,
         }
     }
 }

@@ -179,16 +179,16 @@ impl<M: TextObject> TextObject for Repeat<M> {
 
 trait CharExt {
     /// Returns true if the character is a word separator.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_word_separator(self) -> bool;
 
     /// Returns true if the character is a token separator.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_token_separator(self) -> bool;
 
     /// Returns true if the character is a word start.
     /// This includes non-alphanumeric characters and capital letters.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_word_start(self) -> bool;
 }
 
@@ -240,7 +240,7 @@ impl TextObject for PrevToken {
 pub struct NextWord;
 
 impl NextWord {
-    pub(crate) fn mv(&self, text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
+    pub(crate) fn mv(text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
         let mut byte = text.point_or_byte_to_byte(p.into());
         let mut chars = text.byte_slice(byte..).chars();
 
@@ -282,7 +282,7 @@ impl TextObject for NextWord {
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
-        let (end, just_crossed_newline) = self.mv(text, start);
+        let (end, just_crossed_newline) = Self::mv(text, start);
         // Exclude the newline character if using as a range
         // e.g. dw does not delete the line break
         Some(if just_crossed_newline { start..end.saturating_sub(1) } else { start..end })
@@ -329,7 +329,6 @@ impl NextToken {
     // that word becomes the end of the operated text, not the first word in the
     // next line.
     pub(crate) fn mv(
-        &self,
         text: &dyn AnyText,
         p: impl Into<PointOrByte>,
         stop_before_newline: bool,
@@ -342,7 +341,7 @@ impl NextToken {
                 assert_eq!(chars.next(), Some('\n'));
                 // if the cursor is at the end of a line, the next word is the first word of the next line.
                 // However, we don't want to chop the trailing newline if there is one.
-                return byte + chars.peek().is_some() as usize;
+                return byte + usize::from(chars.peek().is_some());
             }
             _ => (),
         }
@@ -383,7 +382,7 @@ impl TextObject for NextToken {
 
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, start: usize) -> Option<ops::Range<usize>> {
-        Some(start..self.mv(text, start, true))
+        Some(start..Self::mv(text, start, true))
     }
 
     #[inline]
@@ -491,7 +490,7 @@ fn line_range_to_byte_range(
                 let skip = line
                     .chars()
                     .take_while(|c| c.is_whitespace())
-                    .map(|c| c.len_utf8())
+                    .map(char::len_utf8)
                     .sum::<usize>();
                 (skip, line.len_bytes())
             });

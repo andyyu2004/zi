@@ -73,7 +73,7 @@ pub struct Location {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct EncodedRange {
-    /// Special case, this range is in `encoding` units, not necessarily `Utf8.
+    /// Special case, this range is in `encoding` units, not necessarily `Utf8`.
     range: PointRange,
     encoding: PositionEncoding,
 }
@@ -86,7 +86,7 @@ impl fmt::Display for EncodedRange {
 
 impl EncodedRange {
     pub fn new(encoding: PositionEncoding, range: PointRange) -> Self {
-        Self { encoding, range }
+        Self { range, encoding }
     }
 
     pub fn start(&self) -> EncodedPoint {

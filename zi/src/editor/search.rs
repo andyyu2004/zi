@@ -117,12 +117,9 @@ where
             Err(err) => return Err(io::Error::error_message(err)),
         };
 
-        let line_number = match mat.line_number() {
-            Some(line_number) => line_number,
-            None => {
-                let msg = "line numbers not enabled";
-                return Err(io::Error::error_message(msg));
-            }
+        let Some(line_number) = mat.line_number() else {
+            let msg = "line numbers not enabled";
+            return Err(io::Error::error_message(msg));
         };
 
         let start_byte = mat.absolute_byte_offset() as usize;

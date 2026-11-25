@@ -7,9 +7,12 @@ use super::*;
 
 #[tokio::test]
 async fn lsp_sync_multiple_servers() -> zi::Result<()> {
-    fn server(opens: Arc<AtomicUsize>, changes: Arc<AtomicUsize>) -> FakeLanguageServerTemplate<()> {
+    fn server(
+        opens: Arc<AtomicUsize>,
+        changes: Arc<AtomicUsize>,
+    ) -> FakeLanguageServerTemplate<()> {
         FakeLanguageServer::builder()
-            .request::<request::Initialize, _>(|_, _| async {
+            .request::<request::Initialize, _>(|(), _| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
@@ -21,12 +24,12 @@ async fn lsp_sync_multiple_servers() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .notification::<notification::Initialized>(|_, _| Ok(()))
-            .notification::<notification::DidOpenTextDocument>(move |_, _| {
+            .notification::<notification::Initialized>(|(), _| Ok(()))
+            .notification::<notification::DidOpenTextDocument>(move |(), _| {
                 opens.fetch_add(1, atomic::Ordering::SeqCst);
                 Ok(())
             })
-            .notification::<notification::DidChangeTextDocument>(move |_, _| {
+            .notification::<notification::DidChangeTextDocument>(move |(), _| {
                 changes.fetch_add(1, atomic::Ordering::SeqCst);
                 Ok(())
             })
@@ -35,7 +38,7 @@ async fn lsp_sync_multiple_servers() -> zi::Result<()> {
 
     let cx = new("").await;
 
-    let counts = [(); 4].map(|_| Arc::new(AtomicUsize::new(0)));
+    let counts = [(); 4].map(|()| Arc::new(AtomicUsize::new(0)));
     let [a_opens, a_changes, b_opens, b_changes] = counts.clone();
     cx.with(move |editor| {
         editor
@@ -61,8 +64,7 @@ async fn lsp_sync_multiple_servers() -> zi::Result<()> {
     }
     cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "x"))).await.unwrap();
 
-    let [a_opens, a_changes, b_opens, b_changes] =
-        counts.map(|c| c.load(atomic::Ordering::SeqCst));
+    let [a_opens, a_changes, b_opens, b_changes] = counts.map(|c| c.load(atomic::Ordering::SeqCst));
     assert_eq!((a_opens, b_opens), (1, 1), "didOpen count per server");
     assert_eq!((a_changes, b_changes), (1, 1), "didChange count per server");
 
@@ -77,12 +79,12 @@ async fn lsp_change_no_sync() -> zi::Result<()> {
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, _| {
+            .request::<request::Initialize, _>(move |(), _| {
                 bomb.defuse();
                 async { Ok(lsp_types::InitializeResult::default()) }
             })
             .notification::<notification::DidChangeTextDocument>(move |_st, params| {
-                panic!("should not call did_change as capability is not set: {:?}", params)
+                panic!("should not call did_change as capability is not set: {params:?}")
             })
     })
     .await;
@@ -112,7 +114,7 @@ async fn lsp_change_full_sync() -> zi::Result<()> {
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(|_, _| async {
+            .request::<request::Initialize, _>(|(), _| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
@@ -168,7 +170,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, _params| async {
+            .request::<request::Initialize, _>(move |(), _params| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
@@ -180,7 +182,7 @@ async fn lsp_changes_incremental_utf8() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .notification::<notification::DidChangeTextDocument>(move |_, params| {
+            .notification::<notification::DidChangeTextDocument>(move |(), params| {
                 expected_events.assert_eq(&params.content_changes);
                 Ok(())
             })
@@ -223,7 +225,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
 
     cx.setup_lang_server(zi::filetype!(text), "test-server", (), |builder| {
         builder
-            .request::<request::Initialize, _>(move |_, _params| async {
+            .request::<request::Initialize, _>(move |(), _params| async {
                 Ok(lsp_types::InitializeResult {
                     capabilities: lsp_types::ServerCapabilities {
                         position_encoding: Some(lsp_types::PositionEncodingKind::UTF16),
@@ -235,7 +237,7 @@ async fn lsp_changes_incremental_utf16() -> zi::Result<()> {
                     ..Default::default()
                 })
             })
-            .notification::<notification::DidChangeTextDocument>(move |_, params| {
+            .notification::<notification::DidChangeTextDocument>(move |(), params| {
                 expected_events.assert_eq(&params.content_changes);
                 Ok(())
             })
@@ -309,9 +311,7 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
             .is_empty();
     }
 
-    if !any_non_empty {
-        panic!("no non-empty deltas were applied");
-    }
+    assert!(any_non_empty, "no non-empty deltas were applied");
 
     assert_eq!(
         *rx.borrow(),

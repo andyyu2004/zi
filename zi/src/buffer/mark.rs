@@ -29,11 +29,11 @@ impl Buffer {
         namespace: NamespaceId,
         builders: impl IntoIterator<Item = MarkBuilder>,
     ) {
-        self.marks.replace(self.text().len_bytes(), namespace, builders)
+        self.marks.replace(self.text().len_bytes(), namespace, builders);
     }
 
     pub(crate) fn clear_marks(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
-        self.marks.drain(ns, range)
+        self.marks.drain(ns, range);
     }
 
     pub(crate) fn delete_mark(&mut self, ns: NamespaceId, id: MarkId) {
@@ -82,7 +82,7 @@ impl PerNs {
                 let id = self.marks.insert_with_key(|id| builder.build(id));
                 (id, builder.builder)
             }),
-        )
+        );
     }
 
     fn create(&mut self, builder: MarkBuilder) -> MarkId {
@@ -116,7 +116,7 @@ impl From<u32> for MarkId {
     fn from(raw: u32) -> MarkId {
         let version = raw >> 20;
         let index = raw << 12 >> 12;
-        MarkId::from(KeyData::from_ffi((version as u64) << 32 | index as u64))
+        MarkId::from(KeyData::from_ffi(u64::from(version) << 32 | u64::from(index)))
     }
 }
 
@@ -153,7 +153,7 @@ impl Marks {
         self.namespaces
             .entry(namespace)
             .or_insert_with(|| PerNs::new(text_len))
-            .replace(text_len, builders)
+            .replace(text_len, builders);
     }
 
     pub fn delete(&mut self, ns: NamespaceId, id: MarkId) -> Option<(Range<usize>, Mark)> {
@@ -162,14 +162,14 @@ impl Marks {
 
     pub fn drain(&mut self, ns: NamespaceId, range: impl RangeBounds<usize>) {
         if let Some(per_ns) = self.namespaces.get_mut(&ns) {
-            per_ns.drain(range)
+            per_ns.drain(range);
         }
     }
 
     #[inline]
     pub fn edit(&mut self, deltas: &Deltas<'_>) {
         for ns in self.namespaces.values_mut() {
-            ns.edit(deltas)
+            ns.edit(deltas);
         }
     }
 

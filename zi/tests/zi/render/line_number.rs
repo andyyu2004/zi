@@ -46,7 +46,7 @@ async fn no_line_number() {
     let cx = new("a\nb\nc").with_size((51, 8)).await;
 
     cx.with(|editor| {
-        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::None)
+        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::None);
     })
     .await;
 
@@ -72,7 +72,7 @@ async fn relative_line_number() {
 
     cx.with(|editor| {
         editor.move_cursor(zi::Active, zi::Direction::Up, 3);
-        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::Relative)
+        editor.view(zi::Active).settings().line_number_style.write(zi::LineNumberStyle::Relative);
     })
     .await;
 

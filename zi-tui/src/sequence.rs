@@ -50,7 +50,6 @@ macro_rules! impl_element_seq_tuple {
         where
             $($t: Element,)*
         {
-            #[allow(unused)]
             fn render(self, areas: Rc<[Rect]>, buf: &mut Buffer) {
                 assert_eq!(areas.len(), self.len());
                 $(
@@ -65,7 +64,16 @@ macro_rules! impl_element_seq_tuple {
     };
 }
 
-impl_element_seq_tuple!(0);
+impl ElementSeq for () {
+    fn render(self, areas: Rc<[Rect]>, _buf: &mut Buffer) {
+        assert!(areas.is_empty());
+    }
+
+    fn len(&self) -> usize {
+        0
+    }
+}
+
 impl_element_seq_tuple!(1 0 A);
 impl_element_seq_tuple!(2 0 A, 1 B);
 impl_element_seq_tuple!(3 0 A, 1 C, 2 D);

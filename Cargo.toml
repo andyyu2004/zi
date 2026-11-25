@@ -104,17 +104,52 @@ rust_2018_idioms = "deny"
 broken_intra_doc_links = "warn"
 
 [workspace.lints.clippy]
-dbg_macro = "deny"
-single-range-in-vec-init = "allow"
 complexity = { level = "warn", priority = -1 }
 correctness = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 perf = { level = "deny", priority = -1 }
 restriction = { level = "allow", priority = -1 }
 style = { level = "warn", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
-print_stdout = "warn"
+
+single-range-in-vec-init = "allow"
+
+# Pedantic lints that are noise here
+# Internal crates, not a published API: no errors/panics docs or #[must_use] on every getter and builder.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+# Screen coordinates, offsets and line numbers move between u16/u32/usize/isize; the values are bounded.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+# Colours are written as 0xRRGGBB(AA).
+unreadable_literal = "allow"
+# Submodules share their parent's imports with `use super::*`.
+wildcard_imports = "allow"
+# Keymap, command and test tables are long by nature.
+too_many_lines = "allow"
+# Field names like `nvim: Neovim` in `Nvim` read fine.
+struct_field_names = "allow"
+# Its fix turns a match with a wildcard arm into if-let/else, which hides new variants (see wildcard_enum_match_arm).
+single_match_else = "allow"
+# Helper fns, consts and imports often sit next to their only use inside a function.
+items_after_statements = "allow"
+# `Default::default()` is preferred where the type is clear from context.
+default_trait_access = "allow"
+
+# Restriction lints
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+dbg_macro = "deny"
 print_stderr = "warn"
+print_stdout = "warn"
 rc_buffer = "warn"
+todo = "warn"
+unimplemented = "warn"
+wildcard_enum_match_arm = "warn"
 
 [patch.crates-io]
 crop = { git = "https://github.com/andyyu2004/crop", branch = "main" }

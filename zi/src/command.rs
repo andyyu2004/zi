@@ -95,7 +95,7 @@ impl Command {
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(range) = &self.range {
-            write!(f, "{:?} ", range)?;
+            write!(f, "{range:?} ")?;
         }
 
         write!(f, "{:?}", self.kind)?;
@@ -227,7 +227,7 @@ impl fmt::Debug for CommandKind {
                 if *force {
                     write!(f, "!")?;
                 }
-                for arg in args.iter() {
+                for arg in args {
                     write!(f, " {arg}")?;
                 }
             }
@@ -487,20 +487,27 @@ pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> 
 }
 
 pub async fn close_view(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
-    client.with(move |editor| editor.close_view(selector)).await
+    client.with(move |editor| editor.close_view(selector)).await;
 }
 
-pub async fn save(client: &Client, selector: impl Selector<ViewId> + Send + 'static, force: bool) -> crate::Result<()> {
+pub async fn save(
+    client: &Client,
+    selector: impl Selector<ViewId> + Send + 'static,
+    force: bool,
+) -> crate::Result<()> {
     let save_flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
-    client.with(move |editor| {
-        let view = selector.select(editor);
-        editor.save(view, save_flags)
-    }).await.await?;
+    client
+        .with(move |editor| {
+            let view = selector.select(editor);
+            editor.save(view, save_flags)
+        })
+        .await
+        .await?;
     Ok(())
 }
 
 pub async fn inspect(client: &Client, selector: impl Selector<ViewId> + Send + 'static) -> () {
-    client.with(move |editor| editor.inspect(selector)).await
+    client.with(move |editor| editor.inspect(selector)).await;
 }
 
 pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
@@ -510,10 +517,9 @@ pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
             let buf_ids: Vec<_> = editor
                 .buffers()
                 .filter(|b| {
-                    b.file_path().is_some()
-                        && (force || b.flags().contains(BufferFlags::DIRTY))
+                    b.file_path().is_some() && (force || b.flags().contains(BufferFlags::DIRTY))
                 })
-                .map(|b| b.id())
+                .map(super::buffer::Buffer::id)
                 .collect();
             buf_ids.into_iter().map(|id| editor.save(id, save_flags)).collect()
         })

@@ -95,7 +95,7 @@ impl TextBase for str {
 
     #[inline]
     fn line_to_byte(&self, line_idx: usize) -> usize {
-        str_lines_inclusive(self).take(line_idx).map(|l| l.len()).sum()
+        str_lines_inclusive(self).take(line_idx).map(str::len).sum()
     }
 
     fn byte_to_line(&self, mut byte_idx: usize) -> usize {

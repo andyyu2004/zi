@@ -83,12 +83,12 @@ impl api::editor::HostView for HostState {
 
     async fn set_cursor(&mut self, view: Resource<api::editor::View>, pos: api::editor::Point) {
         let view_id = self.get_view(&view);
-        self.client.with(move |editor| editor.set_cursor(view_id, Point::from(pos))).await
+        self.client.with(move |editor| editor.set_cursor(view_id, Point::from(pos))).await;
     }
 
     async fn close(&mut self, view: Resource<api::editor::View>) {
         let view_id = self.get_view(&view);
-        command::close_view(&self.client, view_id).await
+        command::close_view(&self.client, view_id).await;
     }
 
     async fn save(&mut self, view: Resource<api::editor::View>, force: bool) -> Result<(), String> {
@@ -98,7 +98,7 @@ impl api::editor::HostView for HostState {
 
     async fn inspect(&mut self, view: Resource<api::editor::View>) {
         let view_id = self.get_view(&view);
-        command::inspect(&self.client, view_id).await
+        command::inspect(&self.client, view_id).await;
     }
 
     async fn insert(
@@ -152,9 +152,7 @@ impl api::editor::HostView for HostState {
     ) {
         let view_id = self.get_view(&view);
         let dir = zi::Direction::from(direction);
-        self.client
-            .with(move |editor| editor.scroll(view_id, dir, amount as usize))
-            .await
+        self.client.with(move |editor| editor.scroll(view_id, dir, amount as usize)).await;
     }
 
     async fn align(
@@ -164,14 +162,12 @@ impl api::editor::HostView for HostState {
     ) {
         let view_id = self.get_view(&view);
         let align = zi::VerticalAlignment::from(alignment);
-        self.client
-            .with(move |editor| editor.align_view(view_id, align))
-            .await
+        self.client.with(move |editor| editor.align_view(view_id, align)).await;
     }
 
     async fn focus(&mut self, view: Resource<api::editor::View>) {
         let view_id = self.get_view(&view);
-        self.client.with(move |editor| editor.focus(view_id)).await
+        self.client.with(move |editor| editor.focus(view_id)).await;
     }
 
     async fn drop(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
@@ -181,10 +177,7 @@ impl api::editor::HostView for HostState {
 }
 
 impl api::editor::HostBuffer for HostState {
-    async fn get_file_path(
-        &mut self,
-        buf: Resource<api::editor::Buffer>,
-    ) -> Option<String> {
+    async fn get_file_path(&mut self, buf: Resource<api::editor::Buffer>) -> Option<String> {
         let buf_id = self.buffers[&buf.rep()];
         self.client
             .with(move |editor| {
@@ -193,21 +186,14 @@ impl api::editor::HostBuffer for HostState {
             .await
     }
 
-    async fn get_flags(
-        &mut self,
-        buf: Resource<api::editor::Buffer>,
-    ) -> api::editor::BufferFlags {
+    async fn get_flags(&mut self, buf: Resource<api::editor::Buffer>) -> api::editor::BufferFlags {
         let buf_id = self.buffers[&buf.rep()];
-        self.client
-            .with(move |editor| editor.buffer(buf_id).flags().into())
-            .await
+        self.client.with(move |editor| editor.buffer(buf_id).flags().into()).await
     }
 
     async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> u32 {
         let buf_id = self.buffers[&buf.rep()];
-        self.client
-            .with(move |editor| editor.buffer(buf_id).text().len_lines() as u32)
-            .await
+        self.client.with(move |editor| editor.buffer(buf_id).text().len_lines() as u32).await
     }
 
     async fn drop(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
@@ -226,7 +212,7 @@ impl api::editor::Host for HostState {
     }
 
     async fn set_mode(&mut self, mode: api::editor::Mode) {
-        self.client.with(move |editor| editor.set_mode(mode.into())).await
+        self.client.with(move |editor| editor.set_mode(mode.into())).await;
     }
 
     async fn get_active_view(&mut self) -> Resource<api::editor::View> {
@@ -247,11 +233,11 @@ impl api::editor::Host for HostState {
             .with(|editor| {
                 editor.open_jump_list(Active);
             })
-            .await
+            .await;
     }
 
     async fn open_file_explorer(&mut self, path: String) {
-        self.client.with(move |editor| editor.open_file_explorer(path)).await
+        self.client.with(move |editor| editor.open_file_explorer(path)).await;
     }
 
     async fn set_option(&mut self, key: String, value: String) -> Result<(), String> {
@@ -283,7 +269,7 @@ impl PluginManager {
         self.plugins
             .read()
             .get(id)
-            .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}",))
+            .ok_or_else(|| anyhow::anyhow!("plugin not found: {id:?}"))
             .map(f)
     }
 
@@ -351,7 +337,7 @@ impl zi::plugin::PluginManager for PluginManager {
     async fn start(self: Arc<Self>, client: Client) -> anyhow::Result<()> {
         let engine = engine();
 
-        let components = self.load_plugin_components(engine).await?;
+        let components = Self::load_plugin_components(engine);
 
         let mut join_set = JoinSet::new();
 
@@ -396,7 +382,7 @@ impl zi::plugin::PluginManager for PluginManager {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => tracing::error!(error = &*err, "error running plugin"),
                 Err(err) => {
-                    tracing::error!(error = &err as &dyn std::error::Error, "error joining plugin")
+                    tracing::error!(error = &err as &dyn std::error::Error, "error joining plugin");
                 }
             }
         }
@@ -406,10 +392,9 @@ impl zi::plugin::PluginManager for PluginManager {
 }
 
 impl PluginManager {
-    async fn load_plugin_components(
-        &self,
+    fn load_plugin_components(
         engine: &'static Engine,
-    ) -> io::Result<impl Stream<Item = anyhow::Result<Component>>> {
+    ) -> impl Stream<Item = anyhow::Result<Component>> {
         let dirs = futures_util::stream::iter(dirs::plugin());
         let entries = dirs
             .then(|dir| async move {
@@ -418,14 +403,14 @@ impl PluginManager {
             })
             .try_flatten();
 
-        Ok(entries.map_err(Into::into).try_filter_map(move |entry| async move {
+        entries.map_err(Into::into).try_filter_map(move |entry| async move {
             if !entry.file_type().await?.is_file() {
                 return Ok(None);
             }
 
             let component = Component::from_file(engine, entry.path())?;
             Ok(Some(component))
-        }))
+        })
     }
 }
 

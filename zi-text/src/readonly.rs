@@ -56,7 +56,10 @@ impl<B: Deref<Target = [u8]>> AsRef<str> for ReadonlyText<B> {
 
 impl ReadonlyText<Mmap> {
     // TODO
-    #[allow(clippy::missing_safety_doc)]
+    #[expect(
+        clippy::missing_safety_doc,
+        reason = "safety contract (file must not change while mapped) not written up yet"
+    )]
     pub unsafe fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let file = File::open(path)?;
         let buf = unsafe { MmapOptions::new().map(&file)? };

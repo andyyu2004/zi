@@ -31,7 +31,13 @@ impl Editor {
     pub fn completions(&self) -> Option<impl ExactSizeIterator<Item = &CompletionItem>> {
         match &self.state {
             State::Insert(state) => Some(state.completion.matches()),
-            _ => None,
+            State::Normal(_)
+            | State::Command(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => None,
         }
     }
 
@@ -52,7 +58,7 @@ impl Editor {
         });
     }
 
-    pub(super) fn apply_completion_delta(&mut self, delta: Delta<'_>) {
+    pub(super) fn apply_completion_delta(&mut self, delta: &Delta<'_>) {
         let delta = delta.to_owned();
         let new_cursor = delta.range().start + delta.text().len();
         self.edit(Active, &Deltas::new([delta])).expect("valid delta");
@@ -88,7 +94,7 @@ impl Editor {
             .filter_map(|&server| {
                 self.active_language_services[&server]
                     .completion_capabilities()
-                    .map(|_| Provider::Lsp(LspCompletionProvider { server }))
+                    .map(|()| Provider::Lsp(LspCompletionProvider { server }))
             })
             .chain(
                 COMPLETION_PROVIDERS

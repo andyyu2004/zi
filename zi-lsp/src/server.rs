@@ -10,7 +10,7 @@ use zi_event::HandlerResult;
 
 use crate::{EditorExt, client, from_proto, to_proto};
 
-/// async_lsp::LanguageServer -> zi::LanguageService
+/// `async_lsp::LanguageServer` -> `zi::LanguageService`
 // We box the inner server instead of making it generic to make downcasting to this type possible.
 pub struct LanguageService {
     _client: zi::LanguageClient,
@@ -170,7 +170,10 @@ impl zi::LanguageService for LanguageService {
 
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
-        #[expect(deprecated)]
+        #[expect(
+            deprecated,
+            reason = "root_uri and root_path are deprecated but older servers still read them"
+        )]
         let fut = self.server.initialize(lsp_types::InitializeParams {
             process_id: Some(params.process_id),
             capabilities: client::capabilities(),
@@ -230,10 +233,10 @@ impl zi::LanguageService for LanguageService {
                 }
 
                 tracing::debug!(?event, ?service_id, "lsp buffer did open");
-                server.texts.insert(url, (
-                    params.text_document.version,
-                    Rope::from(params.text_document.text.as_str()),
-                ));
+                server.texts.insert(
+                    url,
+                    (params.text_document.version, Rope::from(params.text_document.text.as_str())),
+                );
 
                 if let Err(err) = server.server.did_open(params) {
                     tracing::error!(?err, "lsp did_open notification failed");
@@ -254,7 +257,8 @@ impl zi::LanguageService for LanguageService {
                     .language_config
                     .languages
                     .get(&buf.file_type())
-                    .map(|c| &c.language_services).is_some_and(|servers| servers.contains(&service_id))
+                    .map(|c| &c.language_services)
+                    .is_some_and(|servers| servers.contains(&service_id))
                 {
                     return HandlerResult::Continue;
                 }
@@ -334,7 +338,7 @@ impl zi::LanguageService for LanguageService {
                         content_changes,
                     })
                 {
-                    tracing::error!(?err, "lsp did_change notification failed")
+                    tracing::error!(?err, "lsp did_change notification failed");
                 }
             }
 
@@ -540,14 +544,19 @@ impl zi::LanguageService for LanguageService {
             kind.map_or_else(Default::default, |kind| {
                 kind.into_iter()
                     .map(|(url, kind)| {
-                        (url, match kind {
-                            lsp_types::DocumentDiagnosticReportKind::Full(full) => {
-                                lstypes::Diagnostics::Full(from_proto::diagnostics(enc, full.items))
-                            }
-                            lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {
-                                lstypes::Diagnostics::Unchanged
-                            }
-                        })
+                        (
+                            url,
+                            match kind {
+                                lsp_types::DocumentDiagnosticReportKind::Full(full) => {
+                                    lstypes::Diagnostics::Full(from_proto::diagnostics(
+                                        enc, full.items,
+                                    ))
+                                }
+                                lsp_types::DocumentDiagnosticReportKind::Unchanged(_) => {
+                                    lstypes::Diagnostics::Unchanged
+                                }
+                            },
+                        )
                     })
                     .collect()
             })

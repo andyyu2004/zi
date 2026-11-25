@@ -136,7 +136,7 @@ async fn dot_repeat_open_newline() {
         "buffer://scratch:3:2                                                            "
         "                                                                                "
     "#]])
-    .await;
+        .await;
 
     cx.with(|editor| {
         editor.input(".").unwrap();
@@ -155,7 +155,7 @@ async fn dot_repeat_open_newline() {
         "buffer://scratch:4:2                                                            "
         "                                                                                "
     "#]])
-    .await;
+        .await;
 
     cx.cleanup().await;
 }
@@ -515,4 +515,3 @@ async fn dot_with_operator_then_insert() {
 
     cx.cleanup().await;
 }
-

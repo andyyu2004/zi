@@ -62,6 +62,7 @@ impl<'a, S> RopeCursor<'a, S>
 where
     S: TextSlice<'a>,
 {
+    #[expect(clippy::needless_pass_by_value, reason = "slices are cheap handles, like &str")]
     pub fn new(slice: S) -> Self {
         let chunks = BidirectionalIterator::new(slice.chunks());
         let total_bytes = slice.len_bytes();

@@ -204,6 +204,12 @@
           root = ./.;
           fileset = fs.difference ./. (fs.fileFilter (f: f.hasExt "md") ./.);
         };
+
+        # CI's jobs, by their ids in ci.yml
+        ciJobs = [
+          "test"
+          "clippy"
+        ];
       in
       {
         packages = {
@@ -215,7 +221,7 @@
 
         # A store path per CI job, named for the source and the dev shell it runs in. The job
         # pushes it to the Nix cache once it passes, and is skipped when it's there.
-        ci = pkgs.lib.genAttrs [ "test" ] (
+        ci = pkgs.lib.genAttrs ciJobs (
           job:
           builtins.toFile "zi-ci-${job}" (
             builtins.unsafeDiscardStringContext "${source}\n${devShell.drvPath}\n"

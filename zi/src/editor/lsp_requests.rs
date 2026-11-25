@@ -22,35 +22,35 @@ impl Editor {
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_definitions(view))
+        self.goto_definition_(selector, super::Editor::find_definitions)
     }
 
     pub fn goto_declaration(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_declarations(view))
+        self.goto_definition_(selector, super::Editor::find_declarations)
     }
 
     pub fn goto_type_definition(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_type_definitions(view))
+        self.goto_definition_(selector, super::Editor::find_type_definitions)
     }
 
     pub fn goto_implementation(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_implementations(view))
+        self.goto_definition_(selector, super::Editor::find_implementations)
     }
 
     pub fn goto_references(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_references(view))
+        self.goto_definition_(selector, super::Editor::find_references)
     }
 
     fn goto_definition_<Fut>(
@@ -158,9 +158,12 @@ impl Editor {
                 let server = self.active_language_services.get_mut(server_id).unwrap();
                 let point = view.cursor();
                 tracing::debug!(%url, %point, "language request definition");
-                let fut = f(&mut **server, lstypes::GotoDefinitionParams {
-                    at: lstypes::TextDocumentPointParams { url, point },
-                });
+                let fut = f(
+                    &mut **server,
+                    lstypes::GotoDefinitionParams {
+                        at: lstypes::TextDocumentPointParams { url, point },
+                    },
+                );
                 Some(fut)
             });
 
@@ -176,6 +179,7 @@ impl Editor {
         }
     }
 
+    #[expect(clippy::unused_self, reason = "the root will come from per-server config")]
     fn lsp_root_path(&self, _server: LanguageServiceId) -> PathBuf {
         // TODO this should be configurable per language server
         std::env::current_dir().unwrap()
@@ -187,7 +191,7 @@ impl Editor {
             name: uri
                 .path_segments()
                 .and_then(Iterator::last)
-                .map_or("root".into(), |basename| basename.to_string()),
+                .map_or("root".into(), std::string::ToString::to_string),
             uri,
         }
     }
@@ -198,7 +202,7 @@ impl Editor {
         ft: FileType,
     ) -> Result<()> {
         if let Some(config) = &self.language_config.languages.get(&ft) {
-            for service_id in config.language_services.iter().cloned() {
+            for service_id in config.language_services.iter().copied() {
                 if self.active_language_services.contains_key(&service_id) {
                     // Language server already running
                     continue;
@@ -315,7 +319,7 @@ impl Editor {
         let path = location
             .url
             .to_file_path()
-            .map_err(|_| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
+            .map_err(|()| anyhow::anyhow!("lsp returned non-file uri: {}", location.url))?;
 
         let from = self.current_location();
         let open_fut =
@@ -326,7 +330,7 @@ impl Editor {
             client
                 .with(move |editor| {
                     if let Some(point) = editor.text(buf).decode_point(location.range.start()) {
-                        editor.jump(from, Location::new(buf, point))
+                        editor.jump(from, Location::new(buf, point));
                     }
                 })
                 .await;
@@ -421,7 +425,7 @@ impl Editor {
                             tracing::warn!(?url, "ignoring non-file related document diagnostics");
                             continue;
                         };
-                        editor.replace_diagnostics(path, None, related)
+                        editor.replace_diagnostics(path, None, related);
                     }
                     Ok(())
                 });

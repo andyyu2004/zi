@@ -22,7 +22,7 @@ impl Editor {
     pub fn set_cursor(&mut self, selector: impl Selector<ViewId>, pos: impl Into<PointOrByte>) {
         match pos.into() {
             PointOrByte::Point(pos) => {
-                self.set_cursor_flags(selector, pos, SetCursorFlags::empty())
+                self.set_cursor_flags(selector, pos, SetCursorFlags::empty());
             }
             PointOrByte::Byte(byte) => self.set_cursor_bytewise(selector, byte),
         }

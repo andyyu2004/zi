@@ -15,7 +15,7 @@ impl Namespace {
     pub(crate) fn new(id: NamespaceId, name: impl Into<Ustr>) -> Self {
         let name = name.into();
         let url = Url::parse(&format!("{}://{name}", Self::URL_SCHEME)).unwrap();
-        Namespace { id, url, name }
+        Namespace { id, name, url }
     }
 
     #[inline]
