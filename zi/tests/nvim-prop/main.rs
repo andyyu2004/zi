@@ -15,7 +15,7 @@ fn rt() -> &'static tokio::runtime::Runtime {
 async fn nvim(fixture: &Fixture) -> &'static Nvim {
     let size = fixture.size();
     static NVIM: OnceCell<zi_nvim::Nvim> = OnceCell::const_new();
-    NVIM.get_or_init(|| spawn(size.height, size.width)).await
+    NVIM.get_or_init(|| spawn(size.width, size.height)).await
 }
 
 macro_rules! t {
