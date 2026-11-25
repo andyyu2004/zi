@@ -179,16 +179,16 @@ impl<M: TextObject> TextObject for Repeat<M> {
 
 trait CharExt {
     /// Returns true if the character is a word separator.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_word_separator(self) -> bool;
 
     /// Returns true if the character is a token separator.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_token_separator(self) -> bool;
 
     /// Returns true if the character is a word start.
     /// This includes non-alphanumeric characters and capital letters.
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention, reason = "char is Copy, so self by value is right")]
     fn is_word_start(self) -> bool;
 }
 

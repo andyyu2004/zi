@@ -224,7 +224,7 @@ pub trait LanguageService {
 pub trait LanguageServiceConfig {
     /// Spawn a new language service instance.
     /// Returns a boxed language service and a future to spawn to run the service.
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     fn spawn(
         &self,
         cwd: &Path,

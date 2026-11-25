@@ -20,7 +20,7 @@ type SubscriptionId = u64;
 #[derive(Default)]
 pub struct Registry {
     // map<event_type, [(subscription_id, handler)]> in subscription order
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     handlers: parking_lot::RwLock<
         FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedEventHandler + Send + Sync>)>>,
     >,
@@ -30,7 +30,7 @@ pub struct Registry {
     garbage: SegQueue<(TypeId, SubscriptionId)>,
     async_garbage: SegQueue<(TypeId, SubscriptionId)>,
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     async_handlers: tokio::sync::RwLock<
         FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>)>>,
     >,

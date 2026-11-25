@@ -303,7 +303,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         #[cfg(debug_assertions)]
         {
             // Ensure that the summaries are all correct by resummarizing the tree.
-            #[allow(unused)]
+            #[expect(unused, reason = "kept for debugging summaries")]
             #[track_caller]
             fn summarize<const N: usize>(node: &Arc<Node<ARITY, Leaf<N>>>) -> Summary {
                 let summary = match node.as_ref() {

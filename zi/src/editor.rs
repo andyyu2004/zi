@@ -306,7 +306,7 @@ macro_rules! get_ref {
         $crate::editor::get_ref!($editor: view_id as $ty)
     }};
     ($editor:ident: $view:ident as $ty:ty) => {{
-        #[allow(unused_imports)]
+        #[allow(unused_imports, reason = "only needed when the view is not already a ViewId")]
         use $crate::view::HasViewId as _;
         let view_id = $view.view_id();
         let view = &mut $editor.views[view_id];
@@ -317,7 +317,6 @@ macro_rules! get_ref {
         $crate::editor::get_ref!($editor: $editor.tree.active())
     };
     ($editor:ident: $view:expr) => {{
-        #[allow(unused_imports)]
         let view = &$editor.views[$view];
         let buf = &$editor.buffers[view.buffer()];
         (view, buf)
@@ -358,7 +357,7 @@ impl<T> Stream for UnboundedChannelStream<T> {
 }
 
 struct Request {
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity, reason = "spelled out once, here")]
     f: Box<dyn FnOnce(&mut Editor) -> Box<dyn Any + Send> + Send>,
     tx: oneshot::Sender<Box<dyn Any + Send>>,
 }
@@ -601,7 +600,7 @@ impl Editor {
 
         let client = self.client();
         Ok(async move {
-            #[allow(clippy::too_many_arguments)]
+            #[expect(clippy::too_many_arguments, reason = "inner helper, called once")]
             async fn execute<T: Text + Clone + 'static>(
                 client: &Client,
                 plan: Plan,

@@ -67,7 +67,6 @@ t!(I_NO_TRAILING_SPACE, "V[jk]*c<ESC>", nvim_visual_line_change);
 /// Useful to test a particular case
 #[test]
 fn scratch() {
-    #[allow(unused)]
     fn test(text: &str, inputs: &str) {
         run(text, inputs, CompareFlags::empty());
     }

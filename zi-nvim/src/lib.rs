@@ -132,9 +132,9 @@ impl Fixture {
 
 pub struct Nvim {
     nvim: nvim_rs::Neovim<nvim_rs::compat::tokio::Compat<ChildStdin>>,
-    #[allow(unused)]
+    #[expect(unused, reason = "kept so the nvim process lives as long as Nvim")]
     join_handle: tokio::task::JoinHandle<Result<(), Box<LoopError>>>,
-    #[allow(unused)]
+    #[expect(unused, reason = "kept so the nvim process lives as long as Nvim")]
     child: tokio::process::Child,
 }
 

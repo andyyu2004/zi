@@ -212,7 +212,6 @@ impl<St> FakeLanguageServerBuilder<St> {
         self
     }
 
-    #[allow(dead_code)]
     pub fn notification<N: Notification>(
         mut self,
         handler: impl Fn(&mut St, N::Params) -> zi_lsp::Result<()> + Send + Sync + 'static,

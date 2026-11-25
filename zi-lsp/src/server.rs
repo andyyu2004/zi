@@ -170,7 +170,10 @@ impl zi::LanguageService for LanguageService {
 
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
-        #[expect(deprecated)]
+        #[expect(
+            deprecated,
+            reason = "root_uri and root_path are deprecated but older servers still read them"
+        )]
         let fut = self.server.initialize(lsp_types::InitializeParams {
             process_id: Some(params.process_id),
             capabilities: client::capabilities(),

@@ -270,7 +270,7 @@ impl Editor {
             namespace: Ustr,
             range: PointRange,
             // TODO show something once there's more mark metadata
-            #[allow(unused)]
+            #[expect(unused, reason = "kept for when the picker shows mark metadata")]
             mark: Mark,
         }
 
@@ -367,7 +367,7 @@ impl Editor {
     pub fn open_global_search(&mut self, path: impl AsRef<Path>) -> ViewGroupId {
         #[derive(Clone, Debug)]
         struct Entry {
-            #[allow(unused)]
+            #[expect(unused, reason = "kept to highlight the match later")]
             // TODO can be used to highlight the matching portion of the line
             byte_range: ops::Range<usize>,
             path: PathBuf,

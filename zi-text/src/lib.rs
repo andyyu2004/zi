@@ -232,7 +232,7 @@ dyn_clone::clone_trait_object!(AnyText);
 // This is just a primarily a convenience for tests.
 impl PartialEq<str> for dyn AnyText + '_ {
     #[inline]
-    #[allow(clippy::cmp_owned)]
+    #[expect(clippy::cmp_owned, reason = "convenience for tests")]
     fn eq(&self, other: &str) -> bool {
         self.to_string() == other
     }
