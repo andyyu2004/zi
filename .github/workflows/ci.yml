@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v32
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: andyyu2004
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
+
+      - name: Build dev shell
+        run: nix develop -c true
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build tests
+        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run
+
+      - name: Test
+        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci
+
+      - name: Doctests
+        run: nix develop -c cargo test --workspace --exclude 'plugin-*' --doc
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: junit
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: ignore
