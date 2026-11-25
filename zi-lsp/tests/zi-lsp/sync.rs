@@ -305,10 +305,8 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
 
     let mut any_non_empty = false;
     for _ in 0..rand::rng().random_range(0..400) {
-        any_non_empty |= !cx
-            .with(move |editor| editor.apply_random_deltas(rand::rng(), buf))
-            .await
-            .is_empty();
+        any_non_empty |=
+            !cx.with(move |editor| editor.apply_random_deltas(rand::rng(), buf)).await.is_empty();
     }
 
     assert!(any_non_empty, "no non-empty deltas were applied");
