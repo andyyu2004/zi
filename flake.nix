@@ -40,13 +40,17 @@
               url = "https://github.com/${owner}/tree-sitter-${name}/releases/download/${version}/tree-sitter-${name}.wasm";
               hash = wasmHash;
             };
-            highlights = pkgs.fetchurl {
-              url = "https://raw.githubusercontent.com/${owner}/tree-sitter-${name}/${version}/${highlightsPath}";
-              hash = highlightsHash;
-            };
+            highlights = [
+              (pkgs.fetchurl {
+                url = "https://raw.githubusercontent.com/${owner}/tree-sitter-${name}/${version}/${highlightsPath}";
+                hash = highlightsHash;
+              })
+            ];
           };
 
-        nixGrammar = pkgs.pkgsCross.wasm32-wasip1.tree-sitter.buildGrammar {
+        wasmTreeSitter = pkgs.pkgsCross.wasm32-wasip1.tree-sitter;
+
+        nixGrammar = wasmTreeSitter.buildGrammar {
           language = "nix";
           version = "0.3.0";
           src = pkgs.fetchFromGitHub {
@@ -57,14 +61,138 @@
           };
         };
 
+        parserFor = name: wasmTreeSitter.builtGrammars."tree-sitter-${name}";
+
+        compiledGrammar =
+          {
+            name,
+            parserName ? name,
+            parser ? parserFor parserName,
+            highlights ? [ "${parser.src}/queries/highlights.scm" ],
+          }:
+          {
+            inherit name highlights;
+            wasm = "${parser}/parser.wasm";
+          };
+
+        javascript = parserFor "javascript";
+        javascriptHighlights = [
+          "${javascript.src}/queries/highlights.scm"
+          "${javascript.src}/queries/highlights-jsx.scm"
+        ];
+
+        perl = wasmTreeSitter.buildGrammar {
+          language = "perl";
+          version = "2.0.6";
+          generate = true;
+          src = pkgs.fetchFromGitHub {
+            owner = "tree-sitter-perl";
+            repo = "tree-sitter-perl";
+            rev = "5e30b919b86ea7dfbf8525537e1523af235e140d";
+            hash = "sha256:0njvkh38gm33n5kyiq7csjpvfr1n0vzpfyj7qg8ihjvlnykah4pz";
+          };
+        };
+
+        perlHighlights = pkgs.runCommand "zi-perl-highlights.scm" { } ''
+          substitute ${perl.src}/queries/highlights.scm "$out" --replace-fail '#lua-match?' '#match?'
+        '';
+
+        swift = (parserFor "swift").override {
+          # Use the Wasm host's abort on allocation failure.
+          postPatch = ''
+            substituteInPlace src/scanner.c \
+              --replace-fail 'fprintf(stderr, "tree-sitter-swift: out of memory allocating scanner state\n");' "" \
+              --replace-fail 'exit(1);' 'abort();'
+          '';
+        };
+
+        cGrammar = grammar {
+          name = "c";
+          version = "v0.23.5";
+          wasmHash = "sha256-bnLkYg9yn2cbMn8E2G5CRWRGg58J4Z4ubEcHj2gwz/I=";
+          highlightsHash = "sha256-M3jYVN2mlbKygrlGgkdSTtQnHvdK9pEDPS42iDN5QJw=";
+        };
+
+        commonGrammars = [
+          (compiledGrammar {
+            name = "c_sharp";
+            parserName = "c-sharp";
+          })
+          (compiledGrammar {
+            name = "cpp";
+            highlights = cGrammar.highlights ++ [ "${(parserFor "cpp").src}/queries/highlights.scm" ];
+          })
+          (compiledGrammar {
+            name = "objc";
+            highlights = cGrammar.highlights ++ [ "${(parserFor "objc").src}/queries/highlights.scm" ];
+          })
+          (compiledGrammar {
+            name = "graphql";
+            highlights = [ "${(parserFor "graphql").src}/queries/graphql/highlights.scm" ];
+          })
+          (compiledGrammar {
+            name = "javascript";
+            highlights = javascriptHighlights;
+          })
+          (compiledGrammar {
+            name = "perl";
+            parser = perl;
+            highlights = [ perlHighlights ];
+          })
+          (compiledGrammar {
+            name = "swift";
+            parser = swift;
+          })
+          (compiledGrammar {
+            name = "tsx";
+            highlights = javascriptHighlights ++ [ "${(parserFor "tsx").src}/queries/highlights.scm" ];
+          })
+          (compiledGrammar {
+            name = "vue";
+            highlights = [
+              "${(parserFor "vue").src}/queries/html_tags/highlights.scm"
+              "${(parserFor "vue").src}/queries/vue/highlights.scm"
+            ];
+          })
+          (compiledGrammar {
+            name = "xml";
+            highlights = [ "${(parserFor "xml").src}/queries/xml/highlights.scm" ];
+          })
+        ]
+        ++ map (name: compiledGrammar { inherit name; }) [
+          "cmake"
+          "dart"
+          "diff"
+          "dockerfile"
+          "elixir"
+          "fsharp"
+          "groovy"
+          "haskell"
+          "ini"
+          "java"
+          "kotlin"
+          "lua"
+          "make"
+          "ocaml"
+          "php"
+          "powershell"
+          "proto"
+          "r"
+          "ruby"
+          "scala"
+          "sql"
+          "svelte"
+          "zig"
+        ];
+
         grammars = pkgs.runCommand "zi-grammars" { } (
           pkgs.lib.concatMapStrings
             (g: ''
-              mkdir -p $out/${g.name}
-              cp ${g.wasm} $out/${g.name}/language.wasm
-              cp ${g.highlights} $out/${g.name}/highlights.scm
+              mkdir -p "$out/${g.name}"
+              cp ${g.wasm} "$out/${g.name}/language.wasm"
+              cat ${pkgs.lib.escapeShellArgs g.highlights} > "$out/${g.name}/highlights.scm"
             '')
-            [
+            ([
               (grammar {
                 name = "rust";
                 version = "v0.24.2";
@@ -83,12 +211,7 @@
                 wasmHash = "sha256-0hGfuY1ZEnGbE/lFhXT4YI0tKd++Rfa+H4YOof4qJAU=";
                 highlightsHash = "sha256-BRFSRGW1au0SJYB5IlTmi2q7v95xGfHQKxNay+J4Iz8=";
               })
-              (grammar {
-                name = "c";
-                version = "v0.23.5";
-                wasmHash = "sha256-bnLkYg9yn2cbMn8E2G5CRWRGg58J4Z4ubEcHj2gwz/I=";
-                highlightsHash = "sha256-M3jYVN2mlbKygrlGgkdSTtQnHvdK9pEDPS42iDN5QJw=";
-              })
+              cGrammar
               (grammar {
                 name = "python";
                 version = "v0.25.0";
@@ -141,43 +264,50 @@
                 highlightsHash = "sha256-LrBudmzNZy1JWZ0U85jwf09ffyIIJimT082SB8EHji8=";
                 highlightsPath = "tree-sitter-markdown/queries/highlights.scm";
               })
-              {
+              (compiledGrammar {
                 name = "nix";
-                wasm = "${nixGrammar}/parser.wasm";
-                highlights = "${nixGrammar}/queries/highlights.scm";
-              }
-            ]
+                parser = nixGrammar;
+              })
+            ] ++ commonGrammars)
         );
 
-        plugins = (pkgs.makeRustPlatform { cargo = rust; rustc = rust; }).buildRustPackage {
-          pname = "zi-plugins";
-          version = "0.1.0";
-          src = source;
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes."crop-0.4.2" = "0mfs49xy1b2dg4kahw0j9lyp9ac6b969faa4r630ljvgl9p3k29h";
-          };
-          nativeBuildInputs = [ pkgs.cargo-component ];
-          outputs = [ "out" "testPlugins" ];
-          doCheck = false;
-          dontStrip = true;
+        plugins =
+          (pkgs.makeRustPlatform {
+            cargo = rust;
+            rustc = rust;
+          }).buildRustPackage
+            {
+              pname = "zi-plugins";
+              version = "0.1.0";
+              src = source;
+              cargoLock = {
+                lockFile = ./Cargo.lock;
+                outputHashes."crop-0.4.2" = "0mfs49xy1b2dg4kahw0j9lyp9ac6b969faa4r630ljvgl9p3k29h";
+              };
+              nativeBuildInputs = [ pkgs.cargo-component ];
+              outputs = [
+                "out"
+                "testPlugins"
+              ];
+              doCheck = false;
+              dontStrip = true;
 
-          buildPhase = ''
-            runHook preBuild
-            export CARGO_COMPONENT_CACHE_DIR="$TMPDIR/cargo-component-cache"
-            cargo component build --locked --offline --release --target wasm32-unknown-unknown \
-              --target-dir target -p plugin-example -p plugin-test
-            runHook postBuild
-          '';
+              buildPhase = ''
+                runHook preBuild
+                export CARGO_COMPONENT_CACHE_DIR="$TMPDIR/cargo-component-cache"
+                cargo component build --locked --offline --release --target wasm32-unknown-unknown \
+                  --target-dir target -p plugin-example -p plugin-test
+                runHook postBuild
+              '';
 
-          installPhase = ''
-            runHook preInstall
-            mkdir -p "$out" "$testPlugins"
-            cp target/wasm32-unknown-unknown/release/plugin_example.wasm "$out/"
-            cp target/wasm32-unknown-unknown/release/plugin_test.wasm "$testPlugins/"
-            runHook postInstall
-          '';
-        };
+              installPhase = ''
+                runHook preInstall
+                mkdir -p "$out" "$testPlugins"
+                cp target/wasm32-unknown-unknown/release/plugin_example.wasm "$out/"
+                cp target/wasm32-unknown-unknown/release/plugin_test.wasm "$testPlugins/"
+                runHook postInstall
+              '';
+            };
 
         devShell = pkgs.mkShell {
           packages = [
