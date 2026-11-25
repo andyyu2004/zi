@@ -7,9 +7,9 @@ use crate::{Editor, event, lstypes};
 impl Editor {
     pub(crate) fn format_before_save() -> impl AsyncEventHandler<Event = event::WillSaveBuffer> {
         event::async_handler::<event::WillSaveBuffer, _>(|client, event| async move {
-            let (version, format_fut) = client
+            let Some((version, format_fut)) = client
                 .with(move |editor| {
-                    let buffer = &editor[event.buf];
+                    let buffer = editor.db.buffers.get(event.buf)?;
                     let buf_config = buffer.settings();
                     let tab_size = u32::from(*buf_config.tab_width.read());
                     let format = *buf_config.format_on_save.read();
@@ -34,15 +34,21 @@ impl Editor {
                         })
                         .flatten();
 
-                    (buf_version, format_fut)
+                    Some((buf_version, format_fut))
                 })
-                .await;
+                .await
+            else {
+                return Ok(event::HandlerResult::Continue);
+            };
 
             if let Some(fut) = format_fut {
                 let deltas = fut.await?;
                 client
                     .with(move |editor| {
-                        let buf = &editor[event.buf];
+                        let Some(buf) = editor.db.buffers.get(event.buf) else {
+                            return Ok(());
+                        };
+
                         if let Some(deltas) = deltas {
                             if buf.version() == version {
                                 editor.edit(event.buf, &deltas)?;

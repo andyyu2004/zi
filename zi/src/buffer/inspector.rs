@@ -80,6 +80,10 @@ impl BufferInternal for InspectorBuffer {
     ) {
         let buf = self.id;
         client.send(move |editor| {
+            if !editor.has_buffer(buf) {
+                return Ok(());
+            }
+
             let mut query_cursor = QueryCursor::new();
             let output = {
                 let target_view = editor.view(Active);
