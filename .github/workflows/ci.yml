@@ -11,7 +11,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Whether each job has passed on this source and dev shell: its store path (flake.nix ci)
+  # is in the Nix cache. Pushes to master run every job, as they save the Rust cache that
+  # pull requests start from. A skipped job still satisfies the ruleset's required check.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.plan.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - id: plan
+        run: |
+          keys=$(nix eval --json .#ci.x86_64-linux)
+          run=()
+          for job in $(jq -r 'keys[]' <<<"$keys"); do
+            key=$(jq -r --arg job "$job" '.[$job]' <<<"$keys")
+            if [ "$GITHUB_EVENT_NAME" != push ] &&
+              nix path-info --store https://nix-cache.andyyu.io "$key" >/dev/null 2>&1; then
+              echo "$job passed as $key"
+            else
+              run+=("$job")
+            fi
+          done
+          echo "run=$(jq -cn '$ARGS.positional' --args "${run[@]}")" >>"$GITHUB_OUTPUT"
+
   test:
+    needs: plan
+    if: contains(fromJSON(needs.plan.outputs.run), 'test')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -31,20 +60,11 @@ jobs:
       - name: Build dev shell
         run: nix develop --profile "$RUNNER_TEMP/dev-shell" -c true
 
-      # The dev shell's closure to niks3 (niks3.andyyu.io, read at nix-cache.andyyu.io). Its
-      # container stops when idle, so the first request can fail while it starts.
       - name: Push dev shell to the Nix cache
         if: github.event_name != 'merge_group'
         env:
           NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
-        run: |
-          [ -n "$NIKS3_AUTH_TOKEN" ] || exit 0
-          token=$(mktemp)
-          printf '%s' "$NIKS3_AUTH_TOKEN" >"$token"
-          nix shell --inputs-from . nixpkgs#niks3 -c niks3 push \
-            --server-url https://niks3.andyyu.io --auth-token-path "$token" --retry-timeout 2m \
-            "$(readlink -f "$RUNNER_TEMP/dev-shell")"
-          rm -f "$token"
+        run: .github/niks3-push.sh "$(readlink -f "$RUNNER_TEMP/dev-shell")"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -63,6 +83,11 @@ jobs:
 
       - name: Doctests
         run: nix develop -c cargo test --workspace --exclude 'plugin-*' --doc
+
+      - name: Record the pass
+        env:
+          NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
+        run: .github/niks3-push.sh "$(nix eval --raw ".#ci.x86_64-linux.$GITHUB_JOB")"
 
       - uses: actions/upload-artifact@v7
         if: always()

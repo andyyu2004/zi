@@ -134,13 +134,8 @@
               })
             ]
         );
-      in
-      {
-        packages = {
-          inherit grammars;
-        };
 
-        devShells.default = pkgs.mkShell {
+        devShell = pkgs.mkShell {
           packages = [
             rust
             pkgs.cargo-nextest
@@ -158,6 +153,29 @@
             export ZI_GRAMMAR_DIR="''${ZI_GRAMMAR_DIR:-$ZI_NIX_GRAMMAR_DIR}"
           '';
         };
+
+        fs = pkgs.lib.fileset;
+        # What CI's jobs read: the tracked files but Markdown, which nothing builds from
+        source = fs.toSource {
+          root = ./.;
+          fileset = fs.difference ./. (fs.fileFilter (f: f.hasExt "md") ./.);
+        };
+      in
+      {
+        packages = {
+          inherit grammars;
+        };
+
+        devShells.default = devShell;
+
+        # A store path per CI job, named for the source and the dev shell it runs in. The job
+        # pushes it to the Nix cache once it passes, and is skipped when it's there.
+        ci = pkgs.lib.genAttrs [ "test" ] (
+          job:
+          builtins.toFile "zi-ci-${job}" (
+            builtins.unsafeDiscardStringContext "${source}\n${devShell.drvPath}\n"
+          )
+        );
       }
     );
 }
