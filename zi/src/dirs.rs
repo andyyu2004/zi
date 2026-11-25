@@ -45,7 +45,7 @@ pub fn grammar() -> &'static Path {
 }
 
 pub fn plugin() -> impl Iterator<Item = &'static Path> {
-    dirs().plugin_dirs.iter().map(|path| path.as_path())
+    dirs().plugin_dirs.iter().map(std::path::PathBuf::as_path)
 }
 
 pub fn config() -> &'static Path {

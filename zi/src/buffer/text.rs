@@ -169,7 +169,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
         let end = match text.line(cursor.line()) {
             Some(line) => {
                 let line_byte_width =
-                    line.chars().take(size.width as usize).map(|c| c.len_utf8()).sum::<usize>();
+                    line.chars().take(size.width as usize).map(char::len_utf8).sum::<usize>();
                 size.width.max(line_byte_width as u16)
             }
             _ => size.width,

@@ -100,7 +100,7 @@ impl ViewTree {
     }
 
     pub fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
-        self.layers.iter().flat_map(|layer| layer.views())
+        self.layers.iter().flat_map(Layer::views)
     }
 
     pub fn top(&self) -> &Layer {
@@ -365,7 +365,7 @@ impl Container {
     }
 
     fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
-        self.children.iter().flat_map(|child| child.views())
+        self.children.iter().flat_map(Node::views)
     }
 
     fn close_view(&mut self, view: ViewId) -> TraverseResult<ViewId> {

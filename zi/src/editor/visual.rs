@@ -18,7 +18,7 @@ impl Selection {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
                 let end_byte =
-                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, |c| c.len_utf8());
+                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, char::len_utf8);
                 text.byte_slice(start_byte..end_byte).to_cow().into_owned()
             }
             Self::Line { start_line, end_line } => {
@@ -60,7 +60,7 @@ impl Selection {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
                 let end_byte =
-                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, |c| c.len_utf8());
+                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, char::len_utf8);
                 vec![start_byte..end_byte]
             }
             Self::Line { start_line, end_line } => {
@@ -98,7 +98,7 @@ impl Selection {
     pub fn point_ranges(&self, text: &(impl Text + ?Sized)) -> Vec<PointRange> {
         match self {
             Self::Charwise { start, end } => {
-                let end_col = end.col() + text.char_at_point(*end).map_or(1, |c| c.len_utf8());
+                let end_col = end.col() + text.char_at_point(*end).map_or(1, char::len_utf8);
                 let range = PointRange::new(*start, Point::new(end.line(), end_col));
                 range.explode(text).collect()
             }

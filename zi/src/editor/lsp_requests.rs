@@ -22,35 +22,35 @@ impl Editor {
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_definitions(view))
+        self.goto_definition_(selector, super::Editor::find_definitions)
     }
 
     pub fn goto_declaration(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_declarations(view))
+        self.goto_definition_(selector, super::Editor::find_declarations)
     }
 
     pub fn goto_type_definition(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_type_definitions(view))
+        self.goto_definition_(selector, super::Editor::find_type_definitions)
     }
 
     pub fn goto_implementation(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_implementations(view))
+        self.goto_definition_(selector, super::Editor::find_implementations)
     }
 
     pub fn goto_references(
         &mut self,
         selector: impl Selector<ViewId>,
     ) -> impl Future<Output = Result<()>> {
-        self.goto_definition_(selector, |editor, view| editor.find_references(view))
+        self.goto_definition_(selector, super::Editor::find_references)
     }
 
     fn goto_definition_<Fut>(
@@ -190,7 +190,7 @@ impl Editor {
             name: uri
                 .path_segments()
                 .and_then(Iterator::last)
-                .map_or("root".into(), |basename| basename.to_string()),
+                .map_or("root".into(), std::string::ToString::to_string),
             uri,
         }
     }

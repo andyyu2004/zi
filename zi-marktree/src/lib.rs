@@ -972,8 +972,8 @@ impl Summarize for LeafSlice<'_> {
     #[inline]
     fn summarize(&self) -> Self::Summary {
         Summary {
-            bytes: self.extents.iter().map(|extent| extent.len()).sum(),
-            ids: FromIterator::from_iter(self.extents.iter().flat_map(|extent| extent.ids())),
+            bytes: self.extents.iter().map(Extent::len).sum(),
+            ids: FromIterator::from_iter(self.extents.iter().flat_map(Extent::ids)),
         }
     }
 }

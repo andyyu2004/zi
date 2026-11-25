@@ -18,14 +18,14 @@ fn prev(editor: &mut zi::Editor) -> ops::Range<usize> {
 async fn search_switch_buffers() {
     let cx = new("abc\nabc").await;
     cx.with(|editor| {
-        assert!(editor.search("abc").map(|m| m.range()).eq([0..3, 4..7]));
+        assert!(editor.search("abc").map(zi::Match::range).eq([0..3, 4..7]));
 
         let buf = editor.create_readonly_buffer("path", "abc".as_bytes());
         editor.set_buffer(Active, buf);
 
         // switching buffers should recompute the search
         assert_eq!(editor.cursor_line(), "abc");
-        assert!(editor.matches().map(|m| m.range()).eq(iter::once(0..3)));
+        assert!(editor.matches().map(zi::Match::range).eq(iter::once(0..3)));
     })
     .await;
     cx.cleanup().await;
@@ -41,7 +41,7 @@ a"#)
     cx.with(|editor| {
         editor.set_cursor(Active, (0, 0));
         editor.input("jj").unwrap();
-        assert!(editor.search("a").map(|m| m.range()).eq([0..1, 2..3, 4..5, 6..7]));
+        assert!(editor.search("a").map(zi::Match::range).eq([0..1, 2..3, 4..5, 6..7]));
         assert_eq!(next(editor), 6..7);
     })
     .await;
@@ -60,7 +60,7 @@ abc
     cx.with(|editor| {
         assert_eq!(editor.matches().len(), 0);
 
-        assert!(editor.search("abc").map(|m| m.range()).eq([0..3, 8..11]));
+        assert!(editor.search("abc").map(zi::Match::range).eq([0..3, 8..11]));
         editor.input("<CR>").unwrap();
         assert_eq!(editor.mode(), zi::Mode::Normal);
 

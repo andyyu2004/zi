@@ -101,7 +101,7 @@ impl Motion for Prev {
             // In this case, we just move back one character if possible.
             // Note that `c` must be saved before peeking the windows as that would consume it with
             // no way of getting it back.
-            return (byte - c.map_or(0, |c| c.len_utf8())).into();
+            return (byte - c.map_or(0, char::len_utf8)).into();
         }
 
         while let Some([c, next]) = windows.next() {
@@ -202,7 +202,7 @@ impl Motion for StartOfLine {
         let start_byte = text.line_to_byte(line_idx);
         let line = text.line(line_idx).unwrap();
         (start_byte
-            + line.chars().take_while(|c| c.is_whitespace()).map(|c| c.len_utf8()).sum::<usize>())
+            + line.chars().take_while(|c| c.is_whitespace()).map(char::len_utf8).sum::<usize>())
         .into()
     }
 }

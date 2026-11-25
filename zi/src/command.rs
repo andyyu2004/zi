@@ -519,7 +519,7 @@ pub async fn save_all(client: &Client, force: bool) -> crate::Result<()> {
                 .filter(|b| {
                     b.file_path().is_some() && (force || b.flags().contains(BufferFlags::DIRTY))
                 })
-                .map(|b| b.id())
+                .map(super::buffer::Buffer::id)
                 .collect();
             buf_ids.into_iter().map(|id| editor.save(id, save_flags)).collect()
         })

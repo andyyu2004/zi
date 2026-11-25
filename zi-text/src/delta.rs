@@ -102,7 +102,7 @@ impl<'a> Deltas<'a> {
 
     pub fn is_identity(&self) -> bool {
         // There are more cases where a delta is an identity,
-        self.deltas.iter().all(|d| d.is_identity())
+        self.deltas.iter().all(Delta::is_identity)
     }
 
     pub fn insert_at(at: usize, text: impl Into<Cow<'a, str>>) -> Self {
@@ -114,7 +114,7 @@ impl<'a> Deltas<'a> {
     }
 
     pub fn to_owned(&self) -> Deltas<'static> {
-        Deltas::new(self.deltas.iter().map(|d| d.to_owned()))
+        Deltas::new(self.deltas.iter().map(Delta::to_owned))
     }
 }
 

@@ -2144,11 +2144,11 @@ impl Editor {
     }
 
     pub fn goto_next_match(&mut self) -> Option<Match> {
-        self.goto_match(|s| s.next_match())
+        self.goto_match(search::SearchState::next_match)
     }
 
     pub fn goto_prev_match(&mut self) -> Option<Match> {
-        self.goto_match(|s| s.prev_match())
+        self.goto_match(search::SearchState::prev_match)
     }
 
     // Bit odd for a method with this name to require a mutable reference.

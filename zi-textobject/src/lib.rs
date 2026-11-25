@@ -491,7 +491,7 @@ fn line_range_to_byte_range(
                 let skip = line
                     .chars()
                     .take_while(|c| c.is_whitespace())
-                    .map(|c| c.len_utf8())
+                    .map(char::len_utf8)
                     .sum::<usize>();
                 (skip, line.len_bytes())
             });

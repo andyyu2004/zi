@@ -324,7 +324,7 @@ impl View {
             let mut chars = text.byte_slice(..).chars().rev().peekable();
             if !insert {
                 // move cursor back if not in insert mode
-                byte -= chars.next().map_or(0, |c| c.len_utf8());
+                byte -= chars.next().map_or(0, char::len_utf8);
             }
             chars
         } else {
@@ -393,7 +393,7 @@ impl View {
             | Mode::VisualLine
             | Mode::VisualBlock
             | Mode::OperatorPending(..)
-            | Mode::ReplacePending => line.chars().next_back().map_or(0, |c| c.len_utf8()),
+            | Mode::ReplacePending => line.chars().next_back().map_or(0, char::len_utf8),
         };
 
         let max_col = Col::from(line_len.saturating_sub(k));

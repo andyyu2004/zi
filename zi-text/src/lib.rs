@@ -489,7 +489,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
     fn indent(&self) -> usize {
         self.chars()
             .take_while(|c: &char| c.is_whitespace() && !matches!(c, '\n'))
-            .map(|c| c.len_utf8())
+            .map(char::len_utf8)
             .sum::<usize>()
     }
 

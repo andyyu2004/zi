@@ -371,12 +371,12 @@ pub(crate) trait BufferInternal: Send + Sync {
 impl dyn BufferInternal + '_ {
     #[inline]
     pub(crate) fn redo(&mut self) -> Option<UndoEntry> {
-        self.history_mut(Internal(())).and_then(|h| h.redo())
+        self.history_mut(Internal(())).and_then(BufferHistory::redo)
     }
 
     #[inline]
     pub(crate) fn undo(&mut self) -> Option<UndoEntry> {
-        self.history_mut(Internal(())).and_then(|h| h.undo())
+        self.history_mut(Internal(())).and_then(BufferHistory::undo)
     }
 
     #[inline]
