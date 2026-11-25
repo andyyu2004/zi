@@ -36,6 +36,8 @@ jobs:
 
       - name: Test
         run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci
+        env:
+          ZI_LOG: zi=debug,zi_lsp=debug
 
       - name: Doctests
         run: nix develop -c cargo test --workspace --exclude 'plugin-*' --doc
