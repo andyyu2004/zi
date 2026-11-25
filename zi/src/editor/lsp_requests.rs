@@ -1,13 +1,14 @@
 use std::fmt;
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::bail;
 use futures_core::future::BoxFuture;
 use futures_util::FutureExt;
 use url::Url;
 
-use super::{Result, Selector, active_servers_of, callback, event, get};
+use super::{Result, Selector, active_servers_of, callback_with_timeout, event, get};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{LanguageServiceInstance, lstypes};
 use crate::lstypes::{TextExt, WorkspaceFolder};
@@ -211,9 +212,10 @@ impl Editor {
                 let handle = tokio::spawn(fut);
                 let mut service = LanguageServiceInstance::new(service, handle);
 
-                callback(
+                callback_with_timeout(
                     &self.callbacks_tx,
                     "initializing language service",
+                    Duration::from_secs(30),
                     async move {
                         service
                             .initialize(lstypes::InitializeParams {

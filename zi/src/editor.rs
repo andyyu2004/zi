@@ -2277,10 +2277,19 @@ fn callback<R: Send + 'static>(
     fut: impl Future<Output = Result<R, Error>> + Send + 'static,
     f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
 ) {
+    callback_with_timeout(tx, desc, Duration::from_secs(3), fut, f)
+}
+
+fn callback_with_timeout<R: Send + 'static>(
+    tx: &CallbacksSender,
+    desc: impl fmt::Display + Send + 'static,
+    timeout: Duration,
+    fut: impl Future<Output = Result<R, Error>> + Send + 'static,
+    f: impl FnOnce(&mut Editor, R) -> Result<(), Error> + Send + 'static,
+) {
     tx.send(Box::pin(async move {
-        const TIMEOUT: Duration = Duration::from_secs(3);
-        let res = tokio::time::timeout(TIMEOUT, fut).await.map_err(
-            |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {TIMEOUT:?}"),
+        let res = tokio::time::timeout(timeout, fut).await.map_err(
+            |_: tokio::time::error::Elapsed| anyhow!("{desc} timed out after {timeout:?}"),
         )??;
 
         Ok(Box::new(move |editor: &mut Editor| f(editor, res))
