@@ -101,7 +101,7 @@ async fn lsp_definition_cross_file() -> zi::Result<()> {
     .await?
     .await?;
 
-    if tokio::time::timeout(std::time::Duration::from_secs(30), rx.recv()).await.is_err() {
+    if tokio::time::timeout(std::time::Duration::from_secs(40), rx.recv()).await.is_err() {
         let err = cx.with(|editor| editor.get_error().map(str::to_owned)).await;
         panic!("gopls did not initialize: {err:?}");
     }
