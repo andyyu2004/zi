@@ -175,7 +175,7 @@ impl IntoFuture for TestContextBuilder {
 fn render(backend: &mut TestBackend) -> String {
     use std::fmt::Write as _;
 
-    let cursor = backend.get_cursor().unwrap();
+    let cursor = backend.get_cursor_position().unwrap();
     let buffer = backend.buffer();
     let mut view = String::with_capacity(buffer.content.len() + buffer.area.height as usize * 3);
     for (y, cells) in buffer.content.chunks(buffer.area.width as usize).enumerate() {
@@ -184,7 +184,7 @@ fn render(backend: &mut TestBackend) -> String {
 
         view.push('"');
         for (x, c) in cells.iter().enumerate() {
-            if (x as u16, y as u16) == cursor {
+            if (x as u16, y as u16) == (cursor.x, cursor.y) {
                 view.push('|');
                 continue;
             }

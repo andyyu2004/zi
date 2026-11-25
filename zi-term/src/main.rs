@@ -45,7 +45,9 @@ async fn main() -> anyhow::Result<()> {
 
     let stdout = io::stdout().lock();
     let term = Terminal::new(CrosstermBackend::new(stdout))?;
-    let (mut editor, tasks) = zi::Editor::new(zi_wasm::WasmBackend::default(), term.size()?);
+    let size = term.size()?;
+    let (mut editor, tasks) =
+        zi::Editor::new(zi_wasm::WasmBackend::default(), (size.width, size.height));
 
     configure(&mut editor);
 
