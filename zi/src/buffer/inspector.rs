@@ -19,6 +19,7 @@ impl InspectorBuffer {
             settings: Settings {
                 readonly: Setting::new(true),
                 fix_eol: Setting::new(false),
+                buf_hidden: Setting::new(BufHidden::Wipe),
                 ..Default::default()
             },
             text: Default::default(),

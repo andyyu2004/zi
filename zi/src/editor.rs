@@ -630,7 +630,9 @@ impl Editor {
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
         let view = view.select(self);
         let buf = buf.select(self);
+        let prev = self.db.views[view].buffer();
         self.db.set_buffer(view, buf);
+        self.wipe_if_hidden(prev);
     }
 
     pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
@@ -1886,9 +1888,13 @@ impl Editor {
         self.buffer_mut(selector).clear_undo();
     }
 
-    fn close_buffer(&mut self, buf: BufferId) {
-        // can't naively remove the buffer as it might be referenced by multiple views
-        self.db.buffer_mut(buf).on_leave();
+    fn wipe_if_hidden(&mut self, buf: BufferId) {
+        if *self[buf].settings().buf_hidden.read() == buffer::BufHidden::Wipe
+            && self.db.views.by_buf(&buf).next().is_none()
+        {
+            self[buf].on_wipe();
+            rel::Database::delete(&mut self.db, buf).expect("no view shows it");
+        }
     }
 
     // Manual `impl Future` as we don't want to capture the `'self`
@@ -1973,19 +1979,19 @@ impl Editor {
 
         self.dispatch(event::DidCloseView { view });
 
-        // TODO work on a scheme to cleanup views and buffers automatically
-        self.close_buffer(self.db.views[view].buffer());
+        let closed = &self.db.views[view];
+        let (buf, group) = (closed.buffer(), closed.group());
+        rel::Database::delete(&mut self.db, view).expect("a view in the tree is in the db");
+        self.wipe_if_hidden(buf);
 
-        if let Some(group) = self.db.views[view].group() {
+        if let Some(group) = group {
             let views = self.db.views.by_group(&Some(group)).map(|v| v.id()).collect::<Vec<_>>();
             // Ungroups the views, so closing them below doesn't come back here.
             rel::Database::delete(&mut self.db, group).expect("the view's group exists");
 
             // close all views in the same group
             for v in views {
-                if v != view {
-                    self.close_view(v);
-                }
+                self.close_view(v);
             }
         }
     }

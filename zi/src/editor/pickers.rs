@@ -116,7 +116,24 @@ impl Editor {
 
         self.set_mode(Mode::Insert);
 
-        let preview_buf = self.create_readonly_buffer("preview", &b""[..]);
+        let theme = self.theme();
+        let theme = theme.read();
+        let preview_buf = self.db.insert_buffer(|id| {
+            Buffer::new(TextBuffer::new(
+                id,
+                buffer::Settings {
+                    readonly: Setting::new(true),
+                    buf_hidden: Setting::new(buffer::BufHidden::Wipe),
+                    ..Default::default()
+                },
+                filetype!(text),
+                "preview",
+                ReadonlyText::new(&b""[..]),
+                &theme,
+                None,
+            ))
+        });
+        drop(theme);
         let preview = self.db.insert_view(preview_buf, Some(view_group), |id| {
             let view = View::new(id);
             view.settings().line_number_style.write(tui::LineNumberStyle::None);
@@ -134,7 +151,10 @@ impl Editor {
         let display_buf = self.db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
-                Default::default(),
+                buffer::Settings {
+                    buf_hidden: Setting::new(buffer::BufHidden::Wipe),
+                    ..Default::default()
+                },
                 filetype!(text),
                 path,
                 Rope::new(),

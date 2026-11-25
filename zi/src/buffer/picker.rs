@@ -185,7 +185,11 @@ where
             picker,
             dynamic_handler: None,
             url: Url::parse("buffer://picker").unwrap(),
-            settings: Settings { fix_eol: Setting::new(false), ..Default::default() },
+            settings: Settings {
+                fix_eol: Setting::new(false),
+                buf_hidden: Setting::new(BufHidden::Wipe),
+                ..Default::default()
+            },
             text: Default::default(),
             keymap: {
                 let next: Action = |editor| Self::select(editor, Direction::Down);
@@ -382,7 +386,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         Some(&mut self.keymap)
     }
 
-    fn on_leave(&mut self, _: Internal) {
+    fn on_wipe(&mut self, _: Internal) {
         self.cancel.cancel();
     }
 
