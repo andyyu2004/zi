@@ -14,6 +14,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # Full debuginfo makes the target dir ~15G and dominates link time. Line tables keep
+      # file:line in backtraces.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
 
@@ -31,6 +35,11 @@ jobs:
         run: nix develop -c true
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Key on the nix toolchain; outside the shell rustup installs rust-toolchain.toml first.
+          cmd-format: nix develop -c {0}
+          key: ${{ hashFiles('flake.lock') }}
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: Build tests
         run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run
