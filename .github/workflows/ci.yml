@@ -11,36 +11,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Whether anything but documentation changed. The jobs below are skipped otherwise; a
-  # skipped job still satisfies the ruleset's required check.
-  changes:
+  # Whether each job has passed on this source and dev shell: its store path (flake.nix ci)
+  # is in the Nix cache. Pull requests and merge groups skip on any pass, master only on its
+  # own, as its runs save the Rust cache. A skipped job still satisfies the ruleset's
+  # required check.
+  plan:
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.diff.outputs.code }}
+      test: ${{ steps.plan.outputs.test }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
-      - id: diff
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - id: plan
         env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          REFS: ${{ github.event_name == 'push' && 'master' || 'pr master' }}
         run: |
-          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "code=true" >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          files=$(git diff --name-only "$BASE" HEAD)
-          printf '%s\n' "$files"
-          if printf '%s\n' "$files" | grep -qvE '\.md$'; then
-            echo "code=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "code=false" >>"$GITHUB_OUTPUT"
-          fi
+          for job in test; do
+            run=true
+            for ref in $REFS; do
+              marker=$(nix eval --raw ".#ci.x86_64-linux.$job.$ref")
+              if nix path-info --store https://nix-cache.andyyu.io "$marker" >/dev/null 2>&1; then
+                echo "$job passed as $marker"
+                run=false
+              fi
+            done
+            echo "$job=$run" >>"$GITHUB_OUTPUT"
+          done
 
   test:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+    needs: plan
+    if: needs.plan.outputs.test == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -60,20 +62,11 @@ jobs:
       - name: Build dev shell
         run: nix develop --profile "$RUNNER_TEMP/dev-shell" -c true
 
-      # The dev shell's closure to niks3 (niks3.andyyu.io, read at nix-cache.andyyu.io). Its
-      # container stops when idle, so the first request can fail while it starts.
       - name: Push dev shell to the Nix cache
         if: github.event_name != 'merge_group'
         env:
           NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
-        run: |
-          [ -n "$NIKS3_AUTH_TOKEN" ] || exit 0
-          token=$(mktemp)
-          printf '%s' "$NIKS3_AUTH_TOKEN" >"$token"
-          nix shell --inputs-from . nixpkgs#niks3 -c niks3 push \
-            --server-url https://niks3.andyyu.io --auth-token-path "$token" --retry-timeout 2m \
-            "$(readlink -f "$RUNNER_TEMP/dev-shell")"
-          rm -f "$token"
+        run: .github/niks3-push.sh "$(readlink -f "$RUNNER_TEMP/dev-shell")"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -92,6 +85,12 @@ jobs:
 
       - name: Doctests
         run: nix develop -c cargo test --workspace --exclude 'plugin-*' --doc
+
+      - name: Record the pass
+        env:
+          NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
+          REF: ${{ github.event_name == 'push' && 'master' || 'pr' }}
+        run: .github/niks3-push.sh "$(nix eval --raw ".#ci.x86_64-linux.test.$REF")"
 
       - uses: actions/upload-artifact@v7
         if: always()
