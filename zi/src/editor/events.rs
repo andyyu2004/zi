@@ -6,6 +6,11 @@ mod lsp;
 
 impl Editor {
     pub(super) fn subscribe_sync_hooks() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(Self::subscribe_sync_hooks_once);
+    }
+
+    fn subscribe_sync_hooks_once() {
         event::subscribe(Self::lsp_did_open_refresh_semantic_tokens());
 
         event::subscribe_with::<event::DidSaveBuffer>(|editor, event| {
@@ -87,6 +92,7 @@ impl Editor {
     }
 
     pub(super) async fn subscribe_async_hooks() {
-        event::subscribe_async(Self::format_before_save()).await;
+        static ONCE: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+        ONCE.get_or_init(|| event::subscribe_async(Self::format_before_save())).await;
     }
 }

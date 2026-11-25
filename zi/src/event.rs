@@ -3,6 +3,7 @@ mod handler;
 
 use std::any::{Any, TypeId};
 use std::future::Future;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use crossbeam_queue::SegQueue;
@@ -14,25 +15,26 @@ pub(crate) use self::handler::{AsyncEventHandler, async_handler};
 use self::handler::{ErasedAsyncEventHandler, ErasedEventHandler};
 use crate::{Client, Editor, Result};
 
+type SubscriptionId = u64;
+
 #[derive(Default)]
 pub struct Registry {
-    // map<event_type, map<handler_type, handler>>
-    // We key by handler type too to avoid duplicates in tests as this is stored in a static.
+    // map<event_type, [(subscription_id, handler)]> in subscription order
     #[allow(clippy::type_complexity)]
     handlers: parking_lot::RwLock<
-        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedEventHandler + Send + Sync>>>,
+        FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedEventHandler + Send + Sync>)>>,
     >,
     // The list of handlers to remove.
     // The current strategy is to check this list when we subscribe a new handler.
     // There is no guarantee that we will ever clear this queue.
-    // This could be a problem in theory if we keep attempting to subscribe the same handler.
-    garbage: SegQueue<(TypeId, TypeId)>,
-    async_garbage: SegQueue<(TypeId, TypeId)>,
+    garbage: SegQueue<(TypeId, SubscriptionId)>,
+    async_garbage: SegQueue<(TypeId, SubscriptionId)>,
 
     #[allow(clippy::type_complexity)]
     async_handlers: tokio::sync::RwLock<
-        FxHashMap<TypeId, FxHashMap<TypeId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>>>,
+        FxHashMap<TypeId, Vec<(SubscriptionId, Arc<dyn ErasedAsyncEventHandler + Send + Sync>)>>,
     >,
+    next_id: AtomicU64,
 }
 
 fn registry() -> &'static Registry {
@@ -76,12 +78,13 @@ impl Registry {
         T: Event,
         H: EventHandler<Editor, Event = T>,
     {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let mut handlers = self.handlers.write();
-        while let Some((event_type, handler_type)) = self.garbage.pop() {
-            handlers.get_mut(&event_type).unwrap().remove(&handler_type);
+        while let Some((event_type, id)) = self.garbage.pop() {
+            handlers.get_mut(&event_type).unwrap().retain(|&(hid, _)| hid != id);
         }
 
-        handlers.entry(TypeId::of::<T>()).or_default().insert(TypeId::of::<H>(), Arc::new(handler));
+        handlers.entry(TypeId::of::<T>()).or_default().push((id, Arc::new(handler)));
     }
 
     pub async fn subscribe_async<T, H>(&self, handler: H)
@@ -89,20 +92,21 @@ impl Registry {
         T: AsyncEvent,
         H: AsyncEventHandler<Event = T> + Sync,
     {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let mut handlers = self.async_handlers.write().await;
 
-        while let Some((event_type, handler_type)) = self.async_garbage.pop() {
-            handlers.get_mut(&event_type).unwrap().remove(&handler_type);
+        while let Some((event_type, id)) = self.async_garbage.pop() {
+            handlers.get_mut(&event_type).unwrap().retain(|&(hid, _)| hid != id);
         }
 
-        handlers.entry(TypeId::of::<T>()).or_default().insert(TypeId::of::<H>(), Arc::new(handler));
+        handlers.entry(TypeId::of::<T>()).or_default().push((id, Arc::new(handler)));
     }
 
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
         if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
-            for (&hty, handler) in handlers {
+            for &(id, ref handler) in handlers {
                 if handler.dyn_on_event(editor, event) == HandlerResult::Unsubscribe {
-                    self.garbage.push((TypeId::of::<T>(), hty));
+                    self.garbage.push((TypeId::of::<T>(), id));
                 }
             }
         }
@@ -110,9 +114,9 @@ impl Registry {
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
         if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
-            for (&hty, handler) in handlers {
+            for &(id, ref handler) in handlers {
                 if handler.dyn_on_event(client, event).await? == HandlerResult::Unsubscribe {
-                    self.async_garbage.push((TypeId::of::<T>(), hty));
+                    self.async_garbage.push((TypeId::of::<T>(), id));
                 }
             }
         }

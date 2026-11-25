@@ -6,6 +6,71 @@ use zi::{TextBase, deltas, lstypes};
 use super::*;
 
 #[tokio::test]
+async fn lsp_sync_multiple_servers() -> zi::Result<()> {
+    fn server(opens: Arc<AtomicUsize>, changes: Arc<AtomicUsize>) -> FakeLanguageServerTemplate<()> {
+        FakeLanguageServer::builder()
+            .request::<request::Initialize, _>(|_, _| async {
+                Ok(lsp_types::InitializeResult {
+                    capabilities: lsp_types::ServerCapabilities {
+                        position_encoding: Some(lsp_types::PositionEncodingKind::UTF8),
+                        text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
+                            lsp_types::TextDocumentSyncKind::FULL,
+                        )),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+            })
+            .notification::<notification::Initialized>(|_, _| Ok(()))
+            .notification::<notification::DidOpenTextDocument>(move |_, _| {
+                opens.fetch_add(1, atomic::Ordering::SeqCst);
+                Ok(())
+            })
+            .notification::<notification::DidChangeTextDocument>(move |_, _| {
+                changes.fetch_add(1, atomic::Ordering::SeqCst);
+                Ok(())
+            })
+            .finish(())
+    }
+
+    let cx = new("").await;
+
+    let counts = [(); 4].map(|_| Arc::new(AtomicUsize::new(0)));
+    let [a_opens, a_changes, b_opens, b_changes] = counts.clone();
+    cx.with(move |editor| {
+        editor
+            .language_config_mut()
+            .add_language(
+                zi::filetype!(text),
+                zi::LanguageConfig::new(["server-a".into(), "server-b".into()]),
+            )
+            .add_language_service("server-a", server(a_opens, a_changes))
+            .add_language_service("server-b", server(b_opens, b_changes));
+    })
+    .await;
+
+    let buf = cx.open_tmp("abc\n", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
+    while !cx
+        .with(|editor| {
+            editor.language_service("server-a".into()).is_some()
+                && editor.language_service("server-b".into()).is_some()
+        })
+        .await
+    {
+        tokio::task::yield_now().await;
+    }
+    cx.with(move |editor| editor.edit(buf, &zi::Deltas::insert_at(0, "x"))).await.unwrap();
+
+    let [a_opens, a_changes, b_opens, b_changes] =
+        counts.map(|c| c.load(atomic::Ordering::SeqCst));
+    assert_eq!((a_opens, b_opens), (1, 1), "didOpen count per server");
+    assert_eq!((a_changes, b_changes), (1, 1), "didChange count per server");
+
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
 async fn lsp_change_no_sync() -> zi::Result<()> {
     let cx = new("").await;
     let bomb = DropBomb::new("initialize should be called");
