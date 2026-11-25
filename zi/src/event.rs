@@ -103,8 +103,9 @@ impl Registry {
     }
 
     pub fn dispatch<T: Event>(&self, editor: &mut Editor, event: &T) {
-        if let Some(handlers) = self.handlers.read().get(&TypeId::of::<T>()) {
-            for &(id, ref handler) in handlers {
+        let handlers = self.handlers.read().get(&TypeId::of::<T>()).cloned();
+        if let Some(handlers) = handlers {
+            for (id, handler) in handlers {
                 if handler.dyn_on_event(editor, event) == HandlerResult::Unsubscribe {
                     self.garbage.push((TypeId::of::<T>(), id));
                 }
@@ -113,8 +114,9 @@ impl Registry {
     }
 
     pub async fn dispatch_async<T: AsyncEvent>(&self, client: &Client, event: &T) -> Result<()> {
-        if let Some(handlers) = self.async_handlers.read().await.get(&TypeId::of::<T>()) {
-            for &(id, ref handler) in handlers {
+        let handlers = self.async_handlers.read().await.get(&TypeId::of::<T>()).cloned();
+        if let Some(handlers) = handlers {
+            for (id, handler) in handlers {
                 if handler.dyn_on_event(client, event).await? == HandlerResult::Unsubscribe {
                     self.async_garbage.push((TypeId::of::<T>(), id));
                 }
