@@ -41,6 +41,67 @@ async fn syntax_highlight() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn bundled_grammars_load() -> anyhow::Result<()> {
+    use zi::Backend as _;
+
+    let mut backend = zi_wasm::WasmBackend::default();
+    let mut failures = Vec::new();
+    for (filename, expected) in [
+        (".bashrc", "bash"),
+        ("App.cs", "c_sharp"),
+        ("CMakeLists.txt", "cmake"),
+        ("main.hpp", "cpp"),
+        ("style.css", "css"),
+        ("main.dart", "dart"),
+        ("changes.patch", "diff"),
+        ("Dockerfile.dev", "dockerfile"),
+        ("app.exs", "elixir"),
+        ("program.fsx", "fsharp"),
+        ("schema.graphql", "graphql"),
+        ("build.gradle", "groovy"),
+        ("Main.hs", "haskell"),
+        ("index.html", "html"),
+        ("settings.ini", "ini"),
+        ("Main.java", "java"),
+        ("main.jsx", "javascript"),
+        ("build.kts", "kotlin"),
+        ("init.lua", "lua"),
+        ("Makefile", "make"),
+        ("README.md", "markdown"),
+        ("main.m", "objc"),
+        ("main.ml", "ocaml"),
+        ("main.pl", "perl"),
+        ("index.php", "php"),
+        ("setup.ps1", "powershell"),
+        ("schema.proto", "proto"),
+        ("main.R", "r"),
+        ("Gemfile", "ruby"),
+        ("Main.scala", "scala"),
+        ("query.sql", "sql"),
+        ("App.svelte", "svelte"),
+        ("main.swift", "swift"),
+        ("App.tsx", "tsx"),
+        ("App.vue", "vue"),
+        ("config.xml", "xml"),
+        ("main.zig", "zig"),
+    ] {
+        let file_type = zi::FileType::detect(Path::new(filename));
+        if file_type.as_str() != expected {
+            failures.push(format!("{filename}: detected {file_type}, expected {expected}"));
+            continue;
+        }
+        match backend.new_syntax(file_type) {
+            Ok(Some(_)) => {}
+            Ok(None) => failures.push(format!("{filename}: no bundled grammar for {file_type}")),
+            Err(error) => failures.push(format!("{filename}: {error}")),
+        }
+    }
+
+    anyhow::ensure!(failures.is_empty(), "{}", failures.join("\n"));
+    Ok(())
+}
+
 #[tokio::test]
 async fn scroll() -> anyhow::Result<()> {
     snapshot("scroll text", |client| async move {
