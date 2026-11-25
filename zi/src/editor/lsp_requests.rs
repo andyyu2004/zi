@@ -294,7 +294,7 @@ impl Editor {
             }
             _ => {
                 self.open_static_picker::<BufferPicker<_>>(
-                    Url::parse("view-group://lsp/picker").unwrap(),
+                    "lsp/picker",
                     "/",
                     (1, 1),
                     move |_, injector| {

@@ -74,8 +74,8 @@ use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup};
 use crate::{
     BufferId, Direction, Error, FileType, LanguageService, LanguageServiceId, Location, Mode,
-    Namespace, NamespaceId, Operator, Point, Result, Setting, Url, VerticalAlignment, View,
-    ViewGroupId, ViewId, event, filetype, language, layout,
+    Namespace, NamespaceId, Operator, Point, Result, Setting, VerticalAlignment, View, ViewGroupId,
+    ViewId, event, filetype, language, layout,
 };
 
 bitflags::bitflags! {
@@ -222,16 +222,6 @@ impl IndexMut<BufferId> for Editor {
     fn index_mut(&mut self, index: BufferId) -> &mut Self::Output {
         &mut self.buffers[index]
     }
-}
-
-pub trait Resource {
-    type Id;
-
-    const URL_SCHEME: &'static str;
-
-    fn id(&self) -> Self::Id;
-
-    fn url(&self) -> &Url;
 }
 
 pub(crate) type Action = fn(&mut Editor);
@@ -2052,16 +2042,15 @@ impl Editor {
         self.set_buffer(inspector_view, buf);
     }
 
-    /// Create a new view group with the given url.
-    /// If a view group with the same url already exists, returns `Err(id)`
-    pub fn create_view_group(&mut self, url: Url) -> Result<ViewGroupId, ViewGroupId> {
-        assert_eq!(url.scheme(), ViewGroup::URL_SCHEME);
-
-        if let Some(group) = self.view_groups.values().find(|g| g.url() == &url) {
+    /// Create a new view group with the given key.
+    /// If a view group with the same key already exists, returns `Err(id)`
+    pub fn create_view_group(&mut self, key: impl Into<Ustr>) -> Result<ViewGroupId, ViewGroupId> {
+        let key = key.into();
+        if let Some(group) = self.view_groups.values().find(|g| g.key() == key) {
             return Err(group.id());
         }
 
-        Ok(self.view_groups.insert_with_key(|id| ViewGroup::new(id, url)))
+        Ok(self.view_groups.insert_with_key(|id| ViewGroup::new(id, key)))
     }
 
     // FIXME bad api, not general enough, just used for convenience for now.

@@ -67,7 +67,7 @@ impl Editor {
 
     pub(super) fn open_static_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         f: impl FnOnce(&mut Self, Injector<P::Entry>),
@@ -75,12 +75,12 @@ impl Editor {
     where
         P: Picker,
     {
-        self.open_picker::<P>(view_group_url, path, split_ratio, None, f)
+        self.open_picker::<P>(view_group, path, split_ratio, None, f)
     }
 
     fn open_dynamic_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         dynamic_source: impl Fn(Injector<P::Entry>, &str) + Send + Sync + 'static,
@@ -89,7 +89,7 @@ impl Editor {
         P: Picker,
     {
         self.open_picker::<P>(
-            view_group_url,
+            view_group,
             path,
             split_ratio,
             Some(Arc::new(dynamic_source)),
@@ -99,7 +99,7 @@ impl Editor {
 
     fn open_picker<P>(
         &mut self,
-        view_group_url: Url,
+        view_group: &'static str,
         path: impl AsRef<Path>,
         split_ratio: (u16, u16),
         dynamic_source: Option<DynamicHandler<P::Entry>>,
@@ -109,7 +109,7 @@ impl Editor {
         P: Picker,
     {
         let prev_mode = mode!(self);
-        let view_group = match self.create_view_group(view_group_url) {
+        let view_group = match self.create_view_group(view_group) {
             Ok(view_group) => view_group,
             Err(id) => return id,
         };
@@ -208,7 +208,7 @@ impl Editor {
         let view = self.view(selector).id();
         let split_ratio = *self.settings().generic_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<_>>(
-            Url::parse("view-group://jumps").unwrap(),
+            "jumps",
             "jumps",
             split_ratio,
             move |editor, injector| {
@@ -226,7 +226,7 @@ impl Editor {
         let path = path.as_ref();
         let split_ratio = *self.settings().file_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<stdx::path::Display>>(
-            Url::parse("view-group://files").unwrap(),
+            "files",
             path,
             split_ratio,
             |_editor, injector| {
@@ -297,7 +297,7 @@ impl Editor {
         let ratio = *self.settings().generic_picker_split_ratio.read();
 
         let vg_id = self.open_static_picker::<BufferPicker<MarkEntry>>(
-            Url::parse("view-group://marks").unwrap(),
+            "marks",
             "marks",
             ratio,
             |editor, injector| {
@@ -345,7 +345,7 @@ impl Editor {
 
         let split_ratio = *self.settings().diagnostics_picker_split_ratio.read();
         self.open_static_picker::<BufferPicker<DiagnosticEntry>>(
-            Url::parse("view-group://diagnostics").unwrap(),
+            "diagnostics",
             "diagnostics",
             split_ratio,
             |editor, injector| {
@@ -396,7 +396,7 @@ impl Editor {
         let path = path.as_ref().to_path_buf();
         let split_ratio = *self.settings().global_search_split_ratio.read();
         self.open_dynamic_picker::<BufferPicker<Entry>>(
-            Url::parse("view-group://search").unwrap(),
+            "search",
             "search",
             split_ratio,
             move |injector, query| {

@@ -61,12 +61,11 @@ async fn jump_list() {
 async fn view_group() {
     let cx = new("").await;
     cx.with(|editor| {
-        let url = zi::Url::parse("view-group://test").unwrap();
-        let group = editor.create_view_group(url.clone()).unwrap();
+        let group = editor.create_view_group("test").unwrap();
         assert_eq!(
-            editor.create_view_group(url),
+            editor.create_view_group("test"),
             Err(group),
-            "should return the same group given the same url"
+            "should return the same group given the same key"
         );
 
         editor.set_view_group(zi::Active, group);

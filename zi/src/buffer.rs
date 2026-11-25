@@ -21,7 +21,7 @@ pub use self::mark::{Mark, MarkBuilder, MarkId};
 pub use self::picker::PickerBuffer;
 pub use self::text::TextBuffer;
 use crate::config::Setting;
-use crate::editor::{Resource, Selector};
+use crate::editor::Selector;
 use crate::keymap::Keymap;
 use crate::private::Internal;
 use crate::syntax::{HighlightId, Syntax, Theme};
@@ -91,22 +91,6 @@ pub struct SyntaxHighlight {
     pub capture_idx: u32,
 }
 
-impl Resource for Buffer {
-    type Id = BufferId;
-
-    const URL_SCHEME: &'static str = "buffer";
-
-    fn id(&self) -> Self::Id {
-        self.inner.id()
-    }
-
-    fn url(&self) -> &Url {
-        let url = self.inner.url();
-        assert_eq!(url.scheme(), Self::URL_SCHEME);
-        url
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct UndoEntry {
     pub changes: Box<[Change]>,
@@ -148,6 +132,10 @@ impl Buffer {
 
     pub fn id(&self) -> BufferId {
         self.inner.id()
+    }
+
+    pub fn url(&self) -> &Url {
+        self.inner.url()
     }
 
     pub fn version(&self) -> u32 {

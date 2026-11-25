@@ -1,14 +1,14 @@
 use std::cell::Cell;
 
-use slotmap::Key;
 use tui::LineNumberStyle;
+use ustr::Ustr;
 use zi_core::{Offset, Size, ViewGroupId, ViewId};
 use zi_text::{self, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
 use crate::config::Setting;
-use crate::editor::{Resource, Selector};
-use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point, Url};
+use crate::editor::Selector;
+use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point};
 
 /// View-local configuration
 #[derive(Clone, Debug)]
@@ -70,7 +70,6 @@ pub struct View {
     /// The cursor position in the buffer
     cursor: Cursor,
     group: Option<ViewGroupId>,
-    url: Url,
     jumps: JumpList<Location>,
     settings: Settings,
 
@@ -94,48 +93,28 @@ impl Selector<BufferId> for View {
     }
 }
 
-impl Resource for View {
-    type Id = ViewId;
-
-    const URL_SCHEME: &'static str = "view";
-
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn url(&self) -> &Url {
-        assert_eq!(self.url.scheme(), Self::URL_SCHEME);
-        &self.url
-    }
-}
-
 /// A view group is a collection of views that are displayed together,
 /// closing one view in the group closes all views in the group.
 /// A view can be in at most one group.
 #[derive(Debug, Clone)]
 pub struct ViewGroup {
     id: ViewGroupId,
-    url: Url,
-}
-
-impl Resource for ViewGroup {
-    type Id = ViewGroupId;
-
-    const URL_SCHEME: &'static str = "view-group";
-
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn url(&self) -> &Url {
-        assert_eq!(self.url.scheme(), Self::URL_SCHEME);
-        &self.url
-    }
+    key: Ustr,
 }
 
 impl ViewGroup {
-    pub fn new(id: ViewGroupId, url: Url) -> Self {
-        Self { id, url }
+    pub(crate) fn new(id: ViewGroupId, key: Ustr) -> Self {
+        Self { id, key }
+    }
+
+    #[inline]
+    pub fn id(&self) -> ViewGroupId {
+        self.id
+    }
+
+    #[inline]
+    pub fn key(&self) -> Ustr {
+        self.key
     }
 }
 
@@ -500,7 +479,6 @@ impl View {
     pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
         Self {
             id,
-            url: Url::parse(&format!("view://{}", id.data().as_ffi())).unwrap(),
             buf,
             number_width: Cell::new(0),
             settings: Default::default(),
