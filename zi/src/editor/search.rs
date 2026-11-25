@@ -10,7 +10,7 @@ const NUL: u8 = 0;
 
 #[derive(Default)]
 pub(super) struct SearchState {
-    pub(super) last_update: (BufferId, String),
+    last_update: Option<(BufferId, String)>,
     /// Whether to highlight search matches
     pub(super) hlsearch: bool,
     matches: Vec<Match>,
@@ -21,12 +21,13 @@ impl SearchState {
     /// Prepare to update the search state for a new query, if no change is needed, return false.
     /// Otherwise, return true and update the state. The caller must then call `set_matches`.
     pub(super) fn prepare_update(&mut self, buffer_id: BufferId, query: &str) -> bool {
-        let (last_buffer_id, last_query) = &self.last_update;
-        if buffer_id != *last_buffer_id || query != *last_query {
-            self.last_update = (buffer_id, query.to_string());
-            return true;
+        let changed = self.last_update.as_ref().is_none_or(|(last_buffer_id, last_query)| {
+            buffer_id != *last_buffer_id || query != *last_query
+        });
+        if changed {
+            self.last_update = Some((buffer_id, query.to_string()));
         }
-        false
+        changed
     }
 
     pub(super) fn matches(&self) -> &[Match] {

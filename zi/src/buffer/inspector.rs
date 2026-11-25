@@ -71,7 +71,13 @@ impl BufferInternal for InspectorBuffer {
         panic!("is readonly")
     }
 
-    fn pre_render(&mut self, _: Internal, client: &Client, _view: &View, _area: tui::Rect) {
+    fn pre_render(
+        &mut self,
+        _: Internal,
+        client: &Client,
+        _view: &crate::db::View,
+        _area: tui::Rect,
+    ) {
         let buf = self.id;
         client.send(move |editor| {
             let mut query_cursor = QueryCursor::new();

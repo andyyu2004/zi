@@ -158,7 +158,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
     fn overlay_highlights(
         &self,
         editor: &Editor,
-        view: &View,
+        view: &crate::db::View,
         size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + '_> {
         assert_eq!(view.buffer(), self.id);

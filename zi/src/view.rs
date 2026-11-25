@@ -1,5 +1,6 @@
 use std::cell::Cell;
 
+use rel::Relation;
 use tui::LineNumberStyle;
 use ustr::Ustr;
 use zi_core::{Offset, Size, ViewGroupId, ViewId};
@@ -59,17 +60,15 @@ impl Selector<BufferId> for ViewId {
 }
 
 /// A view is a viewport into a buffer.
+/// Its buffer and group are columns of its row in the editor's [`crate::editor::db::View`].
 #[derive(Debug, Clone)]
 pub struct View {
     id: ViewId,
-    /// The buffer that this view is displaying.
-    buf: BufferId,
     /// The offset of the view in the buffer.
     /// i.e. this changes on scroll.
     offset: Offset,
     /// The cursor position in the buffer
     cursor: Cursor,
-    group: Option<ViewGroupId>,
     jumps: JumpList<Location>,
     settings: Settings,
 
@@ -86,19 +85,14 @@ impl Selector<ViewId> for View {
     }
 }
 
-impl Selector<BufferId> for View {
-    #[inline]
-    fn select(&self, _editor: &Editor) -> BufferId {
-        self.buffer()
-    }
-}
-
 /// A view group is a collection of views that are displayed together,
 /// closing one view in the group closes all views in the group.
 /// A view can be in at most one group.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Relation)]
+#[relation(key = ViewGroupId)]
 pub struct ViewGroup {
     id: ViewGroupId,
+    #[index(unique)]
     key: Ustr,
 }
 
@@ -145,18 +139,8 @@ impl View {
     }
 
     #[inline]
-    pub fn buffer(&self) -> BufferId {
-        self.buf
-    }
-
-    #[inline]
     pub fn settings(&self) -> &Settings {
         &self.settings
-    }
-
-    #[inline]
-    pub fn group(&self) -> Option<ViewGroupId> {
-        self.group
     }
 
     #[inline]
@@ -168,32 +152,14 @@ impl View {
         self.cursor.target_col
     }
 
+    /// Move the cursor and scroll back to the start, for when the view's buffer changes.
     #[inline]
-    pub(crate) fn set_group(&mut self, group: ViewGroupId) {
-        self.group = Some(group);
+    pub(crate) fn reset_position(&mut self) {
+        self.cursor = Cursor::default();
+        self.offset = Offset::default();
     }
 
-    #[inline]
-    pub(crate) fn with_group(self, group: ViewGroupId) -> Self {
-        Self { group: Some(group), ..self }
-    }
-
-    #[inline]
-    pub(crate) fn set_buffer(&mut self, buf: BufferId) {
-        if self.buf != buf {
-            self.buf = buf;
-            self.cursor = Cursor::default();
-            self.offset = Offset::default();
-        }
-    }
-
-    pub(crate) fn align(
-        &mut self,
-        size: impl Into<Size>,
-        buf: &Buffer,
-        alignment: VerticalAlignment,
-    ) {
-        assert_eq!(buf.id(), self.buf);
+    pub(crate) fn align(&mut self, size: impl Into<Size>, alignment: VerticalAlignment) {
         let cursor = self.cursor();
         let size = size.into();
 
@@ -212,7 +178,6 @@ impl View {
     /// For example, '\t' is one character but is 4 cells wide (by default).
     #[inline]
     pub(crate) fn cursor_viewport_coords(&self, buf: &Buffer) -> (u16, u16) {
-        assert_eq!(buf.id(), self.buf);
         assert!(
             self.offset.line <= self.cursor.point.line(),
             "cursor is above the viewport: offset={} cursor={}",
@@ -244,8 +209,6 @@ impl View {
         direction: Direction,
         amt: usize,
     ) -> Point {
-        assert_eq!(buf.id(), self.buf);
-
         let pos = match direction {
             Direction::Left => match buf.text().char_before_point(self.cursor.point) {
                 // this is wrong, can't assume all characters are the same width
@@ -281,8 +244,6 @@ impl View {
         mut byte: usize,
         flags: SetCursorFlags,
     ) -> Point {
-        assert_eq!(buf.id(), self.buf);
-
         assert!(
             !flags.contains(SetCursorFlags::USE_TARGET_COLUMN),
             "not applicable for bytewise cursor movement"
@@ -342,7 +303,6 @@ impl View {
         mut pos: Point,
         flags: SetCursorFlags,
     ) -> Point {
-        assert_eq!(buf.id(), self.buf);
         let text = buf.text();
         let size = size.into();
 
@@ -476,25 +436,22 @@ impl View {
         self.offset
     }
 
-    pub(crate) fn new(id: ViewId, buf: BufferId) -> Self {
+    pub(crate) fn new(id: ViewId) -> Self {
         Self {
             id,
-            buf,
             number_width: Cell::new(0),
             settings: Default::default(),
-            group: Default::default(),
             cursor: Default::default(),
             offset: Default::default(),
             jumps: Default::default(),
         }
     }
 
-    /// Split a view from another view.
-    /// Similar to `clone` but only copies a specific set of fields.
-    /// In particular, it does not copy the group.
+    /// Split a view from another view: a copy with a new id.
+    /// The group is a column of the view's row, so the split isn't in the group.
     pub(crate) fn split_from(id: ViewId, view: View) -> Self {
         assert_ne!(id, view.id);
-        Self { id, group: None, ..view }
+        Self { id, ..view }
     }
 
     pub fn jump_list(&self) -> &JumpList<Location> {

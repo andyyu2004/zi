@@ -133,7 +133,13 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
         Some(&mut self.keymap)
     }
 
-    fn pre_render(&mut self, _: Internal, _client: &Client, _view: &View, area: tui::Rect) {
+    fn pre_render(
+        &mut self,
+        _: Internal,
+        _client: &Client,
+        _view: &crate::db::View,
+        area: tui::Rect,
+    ) {
         if !self.nucleo.tick(10).changed {
             return;
         }
@@ -149,7 +155,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
     fn overlay_highlights<'a>(
         &'a self,
         editor: &'a Editor,
-        _view: &View,
+        _view: &crate::db::View,
         _size: Size,
     ) -> Box<dyn Iterator<Item = Highlight> + 'a> {
         Box::new(

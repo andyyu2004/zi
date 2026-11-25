@@ -2,7 +2,7 @@ mod completion;
 
 mod config;
 pub(crate) mod cursor;
-mod db;
+pub mod db;
 mod default_keymap;
 mod diagnostics;
 mod dot;
@@ -50,7 +50,7 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
-use self::db::Db;
+use self::db::{BufferQueries as _, Db, ViewQueries as _};
 use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
 pub use self::errors::EditError;
@@ -72,7 +72,7 @@ use crate::language_service::LanguageServiceInstance;
 use crate::layout::Layer;
 use crate::plugin::PluginManager;
 use crate::syntax::{HighlightId, Syntax, Theme};
-use crate::view::{SetCursorFlags, ViewGroup};
+use crate::view::{SetCursorFlags, ViewGroup, ViewGroupQueries as _};
 use crate::{
     BufferId, Direction, Error, FileType, LanguageService, LanguageServiceId, Location, Mode,
     Namespace, NamespaceId, Operator, Point, Result, Setting, VerticalAlignment, View, ViewGroupId,
@@ -176,14 +176,14 @@ impl Index<ViewId> for Editor {
 
     #[inline]
     fn index(&self, index: ViewId) -> &Self::Output {
-        &self.db.views[index]
+        &self.db.views[index].view
     }
 }
 
 impl IndexMut<ViewId> for Editor {
     #[inline]
     fn index_mut(&mut self, index: ViewId) -> &mut Self::Output {
-        &mut self.db.views[index]
+        self.db.view_mut(index)
     }
 }
 
@@ -210,14 +210,14 @@ impl Index<BufferId> for Editor {
 
     #[inline]
     fn index(&self, index: BufferId) -> &Self::Output {
-        &self.db.buffers[index]
+        &self.db.buffers[index].buffer
     }
 }
 
 impl IndexMut<BufferId> for Editor {
     #[inline]
     fn index_mut(&mut self, index: BufferId) -> &mut Self::Output {
-        &mut self.db.buffers[index]
+        self.db.buffer_mut(index)
     }
 }
 
@@ -352,7 +352,7 @@ impl Editor {
         let settings = Settings::default();
         let mut db = Db::default();
         let theme = settings.theme.read();
-        let scratch_buffer = db.buffers.insert_with_key(|id| {
+        let scratch_buffer = db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::empty(),
@@ -363,11 +363,11 @@ impl Editor {
                 None,
             ))
         });
-        let active_view = db.views.insert_with_key(|id| View::new(id, scratch_buffer));
+        let active_view = db.insert_view(scratch_buffer, None, View::new);
 
         let default_namespace = db.namespaces.insert_with_key(|id| Namespace::new(id, "default"));
 
-        let empty_buffer = db.buffers.insert_with_key(|id| {
+        let empty_buffer = db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::READONLY,
@@ -486,7 +486,7 @@ impl Editor {
     }
 
     fn buffer_at_path(&self, path: &Path) -> Option<BufferId> {
-        self.db.buffers.values().find_map(|b| b.file_path().filter(|p| p == path).map(|_| b.id()))
+        self.db.buffers.by_path(&Some(path.to_path_buf())).next().map(|b| b.id())
     }
 
     pub fn open(
@@ -553,10 +553,10 @@ impl Editor {
                                 &theme.read(),
                                 syntax,
                             ));
-                            editor.db.buffers[id] = buf;
+                            *editor.db.buffer_mut(id) = buf;
                             id
                         }
-                        Plan::Insert => editor.db.buffers.insert_with_key(|id| {
+                        Plan::Insert => editor.db.insert_buffer(|id| {
                             Buffer::new(TextBuffer::new(
                                 id,
                                 flags,
@@ -625,7 +625,7 @@ impl Editor {
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
         let view = view.select(self);
         let buf = buf.select(self);
-        self.db.views[view].set_buffer(buf);
+        self.db.set_buffer(view, buf);
     }
 
     pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
@@ -782,7 +782,7 @@ impl Editor {
 
     fn update_search(&mut self) {
         let view = self.tree().active();
-        let active_buffer = self[view].buffer();
+        let active_buffer = self.view(view).buffer();
 
         let State::Command(state) = &mut self.state else { return };
 
@@ -1077,13 +1077,13 @@ impl Editor {
     }
 
     #[inline]
-    pub fn view(&self, selector: impl Selector<ViewId>) -> &View {
+    pub fn view(&self, selector: impl Selector<ViewId>) -> &crate::db::View {
         self.db.views.get(selector.select(self)).expect("bad view id")
     }
 
     #[inline]
     pub(crate) fn view_mut(&mut self, selector: impl Selector<ViewId>) -> &mut View {
-        self.db.views.get_mut(selector.select(self)).expect("bad view id")
+        self.db.view_mut(selector.select(self))
     }
 
     pub fn text(&self, selector: impl Selector<BufferId>) -> &dyn AnyText {
@@ -1092,28 +1092,28 @@ impl Editor {
 
     #[inline]
     pub fn buffer(&self, selector: impl Selector<BufferId>) -> &Buffer {
-        self.db.buffers.get(selector.select(self)).expect("bad buffer id")
+        &self.db.buffers.get(selector.select(self)).expect("bad buffer id").buffer
     }
 
     #[inline]
     pub(crate) fn buffer_mut(&mut self, selector: impl Selector<BufferId>) -> &mut Buffer {
-        self.db.buffers.get_mut(selector.select(self)).expect("bad buffer id")
+        self.db.buffer_mut(selector.select(self))
     }
 
     #[inline]
-    pub fn buffers(&self) -> impl ExactSizeIterator<Item = &Buffer> {
-        self.db.buffers.values()
+    pub fn buffers(&self) -> impl Iterator<Item = &Buffer> {
+        self.db.buffers.iter().map(|row| &row.row().buffer)
     }
 
     pub fn set_view_group(&mut self, selector: impl Selector<ViewId>, group: ViewGroupId) {
         let view = selector.select(self);
-        self.db.views[view].set_group(group);
+        self.db.set_group(view, group);
     }
 
     /// An iterator over all views in the view tree.
     // Note: this is not the same as `self.db.views.values()`
     #[inline]
-    pub fn views(&self) -> impl Iterator<Item = &View> {
+    pub fn views(&self) -> impl Iterator<Item = &crate::db::View> {
         self.tree.views().map(move |id| self.view(id))
     }
 
@@ -1129,10 +1129,9 @@ impl Editor {
         constraint: tui::Constraint,
     ) -> ViewId {
         let view_id = selector.select(self);
-        let (view, _) = self.db.view_and_buffer(view_id);
-        let id = view.id();
-        let view = view.clone();
-        let split_view = self.db.views.insert_with_key(|id| View::split_from(id, view));
+        let row = self.view(view_id);
+        let (id, buf, view) = (row.id(), row.buffer(), row.view.clone());
+        let split_view = self.db.insert_view(buf, None, |id| View::split_from(id, view));
         self.tree.split(id, split_view, direction, constraint);
         split_view
     }
@@ -1316,7 +1315,7 @@ impl Editor {
 
     fn get(&self, selector: impl Selector<ViewId>) -> (ViewId, BufferId) {
         let view = selector.select(self);
-        let buf = self[view].buffer();
+        let buf = self.view(view).buffer();
         (view, buf)
     }
 
@@ -1424,7 +1423,7 @@ impl Editor {
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
         self.tree
             .views()
-            .filter(move |&view| self[view].buffer() == buf)
+            .filter(move |&view| self.view(view).buffer() == buf)
             // Collect first to avoid borrowing self
             .collect::<Vec<_>>()
             .into_iter()
@@ -1468,7 +1467,7 @@ impl Editor {
     pub fn visual_op(&mut self, operator: Operator, selector: impl Selector<ViewId> + Copy) {
         let Some(sel) = self.visual_selection(selector) else { return };
         let view = selector.select(self);
-        let buf = self[view].buffer();
+        let buf = self.view(view).buffer();
         let content = sel.content(self[buf].text());
         let kind = sel.register_kind();
 
@@ -1874,7 +1873,7 @@ impl Editor {
 
     fn close_buffer(&mut self, buf: BufferId) {
         // can't naively remove the buffer as it might be referenced by multiple views
-        self.db.buffers[buf].on_leave();
+        self.db.buffer_mut(buf).on_leave();
     }
 
     // Manual `impl Future` as we don't want to capture the `'self`
@@ -1957,16 +1956,15 @@ impl Editor {
         self.close_buffer(self.db.views[view].buffer());
 
         if let Some(group) = self.db.views[view].group() {
-            self.db.view_groups.remove(group);
+            let views = self.db.views.by_group(&Some(group)).map(|v| v.id()).collect::<Vec<_>>();
+            // Ungroups the views, so closing them below doesn't come back here.
+            rel::Database::delete(&mut self.db, group).expect("the view's group exists");
 
             // close all views in the same group
-            let views = self.views().map(|v| (v.id(), v.group())).collect::<Vec<_>>();
-            for (v, g) in views {
-                if v == view || g != Some(group) {
-                    continue;
+            for v in views {
+                if v != view {
+                    self.close_view(v);
                 }
-
-                self.close_view(v);
             }
         }
     }
@@ -1993,7 +1991,7 @@ impl Editor {
     pub fn inspect(&mut self, selector: impl Selector<ViewId>) {
         let inspector_view = self.view(selector).id();
         self.split(inspector_view, Direction::Up, tui::Constraint::Percentage(70));
-        let buf = self.db.buffers.insert_with_key(|id| Buffer::new(InspectorBuffer::new(id)));
+        let buf = self.db.insert_buffer(|id| Buffer::new(InspectorBuffer::new(id)));
         self.set_buffer(inspector_view, buf);
     }
 
@@ -2001,11 +1999,12 @@ impl Editor {
     /// If a view group with the same key already exists, returns `Err(id)`
     pub fn create_view_group(&mut self, key: impl Into<Ustr>) -> Result<ViewGroupId, ViewGroupId> {
         let key = key.into();
-        if let Some(group) = self.db.view_groups.values().find(|g| g.key() == key) {
+        if let Some(group) = self.db.view_groups.by_key(&key) {
             return Err(group.id());
         }
 
-        Ok(self.db.view_groups.insert_with_key(|id| ViewGroup::new(id, key)))
+        Ok(rel::Database::insert_with(&mut self.db, |id| ViewGroup::new(id, key))
+            .expect("the key was checked above"))
     }
 
     // FIXME bad api, not general enough, just used for convenience for now.
@@ -2017,7 +2016,7 @@ impl Editor {
     ) -> BufferId {
         let theme = self.theme();
         let theme = theme.read();
-        self.db.buffers.insert_with_key(|id| {
+        self.db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
                 BufferFlags::READONLY,
@@ -2031,7 +2030,7 @@ impl Editor {
     }
 
     pub fn create_view(&mut self, buf: BufferId) -> ViewId {
-        self.db.views.insert_with_key(|id| View::new(id, buf))
+        self.db.insert_view(buf, None, View::new)
     }
 
     pub fn create_namespace(&mut self, name: impl Into<Ustr>) -> NamespaceId {
@@ -2045,9 +2044,8 @@ impl Editor {
 
     pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {
         let view = selector.select(self);
-        let (view, buf) = self.db.view_and_buffer_mut(view);
-        let area = self.tree.view_area(view.id());
-        view.align(area, buf, alignment);
+        let area = self.tree.view_area(view);
+        self.db.view_mut(view).align(area, alignment);
     }
 
     pub fn jump_to(&mut self, loc: impl Into<Location>) {

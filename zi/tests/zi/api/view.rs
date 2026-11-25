@@ -12,20 +12,20 @@ async fn jump_list() {
         let a = editor.create_readonly_buffer("a.txt", "aa".as_bytes());
         let b = editor.create_readonly_buffer("b.txt", "bb".as_bytes());
 
-        // NOTE: a=3v1 b=4v1
+        // NOTE: a=2v0 b=3v0
 
         // jumping should store where we came from
         editor.jump_to(zi::Location::new(a, (0, 0)));
         expect![[r"
-            BufferId(1v1):0:0
+            BufferId(0v0):0:0
              <<<
         "]]
         .assert_debug_eq(&editor.view(zi::Active).jump_list());
 
         editor.jump_to(zi::Location::new(b, (0, 1)));
         expect![[r"
-            BufferId(1v1):0:0
-            BufferId(3v1):0:0
+            BufferId(0v0):0:0
+            BufferId(2v0):0:0
              <<<
         "]]
         .assert_debug_eq(&editor.view(zi::Active).jump_list());
@@ -46,9 +46,9 @@ async fn jump_list() {
         assert_eq!(editor.jump_back(zi::Active), Some(loc_a));
 
         expect![[r"
-            BufferId(1v1):0:0
-            BufferId(3v1):0:0 <<<
-            BufferId(4v1):0:1
+            BufferId(0v0):0:0
+            BufferId(2v0):0:0 <<<
+            BufferId(3v0):0:1
         "]]
         .assert_debug_eq(&editor.view(zi::Active).jump_list());
     })
