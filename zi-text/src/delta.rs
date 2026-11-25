@@ -2,8 +2,6 @@ use std::borrow::Cow;
 use std::ops::RangeBounds;
 use std::{fmt, ops};
 
-use stdx::range::RangeExt;
-
 use super::Text;
 
 #[macro_export]
@@ -41,22 +39,10 @@ impl<'a> Deltas<'a> {
     #[must_use]
     pub fn new(deltas: impl IntoIterator<Item = Delta<'a>>) -> Self {
         let mut deltas = deltas.into_iter().collect::<Box<_>>();
-        deltas.sort_by(|a, b| {
-            a.range()
-                .start
-                .partial_cmp(&b.range().start)
-                .expect("cannot mix point and byte ranges within set of deltas")
-        });
+        deltas.sort_by_key(|d| (d.range().start, d.range().end));
 
         deltas.iter().zip(deltas.iter().skip(1)).for_each(|(a, b)| {
-            // Edge case of intersection? Maybe it should be included in the `.intersects` method?
-            assert!(
-                !(a.range().is_empty()
-                    && b.range().is_empty()
-                    && a.range().start == b.range().start),
-                "deltas must not be empty and have the same start point: {a:?} and {b:?}",
-            );
-            assert!(!a.range().intersects(&b.range()), "deltas must not overlap: {a:?} and {b:?}",);
+            assert!(a.range().end <= b.range().start, "deltas must not overlap: {a:?} and {b:?}",);
         });
 
         Self { deltas }
@@ -102,6 +88,7 @@ impl<'a> Deltas<'a> {
             inverse_deltas.push(inverse);
         }
 
+        inverse_deltas.reverse();
         Deltas::new(inverse_deltas)
     }
 
