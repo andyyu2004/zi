@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::future::Future;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use asciicast::Asciicast;
-use tui::Terminal;
 use tui::backend::CrosstermBackend;
+use tui::{Rect, Terminal, TerminalOptions, Viewport};
 use zi::OpenFlags;
 
 #[tokio::test]
@@ -92,6 +92,15 @@ async fn snapshot<Fut>(name: &'static str, f: impl FnOnce(zi::Client) -> Fut) ->
 where
     Fut: Future<Output = zi::Result<()>>,
 {
+    for lang in ["rust", "go"] {
+        let dir = zi::dirs::grammar().join(lang);
+        anyhow::ensure!(
+            dir.join("language.wasm").exists() && dir.join("highlights.scm").exists(),
+            "missing {lang} tree-sitter grammar in {}, run `make` or set ZI_GRAMMAR_DIR",
+            dir.display()
+        );
+    }
+
     let (width, height) = (150, 32);
     let (mut editor, tasks) = zi::Editor::new(zi_wasm::WasmBackend::default(), (width, height));
 
@@ -104,7 +113,10 @@ where
     let bytes = client
         .with(move |editor| {
             let mut bytes = vec![];
-            let mut term = Terminal::new(CrosstermBackend::new(&mut bytes))?;
+            let mut term = Terminal::with_options(
+                CrosstermBackend::new(&mut bytes),
+                TerminalOptions { viewport: Viewport::Fixed(Rect::new(0, 0, width, height)) },
+            )?;
             term.draw(|f| editor.render(f)).unwrap();
             drop(term);
             Ok::<_, zi::Error>(bytes)
@@ -114,29 +126,54 @@ where
     let name = name.replace(|c: char| c.is_whitespace(), "-");
     let dir = PathBuf::from("tests/zi-term/asciicasts");
 
-    let cast = Asciicast::new(width, height, [
-        asciicast::Event {
-            kind: asciicast::EventKind::Output(String::from_utf8(bytes).unwrap()),
-            time_us: 0,
-        },
-        asciicast::Event { kind: asciicast::EventKind::Output(String::from("\n")), time_us: 1 },
-    ]);
+    let cast = Asciicast::new(
+        width,
+        height,
+        [
+            asciicast::Event {
+                kind: asciicast::EventKind::Output(normalize_paths(
+                    String::from_utf8(bytes).unwrap(),
+                )),
+                time_us: 0,
+            },
+            asciicast::Event { kind: asciicast::EventKind::Output(String::from("\n")), time_us: 1 },
+        ],
+    );
 
     let path = dir.join(format!("{name}.cast"));
-
-    let mut expected = vec![];
-    if path.exists() {
-        File::open(&path)?.read_to_end(&mut expected)?;
-    } else {
-        return Ok(cast.write_to(File::create(&path)?)?);
-    }
 
     if std::env::var("UPDATE_EXPECT").is_ok() {
         cast.write_to(File::create(&path)?)?;
     } else {
+        anyhow::ensure!(
+            path.exists(),
+            "missing snapshot {}, rerun with UPDATE_EXPECT=1 to create it",
+            path.display()
+        );
         let existing = Asciicast::read_from(BufReader::new(File::open(&path)?))?;
         assert_eq!(existing, cast);
     }
 
     Ok(())
+}
+
+fn normalize_paths(output: String) -> String {
+    const PLACEHOLDER: &str = "<zi-term>/";
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize().unwrap();
+    let dir = format!("{}/", dir.display());
+    assert!(dir.len() >= PLACEHOLDER.len());
+
+    let mut normalized = String::with_capacity(output.len());
+    let mut rest = output.as_str();
+    while let Some(i) = rest.find(&dir) {
+        normalized.push_str(&rest[..i]);
+        normalized.push_str(PLACEHOLDER);
+        rest = &rest[i + dir.len()..];
+        let end = rest.find(' ').unwrap_or(rest.len());
+        normalized.push_str(&rest[..end]);
+        normalized.push_str(&" ".repeat(dir.len() - PLACEHOLDER.len()));
+        rest = &rest[end..];
+    }
+    normalized.push_str(rest);
+    normalized
 }
