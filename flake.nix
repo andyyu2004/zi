@@ -143,6 +143,7 @@
         devShells.default = pkgs.mkShell {
           packages = [
             rust
+            pkgs.cargo-nextest
             pkgs.neovim
             pkgs.gopls
             pkgs.go
