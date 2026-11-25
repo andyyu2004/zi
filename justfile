@@ -7,8 +7,9 @@ build-plugins:
     mkdir -p runtime/plugins
     cp target/{{wasm-target}}/release/*.wasm runtime/plugins
 
-test *FLAGS: build
-    mold -run cargo test {{FLAGS}}
+test *FLAGS:
+    cargo nextest run --workspace --exclude 'plugin-*' {{FLAGS}}
+    cargo test --workspace --exclude 'plugin-*' --doc
 
 run *FLAGS:
     @RUST_BACKTRACE=1 cargo run -p zi-term -- {{FLAGS}}
