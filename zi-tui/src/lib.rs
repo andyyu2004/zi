@@ -33,7 +33,7 @@ impl DynFrame for Frame<'_> {
 
     #[inline]
     fn set_cursor(&mut self, x: u16, y: u16) {
-        self.set_cursor(x, y)
+        self.set_cursor_position((x, y))
     }
 }
 

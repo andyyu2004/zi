@@ -20,7 +20,7 @@ pub struct App<B: Backend + io::Write> {
     panic_rx: Receiver<(String, Backtrace)>,
 }
 
-impl<B: Backend + io::Write> App<B> {
+impl<B: Backend<Error = io::Error> + io::Write> App<B> {
     pub fn new(term: Terminal<B>, panic_rx: Receiver<(String, Backtrace)>) -> io::Result<Self> {
         Ok(Self { term, panic_rx })
     }
