@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt as _;
 use stdx::bomb::DropBomb;
 use tokio::sync::watch;
 use zi::{TextBase, deltas, lstypes};
@@ -302,9 +302,9 @@ async fn lsp_changes_incremental_utf8_random() -> zi::Result<()> {
     let buf = cx.open_tmp("", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES).await?;
 
     let mut any_non_empty = false;
-    for _ in 0..rand::thread_rng().gen_range(0..400) {
+    for _ in 0..rand::rng().random_range(0..400) {
         any_non_empty |= !cx
-            .with(move |editor| editor.apply_random_deltas(rand::thread_rng(), buf))
+            .with(move |editor| editor.apply_random_deltas(rand::rng(), buf))
             .await
             .is_empty();
     }

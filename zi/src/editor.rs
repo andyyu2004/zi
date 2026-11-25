@@ -1373,6 +1373,7 @@ impl Editor {
         mut rng: R,
         selector: impl Selector<BufferId>,
     ) -> Deltas<'static> {
+        use rand::RngExt as _;
         use zi_text::Delta;
 
         let buf = selector.select(self);
@@ -1383,26 +1384,26 @@ impl Editor {
 
         // TODO should include some special characters like newlines and tabs
         fn random_string(mut rng: impl rand::Rng, n: usize) -> String {
-            let len = rng.gen_range(0..=n);
-            let chars = rng.sample_iter(&rand::distributions::Alphanumeric);
+            let len = rng.random_range(0..=n);
+            let chars = rng.sample_iter(rand::distr::Alphanumeric);
             chars.take(len).map(|u| u as char).collect()
         }
 
         let len = self[buf].text().len_bytes();
 
-        let n = rng.gen_range(0..=10);
+        let n = rng.random_range(0..=10);
         let mut k = 0;
         let deltas = Deltas::new((0..n).map_while(|_| {
             if k > len {
                 return None;
             }
 
-            let start = if k != len { rng.gen_range(k..=len) } else { k };
-            let end = if start != len { rng.gen_range(start..=len) } else { start };
+            let start = if k != len { rng.random_range(k..=len) } else { k };
+            let end = if start != len { rng.random_range(start..=len) } else { start };
             k = end + 1;
             let range = start..end;
 
-            if rng.gen_bool(0.1) {
+            if rng.random_bool(0.1) {
                 return None;
             }
 

@@ -7,7 +7,9 @@ use zi::input::{KeyCode, KeyEvent, KeySequence};
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-harness!(test, "tests/regression/fuzz", r"^.*/*");
+harness! {
+    { test = test, root = "tests/regression/fuzz", pattern = r"^.*/*" },
+}
 
 #[tokio::main]
 #[tracing_test::traced_test]
