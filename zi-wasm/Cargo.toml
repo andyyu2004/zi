@@ -22,3 +22,6 @@ tokio-stream = { workspace = true, features = ["fs"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+wit-component = "0.244"

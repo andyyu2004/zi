@@ -573,21 +573,51 @@ impl PluginHost {
 mod test {
     use std::path::Path;
 
+    use anyhow::Context as _;
     use tokio::task::LocalSet;
     use zi::Editor;
 
     use super::*;
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
 
+    fn build_plugin(name: &str) -> anyhow::Result<Vec<u8>> {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let target_dir = std::env::current_exe()?
+            .ancestors()
+            .nth(3)
+            .context("unexpected test executable path")?
+            .join("plugins");
+        let target = "wasm32-unknown-unknown";
+        let status = std::process::Command::new(env!("CARGO"))
+            .arg("build")
+            .arg("--release")
+            .args(["--target", target])
+            .arg("--manifest-path")
+            .arg(manifest_dir.join(format!("../plugins/{name}/Cargo.toml")))
+            .arg("--target-dir")
+            .arg(&target_dir)
+            .status()
+            .context("failed to run cargo")?;
+        anyhow::ensure!(
+            status.success(),
+            "failed to build plugin `{name}` (is the {target} target installed?)"
+        );
+
+        let module = std::fs::read(
+            target_dir.join(target).join("release").join(format!("plugin_{name}.wasm")),
+        )?;
+        wit_component::ComponentEncoder::default().module(&module)?.validate(true).encode()
+    }
+
     async fn load(
         engine: &Engine,
         store: &mut Store,
-        plugin_paths: &[impl AsRef<Path>],
+        names: &[&str],
     ) -> anyhow::Result<Box<[Plugin]>> {
-        let mut plugins = Vec::with_capacity(plugin_paths.len());
+        let mut plugins = Vec::with_capacity(names.len());
         let mut linker = Linker::new(engine);
-        for path in plugin_paths {
-            let component = Component::from_file(engine, path)?;
+        for name in names {
+            let component = Component::new(engine, build_plugin(name)?)?;
             Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |state| {
                 state
             })?;
@@ -612,8 +642,7 @@ mod test {
 
         local
             .run_until(async move {
-                let plugins =
-                    load(engine, &mut store, &["../runtime/plugins/plugin_test.wasm"]).await?;
+                let plugins = load(engine, &mut store, &["test"]).await?;
 
                 for plugin in &plugins[..] {
                     let dep = plugin.zi_api_dependency();
