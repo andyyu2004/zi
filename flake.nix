@@ -25,8 +25,6 @@
 
         rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-        # Prebuilt grammars matching the versions in the Makefile. nix is omitted as it has no
-        # prebuilt wasm release.
         grammar =
           {
             name,
@@ -47,6 +45,17 @@
               hash = highlightsHash;
             };
           };
+
+        nixGrammar = pkgs.pkgsCross.wasm32-wasip1.tree-sitter.buildGrammar {
+          language = "nix";
+          version = "0.3.0";
+          src = pkgs.fetchFromGitHub {
+            owner = "nix-community";
+            repo = "tree-sitter-nix";
+            rev = "v0.3.0";
+            hash = "sha256:1aaq5yv1s8qq3abm0jm884hi4k6n2w0nzd1j3wizv1x1xk6qzlsl";
+          };
+        };
 
         grammars = pkgs.runCommand "zi-grammars" { } (
           pkgs.lib.concatMapStrings
@@ -132,8 +141,43 @@
                 highlightsHash = "sha256-LrBudmzNZy1JWZ0U85jwf09ffyIIJimT082SB8EHji8=";
                 highlightsPath = "tree-sitter-markdown/queries/highlights.scm";
               })
+              {
+                name = "nix";
+                wasm = "${nixGrammar}/parser.wasm";
+                highlights = "${nixGrammar}/queries/highlights.scm";
+              }
             ]
         );
+
+        plugins = (pkgs.makeRustPlatform { cargo = rust; rustc = rust; }).buildRustPackage {
+          pname = "zi-plugins";
+          version = "0.1.0";
+          src = source;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes."crop-0.4.2" = "0mfs49xy1b2dg4kahw0j9lyp9ac6b969faa4r630ljvgl9p3k29h";
+          };
+          nativeBuildInputs = [ pkgs.cargo-component ];
+          outputs = [ "out" "testPlugins" ];
+          doCheck = false;
+          dontStrip = true;
+
+          buildPhase = ''
+            runHook preBuild
+            export CARGO_COMPONENT_CACHE_DIR="$TMPDIR/cargo-component-cache"
+            cargo component build --locked --offline --release --target wasm32-unknown-unknown \
+              --target-dir target -p plugin-example -p plugin-test
+            runHook postBuild
+          '';
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p "$out" "$testPlugins"
+            cp target/wasm32-unknown-unknown/release/plugin_example.wasm "$out/"
+            cp target/wasm32-unknown-unknown/release/plugin_test.wasm "$testPlugins/"
+            runHook postInstall
+          '';
+        };
 
         devShell = pkgs.mkShell {
           packages = [
@@ -169,7 +213,8 @@
       in
       {
         packages = {
-          inherit grammars;
+          inherit grammars plugins;
+          plugin-test = plugins.testPlugins;
         };
 
         devShells.default = devShell;

@@ -11,5 +11,5 @@ asciinema play zi-term/tests/asciicast/example.cast
 
 As with all snapshot tests, the point is to manually verify the output and to prevent regressions. If there is a desired change, run tests with `UPDATE_EXPECT=1` to update the expected output. A missing snapshot fails the test unless `UPDATE_EXPECT` is set.
 
-The syntax highlighting snapshots need the rust and go grammars. They are read from `ZI_GRAMMAR_DIR` if set, otherwise from zi's data directory (`~/.local/share/zi/grammars` on Linux, `~/Library/Application Support/zi/grammars` on macOS). `nix develop` sets `ZI_GRAMMAR_DIR` to grammars built by the flake; otherwise run `make GRAMMAR_DIR=<dir>`.
+The syntax highlighting snapshots need the rust and go grammars. They are read from `ZI_GRAMMAR_DIR` if set, otherwise from zi's data directory (`~/.local/share/zi/grammars` on Linux, `~/Library/Application Support/zi/grammars` on macOS). `nix develop` sets `ZI_GRAMMAR_DIR` to grammars built by the flake; to install a copy, run `just build-grammars` followed by `just install-grammars`. Set `ZI_GRAMMAR_DIR` to use a custom destination.
 
