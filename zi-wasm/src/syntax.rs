@@ -239,7 +239,7 @@ impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
 /// A private wrapper type that allows us to construct an empty iterator if we have no highlights to provide
 #[derive(Default)]
 enum Highlights<'a, 'tree> {
-    Captures(QueryCaptures<'a, 'tree, TextProvider<'a>, &'a [u8]>),
+    Captures(QueryCaptures<'a, 'tree, 'static, TextProvider<'a>, &'a [u8]>),
     #[default]
     Empty,
 }
@@ -249,7 +249,7 @@ impl<'a, 'tree: 'a> Iterator for Highlights<'a, 'tree> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Highlights::Captures(captures) => captures.next().map(|(m, idx)| m.captures[*idx]),
+            Highlights::Captures(captures) => captures.next().map(|(m, idx)| m.captures()[*idx]),
             Highlights::Empty => None,
         }
     }
