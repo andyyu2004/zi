@@ -169,15 +169,11 @@
         devShells.default = devShell;
 
         # A store path per CI job, named for the source and the dev shell it runs in. The job
-        # pushes it to the Nix cache once it passes, and is skipped when it's there. Master
-        # has its own, as its runs save the Rust cache that pull requests start from.
+        # pushes it to the Nix cache once it passes, and is skipped when it's there.
         ci = pkgs.lib.genAttrs [ "test" ] (
           job:
-          pkgs.lib.genAttrs [ "pr" "master" ] (
-            ref:
-            builtins.toFile "zi-ci-${job}-${ref}" (
-              builtins.unsafeDiscardStringContext "${source}\n${devShell.drvPath}\n"
-            )
+          builtins.toFile "zi-ci-${job}" (
+            builtins.unsafeDiscardStringContext "${source}\n${devShell.drvPath}\n"
           )
         );
       }

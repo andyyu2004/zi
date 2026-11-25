@@ -12,38 +12,35 @@ concurrency:
 
 jobs:
   # Whether each job has passed on this source and dev shell: its store path (flake.nix ci)
-  # is in the Nix cache. Pull requests and merge groups skip on any pass, master only on its
-  # own, as its runs save the Rust cache. A skipped job still satisfies the ruleset's
-  # required check.
+  # is in the Nix cache. Pushes to master run every job, as they save the Rust cache that
+  # pull requests start from. A skipped job still satisfies the ruleset's required check.
   plan:
     runs-on: ubuntu-latest
     outputs:
-      test: ${{ steps.plan.outputs.test }}
+      run: ${{ steps.plan.outputs.run }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - id: plan
-        env:
-          REFS: ${{ github.event_name == 'push' && 'master' || 'pr master' }}
         run: |
-          jobs=(test)
-          for job in "${jobs[@]}"; do
-            run=true
-            for ref in $REFS; do
-              marker=$(nix eval --raw ".#ci.x86_64-linux.$job.$ref")
-              if nix path-info --store https://nix-cache.andyyu.io "$marker" >/dev/null 2>&1; then
-                echo "$job passed as $marker"
-                run=false
-              fi
-            done
-            echo "$job=$run" >>"$GITHUB_OUTPUT"
+          keys=$(nix eval --json .#ci.x86_64-linux)
+          run=()
+          for job in $(jq -r 'keys[]' <<<"$keys"); do
+            key=$(jq -r --arg job "$job" '.[$job]' <<<"$keys")
+            if [ "$GITHUB_EVENT_NAME" != push ] &&
+              nix path-info --store https://nix-cache.andyyu.io "$key" >/dev/null 2>&1; then
+              echo "$job passed as $key"
+            else
+              run+=("$job")
+            fi
           done
+          echo "run=$(jq -cn '$ARGS.positional' --args "${run[@]}")" >>"$GITHUB_OUTPUT"
 
   test:
     needs: plan
-    if: needs.plan.outputs.test == 'true'
+    if: contains(fromJSON(needs.plan.outputs.run), 'test')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -90,8 +87,7 @@ jobs:
       - name: Record the pass
         env:
           NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
-          REF: ${{ github.event_name == 'push' && 'master' || 'pr' }}
-        run: .github/niks3-push.sh "$(nix eval --raw ".#ci.x86_64-linux.test.$REF")"
+        run: .github/niks3-push.sh "$(nix eval --raw ".#ci.x86_64-linux.$GITHUB_JOB")"
 
       - uses: actions/upload-artifact@v7
         if: always()
