@@ -28,7 +28,7 @@ async fn perf_readonly_large_file() -> zi::Result<()> {
 }
 
 fn create_file(mbs: usize) -> PathBuf {
-    use duct::cmd;
+    use std::io::Write as _;
 
     assert!(mbs <= 2048, "don't go too crazy :)");
 
@@ -38,12 +38,26 @@ fn create_file(mbs: usize) -> PathBuf {
             return path;
         }
 
+        const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+        let mut chunk = Vec::with_capacity(1024 * 1024 + 77);
+        while chunk.len() < 1024 * 1024 {
+            for _ in 0..76 {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                chunk.push(CHARS[(seed % 64) as usize]);
+            }
+            chunk.push(b'\n');
+        }
+
         let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
-        cmd!("dd", "if=/dev/urandom", "ibs=1M", "obs=1M", format!("count={mbs}"))
-            .pipe(cmd!("base64"))
-            .pipe(cmd!("fold", "-w", "76"))
-            .stdout_path(&tmp)
-            .run()?;
+        let mut file = io::BufWriter::new(std::fs::File::create(&tmp)?);
+        for _ in 0..=mbs {
+            file.write_all(&chunk)?;
+        }
+        file.flush()?;
+        drop(file);
         std::fs::rename(&tmp, &path)?;
 
         assert!(path.exists());
