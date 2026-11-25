@@ -5,7 +5,7 @@ static DIRS: OnceLock<Dirs> = OnceLock::new();
 
 struct Dirs {
     grammar_dir: PathBuf,
-    plugin_dirs: &'static [PathBuf],
+    plugin_dirs: Vec<PathBuf>,
     config_dir: PathBuf,
 }
 
@@ -18,23 +18,32 @@ fn dirs() -> &'static Dirs {
             Some(dir) if !dir.is_empty() => PathBuf::from(dir),
             _ => data.join("grammars"),
         };
-        let plugin_dir = data.join("plugins");
         let config_dir = dirs.config_dir().join("zi");
 
         if !grammar_dir.exists() {
             std::fs::create_dir_all(&grammar_dir).expect("couldn't create grammar directory");
         }
 
-        if !plugin_dir.exists() {
-            std::fs::create_dir_all(&plugin_dir).expect("couldn't create plugin directory");
-        }
-
         if !config_dir.exists() {
             std::fs::create_dir_all(&config_dir).expect("couldn't create config directory");
         }
 
-        let plugin_path = std::env::var("ZI_PLUGIN_PATH").ok().unwrap_or_default();
-        let plugin_dirs = Box::leak(plugin_path.split(':').map(PathBuf::from).collect::<Box<_>>());
+        let mut plugin_dirs: Vec<_> = std::env::var_os("ZI_PLUGIN_PATH")
+            .iter()
+            .flat_map(std::env::split_paths)
+            .filter(|path| !path.as_os_str().is_empty())
+            .collect();
+        if plugin_dirs.is_empty() {
+            let plugin_dir = std::env::var_os("ZI_PLUGIN_DIR")
+                .filter(|dir| !dir.is_empty())
+                .map_or_else(|| data.join("plugins"), PathBuf::from);
+            let plugin_dir =
+                std::path::absolute(plugin_dir).expect("couldn't resolve plugin directory");
+            if !plugin_dir.is_dir() {
+                std::fs::create_dir_all(&plugin_dir).expect("couldn't create plugin directory");
+            }
+            plugin_dirs.push(plugin_dir);
+        }
 
         Dirs { grammar_dir, plugin_dirs, config_dir }
     })

@@ -96,7 +96,7 @@ where
         let dir = zi::dirs::grammar().join(lang);
         anyhow::ensure!(
             dir.join("language.wasm").exists() && dir.join("highlights.scm").exists(),
-            "missing {lang} tree-sitter grammar in {}, run `make` or set ZI_GRAMMAR_DIR",
+            "missing {lang} tree-sitter grammar in {}, run `just build-grammars` and `just install-grammars` or set ZI_GRAMMAR_DIR",
             dir.display()
         );
     }
