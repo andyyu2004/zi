@@ -28,7 +28,8 @@ jobs:
         env:
           REFS: ${{ github.event_name == 'push' && 'master' || 'pr master' }}
         run: |
-          for job in test; do
+          jobs=(test)
+          for job in "${jobs[@]}"; do
             run=true
             for ref in $REFS; do
               marker=$(nix eval --raw ".#ci.x86_64-linux.$job.$ref")
