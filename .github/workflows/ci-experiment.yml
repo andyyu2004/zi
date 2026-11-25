@@ -12,27 +12,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: baseline
-            cfg: ""
-            pre: ""
           - name: deps-nodebug
-            cfg: --config 'profile.dev.package."*".debug=false'
-            pre: ""
+            cfg: |
+              [profile.dev.package."*"]
+              debug = false
           - name: all-linetables
-            cfg: --config 'profile.dev.debug="line-tables-only"'
-            pre: ""
+            cfg: |
+              [profile.dev]
+              debug = "line-tables-only"
           - name: deps-nodebug-ws-linetables
-            cfg: --config 'profile.dev.package."*".debug=false' --config 'profile.dev.debug="line-tables-only"'
-            pre: ""
-          - name: mold
-            cfg: ""
-            pre: export PATH=$(nix build --no-link --print-out-paths nixpkgs#mold)/bin:$PATH RUSTFLAGS="-Clink-arg=-fuse-ld=mold";
-          - name: cranelift-o1
-            cfg: --config 'profile.dev.package.cranelift-codegen.opt-level=1'
-            pre: ""
+            cfg: |
+              [profile.dev]
+              debug = "line-tables-only"
+              [profile.dev.package."*"]
+              debug = false
           - name: deps-o0
-            cfg: --config 'profile.dev.package."*".opt-level=0'
-            pre: ""
+            cfg: |
+              [profile.dev.package."*"]
+              opt-level = 0
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v7
@@ -43,16 +40,20 @@ jobs:
         with:
           name: andyyu2004
           skipPush: true
+      - name: Profile override
+        run: mkdir -p .cargo && printf '%s\n' "$CFG" > .cargo/config.toml && cat .cargo/config.toml
+        env:
+          CFG: ${{ matrix.cfg }}
       - name: Build dev shell
         run: nix develop -c true
       - name: Build tests
-        run: nix develop -c bash -c '${{ matrix.pre }} cargo nextest run ${{ matrix.cfg }} --workspace --exclude "plugin-*" --profile ci --no-run --timings'
+        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run --timings
       - name: Test
-        run: nix develop -c bash -c '${{ matrix.pre }} cargo nextest run ${{ matrix.cfg }} --workspace --exclude "plugin-*" --profile ci'
+        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci
       - name: Touch and rebuild
         run: |
           echo >> zi-core/src/lib.rs
-          nix develop -c bash -c '${{ matrix.pre }} cargo nextest run ${{ matrix.cfg }} --workspace --exclude "plugin-*" --profile ci --no-run'
+          nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run
       - name: Inspect
         if: always()
         run: |
