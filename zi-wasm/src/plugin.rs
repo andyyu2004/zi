@@ -581,6 +581,12 @@ mod test {
             .arg(manifest_dir.join(format!("../plugins/{name}/Cargo.toml")))
             .arg("--target-dir")
             .arg(&target_dir)
+            // The test build's flags and rustc wrapper (cargo llvm-cov instruments through one)
+            // are for the host, not wasm.
+            .env_remove("RUSTFLAGS")
+            .env_remove("CARGO_ENCODED_RUSTFLAGS")
+            .env_remove("RUSTC_WRAPPER")
+            .env_remove("RUSTC_WORKSPACE_WRAPPER")
             .status()
             .context("failed to run cargo")?;
         anyhow::ensure!(
