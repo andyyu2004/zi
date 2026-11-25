@@ -14,7 +14,10 @@ fn dirs() -> &'static Dirs {
         let dirs = directories_next::BaseDirs::new().expect("couldn't retrieve home directory");
         let data = dirs.data_dir().join("zi");
 
-        let grammar_dir = data.join("grammars");
+        let grammar_dir = match std::env::var_os("ZI_GRAMMAR_DIR") {
+            Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+            _ => data.join("grammars"),
+        };
         let plugin_dir = data.join("plugins");
         let config_dir = dirs.config_dir().join("zi");
 

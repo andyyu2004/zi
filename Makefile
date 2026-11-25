@@ -1,4 +1,4 @@
-GRAMMAR_DIR = ~/.local/share/zi/grammars
+GRAMMAR_DIR ?= $(or $(ZI_GRAMMAR_DIR),~/.local/share/zi/grammars)
 
 RUST_VERSION       = v0.24.2
 GO_VERSION         = v0.23.4
