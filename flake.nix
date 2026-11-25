@@ -144,6 +144,7 @@
           packages = [
             rust
             pkgs.cargo-nextest
+            pkgs.cargo-component
             pkgs.neovim
             pkgs.gopls
             pkgs.go
