@@ -5197,6 +5197,7 @@ dependencies = [
  "tracing",
  "tree-sitter",
  "wasmtime",
+ "wit-component 0.244.0",
  "zi",
 ]
 
