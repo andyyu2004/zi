@@ -14,6 +14,10 @@ pub enum Event {
 impl TryFrom<crossterm::event::Event> for Event {
     type Error = ();
 
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "crossterm variants we don't map are unsupported"
+    )]
     fn try_from(event: crossterm::event::Event) -> Result<Self, Self::Error> {
         match event {
             crossterm::event::Event::Key(event) => match event.code {
@@ -65,6 +69,10 @@ impl KeyCode {
 impl TryFrom<crossterm::event::KeyCode> for KeyCode {
     type Error = ();
 
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "crossterm variants we don't map are unsupported"
+    )]
     fn try_from(code: crossterm::event::KeyCode) -> Result<Self, Self::Error> {
         match code {
             crossterm::event::KeyCode::Backspace => Ok(KeyCode::Backspace),
@@ -189,13 +197,12 @@ impl FromStr for KeyEvent {
 
 impl fmt::Display for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.code {
-            // special case, print <S-y> as just Y
-            KeyCode::Char(c) if self.modifiers == KeyModifiers::SHIFT => {
-                assert!(c.is_uppercase());
-                return write!(f, "{c}");
-            }
-            _ => (),
+        // special case, print <S-y> as just Y
+        if let KeyCode::Char(c) = self.code
+            && self.modifiers == KeyModifiers::SHIFT
+        {
+            assert!(c.is_uppercase());
+            return write!(f, "{c}");
         }
 
         if self.modifiers.is_empty() {
@@ -225,6 +232,7 @@ impl fmt::Display for KeyEvent {
 }
 
 impl KeyEvent {
+    #[expect(clippy::wildcard_enum_match_arm, reason = "only `Char` needs normalising")]
     pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Self {
         // normalize
         match code {

@@ -31,7 +31,13 @@ impl Editor {
     pub fn completions(&self) -> Option<impl ExactSizeIterator<Item = &CompletionItem>> {
         match &self.state {
             State::Insert(state) => Some(state.completion.matches()),
-            _ => None,
+            State::Normal(_)
+            | State::Command(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => None,
         }
     }
 

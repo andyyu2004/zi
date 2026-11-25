@@ -915,7 +915,12 @@ impl Editor {
                 self.update_search();
                 Ok(())
             }
-            _ => unreachable!(),
+            State::Normal(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => unreachable!(),
         }
     }
 
@@ -940,6 +945,10 @@ impl Editor {
         let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
 
         tracing::trace!(%key, "handling key");
+        #[expect(
+            clippy::wildcard_enum_match_arm,
+            reason = "every other key goes through the keymap"
+        )]
         match key.code() {
             KeyCode::Char(c) if matches!(mode, Mode::ReplacePending) => {
                 self.set_mode(Mode::Insert);
@@ -956,13 +965,9 @@ impl Editor {
                 }
 
                 for event in buffered {
-                    match event.code() {
-                        KeyCode::Char(c) => {
-                            if let Err(err) = self.handle_insert(c) {
-                                set_error!(self, err);
-                            }
-                        }
-                        _ => unreachable!(),
+                    let KeyCode::Char(c) = event.code() else { unreachable!() };
+                    if let Err(err) = self.handle_insert(c) {
+                        set_error!(self, err);
                     }
                 }
             }
@@ -1018,7 +1023,11 @@ impl Editor {
                 start_col: start.col().min(end.col()),
                 end_col: start.col().max(end.col()),
             }),
-            _ => None,
+            Mode::Normal
+            | Mode::Insert
+            | Mode::Command
+            | Mode::OperatorPending(_)
+            | Mode::ReplacePending => None,
         }
     }
 
@@ -1217,7 +1226,13 @@ impl Editor {
                 self.update_search();
                 Ok(())
             }
-            _ => {
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => {
                 let view = selector.select(self);
                 let (view, buf) = get!(self: view);
                 if buf.flags().contains(BufferFlags::READONLY) {
@@ -1811,7 +1826,13 @@ impl Editor {
                 self.text_object(view_id, motion)?;
                 Ok(self[view_id].cursor())
             }
-            _ => {
+            Mode::Normal
+            | Mode::Insert
+            | Mode::Command
+            | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock
+            | Mode::ReplacePending => {
                 self.search_state.hlsearch = false;
 
                 let text = buf.text();
@@ -2113,13 +2134,9 @@ impl Editor {
 
     pub(crate) fn search_mode(&mut self) {
         self.set_mode(Mode::Command);
-        match &mut self.state {
-            State::Command(state) => {
-                state.buffer.clear();
-                state.buffer.push('/');
-            }
-            _ => unreachable!(),
-        }
+        let State::Command(state) = &mut self.state else { unreachable!() };
+        state.buffer.clear();
+        state.buffer.push('/');
     }
 
     pub fn jump_forward(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
@@ -2192,7 +2209,13 @@ impl Editor {
     pub fn command_buffer(&self) -> Option<&str> {
         match &self.state {
             State::Command(state) => Some(&state.buffer),
-            _ => None,
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => None,
         }
     }
 

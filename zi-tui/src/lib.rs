@@ -178,7 +178,7 @@ where
         const SPACE: &str = " ";
         let mut number_width = match self.line_number_style {
             LineNumberStyle::None => SPACE.len(),
-            _ => self.min_number_width as usize,
+            LineNumberStyle::Absolute | LineNumberStyle::Relative => self.min_number_width as usize,
         };
 
         while let Some(&(i, ..)) = self.chunks.peek() {

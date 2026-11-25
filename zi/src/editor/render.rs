@@ -72,7 +72,11 @@ impl Editor {
             match &self.state {
                 State::Command(state) => Cow::Borrowed(state.buffer.as_str()),
                 State::Normal(..) | State::OperatorPending(..) => Cow::Borrowed(""),
-                state => Cow::Owned(format!("-- {} --", state.mode())),
+                state @ (State::Insert(_)
+                | State::Visual(_)
+                | State::VisualLine(_)
+                | State::VisualBlock(_)
+                | State::ReplacePending) => Cow::Owned(format!("-- {} --", state.mode())),
             },
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
@@ -97,7 +101,13 @@ impl Editor {
                 state.buffer.len().checked_sub(1).expect("should have a preceding `/` or `:`")
                     as u16
             }
-            _ => view.number_width.get(),
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => view.number_width.get(),
         };
 
         frame.set_cursor(x + offset, y);
