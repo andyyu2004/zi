@@ -17,7 +17,7 @@ pub struct Fixture {
 
 /// A test case is a text buffer and a sequence of key inputs.
 /// Text format:
-/// ```
+/// ```text
 /// ==== any text here until new line
 /// some text
 /// that can span multiple lines
