@@ -1,0 +1,33 @@
+error[E0599]: the method `insert` exists for struct `Relation<User>`, but its trait bounds were not satisfied
+  --> tests/ui/standalone_insert_constrained.rs:19:24
+   |
+ 4 | struct User {
+   | ----------- doesn't satisfy `User: Unconstrained`
+...
+19 |     let author = users.insert(User { name: "a".into() });
+   |                        ^^^^^^
+   |
+   = note: the following trait bounds were not satisfied:
+           `User: Unconstrained`
+note: the trait `Unconstrained` must be implemented
+  --> src/relation.rs
+   |
+   | pub trait Unconstrained: Row {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: the method `insert` exists for struct `Relation<Post>`, but its trait bounds were not satisfied
+  --> tests/ui/standalone_insert_constrained.rs:20:11
+   |
+10 | struct Post {
+   | ----------- doesn't satisfy `Post: Unconstrained`
+...
+20 |     posts.insert(Post { author });
+   |           ^^^^^^
+   |
+   = note: the following trait bounds were not satisfied:
+           `Post: Unconstrained`
+note: the trait `Unconstrained` must be implemented
+  --> src/relation.rs
+   |
+   | pub trait Unconstrained: Row {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

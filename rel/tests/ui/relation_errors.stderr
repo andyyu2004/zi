@@ -1,0 +1,139 @@
+error: expected `unique`, `ordered` or `columns(...)`
+  --> tests/ui/relation_errors.rs:10:13
+   |
+10 |     #[index(sorted)]
+   |             ^^^^^^
+
+error: `columns(...)` goes on the struct
+  --> tests/ui/relation_errors.rs:16:5
+   |
+16 |     #[index(columns(a))]
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+error: a struct-level index needs `columns(a, b, ...)` with two or more columns; put single-column indexes on the field
+  --> tests/ui/relation_errors.rs:21:1
+   |
+21 | #[index]
+   | ^^^^^^^^
+
+error: a struct-level index needs `columns(a, b, ...)` with two or more columns; put single-column indexes on the field
+  --> tests/ui/relation_errors.rs:27:1
+   |
+27 | #[index(columns(a))]
+   | ^^^^^^^^^^^^^^^^^^^^
+
+error: no field `nope`
+  --> tests/ui/relation_errors.rs:33:20
+   |
+33 | #[index(columns(a, nope))]
+   |                    ^^^^
+
+error: expected this path to be an identifier
+  --> tests/ui/relation_errors.rs:39:17
+   |
+39 | #[index(columns(a::b, c))]
+   |                 ^^^^
+
+error: expected parentheses
+  --> tests/ui/relation_errors.rs:46:17
+   |
+46 | #[index(columns = a)]
+   |                 ^
+
+error: expected `=`
+  --> tests/ui/relation_errors.rs:53:33
+   |
+53 |     #[references(User, on_delete)]
+   |                                 ^
+
+error: expected identifier
+  --> tests/ui/relation_errors.rs:59:36
+   |
+59 |     #[references(User, on_delete = "cascade")]
+   |                                    ^^^^^^^^^
+
+error: expected `=`
+  --> tests/ui/relation_errors.rs:64:15
+   |
+64 | #[relation(key)]
+   |               ^
+
+error: expected one of: `for`, parentheses, `fn`, `unsafe`, `extern`, identifier, `::`, `<`, `dyn`, square brackets, `*`, `&`, `!`, `impl`, `_`, lifetime
+  --> tests/ui/relation_errors.rs:70:18
+   |
+70 | #[relation(key = 1)]
+   |                  ^
+
+error: expected `=`
+  --> tests/ui/relation_errors.rs:76:19
+   |
+76 | #[relation(columns)]
+   |                   ^
+
+error: expected identifier
+  --> tests/ui/relation_errors.rs:82:22
+   |
+82 | #[relation(columns = "cols")]
+   |                      ^^^^^^
+
+error: expected `cascade`, `restrict` or `set_null`
+  --> tests/ui/relation_errors.rs:89:36
+   |
+89 |     #[references(User, on_delete = sometimes)]
+   |                                    ^^^^^^^^^
+
+error: expected `on_delete = cascade|restrict|set_null`
+  --> tests/ui/relation_errors.rs:95:24
+   |
+95 |     #[references(User, Post)]
+   |                        ^^^^
+
+error: expected the referenced relation, e.g. `#[references(User)]`
+   --> tests/ui/relation_errors.rs:101:5
+    |
+101 |     #[references(on_delete = cascade)]
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `key = Type` or `columns = module_name`
+   --> tests/ui/relation_errors.rs:106:12
+    |
+106 | #[relation(table = users)]
+    |            ^^^^^
+
+error: relations can't be generic
+   --> tests/ui/relation_errors.rs:112:15
+    |
+112 | struct Generic<T> {
+    |               ^^^
+
+error: `Relation` can only be derived for structs
+   --> tests/ui/relation_errors.rs:116:10
+    |
+116 | #[derive(Relation)]
+    |          ^^^^^^^^
+    |
+    = note: this error originates in the derive macro `Relation` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `Relation` needs named fields
+   --> tests/ui/relation_errors.rs:122:19
+    |
+122 | struct TupleStruct(u32);
+    |                   ^^^^^
+
+error: `set_null` needs the column to be an `Option`
+   --> tests/ui/relation_errors.rs:135:36
+    |
+135 |     #[references(User, on_delete = set_null)]
+    |                                    ^^^^^^^^
+
+error: `set_null` needs the column to be an `Option`
+   --> tests/ui/relation_errors.rs:141:36
+    |
+141 |     #[references(User, on_delete = set_null)]
+    |                                    ^^^^^^^^
+
+error: `set_null` needs the column to be an `Option`
+   --> tests/ui/relation_errors.rs:147:36
+    |
+147 |     #[references(User, on_delete = set_null)]
+    |                                    ^^^^^^^^

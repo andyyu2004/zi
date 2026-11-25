@@ -1,0 +1,5 @@
+error: `set_null` needs the column to be an `Option`
+  --> tests/ui/set_null_needs_option.rs:10:37
+   |
+10 |     #[references(Group, on_delete = set_null)]
+   |                                     ^^^^^^^^

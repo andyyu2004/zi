@@ -1,0 +1,13 @@
+error: `Database` can only be derived for structs
+ --> tests/ui/database_errors.rs:3:10
+  |
+3 | #[derive(Database)]
+  |          ^^^^^^^^
+  |
+  = note: this error originates in the derive macro `Database` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `Database` needs named fields
+ --> tests/ui/database_errors.rs:9:19
+  |
+9 | struct TupleStruct(u32);
+  |                   ^^^^^
