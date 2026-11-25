@@ -5108,6 +5108,7 @@ dependencies = [
  "stdx",
  "tempfile",
  "tokio",
+ "tracing-subscriber",
  "unicode-width 0.1.14",
  "zi",
  "zi-tui",

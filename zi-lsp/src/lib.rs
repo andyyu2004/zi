@@ -21,7 +21,7 @@ pub use async_lsp::{
 };
 use futures_util::TryFutureExt;
 use futures_util::future::BoxFuture;
-use tokio::io::AsyncWriteExt;
+use tokio::io::AsyncBufReadExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 use tower::ServiceBuilder;
 
@@ -66,14 +66,17 @@ where
     let stdin = child.stdin.take().unwrap();
     let stderr = child.stderr.take().unwrap();
 
+    let name = cmd.to_string_lossy().into_owned();
+
     Ok((server, async move {
-        // write stderr to a file /tmp/zi-lsp-log
         tokio::spawn(async move {
-            let file = tokio::fs::File::create("/tmp/zi-lsp-log").await?;
-            let mut writer = tokio::io::BufWriter::new(file);
-            let mut reader = tokio::io::BufReader::new(stderr.compat());
-            tokio::io::copy(&mut reader, &mut writer).await?;
-            writer.flush().await?;
+            let mut lines = tokio::io::BufReader::new(stderr.compat()).lines();
+            while let Some(line) = lines.next_line().await? {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                tracing::debug!(target: "zi_lsp::stderr", server = %name, "{line}");
+            }
             Ok::<_, io::Error>(())
         });
 

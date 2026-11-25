@@ -73,6 +73,7 @@ tokio-stream = "0.1.15"
 tokio-util = { version = "0.7.10", default-features = false }
 tree-sitter = { version = "0.27.0" }
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 ustr = "1"
 url = "2"
 wit-bindgen = "0.34.0"

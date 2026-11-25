@@ -145,6 +145,11 @@ impl IntoFuture for TestContextBuilder {
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(tracing_subscriber::EnvFilter::from_env("ZI_LOG"))
+                .with_test_writer()
+                .try_init();
+
             let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, self.size);
             editor.set_mode(zi::Mode::Insert);
             editor.edit(zi::Active, &zi::Deltas::insert_at(0, &self.scratch_content)).unwrap();

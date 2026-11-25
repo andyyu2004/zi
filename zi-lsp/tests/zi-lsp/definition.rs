@@ -84,7 +84,10 @@ async fn lsp_definition_cross_file() -> zi::Result<()> {
         editor
             .language_config_mut()
             .add_language(zi::filetype!(go), LanguageConfig::new(["gopls".into()]))
-            .add_language_service("gopls", LanguageServerConfig::new("gopls", []));
+            .add_language_service(
+                "gopls",
+                LanguageServerConfig::new("gopls", ["-rpc.trace".into()]),
+            );
     })
     .await;
 
