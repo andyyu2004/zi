@@ -58,6 +58,9 @@ jobs:
           key: ${{ hashFiles('flake.lock') }}
           save-if: ${{ github.event_name != 'merge_group' }}
 
+      - name: Format
+        run: nix develop -c cargo fmt --all --check
+
       - name: Clippy
         run: nix develop -c cargo clippy --workspace --exclude 'plugin-*' --all-targets -- -D warnings
 
