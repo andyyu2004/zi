@@ -1,0 +1,5 @@
+error[E0594]: cannot assign to `*v.buffer`, which is behind a `&` reference
+  --> tests/ui/assign_key_through_mut.rs:28:5
+   |
+28 |     *v.buffer = b;
+   |     ^^^^^^^^^^^^^ cannot assign

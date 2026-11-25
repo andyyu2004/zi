@@ -1,0 +1,28 @@
+error[E0277]: `Db` has no `Relation<User>`
+  --> tests/ui/missing_relation.rs:16:21
+   |
+16 |     posts: Relation<Post>,
+   |                     ^^^^ this needs `Db` to have a `Relation<User>`
+   |
+   = note: a foreign key references `User`, so the database needs a `Relation<User>` field
+help: the trait `HasRelation<User>` is not implemented for `Db`
+      but trait `HasRelation<Post>` is implemented for it
+  --> tests/ui/missing_relation.rs:14:10
+   |
+14 | #[derive(rel::Database, Default)]
+   |          ^^^^^^^^^^^^^
+   = help: for that trait implementation, expected `Post`, found `User`
+note: required for `Post` to implement `References<Db>`
+  --> tests/ui/missing_relation.rs:9:8
+   |
+ 8 | #[derive(Relation)]
+   |          -------- type parameter would need to implement `References<Db>`
+ 9 | struct Post {
+   |        ^^^^
+   = help: consider manually implementing `References<Db>` to avoid undesired bounds
+note: required by a bound in `assert_references`
+  --> tests/ui/missing_relation.rs:14:10
+   |
+14 | #[derive(rel::Database, Default)]
+   |          ^^^^^^^^^^^^^ required by this bound in `assert_references`
+   = note: this error originates in the derive macro `rel::Database` (in Nightly builds, run with -Z macro-backtrace for more info)

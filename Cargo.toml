@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "fuzz",
     "plugins/*",
+    "rel",
+    "rel-derive",
     "stdx",
     "zi",
     "zi-core",
@@ -65,6 +67,12 @@ tempfile = "3.10"
 regex = "1"
 regex-cursor = { version = "0.1.4", default-features = false, features = ["perf-inline"] }
 rustc-hash = "2"
+rel = { path = "rel" }
+rel-derive = { path = "rel-derive" }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+trybuild = "1.0.125"
 slotmap = "1.0.7"
 smol_str = "0.3"
 smallvec = "2.0.0-alpha.6"

@@ -1,0 +1,5 @@
+error: a `set_null` foreign key can't be in a unique index: nulling it on delete could break the index
+  --> tests/ui/set_null_unique.rs:12:5
+   |
+12 |     group: Option<Id<Group>>,
+   |     ^^^^^
