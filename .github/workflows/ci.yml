@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Whether each job has passed on this source and dev shell: its store path (flake.nix ci)
+  # Whether each job has passed on this source and CI shell: its store path (flake.nix ci)
   # is in the Nix cache. Pushes to master run every job, as they save the Rust cache that
   # pull requests start from. A skipped job still satisfies the ruleset's required check.
   plan:
@@ -54,18 +54,18 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          cmd-format: nix develop -c {0}
+          cmd-format: nix develop .#ci -c {0}
           key: ${{ hashFiles('flake.lock') }}
           save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: Format
-        run: nix develop -c cargo fmt --all --check
+        run: nix develop .#ci -c cargo fmt --all --check
 
       - name: Clippy
-        run: nix develop -c cargo clippy --workspace --exclude 'plugin-*' --all-targets -- -D warnings
+        run: nix develop .#ci -c cargo clippy --workspace --exclude 'plugin-*' --all-targets -- -D warnings
 
       - name: Clippy (plugins)
-        run: nix develop -c cargo clippy -p 'plugin-*' --target wasm32-unknown-unknown --all-targets -- -D warnings
+        run: nix develop .#ci -c cargo clippy -p 'plugin-*' --target wasm32-unknown-unknown --all-targets -- -D warnings
 
       - name: Record the pass
         env:
@@ -84,39 +84,39 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Read only: the dev shell is pushed explicitly below
+      # Read only: the CI shell is pushed explicitly below
       - uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
             extra-substituters = https://nix-cache.andyyu.io
             extra-trusted-public-keys = nix-cache.andyyu.io-1:+SGDInebCOChTtOfCeGffBw3qjb73Sq/FSDIj4K+CbU=
 
-      - name: Build dev shell
-        run: nix develop --profile "$RUNNER_TEMP/dev-shell" -c true
+      - name: Build CI shell
+        run: nix develop .#ci --profile "$RUNNER_TEMP/ci-shell" -c true
 
-      - name: Push dev shell to the Nix cache
+      - name: Push CI shell to the Nix cache
         if: github.event_name != 'merge_group'
         env:
           NIKS3_AUTH_TOKEN: ${{ secrets.NIKS3_AUTH_TOKEN }}
-        run: .github/niks3-push.sh "$(readlink -f "$RUNNER_TEMP/dev-shell")"
+        run: .github/niks3-push.sh "$(readlink -f "$RUNNER_TEMP/ci-shell")"
 
       - uses: Swatinem/rust-cache@v2
         with:
           # Key on the nix toolchain; outside the shell rustup installs rust-toolchain.toml first.
-          cmd-format: nix develop -c {0}
+          cmd-format: nix develop .#ci -c {0}
           key: ${{ hashFiles('flake.lock') }}
           save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: Build tests
-        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run
+        run: nix develop .#ci -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci --no-run
 
       - name: Test
-        run: nix develop -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci
+        run: nix develop .#ci -c cargo nextest run --workspace --exclude 'plugin-*' --profile ci
         env:
           ZI_LOG: zi=debug,zi_lsp=debug
 
       - name: Doctests
-        run: nix develop -c cargo test --workspace --exclude 'plugin-*' --doc
+        run: nix develop .#ci -c cargo test --workspace --exclude 'plugin-*' --doc
 
       - name: Record the pass
         env:

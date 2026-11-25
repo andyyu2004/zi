@@ -309,23 +309,42 @@
               '';
             };
 
-        devShell = pkgs.mkShell {
-          packages = [
-            rust
-            pkgs.cargo-nextest
-            pkgs.cargo-component
-            pkgs.neovim
-            pkgs.gopls
-            pkgs.go
-            pkgs.tree-sitter
-            pkgs.gnumake
-            pkgs.just
-          ];
+        # What builds, lints and tests need. CI runs in this shell; the dev shell adds to it.
+        shell =
+          { rust, extraPackages }:
+          pkgs.mkShell {
+            packages = [
+              rust
+              pkgs.cargo-nextest
+              pkgs.cargo-component
+              pkgs.neovim
+              pkgs.gopls
+              pkgs.go
+              pkgs.tree-sitter
+              pkgs.gnumake
+              # wasmtime-c-api's build script runs cmake.
+              pkgs.cmake
+            ]
+            ++ extraPackages;
 
-          ZI_NIX_GRAMMAR_DIR = grammars;
-          shellHook = ''
-            export ZI_GRAMMAR_DIR="''${ZI_GRAMMAR_DIR:-$ZI_NIX_GRAMMAR_DIR}"
-          '';
+            ZI_NIX_GRAMMAR_DIR = grammars;
+            shellHook = ''
+              export ZI_GRAMMAR_DIR="''${ZI_GRAMMAR_DIR:-$ZI_NIX_GRAMMAR_DIR}"
+            '';
+          };
+
+        ciShell = shell {
+          inherit rust;
+          extraPackages = [ ];
+        };
+
+        devShell = shell {
+          # llvm-tools from the toolchain itself, so they match rustc's LLVM for coverage.
+          rust = rust.override { extensions = [ "llvm-tools-preview" ]; };
+          extraPackages = [
+            pkgs.just
+            pkgs.cargo-llvm-cov
+          ];
         };
 
         fs = pkgs.lib.fileset;
@@ -347,14 +366,17 @@
           plugin-test = plugins.testPlugins;
         };
 
-        devShells.default = devShell;
+        devShells = {
+          default = devShell;
+          ci = ciShell;
+        };
 
-        # A store path per CI job, named for the source and the dev shell it runs in. The job
+        # A store path per CI job, named for the source and the CI shell it runs in. The job
         # pushes it to the Nix cache once it passes, and is skipped when it's there.
         ci = pkgs.lib.genAttrs ciJobs (
           job:
           builtins.toFile "zi-ci-${job}" (
-            builtins.unsafeDiscardStringContext "${source}\n${devShell.drvPath}\n"
+            builtins.unsafeDiscardStringContext "${source}\n${ciShell.drvPath}\n"
           )
         );
       }

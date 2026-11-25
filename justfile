@@ -44,6 +44,10 @@ test *FLAGS:
     cargo nextest run --workspace --exclude 'plugin-*' {{FLAGS}}
     cargo test --workspace --exclude 'plugin-*' --doc
 
+# Test coverage, e.g. `just coverage -p zi-text --html --open`. Needs the dev shell.
+coverage +FLAGS="--workspace --exclude plugin-*":
+    cargo llvm-cov nextest {{FLAGS}}
+
 run *FLAGS:
     @if [ -d runtime/plugins ]; then export ZI_PLUGIN_DIR="${ZI_PLUGIN_DIR:-$PWD/runtime/plugins}"; fi; \
     RUST_BACKTRACE=1 cargo run -p zi-term -- {{FLAGS}}
