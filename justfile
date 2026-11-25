@@ -2,10 +2,9 @@ wasm-target := "wasm32-unknown-unknown"
 
 build-plugins:
     @echo "building plugins"
-    rustup target add {{wasm-target}}
     @for dir in ./plugins/*/; do cargo -Zunstable-options -C $dir component build --target {{wasm-target}} --release; done
     mkdir -p runtime/plugins
-    cp target/{{wasm-target}}/release/*.wasm runtime/plugins
+    cp ${CARGO_TARGET_DIR:-target}/{{wasm-target}}/release/*.wasm runtime/plugins
 
 test *FLAGS:
     cargo nextest run --workspace --exclude 'plugin-*' {{FLAGS}}
