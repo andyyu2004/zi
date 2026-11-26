@@ -877,8 +877,8 @@ impl Editor {
             self.count = None;
         }
 
-        if let Some(new) = self.count.filter(|_| self.count != count) {
-            self.dot.save_count(mode, new);
+        if self.count.is_some() && self.count != count {
+            self.dot.save_count(mode, self.pending_count().expect("count is set"));
         }
 
         if mode == Mode::Normal && mode!(self) == Mode::Normal {
@@ -895,7 +895,31 @@ impl Editor {
     }
 
     pub(crate) fn take_count(&mut self) -> Option<usize> {
-        self.count.take()
+        let count = self.pending_count();
+        self.count = None;
+        if let State::OperatorPending(state) = &mut self.state {
+            state.count = None;
+        }
+        count
+    }
+
+    /// The count typed so far, multiplied by the count typed before a pending operator (`2d3w` is 6)
+    fn pending_count(&self) -> Option<usize> {
+        let operator_count = match &self.state {
+            State::OperatorPending(state) => state.count,
+            State::Normal(_)
+            | State::Insert(_)
+            | State::Command(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::ReplacePending => None,
+        };
+
+        match (operator_count, self.count) {
+            (Some(operator_count), Some(count)) => Some(operator_count.saturating_mul(count)),
+            (operator_count, count) => operator_count.or(count),
+        }
     }
 
     pub(crate) fn start_find(&mut self, kind: FindKind) {
@@ -1022,6 +1046,9 @@ impl Editor {
 
         self.dispatch(event::WillChangeMode { from, to });
         self.state = State::new(self, to);
+        if let State::OperatorPending(state) = &mut self.state {
+            state.count = self.count.take();
+        }
 
         if !self.dot.is_replaying() {
             if Dot::should_start_recording(from, to) {
@@ -1587,7 +1614,7 @@ impl Editor {
         // text objects only have meaning in operator pending mode
         let State::OperatorPending(state) = &self.state else { return Ok(()) };
 
-        let &OperatorPendingState { operator } = state;
+        let &OperatorPendingState { operator, count: _ } = state;
 
         let text = self.db.buffers[buf].text();
         let cursor = self[view].cursor();
