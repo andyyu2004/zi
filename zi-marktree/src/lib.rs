@@ -172,7 +172,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
         self.replace(range, Replacement::Gap(by));
-        self.tree.assert_invariants();
+        self.assert_invariants();
     }
 
     /// Returns an iterator over the items whose start point is in the given range.
@@ -306,30 +306,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     #[track_caller]
     pub fn assert_invariants(&self) {
         #[cfg(debug_assertions)]
-        {
-            // Ensure that the summaries are all correct by resummarizing the tree.
-            #[expect(unused, reason = "kept for debugging summaries")]
-            #[track_caller]
-            fn summarize<const N: usize>(node: &Arc<Node<ARITY, Leaf<N>>>) -> Summary {
-                let summary = match node.as_ref() {
-                    Node::Internal(inode) => inode
-                        .children()
-                        .iter()
-                        .fold(Summary::default(), |summary, child| summary + summarize(child)),
-                    Node::Leaf(leaf) => leaf.as_slice().summarize(),
-                };
-
-                assert_eq!(node.summary(), &summary);
-                summary
-            }
-
-            // Too slow, uncomment for debugging only.
-            // summarize(&self.tree.root());
-            // self.tree.assert_invariants();
-            // for &id in &self.tree.summary().ids {
-            //     self.get(id).expect("id in summary but not found");
-            // }
-        }
+        self.tree.assert_invariants();
     }
 }
 
