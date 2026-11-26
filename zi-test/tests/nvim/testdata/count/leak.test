@@ -1,0 +1,29 @@
+==== count cancelled by escaping operator-pending mode
+a
+b
+c
+d
+e
+f
+----
+3d<ESC>j
+
+==== count cancelled by escaping visual mode
+a
+b
+c
+d
+e
+f
+----
+v3<ESC>j
+
+==== count is not applied to the cursor move of `a`
+abcdef
+----
+3a<ESC>l
+
+==== count is not applied to the cursor move when leaving insert mode
+abcdef
+----
+lll3i<ESC>h

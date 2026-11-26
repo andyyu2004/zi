@@ -1,0 +1,30 @@
+==== count before a motion
+a
+b
+c
+d
+e
+f
+----
+3j2kj
+
+==== count before an operator
+a b c d e f
+----
+3dwdw
+
+==== count after an operator
+a b c d e f
+----
+d3wdw
+
+==== count before a linewise operator
+a
+b
+c
+d
+e
+f
+----
+2ddjdd
+
