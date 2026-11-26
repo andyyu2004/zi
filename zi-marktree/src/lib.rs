@@ -451,16 +451,15 @@ impl<Id: MarkTreeId, const N: usize> Drop for Inserter<'_, Id, N> {
         let at = self.builder.at;
         let n = self.tree.len();
 
+        assert!(
+            at + self.builder.width <= n,
+            "range {at}..{} out of bounds of marktree of length {n}",
+            at + self.builder.width,
+        );
+
         if self.tree.tree.summary().ids.contains(id) {
             self.tree.delete(id).unwrap();
         }
-
-        assert!(
-            at + self.builder.width <= self.tree.len(),
-            "range {at}..{} out of bounds of marktree of length {}",
-            self.builder.at + self.builder.width,
-            self.tree.len(),
-        );
 
         self.tree
             .replace(at..at, Replacement::Keys(smallvec![Key::new(id, self.builder.start_flags)]));
