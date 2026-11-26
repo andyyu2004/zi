@@ -37,5 +37,6 @@ zi is a vim-like terminal editor in Rust. Cargo workspace, Rust beta toolchain.
 ## Issues and merging
 
 - Bugs and design work are tracked in the private repo `zi-editor/zi-tracking` (`gh issue list -R zi-editor/zi-tracking`). A PR that finishes one says `Fixes zi-editor/zi-tracking#N` in its description.
+- When a bug isn't clear from a sentence (it takes a sequence of keys or calls to hit, or the wrong result is subtle), show it with a worked example: the starting text and cursor, each key or call in order, and what the buffer, cursor or output is at each step, before and after the fix. Put it in the PR description, or in the linked tracking issue with an explicit pointer from the PR ("see the example in zi-editor/zi-tracking#N"). Wrap key names in backticks: GitHub hides a bare `<Tab>` as an HTML tag.
 - After pushing to a PR, watch its CI (`gh pr checks <N> --watch`, in the background) and fix what fails. A PR isn't done until CI passes.
 - `master` only takes pull requests, through the merge queue, and needs CI's `test` check. Repo settings and the ruleset are managed in terraform (`~/.dotfiles/terraform/github/zi.tf`), not the GitHub UI.
