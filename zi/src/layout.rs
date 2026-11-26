@@ -150,7 +150,8 @@ impl Layer {
         direction: Direction,
         constraint: Constraint,
     ) {
-        self.root.split(view, new, direction, constraint);
+        let found = self.root.split(view, new, direction, constraint);
+        assert!(found, "cannot split a view that doesn't exist in layer");
         self.active = new;
     }
 
@@ -217,10 +218,15 @@ impl Node {
         }
     }
 
-    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction, constraint: Constraint) {
+    fn split(
+        &mut self,
+        view: ViewId,
+        new: ViewId,
+        direction: Direction,
+        constraint: Constraint,
+    ) -> bool {
         match self {
-            Node::View(v) => {
-                assert_eq!(*v, view);
+            Node::View(v) if *v == view => {
                 let children = match direction {
                     Direction::Left | Direction::Up => {
                         [(constraint, Node::View(new)), (Constraint::Fill(1), Node::View(view))]
@@ -231,8 +237,10 @@ impl Node {
                 };
 
                 *self = Node::Container(Container::new(direction, children));
+                true
             }
             Node::Container(container) => container.split(view, new, direction, constraint),
+            Node::View(_) => false,
         }
     }
 
@@ -316,7 +324,7 @@ impl Container {
         Layout::new(self.direction, self.constraints.clone())
     }
 
-    fn insert(&mut self, idx: usize, new: ViewId, direction: Direction) {
+    fn insert(&mut self, idx: usize, new: ViewId, direction: Direction, constraint: Constraint) {
         assert_eq!(
             self.direction,
             direction.into(),
@@ -324,7 +332,6 @@ impl Container {
         );
 
         let node = Node::View(new);
-        let constraint = Constraint::Fill(1);
         match direction {
             Direction::Left | Direction::Up => {
                 self.children.insert(idx, node);
@@ -344,24 +351,32 @@ impl Container {
         assert_eq!(self.children.len(), self.constraints.len());
     }
 
-    fn split(&mut self, view: ViewId, new: ViewId, direction: Direction, constraint: Constraint) {
-        // need manual loop to avoid borrowing issues
+    fn split(
+        &mut self,
+        view: ViewId,
+        new: ViewId,
+        direction: Direction,
+        constraint: Constraint,
+    ) -> bool {
         for i in 0..self.children.len() {
             let child = &mut self.children[i];
             match child {
                 Node::View(v) if *v == view => {
                     if self.direction == direction.into() {
-                        // if the direction is the same, we can extend the container
-                        self.insert(i, new, direction);
-                    } else {
-                        // otherwise, we create a new container
-                        child.split(view, new, direction, constraint);
+                        self.insert(i, new, direction, constraint);
+                        return true;
+                    }
+                    return child.split(view, new, direction, constraint);
+                }
+                Node::Container(c) => {
+                    if c.split(view, new, direction, constraint) {
+                        return true;
                     }
                 }
-                Node::Container(c) => c.split(view, new, direction, constraint),
                 Node::View(_) => {}
             }
         }
+        false
     }
 
     fn views(&self) -> impl Iterator<Item = ViewId> + '_ {
