@@ -494,7 +494,7 @@ impl Editor {
         path: impl AsRef<Path>,
         open_flags: OpenFlags,
     ) -> io::Result<impl Future<Output = Result<BufferId>> + 'static> {
-        let theme = self.theme().clone();
+        let theme = self.theme();
         let mut path = path.as_ref().to_path_buf();
         Self::check_open(&mut path, open_flags)?;
 
@@ -1462,7 +1462,7 @@ impl Editor {
     }
 
     pub fn theme(&self) -> Setting<Theme> {
-        self.settings().theme.clone()
+        self.settings().theme.share()
     }
 
     pub fn visual_op(&mut self, operator: Operator, selector: impl Selector<ViewId> + Copy) {

@@ -104,6 +104,22 @@ async fn test_split() {
 }
 
 #[tokio::test]
+async fn split_copies_view_settings() {
+    let cx = new("").await;
+    cx.with(|editor| {
+        let left = editor.view(zi::Active).id();
+        editor.view(left).settings().line_number_style.write(zi::LineNumberStyle::Relative);
+        let right = editor.split(zi::Active, Right, Fill(1));
+        assert_eq!(editor.view(right).settings().line_number_style, zi::LineNumberStyle::Relative);
+
+        editor.view(right).settings().line_number_style.write(zi::LineNumberStyle::None);
+        assert_eq!(editor.view(left).settings().line_number_style, zi::LineNumberStyle::Relative);
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
 #[expect(clippy::many_single_char_names, reason = "views are named as in the layout diagram")]
 async fn test_directional_focus() {
     let cx = new("").await;
