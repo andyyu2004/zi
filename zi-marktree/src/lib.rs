@@ -235,12 +235,48 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Inserter { tree: self, id, builder: MarkBuilder::new(at) }
     }
 
-    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N>
-    where
-        Self: Sized,
-    {
-        let ids = self.range(range).map(|(_, id)| id).collect::<Vec<_>>().into_iter();
-        Drain { tree: self, ids }
+    /// Removes the items whose start point is in the given range (the same items `range` returns)
+    /// and returns them.
+    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N> {
+        /// Removes every key, start or end, belonging to `ids` from the leaves that overlap `range`.
+        fn remove<const N: usize>(
+            node: &mut Arc<Node<ARITY, Leaf<N>>>,
+            mut offset: usize,
+            range: &Range<usize>,
+            ids: &SetU64,
+        ) {
+            match Arc::make_mut(node) {
+                Node::Internal(inode) => {
+                    for i in 0..inode.children().len() {
+                        let bytes = inode.child(i).summary().bytes;
+                        if (offset..offset + bytes).intersects(range) {
+                            inode.with_child_mut(i, |child| remove(child, offset, range, ids));
+                        }
+                        offset += bytes;
+                    }
+                }
+                Node::Leaf(leaf) => leaf.value.remove(&mut leaf.summary, ids),
+            }
+        }
+
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        let items = self.range(start..end).collect::<Vec<_>>();
+        if !items.is_empty() {
+            let ids = items.iter().map(|&(_, id)| id.into()).collect::<SetU64>();
+            // One pass over the leaves in the range removes both keys of point marks and of range
+            // marks that end inside the range.
+            remove(self.tree.root_mut(), 0, &(start..end), &ids);
+            // A range mark that ends past the range still has its end key in a later leaf, so the
+            // id is still in the tree. Only those marks fall back to a per-id delete.
+            for id in ids {
+                if self.tree.summary().ids.contains(id) {
+                    self.delete(id).unwrap();
+                }
+            }
+            self.assert_invariants();
+        }
+
+        Drain { items: items.into_iter(), _tree: PhantomData }
     }
 
     pub fn delete(&mut self, id: impl Into<Id>) -> Option<Range<usize>> {
@@ -388,16 +424,8 @@ impl Replacement {
 }
 
 pub struct Drain<'a, Id: MarkTreeId, const N: usize> {
-    tree: &'a mut MarkTree<Id, N>,
-    ids: std::vec::IntoIter<Id>,
-}
-
-impl<Id: MarkTreeId, const N: usize> Drop for Drain<'_, Id, N> {
-    fn drop(&mut self) {
-        for id in self.ids.by_ref() {
-            self.tree.delete(id).unwrap();
-        }
-    }
+    items: std::vec::IntoIter<(Range<usize>, Id)>,
+    _tree: PhantomData<&'a mut MarkTree<Id, N>>,
 }
 
 impl<Id: MarkTreeId, const N: usize> Iterator for Drain<'_, Id, N> {
@@ -405,15 +433,16 @@ impl<Id: MarkTreeId, const N: usize> Iterator for Drain<'_, Id, N> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.ids.next().map(|id| {
-            let offset = self
-                .tree
-                .delete(id)
-                .expect("id was in the tree, and we're still holding &mut Tree");
-            (offset, id)
-        })
+        self.items.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.items.size_hint()
     }
 }
+
+impl<Id: MarkTreeId, const N: usize> ExactSizeIterator for Drain<'_, Id, N> {}
 
 #[derive(Clone, PartialEq, Eq)]
 struct Extent {
@@ -507,6 +536,15 @@ impl<const N: usize> Leaf<N> {
         }
 
         None
+    }
+
+    fn remove(&mut self, summary: &mut Summary, ids: &SetU64) {
+        let mut builder = ExtentBuilder::<N>::default();
+        for extent in self.extents.take() {
+            builder.push(extent.len(), extent.keys().filter(|key| !ids.contains(key.id())));
+        }
+        self.extents = builder.finish().into_iter().collect();
+        *summary = self.summarize();
     }
 
     fn shift(
