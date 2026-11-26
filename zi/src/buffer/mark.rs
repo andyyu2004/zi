@@ -106,31 +106,21 @@ impl PerNs {
     }
 }
 
-/// We're packing the 64bit `slotmap::KeyData` into 32 bits.
-/// Usually the upper 32-bits are for the version and the lower 32-bits are for the index.
-/// In practice, 12-bits should be enough for the version, and 20-bits for the index.
 impl MarkTreeId for MarkId {}
 
-impl From<u32> for MarkId {
+impl From<u64> for MarkId {
     #[inline]
-    fn from(raw: u32) -> MarkId {
-        let version = raw >> 20;
-        let index = raw << 12 >> 12;
-        MarkId::from(KeyData::from_ffi(u64::from(version) << 32 | u64::from(index)))
+    fn from(raw: u64) -> MarkId {
+        MarkId::from(KeyData::from_ffi(raw))
     }
 }
 
-impl From<MarkId> for u32 {
+impl From<MarkId> for u64 {
     #[inline]
-    fn from(id: MarkId) -> u32 {
+    fn from(id: MarkId) -> u64 {
         let raw = id.data().as_ffi();
-        let version = raw >> 32;
-        let index = raw << 32 >> 32;
-
-        assert!(version < 1 << 12, "version is too large");
-        assert!(index < 1 << 20, "index is too large");
-
-        (version << 20 | index) as u32
+        assert!(raw <= zi_marktree::MAX_ID, "mark id {id:?} does not fit in a mark tree id");
+        raw
     }
 }
 

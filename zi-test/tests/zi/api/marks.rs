@@ -33,3 +33,21 @@ async fn marks() {
 
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn create_and_delete_mark_many_times() {
+    let cx = new("abc\ndef\n").await;
+
+    cx.with(|editor| {
+        let ns = editor.default_namespace();
+        for _ in 0..3000 {
+            let id = editor.create_mark(zi::Active, ns, zi::Mark::builder(2));
+            check_marks_eq(editor.marks(zi::Active, ..), [(ns, 2..2, id)]);
+            editor.delete_mark(zi::Active, ns, id);
+            check_marks_eq(editor.marks(zi::Active, ..), []);
+        }
+    })
+    .await;
+
+    cx.cleanup().await;
+}

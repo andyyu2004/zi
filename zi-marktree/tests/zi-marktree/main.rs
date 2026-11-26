@@ -13,17 +13,16 @@ use zi_marktree::{Bias, Inserter, MarkBuilder, MarkTree, MarkTreeId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Id(usize);
 
-impl From<Id> for u32 {
+impl From<Id> for u64 {
     #[inline]
-    fn from(id: Id) -> u32 {
-        debug_assert!(id.0 < u32::MAX as usize, "id.0 = {}", id.0);
-        id.0 as u32
+    fn from(id: Id) -> u64 {
+        id.0 as u64
     }
 }
 
-impl From<u32> for Id {
+impl From<u64> for Id {
     #[inline]
-    fn from(id: u32) -> Id {
+    fn from(id: u64) -> Id {
         Id(id as usize)
     }
 }
@@ -101,10 +100,10 @@ fn marktree_range_iter() {
 }
 
 #[test]
-#[should_panic(expected = "id.0 = 281474976710656")]
+#[should_panic(expected = "does not fit in 61 bits")]
 fn marktree_id_too_large() {
     let mut tree = new(10);
-    tree.insert(0, Id(1 << 48));
+    tree.insert(0, Id(1 << 61));
 }
 
 #[test]
