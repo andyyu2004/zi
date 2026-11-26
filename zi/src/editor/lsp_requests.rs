@@ -345,7 +345,7 @@ impl Editor {
         let buf = selector.select(self);
 
         let buf_version = self.db.buffers[buf].version();
-        tracing::info!(?buf, buf_version, "requesting semantic tokens");
+        tracing::debug!(?buf, buf_version, "requesting semantic tokens");
 
         let client = self.client();
 

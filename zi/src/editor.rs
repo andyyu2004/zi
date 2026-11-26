@@ -605,7 +605,7 @@ impl Editor {
                 })
                 .await?;
 
-            tracing::info!(?path, %ft, time = ?start.elapsed(), "opened buffer");
+            tracing::debug!(?path, %ft, time = ?start.elapsed(), "opened buffer");
             Ok(buf)
         })
     }
@@ -736,7 +736,7 @@ impl Editor {
             select! {
                 biased;
                 Some(event) = events.next() => self.handle_input(event?),
-                () = notify_redraw.notified() => tracing::debug!("redrawing due to request"),
+                () = notify_redraw.notified() => tracing::trace!("redrawing due to request"),
                 f = callbacks.select_next_some() => match f {
                     Ok(f) => if let Err(err) = f(self) {
                         tracing::error!(error = &*err, "task callback failed");
@@ -1921,7 +1921,7 @@ impl Editor {
                 .await;
 
             if !flags.contains(BufferFlags::DIRTY) && !save_flags.contains(SaveFlags::FORCE) {
-                tracing::info!("buffer is not dirty, skipping write");
+                tracing::debug!("buffer is not dirty, skipping write");
                 return Ok(());
             }
 
@@ -1933,7 +1933,7 @@ impl Editor {
             writer.flush().await?;
             file.flush().await?;
 
-            tracing::info!("buffer written to disk");
+            tracing::debug!("buffer written to disk");
 
             client
                 .with(move |editor| {
