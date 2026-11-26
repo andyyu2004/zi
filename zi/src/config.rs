@@ -4,12 +4,18 @@ use std::ops::Deref;
 use tokio::sync::watch;
 
 /// A setting that can be read and written to via immutable references.
-/// This can be cloned to create multiple references to the same underlying setting.
+/// Cloning makes an independent copy holding the current value; use [`Setting::share`] for
+/// another handle to the same value.
 // TODO find a more generic name as this isn't just used for settings
-#[derive(Clone)]
 pub struct Setting<T> {
     rx: watch::Receiver<T>,
     tx: watch::Sender<T>,
+}
+
+impl<T: Clone> Clone for Setting<T> {
+    fn clone(&self) -> Self {
+        Self::new(self.read().clone())
+    }
 }
 
 impl<T: Default> Default for Setting<T> {
@@ -44,6 +50,11 @@ impl<T> Setting<T> {
         Self { rx, tx }
     }
 
+    /// Returns another handle to the same value: a write through either is seen by both.
+    pub fn share(&self) -> Self {
+        Self { rx: self.rx.clone(), tx: self.tx.clone() }
+    }
+
     #[inline]
     pub fn read(&self) -> impl Deref<Target = T> + '_ {
         self.rx.borrow()
@@ -52,5 +63,29 @@ impl<T> Setting<T> {
     #[inline]
     pub fn write(&self, value: T) {
         self.tx.send(value).expect("config receiver should not be dropped");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Setting;
+
+    #[test]
+    fn clone_is_independent() {
+        let a = Setting::new(1);
+        let b = a.clone();
+        b.write(2);
+        assert_eq!(a, 1);
+        assert_eq!(b, 2);
+    }
+
+    #[test]
+    fn share_is_shared() {
+        let a = Setting::new(1);
+        let b = a.share();
+        b.write(2);
+        assert_eq!(a, 2);
+        a.write(3);
+        assert_eq!(b, 3);
     }
 }
