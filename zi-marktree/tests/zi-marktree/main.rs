@@ -721,8 +721,10 @@ proptest::proptest! {
         for action in at {
             match action {
                 Action::Insert { at, width, id, start_bias, end_bias } if at + width <= len => {
-                    insertions.insert(id, Mark { range: at..at + width, start_bias, end_bias });
                     tree.insert(at, id).width(width).start_bias(start_bias).end_bias(end_bias);
+                    // A point mark has a single key, so both ends move with the start bias.
+                    let end_bias = if width == 0 { start_bias } else { end_bias };
+                    insertions.insert(id, Mark { range: at..at + width, start_bias, end_bias });
                 }
                 Action::Delete(id) => {
                     assert_eq!(tree.delete(id), insertions.remove(&id).map(|mark| mark.range));
