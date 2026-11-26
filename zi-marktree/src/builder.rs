@@ -6,8 +6,10 @@ use arrayvec::ArrayVec;
 use crop::tree::TreeBuilder;
 use tinyset::SetU64;
 
+use crate::extent::Extent;
 use crate::key::{Flags, Key};
-use crate::{Bias, Extent, Inserter, Leaf, MarkTree, MarkTreeId};
+use crate::leaf::Leaf;
+use crate::{Bias, Inserter, MarkTree, MarkTreeId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MarkBuilder {
