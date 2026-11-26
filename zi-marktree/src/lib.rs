@@ -172,7 +172,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
         self.replace(range, Replacement::Gap(by));
-        self.tree.assert_invariants();
+        self.assert_invariants();
     }
 
     /// Returns an iterator over the items whose start point is in the given range.
@@ -323,9 +323,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 summary
             }
 
+            self.tree.assert_invariants();
+
             // Too slow, uncomment for debugging only.
             // summarize(&self.tree.root());
-            // self.tree.assert_invariants();
             // for &id in &self.tree.summary().ids {
             //     self.get(id).expect("id in summary but not found");
             // }
