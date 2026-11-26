@@ -282,7 +282,9 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         }
 
         let (start, end) = match del(root, 0, id) {
+            // A range mark with both keys in one leaf: both deleted in that descent.
             (start, Some(end)) => (start, end),
+            // A range mark whose end key is in a later leaf: descend again for it.
             (start, None) if root.summary().ids.contains(id) => {
                 let (end, _) = del(root, 0, id);
                 (start, end)
