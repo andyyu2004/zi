@@ -113,6 +113,7 @@ interface editor {
     }
 
     resource view {
+        exists: func() -> bool;
         get-buffer: func() -> buffer;
         get-cursor: func() -> point;
         set-cursor: func(pos: point);
@@ -130,6 +131,7 @@ interface editor {
     }
 
     resource buffer {
+        exists: func() -> bool;
         get-file-path: func() -> option<string>;
         get-flags: func() -> buffer-flags;
         len-lines: func() -> u32;

@@ -101,6 +101,11 @@ impl HostState {
 pub type Store = wasmtime::Store<HostState>;
 
 impl api::editor::HostView for HostState {
+    async fn exists(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<bool> {
+        let view = self.view_id(&view)?;
+        Ok(self.client.with(move |editor| editor.has_view(view)).await)
+    }
+
     async fn get_buffer(
         &mut self,
         view: Resource<api::editor::View>,
@@ -219,6 +224,11 @@ impl api::editor::HostView for HostState {
 }
 
 impl api::editor::HostBuffer for HostState {
+    async fn exists(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<bool> {
+        let buf = self.buffer_id(&buf)?;
+        Ok(self.client.with(move |editor| editor.has_buffer(buf)).await)
+    }
+
     async fn get_file_path(
         &mut self,
         buf: Resource<api::editor::Buffer>,
@@ -714,11 +724,18 @@ mod test {
                     assert_eq!(
                         init,
                         InitializeResult {
-                            commands: vec![Command {
-                                name: "foo".into(),
-                                arity: Arity { min: 0, max: 1 },
-                                opts: CommandFlags::RANGE
-                            }]
+                            commands: vec![
+                                Command {
+                                    name: "foo".into(),
+                                    arity: Arity { min: 0, max: 1 },
+                                    opts: CommandFlags::RANGE
+                                },
+                                Command {
+                                    name: "stale-view".into(),
+                                    arity: Arity { min: 0, max: 0 },
+                                    opts: CommandFlags::empty()
+                                },
+                            ]
                         }
                     );
                     let handler = plugin.zi_api_command().handler();
@@ -732,6 +749,37 @@ mod test {
                     lifecycle.call_shutdown(&mut store).await?;
                 }
 
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn using_a_closed_view_traps_the_call() -> anyhow::Result<()> {
+        let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+        let client = editor.client();
+        let engine = engine();
+        let mut store = Store::new(engine, HostState::new(editor.client()));
+
+        let local = LocalSet::new();
+        local.spawn_local(editor.test_run(tasks));
+
+        local
+            .run_until(async move {
+                let plugins = load(engine, &mut store, &["test"]).await?;
+                let plugin = &plugins[0];
+                plugin.zi_api_lifecycle().call_initialize(&mut store).await?;
+
+                let handler = plugin.zi_api_command().handler();
+                let handler_resource = handler.call_constructor(&mut store).await?;
+                let err = handler
+                    .call_exec(&mut store, handler_resource, "stale-view", &[], false)
+                    .await
+                    .expect_err("using a closed view should trap");
+                assert!(format!("{err:?}").contains("no longer exists"), "{err:?}");
+
+                assert_eq!(client.with(|editor| editor.views().count()).await, 1);
                 Ok::<_, anyhow::Error>(())
             })
             .await
