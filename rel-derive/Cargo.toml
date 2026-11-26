@@ -14,5 +14,9 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
 
+[dev-dependencies]
+expect-test = { workspace = true }
+prettyplease = "0.2"
+
 [lints]
 workspace = true

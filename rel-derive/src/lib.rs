@@ -10,13 +10,17 @@ use syn::{
 #[proc_macro_derive(Relation, attributes(index, references, relation))]
 pub fn derive_relation(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    relation(&input).unwrap_or_else(syn::Error::into_compile_error).into()
+    relation(&input, cfg!(feature = "rusqlite"))
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 #[proc_macro_derive(Database)]
 pub fn derive_database(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    database(&input).unwrap_or_else(syn::Error::into_compile_error).into()
+    database(&input, cfg!(feature = "rusqlite"))
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 struct Field {
@@ -131,7 +135,7 @@ fn parse_references(attr: &syn::Attribute, field: usize, ty: &Type) -> syn::Resu
     Ok(Reference { field, parent, on_delete, optional })
 }
 
-fn relation(input: &DeriveInput) -> syn::Result<TokenStream2> {
+fn relation(input: &DeriveInput, with_sqlite: bool) -> syn::Result<TokenStream2> {
     let name = &input.ident;
     let vis = &input.vis;
     if !input.generics.params.is_empty() {
@@ -480,8 +484,7 @@ fn relation(input: &DeriveInput) -> syn::Result<TokenStream2> {
         query_impls.push(quote!(#sig { #body }));
     }
 
-    let sqlite =
-        cfg!(feature = "rusqlite").then(|| sqlite_row(name, &fields, &references, &indexes));
+    let sqlite = with_sqlite.then(|| sqlite_row(name, &fields, &references, &indexes));
 
     Ok(quote! {
         #sqlite
@@ -592,7 +595,7 @@ fn nested_visibility(vis: &Visibility) -> TokenStream2 {
     }
 }
 
-fn database(input: &DeriveInput) -> syn::Result<TokenStream2> {
+fn database(input: &DeriveInput, with_sqlite: bool) -> syn::Result<TokenStream2> {
     let name = &input.ident;
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new(
@@ -614,7 +617,7 @@ fn database(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     }
 
-    let sqlite = cfg!(feature = "rusqlite").then(|| sqlite_database(name, &idents, &rows));
+    let sqlite = with_sqlite.then(|| sqlite_database(name, &idents, &rows));
 
     Ok(quote! {
         // Every relation's foreign keys must point at relations this database has.
@@ -838,3 +841,6 @@ fn sqlite_database(name: &Ident, fields: &[Ident], rows: &[Type]) -> TokenStream
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
