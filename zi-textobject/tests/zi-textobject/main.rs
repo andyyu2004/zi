@@ -1,4 +1,4 @@
-//! Prefer writing a test against nvim in `zi/tests/nvim/testdata`
+//! Prefer writing a test against nvim in `zi-test/tests/nvim/testdata`
 //! This is useful for writing out cases with the debugger.
 use std::ops;
 

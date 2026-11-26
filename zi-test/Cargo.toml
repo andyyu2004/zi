@@ -14,5 +14,26 @@ tokio.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
 
+[dev-dependencies]
+arbitrary = { workspace = true }
+futures-core = { workspace = true }
+tracing = { workspace = true }
+proptest = { workspace = true}
+test-strategy = { workspace = true }
+zi = { workspace = true, features = ["arbitrary", "rand"] }
+zi-nvim = { workspace = true }
+regex = { workspace = true }
+mimalloc = { workspace = true }
+datatest-stable = "0.3"
+tracing-test.workspace = true
+
 [lints]
 workspace = true
+
+[[test]]
+name = "regression"
+harness = false
+
+[[test]]
+name = "nvim"
+harness = false
