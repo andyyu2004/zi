@@ -254,7 +254,7 @@ fn ensure_eq(
 
 fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> {
     // We allow `zi` to have a single additional newline.
-    if vi_lines != &zi_lines[..zi_lines.len().saturating_sub(1)] {
+    if zi_lines.strip_suffix('\n') != Some(vi_lines) {
         ensure!(vi_lines == zi_lines, "vi: {vi_lines:?}\nzi: {zi_lines:?}");
     }
 

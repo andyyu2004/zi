@@ -1,0 +1,19 @@
+==== l and h over multibyte chars
+aé日€b
+----
+llllhhhh
+
+==== count with l and h over multibyte chars
+aé日€b
+----
+2l2l2h2h
+
+==== count past either end of a multibyte line
+aé日€b
+----
+9l9h
+
+==== line ending in a multibyte char
+ab日
+----
+llllh3l

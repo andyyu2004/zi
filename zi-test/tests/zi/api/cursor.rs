@@ -49,6 +49,63 @@ async fn cursor_viewport_coords_tabs() {
 }
 
 #[tokio::test]
+async fn cursor_viewport_coords_multibyte() {
+    let cx = new("aé日b").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        let (x0, y0) = editor.cursor_viewport_coords();
+
+        editor.set_cursor(zi::Active, (0, 3));
+        assert_eq!(editor.cursor_char(), Some('日'));
+        assert_eq!(editor.cursor_viewport_coords(), (x0 + 2, y0));
+
+        editor.set_cursor(zi::Active, (0, 6));
+        assert_eq!(editor.cursor_char(), Some('b'));
+        assert_eq!(editor.cursor_viewport_coords(), (x0 + 4, y0), "日 is two cells wide");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn move_cursor_multibyte_count() {
+    let cx = new("aé日€b").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.move_cursor(zi::Active, Right, 2);
+        assert_eq!(editor.cursor_char(), Some('日'));
+        editor.move_cursor(zi::Active, Right, 2);
+        assert_eq!(editor.cursor_char(), Some('b'));
+        editor.move_cursor(zi::Active, Left, 2);
+        assert_eq!(editor.cursor_char(), Some('日'));
+        editor.move_cursor(zi::Active, Left, 2);
+        assert_eq!(editor.cursor_char(), Some('a'));
+        editor.move_cursor(zi::Active, Right, 10);
+        assert_eq!(editor.cursor_char(), Some('b'));
+        editor.move_cursor(zi::Active, Left, 10);
+        assert_eq!(editor.cursor(zi::Active), (0, 0));
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn set_cursor_mid_code_point() {
+    let cx = new("日本\nabcdef").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 1));
+        assert_eq!(editor.cursor(zi::Active), (0, 0));
+
+        editor.set_cursor(zi::Active, (1, 4));
+        editor.move_cursor(zi::Active, Up, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 3));
+        assert_eq!(editor.cursor_char(), Some('本'));
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
 async fn cursor_viewport_coords_scroll() {
     let cx = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n").await;
     cx.with(|editor| {
