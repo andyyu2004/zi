@@ -202,33 +202,30 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         });
 
         leaves.flat_map(move |(offset, leaf)| {
-            leaf.as_slice()
-                .extents
-                .iter()
-                .scan(offset, move |offset, extent| {
-                    if *offset >= end {
-                        return None;
+            let mut items = SmallVec::<(usize, Option<usize>, u64), 16>::new();
+            let mut at = offset;
+            for extent in leaf.as_slice().extents {
+                if (start..end).contains(&at) {
+                    for key in extent.keys().filter(|key| !key.is_end()) {
+                        items.push((at, (!key.is_range()).then_some(at), key.id()));
                     }
-                    let at = *offset;
-                    *offset += extent.len();
-                    Some((at, extent))
-                })
-                .filter(move |(at, _)| *at >= start)
-                .flat_map(move |(at, extent)| {
-                    extent.keys().filter_map(move |key| {
-                        let flags = key.flags();
-                        if flags.contains(Flags::END) {
-                            return None;
-                        }
-                        let right = if flags.contains(Flags::RANGE) {
-                            self.get_right(key.id())
-                                .expect("we should at least find the current key")
-                        } else {
-                            at
-                        };
-                        Some((at..right, key.id().into()))
-                    })
-                })
+                }
+                for key in extent.keys().filter(|key| key.is_end()) {
+                    if let Some((_, right, _)) =
+                        items.iter_mut().find(|(_, _, item_id)| *item_id == key.id())
+                    {
+                        *right = Some(at);
+                    }
+                }
+                at += extent.len();
+            }
+
+            items.into_iter().map(move |(left, right, id)| {
+                let right = right.unwrap_or_else(|| {
+                    self.get_right(id).expect("we should at least find the current key")
+                });
+                (left..right, id.into())
+            })
         })
     }
 
@@ -821,6 +818,16 @@ mod key {
         pub fn flags(self) -> Flags {
             let flag_bits = self.0 >> Self::ID_BITS;
             Flags::from_bits(flag_bits as u32).unwrap()
+        }
+
+        #[inline]
+        pub fn is_end(self) -> bool {
+            self.flags().contains(Flags::END)
+        }
+
+        #[inline]
+        pub fn is_range(self) -> bool {
+            self.flags().contains(Flags::RANGE)
         }
 
         #[inline]

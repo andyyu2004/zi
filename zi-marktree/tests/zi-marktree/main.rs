@@ -1,7 +1,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::{fmt, iter};
 
@@ -456,6 +456,47 @@ fn marktree_regression_1() {
 }
 
 #[test]
+fn marktree_range_window() {
+    fn check<const N: usize>() {
+        let mut tree = MarkTree::<Id, N>::new(100);
+        tree.insert(5, Id(0)).width(10);
+        tree.insert(20, Id(1)).width(2);
+        tree.insert(21, Id(2));
+        tree.insert(22, Id(3)).width(30);
+        tree.insert(40, Id(4));
+        tree.insert(45, Id(5)).width(5);
+        tree.insert(46, Id(6));
+
+        assert_iter_eq(
+            tree.range(..),
+            [
+                (5..15, Id(0)),
+                (20..22, Id(1)),
+                (21..21, Id(2)),
+                (22..52, Id(3)),
+                (40..40, Id(4)),
+                (45..50, Id(5)),
+                (46..46, Id(6)),
+            ],
+        );
+        assert_iter_eq(tree.range(10..30), [(20..22, Id(1)), (21..21, Id(2)), (22..52, Id(3))]);
+        assert_iter_eq(tree.range(20..21), [(20..22, Id(1))]);
+        assert_iter_eq(tree.range(41..47), [(45..50, Id(5)), (46..46, Id(6))]);
+
+        tree.shift(45..50, 0);
+        let mut collapsed = tree.range(45..46).collect::<Vec<_>>();
+        collapsed.sort_by_key(|&(_, id)| id);
+        assert_iter_eq(collapsed, [(45..45, Id(5)), (45..45, Id(6))]);
+        tree.shift(5..15, 0);
+        assert_iter_eq(tree.range(5..6), [(5..5, Id(0))]);
+        assert_iter_eq(tree.range(..6), [(5..5, Id(0))]);
+    }
+
+    check::<4>();
+    check::<32>();
+}
+
+#[test]
 fn marktree_inserts() {
     check_inserts(100, [1, 2], [2, 2]);
     check_inserts(100, [1], []);
@@ -510,6 +551,73 @@ proptest::proptest! {
                 assert_eq!(tree.get(id), Some(range.clone()));
             }
         }
+    }
+
+    #[test]
+    fn marktree_prop_range(
+        actions in vec(arb_range_action(), 0..100),
+        windows in vec((0..1100usize, 0..200usize), 1..10),
+    ) {
+        check_range::<4>(&actions, &windows);
+        check_range::<32>(&actions, &windows);
+    }
+}
+
+#[derive(Debug, Clone)]
+enum RangeAction {
+    Insert { at: usize, width: usize, id: Id },
+    Delete(Id),
+    Shift { at: usize, by: usize },
+}
+
+fn arb_range_action() -> BoxedStrategy<RangeAction> {
+    prop_oneof![
+        3 => (0..1000usize, 0..20usize, 0..100usize)
+            .prop_map(|(at, width, id)| RangeAction::Insert { at, width, id: Id(id) }),
+        1 => (0..100usize).prop_map(Id).prop_map(RangeAction::Delete),
+        1 => (0..1000usize, 1..5usize).prop_map(|(at, by)| RangeAction::Shift { at, by }),
+    ]
+    .boxed()
+}
+
+fn apply_range_actions<const N: usize>(actions: &[RangeAction]) -> (MarkTree<Id, N>, BTreeSet<Id>) {
+    let mut tree = MarkTree::<Id, N>::new(1000);
+    let mut ids = BTreeSet::new();
+    for action in actions {
+        match *action {
+            RangeAction::Insert { at, width, id } => {
+                if at + width <= tree.len() {
+                    ids.insert(id);
+                    tree.insert(at, id).width(width);
+                }
+            }
+            RangeAction::Delete(id) => {
+                ids.remove(&id);
+                tree.delete(id);
+            }
+            RangeAction::Shift { at, by } => tree.shift(at..at, by),
+        }
+    }
+    (tree, ids)
+}
+
+fn check_range<const N: usize>(actions: &[RangeAction], windows: &[(usize, usize)]) {
+    let (tree, ids) = apply_range_actions::<N>(actions);
+    let (mut reference, _) = apply_range_actions::<N>(actions);
+    let ranges = ids.iter().map(|&id| (reference.delete(id).unwrap(), id)).collect::<Vec<_>>();
+
+    for &(start, len) in windows {
+        let window = start..start + len;
+        let mut expected = ranges
+            .iter()
+            .filter(|(range, _)| window.contains(&range.start))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut actual = tree.range(window).collect::<Vec<_>>();
+        assert!(actual.is_sorted_by_key(|(range, _)| range.start));
+        expected.sort_by_key(|&(ref range, id)| (range.start, id));
+        actual.sort_by_key(|&(ref range, id)| (range.start, id));
+        assert_eq!(actual, expected);
     }
 }
 

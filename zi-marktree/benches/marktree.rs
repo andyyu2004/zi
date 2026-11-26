@@ -82,6 +82,21 @@ fn bench_marktree_get_range<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
 }
 
 #[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_range<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
+    let tree = MarkTree::<Id, LEAF_SIZE>::build(
+        100_000,
+        (0..20_000).map(|i| (Id(i), MarkBuilder::new(i * 4).width(i % 8))),
+    );
+
+    bencher.bench_local(move || {
+        (0..100).for_each(|i| {
+            let start = i * 500;
+            assert_eq!(tree.range(start..start + 2000).count(), 500);
+        });
+    });
+}
+
+#[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_get<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     // FIXME this is really slow if k != 0 for some reason.
     let k = 0;
