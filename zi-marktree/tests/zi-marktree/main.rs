@@ -746,3 +746,23 @@ prop_compose! {
 fn arb_action() -> BoxedStrategy<Action> {
     prop_oneof![arb_action_insert(), (0..1000usize).prop_map(Id).prop_map(Action::Delete)].boxed()
 }
+
+#[test]
+fn marktree_create_delete_stays_small() {
+    let n = 1000;
+    let mut expected = new(n);
+    expected.insert(500, Id(0));
+    let mut tree = new(n);
+    tree.insert(500, Id(0));
+
+    for i in 1..2000 {
+        let at = 1 + (i * 37) % (n - 10);
+        let width = i % 5;
+        tree.insert(at, Id(i)).width(width);
+        assert_eq!(tree.delete(Id(i)), Some(at..at + width));
+    }
+
+    assert_eq!(format!("{tree:?}"), format!("{expected:?}"));
+    assert_iter_eq(tree.range(..), [(500..500, Id(0))]);
+    assert_eq!(tree.get(Id(0)), Some(500..500));
+}

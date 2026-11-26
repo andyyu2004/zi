@@ -482,6 +482,14 @@ impl Extent {
     fn len(&self) -> usize {
         self.length
     }
+
+    fn remove(&mut self, id: u64) -> bool {
+        if self.keys.remove(Key::new(id, Flags::empty()).into_raw()) {
+            return true;
+        }
+        let key = self.keys.iter().find(|&key| Key::from_raw(key).id() == id);
+        key.is_some_and(|key| self.keys.remove(key))
+    }
 }
 
 #[derive(Clone)]
@@ -509,26 +517,16 @@ impl<const N: usize> Leaf<N> {
     fn delete(&mut self, summary: &mut Summary, id: u64) -> Option<usize> {
         let mut offset = 0;
 
-        for extent in &mut self.extents {
-            if extent.keys.remove(Key::new(id, Flags::empty()).into_raw()) {
-                // Fast path if the flags are empty.
+        for i in 0..self.extents.len() {
+            if self.extents[i].remove(id) {
                 assert!(summary.ids.remove(id).is_some());
+                if i > 0 && self.extents[i].keys.is_empty() {
+                    let Extent { length, .. } = self.extents.remove(i);
+                    self.extents[i - 1].length += length;
+                }
                 return Some(offset);
             }
-
-            // Otherwise, we have to linearly scan the map to find the id since the keys contain the flags too.
-            let mut iter = extent.keys.iter();
-            while let Some(key) = iter.next() {
-                let key = Key::from_raw(key);
-                if key.id() == id {
-                    drop(iter);
-                    assert!(extent.keys.remove(key.into_raw()));
-                    assert!(summary.ids.remove(id).is_some());
-                    return Some(offset);
-                }
-            }
-
-            offset += extent.len();
+            offset += self.extents[i].len();
         }
 
         None
