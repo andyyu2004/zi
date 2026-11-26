@@ -1,4 +1,117 @@
-use zi_input::{KeyEvent, KeySequence};
+use crossterm::event as ct;
+use zi_input::{Event, KeyCode, KeyEvent, KeyModifiers, KeySequence};
+
+fn all_modifiers() -> impl Iterator<Item = KeyModifiers> {
+    (0..=KeyModifiers::all().bits()).map(KeyModifiers::from_bits_truncate)
+}
+
+#[test]
+fn crossterm_modifier_combinations() {
+    for (ct_mods, expected) in [
+        (ct::KeyModifiers::NONE, KeyModifiers::NONE),
+        (
+            ct::KeyModifiers::CONTROL | ct::KeyModifiers::SHIFT,
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        ),
+        (
+            ct::KeyModifiers::CONTROL | ct::KeyModifiers::ALT,
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        ),
+        (ct::KeyModifiers::SHIFT | ct::KeyModifiers::ALT, KeyModifiers::SHIFT | KeyModifiers::ALT),
+        (
+            ct::KeyModifiers::CONTROL | ct::KeyModifiers::SHIFT | ct::KeyModifiers::ALT,
+            KeyModifiers::all(),
+        ),
+    ] {
+        assert_eq!(KeyModifiers::try_from(ct_mods), Ok(expected), "case: {ct_mods:?}");
+    }
+
+    for unsupported in [
+        ct::KeyModifiers::SUPER,
+        ct::KeyModifiers::HYPER,
+        ct::KeyModifiers::META,
+        ct::KeyModifiers::CONTROL | ct::KeyModifiers::SUPER,
+    ] {
+        assert_eq!(KeyModifiers::try_from(unsupported), Err(()), "case: {unsupported:?}");
+    }
+}
+
+#[test]
+fn crossterm_ctrl_shift_key_event() {
+    let event = ct::Event::Key(ct::KeyEvent::new(
+        ct::KeyCode::Char('A'),
+        ct::KeyModifiers::CONTROL | ct::KeyModifiers::SHIFT,
+    ));
+    assert_eq!(Event::try_from(event), Ok(Event::Key("<C-S-a>".parse().unwrap())));
+
+    let event = ct::Event::Key(ct::KeyEvent::new(
+        ct::KeyCode::Char('x'),
+        ct::KeyModifiers::CONTROL | ct::KeyModifiers::ALT,
+    ));
+    assert_eq!(Event::try_from(event), Ok(Event::Key("<C-A-x>".parse().unwrap())));
+
+    let event = ct::Event::Key(ct::KeyEvent::new(
+        ct::KeyCode::BackTab,
+        ct::KeyModifiers::CONTROL | ct::KeyModifiers::SHIFT,
+    ));
+    assert_eq!(Event::try_from(event), Ok(Event::Key("<C-S-tab>".parse().unwrap())));
+}
+
+#[test]
+fn crossterm_key_event_kinds() {
+    let key = |kind| {
+        Event::try_from(ct::Event::Key(ct::KeyEvent::new_with_kind(
+            ct::KeyCode::Char('j'),
+            ct::KeyModifiers::NONE,
+            kind,
+        )))
+    };
+    assert_eq!(key(ct::KeyEventKind::Press), Ok(Event::from('j')));
+    assert_eq!(key(ct::KeyEventKind::Repeat), Ok(Event::from('j')));
+    assert_eq!(key(ct::KeyEventKind::Release), Err(()));
+}
+
+#[test]
+fn display_shift_non_letter() {
+    for (s, expected) in
+        [("<S-1>", "<S-1>"), ("<S-;>", "<S-;>"), ("<S-a>", "A"), ("<C-S-1>", "<S-C-1>")]
+    {
+        let key = s.parse::<KeyEvent>().unwrap();
+        assert_eq!(key.to_string(), expected, "case: `{s}`");
+    }
+}
+
+#[test]
+fn display_parse_round_trip() {
+    let specials = [
+        KeyCode::Backspace,
+        KeyCode::Enter,
+        KeyCode::Left,
+        KeyCode::Right,
+        KeyCode::Up,
+        KeyCode::Down,
+        KeyCode::Home,
+        KeyCode::End,
+        KeyCode::PageUp,
+        KeyCode::PageDown,
+        KeyCode::Tab,
+        KeyCode::Delete,
+        KeyCode::Insert,
+        KeyCode::Esc,
+    ];
+    let chars = (' '..='~').map(KeyCode::Char);
+
+    for code in specials.into_iter().chain(chars) {
+        for modifiers in all_modifiers() {
+            let key = KeyEvent::new(code, modifiers);
+            let s = key.to_string();
+            let parsed = s.parse::<KeyEvent>().unwrap_or_else(|err| {
+                panic!("`{s}` from {key:?} should parse but failed with `{err:?}`")
+            });
+            assert_eq!(parsed, key, "case: `{s}`");
+        }
+    }
+}
 
 #[test]
 fn parse_key_event() {
