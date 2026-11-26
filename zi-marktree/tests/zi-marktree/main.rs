@@ -133,6 +133,51 @@ fn marktree_bulk_delete() {
 }
 
 #[test]
+fn marktree_delete_range_marks() {
+    let mut tree = new(2000);
+    let mut expected = BTreeMap::new();
+    for i in 0..200 {
+        let width = [0, 1, 7, 300][i % 4];
+        tree.insert(i * 5, Id(i)).width(width);
+        expected.insert(Id(i), i * 5..i * 5 + width);
+    }
+
+    for i in (0..200).rev().step_by(3).chain((0..200).step_by(3)) {
+        assert_eq!(tree.delete(Id(i)), expected.remove(&Id(i)));
+        assert_eq!(tree.delete(Id(i)), None);
+        assert_eq!(tree.len(), 2000);
+        for (&id, range) in &expected {
+            assert_eq!(tree.get(id), Some(range.clone()));
+        }
+        let mut actual = tree.range(..).collect::<Vec<_>>();
+        actual.sort_by_key(|&(_, id)| id);
+        assert_iter_eq(actual, expected.iter().map(|(&id, range)| (range.clone(), id)));
+    }
+}
+
+#[test]
+fn marktree_delete_zero_width_range_mark() {
+    let mut tree = new(1000);
+    let ids = (0..71).chain(90..100);
+    ids.clone().for_each(|i| drop(tree.insert(i * 10, Id(i))));
+    tree.insert(500, Id(100)).width(3);
+    tree.insert(700, Id(101)).width(200);
+    tree.shift(500..503, 0);
+    tree.shift(697..897, 0);
+
+    assert_eq!(tree.delete(Id(100)), Some(500..500));
+    assert_eq!(tree.delete(Id(101)), Some(697..697));
+    assert_eq!(tree.get(Id(50)), Some(500..500));
+    assert_eq!(tree.get(Id(51)), Some(507..507));
+    assert_eq!(tree.get(Id(70)), Some(697..697));
+    assert_eq!(tree.get(Id(90)), Some(697..697));
+    assert_eq!(tree.get(Id(91)), Some(707..707));
+    let mut actual = tree.range(..).map(|(_, id)| id).collect::<Vec<_>>();
+    actual.sort();
+    assert_iter_eq(actual, ids.map(Id));
+}
+
+#[test]
 fn marktree_drain_2() {
     let mut tree = new(10);
     (0..4).for_each(|i| drop(tree.insert(i, Id(i))));
@@ -583,7 +628,7 @@ enum Action {
 prop_compose! {
     fn arb_action_insert()(
         at in 0..1000usize,
-        width in 1..100usize,
+        width in 0..100usize,
         id in 0..100usize,
     ) -> Action {
         Action::Insert { at, width, id: Id(id) }

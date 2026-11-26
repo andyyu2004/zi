@@ -251,7 +251,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
             id: u64,
-        ) -> usize {
+        ) -> (usize, Option<usize>) {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
@@ -265,9 +265,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 }
                 Node::Leaf(leaf) => {
                     debug_assert!(leaf.summary().ids.contains(id));
-                    let leaf_offset =
+                    let start =
                         leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here");
-                    offset + leaf_offset
+                    let end = leaf.summary.ids.contains(id).then(|| {
+                        leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here")
+                    });
+                    (offset + start, end.map(|end| offset + end))
                 }
             }
         }
@@ -278,15 +281,17 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             return None;
         }
 
-        let start = del(root, 0, id);
+        let (start, end) = match del(root, 0, id) {
+            (start, Some(end)) => (start, end),
+            (start, None) if root.summary().ids.contains(id) => {
+                let (end, _) = del(root, 0, id);
+                (start, end)
+            }
+            (start, None) => (start, start),
+        };
 
-        if !root.summary().ids.contains(id) {
-            return Some(start..start);
-        }
-
-        let range = start..del(root, 0, id);
-        self.tree.assert_invariants();
-        Some(range)
+        self.assert_invariants();
+        Some(start..end)
     }
 
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {
