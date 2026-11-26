@@ -372,15 +372,7 @@ impl View {
             _ => pos.with_col(max_col),
         };
 
-        // Snap a column in the middle of a code point back to the start of that code point.
-        let mut col = 0;
-        for c in line.chars() {
-            if col + c.len_utf8() > new_cursor.col() {
-                break;
-            }
-            col += c.len_utf8();
-        }
-        let new_cursor = new_cursor.with_col(col);
+        let new_cursor = new_cursor.with_col(line.floor_char_boundary(new_cursor.col()));
 
         if self.cursor.target_col != pos.col() && self.cursor.point != new_cursor
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)

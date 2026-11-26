@@ -482,6 +482,22 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn line(&self, line_idx: usize) -> Option<Self::Slice>;
 
+    /// The largest char boundary at or before `byte_idx`, as [`str::floor_char_boundary`].
+    /// Returns the length if `byte_idx` is past the end.
+    #[inline]
+    fn floor_char_boundary(&self, byte_idx: usize) -> usize {
+        // Each chunk is a `str`, so chunk boundaries are char boundaries.
+        let mut start = 0;
+        for chunk in self.chunks() {
+            let end = start + chunk.len();
+            if byte_idx < end {
+                return start + chunk.floor_char_boundary(byte_idx - start);
+            }
+            start = end;
+        }
+        start
+    }
+
     /// Returns the byte index of the first non-whitespace character on the line.
     #[inline]
     fn indent(&self) -> usize {

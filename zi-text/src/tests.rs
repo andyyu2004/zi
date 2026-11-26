@@ -97,6 +97,19 @@ fn overlapping_deltas_insert_inside() {
     let _ = Deltas::new([Delta::new(0..2, "x"), Delta::new(1..1, "y")]);
 }
 
+#[test]
+fn floor_char_boundary() {
+    let s = "aé日€b".repeat(1000);
+    let rope = crop::Rope::from(s.as_str());
+    assert!(rope.chunks().count() > 1);
+    let slice = rope.byte_slice(..);
+    for i in 0..=s.len() + 2 {
+        let expected = s.floor_char_boundary(i);
+        assert_eq!(TextSlice::floor_char_boundary(&s.as_str(), i), expected, "str at {i}");
+        assert_eq!(TextSlice::floor_char_boundary(&slice, i), expected, "rope at {i}");
+    }
+}
+
 // return ascii only so any byte range is valid
 fn ascii_str_and_range() -> impl Strategy<Value = (String, ops::Range<usize>)> {
     // using a prefix character x and + to ensure string of length at least 2
