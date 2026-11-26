@@ -65,6 +65,21 @@ fn bench_marktree_delete<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
         });
 }
 
+#[divan::bench(consts = LEAF_SIZES, args = [10, 1_000, 10_000])]
+fn bench_marktree_drain<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>, len: usize) {
+    bencher
+        .with_inputs(|| {
+            MarkTree::<Id, LEAF_SIZE>::build(
+                100_000,
+                (0..20_000).map(|i| (Id(i), MarkBuilder::new(i).width(i % 8))),
+            )
+        })
+        .bench_local_values(|mut tree| {
+            assert_eq!(tree.drain(5_000..5_000 + len).count(), len);
+            tree
+        });
+}
+
 #[divan::bench(consts = LEAF_SIZES)]
 fn bench_marktree_get_range<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
     let k = 4;

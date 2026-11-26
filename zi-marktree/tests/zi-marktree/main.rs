@@ -249,6 +249,33 @@ fn marktree_bulk_drain() {
 }
 
 #[test]
+fn marktree_drain_range_marks() {
+    let mut tree = new(20);
+    tree.insert(2, Id(0));
+    tree.insert(3, Id(1)).width(2);
+    tree.insert(4, Id(2)).width(10);
+    tree.insert(1, Id(3)).width(5);
+    tree.insert(8, Id(4)).width(1);
+    tree.insert(5, Id(5));
+
+    assert_iter_eq(tree.drain(5..5), []);
+    assert_iter_eq(tree.drain(2..6), [(2..2, Id(0)), (3..5, Id(1)), (4..14, Id(2)), (5..5, Id(5))]);
+    assert_eq!(tree.len(), 20);
+    for id in [0, 1, 2, 5] {
+        assert_eq!(tree.get(Id(id)), None);
+    }
+    assert_iter_eq(tree.range(..), [(1..6, Id(3)), (8..9, Id(4))]);
+
+    let mut drain = tree.drain(..);
+    assert_eq!(drain.len(), 2);
+    assert_eq!(drain.next(), Some((1..6, Id(3))));
+    assert_eq!(drain.len(), 1);
+    drop(drain);
+    assert_iter_eq(tree.range(..), []);
+    assert_eq!(tree.get(Id(4)), None);
+}
+
+#[test]
 fn marktree_simple_insert() {
     let mut tree = new(2);
     tree.insert(1, Id(0));
@@ -588,6 +615,18 @@ proptest::proptest! {
                 Action::Delete(id) => {
                     assert_eq!(tree.delete(id), insertions.remove(&id));
                 }
+                Action::Drain(range) => {
+                    let mut drained = tree.drain(range.clone()).collect::<Vec<_>>();
+                    drained.sort_by_key(|&(_, id)| id);
+                    let expected = insertions
+                        .extract_if(.., |_, r| range.contains(&r.start))
+                        .map(|(id, r)| (r, id))
+                        .collect::<Vec<_>>();
+                    assert_eq!(drained, expected);
+                    for (_, id) in drained {
+                        assert_eq!(tree.get(id), None);
+                    }
+                }
             }
 
             assert_eq!(tree.len(), n);
@@ -731,6 +770,7 @@ fn check_build(
 enum Action {
     Insert { at: usize, width: usize, id: Id },
     Delete(Id),
+    Drain(Range<usize>),
 }
 
 prop_compose! {
@@ -744,7 +784,12 @@ prop_compose! {
 }
 
 fn arb_action() -> BoxedStrategy<Action> {
-    prop_oneof![arb_action_insert(), (0..1000usize).prop_map(Id).prop_map(Action::Delete)].boxed()
+    prop_oneof![
+        arb_action_insert(),
+        (0..1000usize).prop_map(Id).prop_map(Action::Delete),
+        (0..1100usize, 0..200usize).prop_map(|(start, len)| Action::Drain(start..start + len)),
+    ]
+    .boxed()
 }
 
 #[test]
