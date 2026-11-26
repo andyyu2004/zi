@@ -1,4 +1,4 @@
-#![feature(iter_array_chunks, coroutines, iter_from_coroutine, debug_closure_helpers)]
+#![feature(iter_array_chunks, coroutines, iter_from_coroutine)]
 
 mod bitbag;
 mod builder;
