@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::ops::{Add, Range, RangeBounds};
 use std::{fmt, iter};
 
-use crop::tree::{Arc, Node, Tree};
+use crop::tree::{Arc, BalancedLeaf, Lnode, Node, Tree};
 use smallvec::{SmallVec, smallvec};
 use stdx::range::RangeExt;
 use tinyset::SetU64;
@@ -203,7 +203,54 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         if !right.is_empty() {
             self.replace(start + by..start + by, Replacement::Keys(right));
         }
+        // `retain_keys` also took keys from the leaf after the range, which `crop` didn't edit.
+        self.rebalance([start + by + 1]);
         self.assert_invariants();
+    }
+
+    /// Rebalances the leaves `crop` would edit at each of the given positions while they're
+    /// underfilled. `delete` and `drain` take keys out of leaves without going through `crop`,
+    /// which rebalances the leaves it edits.
+    fn rebalance(&mut self, at: impl IntoIterator<Item = usize>) {
+        for at in at {
+            while at <= self.len()
+                && self.leaf_at(at).is_some_and(|leaf| leaf.value.is_underfilled(&leaf.summary))
+            {
+                // An empty replacement doesn't move any keys, but `crop` rebalances the leaf.
+                self.replace(at..at, Replacement::Gap(0));
+            }
+        }
+    }
+
+    /// The leaf `crop` edits for an empty range at `at`, the first that ends at or after it, unless
+    /// the root is a leaf.
+    fn leaf_at(&self, at: usize) -> Option<&Lnode<Leaf<N>>> {
+        let mut node = self.tree.root().as_ref();
+        if let Node::Leaf(_) = node {
+            return None;
+        }
+        let mut offset = 0;
+        loop {
+            match node {
+                Node::Internal(inode) => {
+                    node = inode
+                        .children()
+                        .iter()
+                        .find(|child| {
+                            let bytes = child.summary().bytes;
+                            if offset + bytes >= at {
+                                true
+                            } else {
+                                offset += bytes;
+                                false
+                            }
+                        })
+                        .expect("position is in bounds")
+                        .as_ref();
+                }
+                Node::Leaf(leaf) => return Some(leaf),
+            }
+        }
     }
 
     /// Whether `crop` replaces `range` across more than one leaf. It picks the first child that
@@ -238,31 +285,43 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     /// Keeps only the keys in the leaves overlapping `range` for which `f(position, key)` returns
-    /// true.
-    fn retain_keys(&mut self, range: Range<usize>, mut f: impl FnMut(usize, Key) -> bool) {
+    /// true. Returns the end positions of the leaves it leaves underfilled.
+    fn retain_keys(
+        &mut self,
+        range: Range<usize>,
+        mut f: impl FnMut(usize, Key) -> bool,
+    ) -> SmallVec<usize, 2> {
         fn retain<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
             range: &Range<usize>,
             f: &mut impl FnMut(usize, Key) -> bool,
+            underfilled: &mut SmallVec<usize, 2>,
         ) {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
                         let bytes = inode.child(i).summary().bytes;
                         if (offset..offset + bytes).intersects(range) {
-                            inode.with_child_mut(i, |child| retain(child, offset, range, f));
+                            inode.with_child_mut(i, |child| {
+                                retain(child, offset, range, f, underfilled);
+                            });
                         }
                         offset += bytes;
                     }
                 }
                 Node::Leaf(leaf) => {
                     leaf.value.retain(&mut leaf.summary, |at, key| f(offset + at, key));
+                    if leaf.value.is_underfilled(&leaf.summary) {
+                        underfilled.push(offset + leaf.summary.bytes);
+                    }
                 }
             }
         }
 
-        retain(self.tree.root_mut(), 0, &range, &mut f);
+        let mut underfilled = SmallVec::new();
+        retain(self.tree.root_mut(), 0, &range, &mut f, &mut underfilled);
+        underfilled
     }
 
     /// Returns an iterator over the items whose start point is in the given range.
@@ -334,7 +393,27 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             let ids = items.iter().map(|&(_, id)| id.into()).collect::<SetU64>();
             // One pass over the leaves in the range removes both keys of point marks and of range
             // marks that end inside the range.
-            self.retain_keys(start..end, |_, key| !ids.contains(key.id()));
+            let mut kept = vec![];
+            let underfilled = self.retain_keys(start..end, |at, key| {
+                let keep = !ids.contains(key.id());
+                if keep && (start..=end).contains(&at) {
+                    kept.push(at);
+                }
+                keep
+            });
+            // Rebalancing many emptied leaves one at a time is slow, but `crop` drops all the leaves
+            // of a range in one edit. Replacing a range without keys by as many bytes moves nothing.
+            if underfilled.len() > 2 {
+                let mut from = start;
+                for at in kept.into_iter().chain([end + 1]) {
+                    let to = at.saturating_sub(1).min(end);
+                    if from < to && self.spans_leaves(from..to) {
+                        self.replace(from..to, Replacement::Gap(to - from));
+                    }
+                    from = from.max(at + 1);
+                }
+            }
+            self.rebalance(underfilled);
             // A range mark that ends past the range still has its end key in a later leaf, so the
             // id is still in the tree. Only those marks fall back to a per-id delete.
             for id in ids {
@@ -353,13 +432,15 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
             id: u64,
+            underfilled: &mut SmallVec<usize, 2>,
         ) -> (usize, Option<usize>) {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
                     for i in 0..inode.children().len() {
                         let summary = inode.child(i).summary();
                         if summary.ids.contains(id) {
-                            return inode.with_child_mut(i, |child| del(child, offset, id));
+                            return inode
+                                .with_child_mut(i, |child| del(child, offset, id, underfilled));
                         }
                         offset += summary.bytes;
                     }
@@ -372,6 +453,9 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                     let end = leaf.summary.ids.contains(id).then(|| {
                         leaf.value.delete(&mut leaf.summary, id).expect("bitmap said it's here")
                     });
+                    if leaf.value.is_underfilled(&leaf.summary) {
+                        underfilled.push(offset + leaf.summary.bytes);
+                    }
                     (offset + start, end.map(|end| offset + end))
                 }
             }
@@ -383,18 +467,20 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             return None;
         }
 
-        let (start, end) = match del(root, 0, id) {
+        let mut underfilled = SmallVec::new();
+        let (start, end) = match del(root, 0, id, &mut underfilled) {
             // A range mark with both keys in one leaf: both deleted in that descent.
             (start, Some(end)) => (start, end),
             // A range mark whose end key is in a later leaf: descend again for it.
             (start, None) if root.summary().ids.contains(id) => {
-                let (end, _) = del(root, 0, id);
+                let (end, _) = del(root, 0, id, &mut underfilled);
                 (start, end)
             }
             // A point mark has a single key (no `Flags::RANGE`), so it's gone after one delete.
             (start, None) => (start, start),
         };
 
+        self.rebalance(underfilled);
         self.assert_invariants();
         Some(start..end)
     }
@@ -413,10 +499,24 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     #[doc(hidden)]
+    pub fn leaf_count(&self) -> usize {
+        self.tree.leaf_count()
+    }
+
+    #[doc(hidden)]
     #[track_caller]
     pub fn assert_invariants(&self) {
         #[cfg(debug_assertions)]
-        self.tree.assert_invariants();
+        {
+            self.tree.assert_invariants();
+            if let Node::Internal(_) = self.tree.root().as_ref() {
+                for slice in self.tree.leaves() {
+                    let leaf = Leaf::<N>::from(slice);
+                    let summary = crop::tree::Summarize::summarize(&slice);
+                    assert!(!leaf.is_underfilled(&summary), "underfilled leaf {leaf:?}");
+                }
+            }
+        }
     }
 }
 
