@@ -132,7 +132,7 @@ interface editor {
         paste-after: func() -> result<_, edit-error>;
         undo: func() -> result<bool, edit-error>;
         redo: func() -> result<bool, edit-error>;
-        scroll: func(direction: direction, amount: u32);
+        scroll-by: func(direction: direction, amount: u32);
         align: func(alignment: vertical-alignment);
         focus: func();
     }

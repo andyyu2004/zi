@@ -101,14 +101,15 @@ impl api::editor::HostView for HostState {
         Ok(res.map_err(Into::into))
     }
 
-    async fn scroll(
+    async fn scroll_by(
         &mut self,
         view: Resource<api::editor::View>,
         direction: api::editor::Direction,
         amount: u32,
     ) -> wasmtime::Result<()> {
         let dir = zi::Direction::from(direction);
-        self.with_view(&view, move |editor, view| editor.scroll(view, dir, amount as usize)).await
+        self.with_view(&view, move |editor, view| editor.scroll_by(view, dir, amount as usize))
+            .await
     }
 
     async fn align(

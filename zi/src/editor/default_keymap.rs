@@ -211,11 +211,11 @@ pub(super) fn new() -> Keymap {
     }
 
     fn goto_start(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Up, usize::MAX);
+        editor.scroll_by(Active, Direction::Up, usize::MAX);
     }
 
     fn goto_end(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Down, usize::MAX);
+        editor.scroll_by(Active, Direction::Down, usize::MAX);
     }
 
     fn align_view_top(editor: &mut Editor) {
@@ -318,19 +318,21 @@ pub(super) fn new() -> Keymap {
     }
 
     fn scroll_line_down(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Down, 1);
+        editor.scroll_by(Active, Direction::Down, 1);
     }
 
     fn scroll_line_up(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Up, 1);
+        editor.scroll_by(Active, Direction::Up, 1);
     }
 
     fn scroll_down(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Down, 20);
+        let count = editor.take_count();
+        editor.scroll(Active, Direction::Down, count);
     }
 
     fn scroll_up(editor: &mut Editor) {
-        editor.scroll(Active, Direction::Up, 20);
+        let count = editor.take_count();
+        editor.scroll(Active, Direction::Up, count);
     }
 
     fn open_file_picker(editor: &mut Editor) {

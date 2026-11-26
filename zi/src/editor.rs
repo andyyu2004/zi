@@ -1924,11 +1924,33 @@ impl Editor {
         }
     }
 
-    pub fn scroll(&mut self, selector: impl Selector<ViewId>, direction: Direction, amt: usize) {
+    pub fn scroll_by(&mut self, selector: impl Selector<ViewId>, direction: Direction, amt: usize) {
         let view = selector.select(self);
         let (view, buf) = self.db.view_and_buffer_mut(view);
         let area = self.tree.view_area(view.id());
         view.scroll(mode!(self), area, buf, direction, amt);
+    }
+
+    /// Scroll by the view's `scroll` setting, as vim's `<C-d>` and `<C-u>` do.
+    /// A count sets the setting first, capped at the view height.
+    pub(crate) fn scroll(
+        &mut self,
+        selector: impl Selector<ViewId>,
+        direction: Direction,
+        count: Option<usize>,
+    ) {
+        let view = selector.select(self);
+        let height = usize::from(self.tree.view_area(view).height);
+        let scroll = &self.view(view).settings().scroll;
+        if let Some(count) = count {
+            scroll.write(count.min(height));
+        }
+
+        let amt = match *scroll.read() {
+            0 => height / 2,
+            n => n,
+        };
+        self.scroll_by(view, direction, amt);
     }
 
     // Not sure if this should be public API

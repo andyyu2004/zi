@@ -96,7 +96,7 @@ async fn test_split() {
         assert_eq!(editor.view(left).cursor(), editor.view(right).cursor());
         assert_eq!(editor.view(left).offset(), editor.view(right).offset());
 
-        editor.scroll(zi::Active, zi::Direction::Down, 1);
+        editor.scroll_by(zi::Active, zi::Direction::Down, 1);
         assert_ne!(editor.view(left).offset(), editor.view(right).offset());
     })
     .await;
