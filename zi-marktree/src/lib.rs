@@ -11,7 +11,7 @@ use std::ops::{Add, Range, RangeBounds};
 use std::{fmt, iter};
 
 use crop::tree::{Arc, Node, Tree};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 use stdx::range::RangeExt;
 use tinyset::SetU64;
 
@@ -170,9 +170,99 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         }
     }
 
+    /// Replaces the bytes in `range` with `by` bytes. Marks inside the range move to its end,
+    /// `start + by`, except left-biased marks at `start`, which stay there.
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
-        self.replace(range, Replacement::Gap(by));
+        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        if !self.spans_leaves(start..end) {
+            self.replace(start..end, Replacement::Gap(by));
+            self.assert_invariants();
+            return;
+        }
+
+        // `crop` drops the leaves between the first and last leaf of the range along with their
+        // keys, so take the keys out of the range first and put them back after the edit.
+        let mut left = SmallVec::<Key, 1>::new();
+        let mut right = SmallVec::<Key, 1>::new();
+        self.retain_keys(start..end, |at, key| {
+            if !(start..=end).contains(&at) {
+                return true;
+            }
+            if at == start && by > 0 && key.flags().contains(Flags::BIAS_LEFT) {
+                left.push(key);
+            } else {
+                right.push(key);
+            }
+            false
+        });
+
+        self.replace(start..end, Replacement::Gap(by));
+        if !left.is_empty() {
+            self.replace(start..start, Replacement::Keys(left));
+        }
+        if !right.is_empty() {
+            self.replace(start + by..start + by, Replacement::Keys(right));
+        }
         self.assert_invariants();
+    }
+
+    /// Whether `crop` replaces `range` across more than one leaf. It picks the first child that
+    /// ends at or after `range.start` at each level, as `Inode::child_containing_range` does.
+    fn spans_leaves(&self, range: Range<usize>) -> bool {
+        let Range { start, end } = range;
+        let mut node = self.tree.root().as_ref();
+        let mut offset = 0;
+        loop {
+            let inode = match node {
+                Node::Internal(inode) => inode,
+                Node::Leaf(_) => return false,
+            };
+            let child = inode
+                .children()
+                .iter()
+                .find(|child| {
+                    let bytes = child.summary().bytes;
+                    if offset + bytes >= start {
+                        true
+                    } else {
+                        offset += bytes;
+                        false
+                    }
+                })
+                .expect("range start is in bounds");
+            if offset + child.summary().bytes < end {
+                return true;
+            }
+            node = child.as_ref();
+        }
+    }
+
+    /// Keeps only the keys in the leaves overlapping `range` for which `f(position, key)` returns
+    /// true.
+    fn retain_keys(&mut self, range: Range<usize>, mut f: impl FnMut(usize, Key) -> bool) {
+        fn retain<const N: usize>(
+            node: &mut Arc<Node<ARITY, Leaf<N>>>,
+            mut offset: usize,
+            range: &Range<usize>,
+            f: &mut impl FnMut(usize, Key) -> bool,
+        ) {
+            match Arc::make_mut(node) {
+                Node::Internal(inode) => {
+                    for i in 0..inode.children().len() {
+                        let bytes = inode.child(i).summary().bytes;
+                        if (offset..offset + bytes).intersects(range) {
+                            inode.with_child_mut(i, |child| retain(child, offset, range, f));
+                        }
+                        offset += bytes;
+                    }
+                }
+                Node::Leaf(leaf) => {
+                    leaf.value.retain(&mut leaf.summary, |at, key| f(offset + at, key));
+                }
+            }
+        }
+
+        retain(self.tree.root_mut(), 0, &range, &mut f);
     }
 
     /// Returns an iterator over the items whose start point is in the given range.
@@ -238,34 +328,13 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Removes the items whose start point is in the given range (the same items `range` returns)
     /// and returns them.
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N> {
-        /// Removes every key, start or end, belonging to `ids` from the leaves that overlap `range`.
-        fn remove<const N: usize>(
-            node: &mut Arc<Node<ARITY, Leaf<N>>>,
-            mut offset: usize,
-            range: &Range<usize>,
-            ids: &SetU64,
-        ) {
-            match Arc::make_mut(node) {
-                Node::Internal(inode) => {
-                    for i in 0..inode.children().len() {
-                        let bytes = inode.child(i).summary().bytes;
-                        if (offset..offset + bytes).intersects(range) {
-                            inode.with_child_mut(i, |child| remove(child, offset, range, ids));
-                        }
-                        offset += bytes;
-                    }
-                }
-                Node::Leaf(leaf) => leaf.value.remove(&mut leaf.summary, ids),
-            }
-        }
-
         let (start, end) = self.position_range(range);
         let items = self.range(start..end).collect::<Vec<_>>();
         if !items.is_empty() {
             let ids = items.iter().map(|&(_, id)| id.into()).collect::<SetU64>();
             // One pass over the leaves in the range removes both keys of point marks and of range
             // marks that end inside the range.
-            remove(self.tree.root_mut(), 0, &(start..end), &ids);
+            self.retain_keys(start..end, |_, key| !ids.contains(key.id()));
             // A range mark that ends past the range still has its end key in a later leaf, so the
             // id is still in the tree. Only those marks fall back to a per-id delete.
             for id in ids {
@@ -393,13 +462,17 @@ impl<Id: MarkTreeId, const N: usize> Drop for Inserter<'_, Id, N> {
             self.tree.len(),
         );
 
-        self.tree.replace(at..at, Replacement::Key(Key::new(id, self.builder.start_flags)));
+        self.tree
+            .replace(at..at, Replacement::Keys(smallvec![Key::new(id, self.builder.start_flags)]));
         assert_eq!(self.tree.len(), n, "first insertion should not change the length of the tree");
 
         if self.builder.start_flags.contains(Flags::RANGE) {
             assert!(self.builder.end_flags.contains(Flags::RANGE | Flags::END));
             let at = at + self.builder.width;
-            self.tree.replace(at..at, Replacement::Key(Key::new(id, self.builder.end_flags)));
+            self.tree.replace(
+                at..at,
+                Replacement::Keys(smallvec![Key::new(id, self.builder.end_flags)]),
+            );
             assert_eq!(
                 self.tree.len(),
                 n,
@@ -414,16 +487,16 @@ impl<Id: MarkTreeId, const N: usize> Drop for Inserter<'_, Id, N> {
 #[derive(Debug)]
 enum Replacement {
     Gap(usize),
-    // Invariant, `Key` can only be used as a replacement if the range is empty.
+    // Invariant, `Keys` can only be used as a replacement if the range is empty.
     // The replacement range is `byte..byte`
-    Key(Key),
+    Keys(SmallVec<Key, 1>),
 }
 
 impl Replacement {
     fn width(&self) -> usize {
         match self {
             Replacement::Gap(n) => *n,
-            Replacement::Key(_) => 0,
+            Replacement::Keys(_) => 0,
         }
     }
 }

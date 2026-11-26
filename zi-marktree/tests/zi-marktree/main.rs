@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::{fmt, iter};
 
 use proptest::collection::vec;
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::{prop_compose, prop_oneof};
 use zi_marktree::{Bias, Inserter, MarkBuilder, MarkTree, MarkTreeId};
 
@@ -189,6 +189,82 @@ fn marktree_delete_zero_width_range_mark() {
     let mut actual = tree.range(..).map(|(_, id)| id).collect::<Vec<_>>();
     actual.sort();
     assert_iter_eq(actual, ids.map(Id));
+}
+
+#[test]
+fn marktree_shift_delete_whole_leaves() {
+    let mut tree = new(1000);
+    (0..100).for_each(|i| drop(tree.insert(i * 10, Id(i))));
+    tree.shift(697..897, 0);
+
+    for i in 0..100 {
+        let at = match i * 10 {
+            at if at < 697 => at,
+            at if at <= 897 => 697,
+            at => at - 200,
+        };
+        assert_eq!(tree.get(Id(i)), Some(at..at));
+    }
+    assert_eq!(tree.range(..).count(), 100);
+    assert_eq!(tree.delete(Id(80)), Some(697..697));
+}
+
+#[test]
+fn marktree_shift_delete_whole_leaves_point_mark() {
+    let mut tree = new(1000);
+    tree.insert(415, Id(0)).width(6);
+    tree.shift(0..2, 0);
+    tree.insert(406, Id(0));
+    tree.insert(407, Id(0));
+    tree.insert(1, Id(1)).width(1);
+    tree.shift(400..414, 0);
+
+    assert_eq!(tree.get(Id(0)), Some(400..400));
+    assert_iter_eq(tree.range(..), [(1..2, Id(1)), (400..400, Id(0))]);
+}
+
+#[test]
+fn marktree_shift_delete_whole_leaves_range_mark() {
+    let mut tree = new(1000);
+    (0..4).for_each(|_| drop(tree.insert(0, Id(0))));
+    tree.insert(1, Id(0)).width(1);
+    tree.insert(341, Id(1)).width(1);
+    tree.insert(1, Id(2)).width(2);
+    tree.shift(260..343, 0);
+
+    assert_iter_eq(tree.range(..), [(1..2, Id(0)), (1..3, Id(2)), (260..260, Id(1))]);
+    assert_eq!(tree.delete(Id(1)), Some(260..260));
+}
+
+#[test]
+fn marktree_shift_delete_whole_last_leaf() {
+    let mut tree = new(1000);
+    tree.insert(696, Id(0)).width(13);
+    tree.shift(617..696, 3);
+    tree.insert(535, Id(2)).width(1);
+    tree.insert(1, Id(0)).width(1);
+    // The leaves are now 0..535, 535..620 and 620..924, the second holding only mark 2.
+    tree.shift(535..620, 0);
+
+    assert_eq!(tree.len(), 839);
+    assert_iter_eq(tree.range(..), [(1..2, Id(0)), (535..535, Id(2))]);
+}
+
+#[test]
+fn marktree_shift_replace_whole_leaves() {
+    let mut tree = new(1000);
+    (0..100).for_each(|i| drop(tree.insert(i * 10, Id(i))));
+    tree.insert(300, Id(100)).start_bias(Bias::Left);
+    tree.insert(290, Id(101)).width(10).end_bias(Bias::Left);
+    tree.shift(300..500, 7);
+
+    assert_eq!(tree.get(Id(29)), Some(290..290));
+    assert_eq!(tree.get(Id(30)), Some(307..307));
+    assert_eq!(tree.get(Id(50)), Some(307..307));
+    assert_eq!(tree.get(Id(51)), Some(317..317));
+    assert_eq!(tree.get(Id(100)), Some(300..300));
+    assert_eq!(tree.get(Id(101)), Some(290..300));
+    assert_eq!(tree.range(..).count(), 102);
 }
 
 #[test]
@@ -639,37 +715,53 @@ proptest::proptest! {
 
     #[test]
     fn marktree_prop_insert_delete(at in vec(arb_action(), 0..100)) {
-        let n = 10000;
-        let mut tree = new(n);
+        let mut len = 10000;
+        let mut tree = new(len);
         let mut insertions = BTreeMap::new();
         for action in at {
             match action {
-                Action::Insert { at, width, id } => {
-                    insertions.insert(id, at..at + width) ;
-                    tree.insert(at, id).width(width);
+                Action::Insert { at, width, id, start_bias, end_bias } if at + width <= len => {
+                    insertions.insert(id, Mark { range: at..at + width, start_bias, end_bias });
+                    tree.insert(at, id).width(width).start_bias(start_bias).end_bias(end_bias);
                 }
                 Action::Delete(id) => {
-                    assert_eq!(tree.delete(id), insertions.remove(&id));
+                    assert_eq!(tree.delete(id), insertions.remove(&id).map(|mark| mark.range));
                 }
                 Action::Drain(range) => {
                     let mut drained = tree.drain(range.clone()).collect::<Vec<_>>();
                     drained.sort_by_key(|&(_, id)| id);
                     let expected = insertions
-                        .extract_if(.., |_, r| range.contains(&r.start))
-                        .map(|(id, r)| (r, id))
+                        .extract_if(.., |_, mark| range.contains(&mark.range.start))
+                        .map(|(id, mark)| (mark.range, id))
                         .collect::<Vec<_>>();
                     assert_eq!(drained, expected);
                     for (_, id) in drained {
                         assert_eq!(tree.get(id), None);
                     }
                 }
+                // Not up to the end: `range(..)` skips marks at the end (zi-editor/zi-tracking#12).
+                Action::Shift { range, by } if range.end < len => {
+                    tree.shift(range.clone(), by);
+                    len = len - range.len() + by;
+                    for mark in insertions.values_mut() {
+                        let Range { start, end } = mark.range;
+                        mark.range = shift_offset(start, mark.start_bias, &range, by)
+                            ..shift_offset(end, mark.end_bias, &range, by);
+                    }
+                }
+                // Out of bounds of the shrunk tree.
+                Action::Insert { .. } | Action::Shift { .. } => {}
             }
 
-            assert_eq!(tree.len(), n);
+            assert_eq!(tree.len(), len);
 
-            for (&id, range) in &insertions {
-                assert_eq!(tree.get(id), Some(range.clone()));
+            // `get` can panic on a range mark collapsed to zero width (zi-editor/zi-tracking#12).
+            for (&id, mark) in insertions.iter().filter(|(_, mark)| !mark.range.is_empty()) {
+                assert_eq!(tree.get(id), Some(mark.range.clone()));
             }
+            let mut actual = tree.range(..).collect::<Vec<_>>();
+            actual.sort_by_key(|&(_, id)| id);
+            assert_iter_eq(actual, insertions.iter().map(|(&id, mark)| (mark.range.clone(), id)));
         }
     }
 
@@ -687,7 +779,7 @@ proptest::proptest! {
 enum RangeAction {
     Insert { at: usize, width: usize, id: Id },
     Delete(Id),
-    Shift { at: usize, by: usize },
+    Shift { range: Range<usize>, by: usize },
 }
 
 fn arb_range_action() -> BoxedStrategy<RangeAction> {
@@ -695,7 +787,8 @@ fn arb_range_action() -> BoxedStrategy<RangeAction> {
         3 => (0..1000usize, 0..20usize, 0..100usize)
             .prop_map(|(at, width, id)| RangeAction::Insert { at, width, id: Id(id) }),
         1 => (0..100usize).prop_map(Id).prop_map(RangeAction::Delete),
-        1 => (0..1000usize, 1..5usize).prop_map(|(at, by)| RangeAction::Shift { at, by }),
+        1 => (0..1000usize, 0..100usize, 0..5usize)
+            .prop_map(|(at, len, by)| RangeAction::Shift { range: at..at + len, by }),
     ]
     .boxed()
 }
@@ -715,7 +808,11 @@ fn apply_range_actions<const N: usize>(actions: &[RangeAction]) -> (MarkTree<Id,
                 ids.remove(&id);
                 tree.delete(id);
             }
-            RangeAction::Shift { at, by } => tree.shift(at..at, by),
+            RangeAction::Shift { ref range, by } => {
+                if range.end < tree.len() {
+                    tree.shift(range.clone(), by);
+                }
+            }
         }
     }
     (tree, ids)
@@ -803,9 +900,38 @@ fn check_build(
 
 #[derive(Debug)]
 enum Action {
-    Insert { at: usize, width: usize, id: Id },
+    Insert { at: usize, width: usize, id: Id, start_bias: Bias, end_bias: Bias },
     Delete(Id),
     Drain(Range<usize>),
+    Shift { range: Range<usize>, by: usize },
+}
+
+#[derive(Debug)]
+struct Mark {
+    range: Range<usize>,
+    start_bias: Bias,
+    end_bias: Bias,
+}
+
+/// Where a key at `at` with the given bias is after `shift(range, by)`.
+fn shift_offset(at: usize, bias: Bias, range: &Range<usize>, by: usize) -> usize {
+    if at < range.start || (at == range.start && bias == Bias::Left) {
+        at
+    } else if at <= range.end {
+        range.start + by
+    } else {
+        at - range.len() + by
+    }
+}
+
+/// `(start_bias, end_bias)` pairs. A right-biased start with a left-biased end can put the end
+/// before the start (zi-editor/zi-tracking#34).
+fn arb_biases() -> impl Strategy<Value = (Bias, Bias)> {
+    prop_oneof![
+        Just((Bias::Left, Bias::Left)),
+        Just((Bias::Left, Bias::Right)),
+        Just((Bias::Right, Bias::Right)),
+    ]
 }
 
 prop_compose! {
@@ -813,8 +939,9 @@ prop_compose! {
         at in 0..1000usize,
         width in 0..100usize,
         id in 0..100usize,
+        (start_bias, end_bias) in arb_biases(),
     ) -> Action {
-        Action::Insert { at, width, id: Id(id) }
+        Action::Insert { at, width, id: Id(id), start_bias, end_bias }
     }
 }
 
@@ -823,6 +950,10 @@ fn arb_action() -> BoxedStrategy<Action> {
         arb_action_insert(),
         (0..1000usize).prop_map(Id).prop_map(Action::Delete),
         (0..1100usize, 0..200usize).prop_map(|(start, len)| Action::Drain(start..start + len)),
+        // Only deleting shifts: an insertion at a leaf boundary can move left-biased marks
+        // (zi-editor/zi-tracking#12).
+        (0..1100usize, 1..200usize, 0..20usize)
+            .prop_map(|(start, len, by)| Action::Shift { range: start..start + len, by }),
     ]
     .boxed()
 }

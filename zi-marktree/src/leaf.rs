@@ -53,10 +53,14 @@ impl<const N: usize> Leaf<N> {
         None
     }
 
-    pub(crate) fn remove(&mut self, summary: &mut Summary, ids: &SetU64) {
+    /// Keeps only the keys for which `f(offset, key)` returns true, where `offset` is the key's
+    /// position relative to the start of the leaf.
+    pub(crate) fn retain(&mut self, summary: &mut Summary, mut f: impl FnMut(usize, Key) -> bool) {
         let mut builder = ExtentBuilder::<N>::default();
+        let mut offset = 0;
         for extent in self.extents.take() {
-            builder.push(extent.len(), extent.keys().filter(|key| !ids.contains(key.id())));
+            builder.push(extent.len(), extent.keys().filter(|&key| f(offset, key)));
+            offset += extent.len();
         }
         self.extents = builder.finish().into_iter().collect();
         *summary = self.summarize();
@@ -134,7 +138,11 @@ impl<const N: usize> Leaf<N> {
             builder.push_raw(0, keys);
         }
 
-        let entries = builder.finish();
+        let mut entries = builder.finish();
+        if entries.is_empty() {
+            // A keyless leaf that was deleted whole. `crop` keeps the leaf, so leave it empty.
+            entries.push(Extent::new(0, []));
+        }
         let (chunks, remainder) = entries.as_chunks::<N>();
         let mut chunks = chunks.iter();
         let (chunk, used_remainder) = match chunks.next() {
@@ -172,12 +180,12 @@ impl<const N: usize> Leaf<N> {
         &mut self,
         summary: &mut Summary,
         at: usize,
-        key: Key,
+        keys: &[Key],
     ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
         debug_assert!(at <= summary.bytes);
         if at == summary.bytes {
-            // Trying to insert at the end. Just propagate the new key up.
-            let array = ArrayVec::<_, N>::from_iter([Extent::new(0, [key])]);
+            // Trying to insert at the end. Just propagate the new keys up.
+            let array = ArrayVec::<_, N>::from_iter([Extent::new(0, keys.iter().copied())]);
             return Some(smallvec![Leaf::from(array)].into_iter());
         }
 
@@ -187,9 +195,11 @@ impl<const N: usize> Leaf<N> {
             offset -= self.extents[i].len();
             if at == offset {
                 // There is an existing extent that exactly matches the insertion point.
-                // Just add the new key to the extent and return.
-                self.extents[i].keys.insert(key.into_raw());
-                summary.ids.insert(key.id());
+                // Just add the new keys to the extent and return.
+                for key in keys {
+                    self.extents[i].keys.insert(key.into_raw());
+                    summary.ids.insert(key.id());
+                }
                 break;
             }
 
@@ -199,9 +209,11 @@ impl<const N: usize> Leaf<N> {
                 let rem = self.extents[i].length - (at - offset);
                 self.extents[i].length -= rem;
 
-                match self.extents.try_insert(i + 1, Extent::new(rem, [key])) {
+                match self.extents.try_insert(i + 1, Extent::new(rem, keys.iter().copied())) {
                     Ok(()) => {
-                        summary.ids.insert(key.id());
+                        for key in keys {
+                            summary.ids.insert(key.id());
+                        }
                     }
                     Err(err) => {
                         if i + 1 == N {
@@ -276,9 +288,9 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
         match replace_with {
             Replacement::Gap(gap) => self.shift(summary, start..end, gap),
-            Replacement::Key(key) => {
+            Replacement::Keys(keys) => {
                 assert_eq!(start, end);
-                self.insert(summary, start, key)
+                self.insert(summary, start, &keys)
             }
         }
     }
