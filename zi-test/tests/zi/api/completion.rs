@@ -120,3 +120,69 @@ async fn tab_completion() -> zi::Result<()> {
     cx.cleanup().await;
     Ok(())
 }
+
+#[tokio::test]
+async fn tab_after_typing_past_selection() -> zi::Result<()> {
+    let cx = new("").await;
+    cx.open_tmp("", zi::OpenFlags::empty()).await?;
+    cx.with(|editor| {
+        editor.register_completion_provider(Completions);
+        editor.set_mode(zi::Mode::Insert);
+        editor.trigger_completion(None);
+    })
+    .await;
+
+    cx.with(|editor| {
+        editor.insert_char(zi::Active, 'b').unwrap();
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bar\n");
+
+        editor.insert_char(zi::Active, 'z').unwrap();
+        assert_eq!(editor.text(zi::Active), "barz\n");
+        assert_eq!(editor.cursor(zi::Active), (0, 4));
+
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "barz\n", "nothing matches `barz`");
+
+        editor.delete_char(zi::Active).unwrap();
+        editor.delete_char(zi::Active).unwrap();
+        assert_eq!(editor.text(zi::Active), "ba\n");
+
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bar\n");
+        editor.tab().unwrap();
+        assert_eq!(editor.text(zi::Active), "bazz\n");
+        assert_eq!(editor.cursor(zi::Active), (0, 4));
+
+        editor.backtab().unwrap();
+        editor.backtab().unwrap();
+        assert_eq!(editor.text(zi::Active), "ba\n");
+    })
+    .await;
+
+    cx.cleanup().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn tab_completion_readonly() -> zi::Result<()> {
+    let cx = new("").await;
+    let buf = cx.open_tmp("", zi::OpenFlags::READONLY).await?;
+    cx.with(|editor| {
+        editor.register_completion_provider(Completions);
+        editor.set_mode(zi::Mode::Insert);
+        editor.trigger_completion(None);
+    })
+    .await;
+
+    cx.with(move |editor| {
+        assert_eq!(completions(editor), res().items);
+        assert!(matches!(editor.tab(), Err(zi::EditError::Readonly)));
+        assert!(matches!(editor.backtab(), Err(zi::EditError::Readonly)));
+        assert_eq!(editor.text(buf), "");
+    })
+    .await;
+
+    cx.cleanup().await;
+    Ok(())
+}

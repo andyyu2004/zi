@@ -33,6 +33,7 @@ pub(crate) struct ActiveCompletionState {
     matches: Vec<nucleo::Match>,
     matcher: nucleo::Matcher,
     query: String,
+    text: String,
 }
 
 impl Completion {
@@ -50,6 +51,7 @@ impl Completion {
             tracing::debug!(initial_query = ?query, trigger = ?trigger, range = ?replacement_range, "activating completion");
             *self = Completion::Active(ActiveCompletionState {
                 replacement_range,
+                text: query.clone(),
                 query,
                 ..Default::default()
             });
@@ -111,9 +113,9 @@ impl ActiveCompletionState {
 
     fn generate_delta(&mut self, replacement: impl Into<String>) -> Delta<'static> {
         let replacement = replacement.into();
-        let n = replacement.len();
-        let delta = Delta::new(self.replacement_range.clone(), replacement);
-        self.replacement_range.end = self.replacement_range.start + n;
+        let delta = Delta::new(self.replacement_range.clone(), replacement.clone());
+        self.replacement_range.end = self.replacement_range.start + replacement.len();
+        self.text = replacement;
         delta
     }
 
@@ -128,17 +130,14 @@ impl ActiveCompletionState {
 
     pub fn update_query(&mut self, c: Option<char>) {
         match c {
-            Some(c) => {
-                self.query.push(c);
-                self.replacement_range.end = self.replacement_range.start + self.query.len();
-            }
+            Some(c) => self.text.push(c),
             None => {
-                if self.query.pop().is_some() {
-                    self.replacement_range.end = self.replacement_range.start + self.query.len();
-                }
+                self.text.pop();
             }
         }
 
+        self.replacement_range.end = self.replacement_range.start + self.text.len();
+        self.query.clone_from(&self.text);
         self.compute_matches();
     }
 

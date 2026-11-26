@@ -11,7 +11,7 @@ use zi_text::{Delta, Deltas};
 
 use super::{Selector, State, active_servers_of};
 use crate::completion::{Completion, CompletionProvider};
-use crate::{Active, Editor, LanguageServiceId, Result, ViewId, lstypes};
+use crate::{Active, EditError, Editor, LanguageServiceId, Result, ViewId, lstypes};
 
 static COMPLETION_PROVIDERS: OnceLock<RwLock<FxHashMap<TypeId, Arc<dyn CompletionProvider>>>> =
     OnceLock::new();
@@ -58,11 +58,12 @@ impl Editor {
         });
     }
 
-    pub(super) fn apply_completion_delta(&mut self, delta: &Delta<'_>) {
+    pub(super) fn apply_completion_delta(&mut self, delta: &Delta<'_>) -> Result<(), EditError> {
         let delta = delta.to_owned();
         let new_cursor = delta.range().start + delta.text().len();
-        self.edit(Active, &Deltas::new([delta])).expect("valid delta");
+        self.edit(Active, &Deltas::new([delta]))?;
         self.set_cursor_bytewise(Active, new_cursor);
+        Ok(())
     }
 
     #[doc(hidden)]
