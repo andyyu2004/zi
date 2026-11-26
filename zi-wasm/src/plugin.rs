@@ -189,7 +189,19 @@ impl api::editor::HostBuffer for HostState {
 
     async fn get_flags(&mut self, buf: Resource<api::editor::Buffer>) -> api::editor::BufferFlags {
         let buf_id = self.buffers[&buf.rep()];
-        self.client.with(move |editor| editor.buffer(buf_id).flags().into()).await
+        self.client
+            .with(move |editor| {
+                let buf = editor.buffer(buf_id);
+                let mut flags = api::editor::BufferFlags::empty();
+                if *buf.settings().readonly.read() {
+                    flags |= api::editor::BufferFlags::READONLY;
+                }
+                if buf.flags().contains(zi::BufferFlags::DIRTY) {
+                    flags |= api::editor::BufferFlags::DIRTY;
+                }
+                flags
+            })
+            .await
     }
 
     async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> u32 {

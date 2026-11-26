@@ -61,8 +61,8 @@ use self::search::SearchState;
 use self::state::{OperatorPendingState, State};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry, DynamicHandler, Picker};
 use crate::buffer::{
-    Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector, InspectorBuffer,
-    PickerBuffer, SnapshotFlags, TextBuffer,
+    self as buffer, Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector,
+    InspectorBuffer, PickerBuffer, SnapshotFlags, TextBuffer,
 };
 use crate::command::{self, Command, CommandKind, Handler, Word};
 use crate::completion::Completion;
@@ -355,7 +355,7 @@ impl Editor {
         let scratch_buffer = db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
-                BufferFlags::empty(),
+                Default::default(),
                 filetype!(text),
                 "scratch",
                 Rope::new(),
@@ -370,7 +370,7 @@ impl Editor {
         let empty_buffer = db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
-                BufferFlags::READONLY,
+                buffer::Settings { readonly: Setting::new(true), ..Default::default() },
                 filetype!(text),
                 "empty",
                 "",
@@ -515,8 +515,7 @@ impl Editor {
             // and we want to open it as a normal buffer. In that case we drop the old buffer and
             // replace it with a writable one (with the same id). This is safe as we know we're not
             // losing any data due to it being readonly.
-            if self[buf].flags().contains(BufferFlags::READONLY)
-                && !open_flags.contains(OpenFlags::READONLY)
+            if *self[buf].settings().readonly.read() && !open_flags.contains(OpenFlags::READONLY)
                 || open_flags.contains(OpenFlags::FORCE)
             {
                 Plan::Replace(buf)
@@ -537,7 +536,7 @@ impl Editor {
                 path: &Path,
                 text: T,
                 theme: Setting<Theme>,
-                flags: BufferFlags,
+                settings: buffer::Settings,
                 syntax: Option<Box<dyn Syntax>>,
             ) -> BufferId {
                 let path = path.to_path_buf();
@@ -546,7 +545,7 @@ impl Editor {
                         Plan::Replace(id) => {
                             let buf = Buffer::new(TextBuffer::new(
                                 id,
-                                flags,
+                                settings,
                                 ft,
                                 &path,
                                 text,
@@ -559,7 +558,7 @@ impl Editor {
                         Plan::Insert => editor.db.insert_buffer(|id| {
                             Buffer::new(TextBuffer::new(
                                 id,
-                                flags,
+                                settings,
                                 ft,
                                 &path,
                                 text,
@@ -579,14 +578,16 @@ impl Editor {
                 debug_assert!(path.exists() && path.is_file());
                 // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
                 let text = unsafe { ReadonlyText::open(&path) }?;
-                execute(&client, plan, ft, &path, text, theme, BufferFlags::READONLY, syntax).await
+                let settings =
+                    buffer::Settings { readonly: Setting::new(true), ..Default::default() };
+                execute(&client, plan, ft, &path, text, theme, settings, syntax).await
             } else {
                 let rope = if path.exists() {
                     rope_from_reader(tokio::fs::File::open(&path).await?).await?
                 } else {
                     Rope::new()
                 };
-                execute(&client, plan, ft, &path, rope, theme, BufferFlags::empty(), syntax).await
+                execute(&client, plan, ft, &path, rope, theme, Default::default(), syntax).await
             };
 
             client
@@ -1174,7 +1175,7 @@ impl Editor {
             | State::ReplacePending => {
                 let view = selector.select(self);
                 let (view, buf) = self.db.view_and_buffer_mut(view);
-                if buf.flags().contains(BufferFlags::READONLY) {
+                if *buf.settings().readonly.read() {
                     return Err(EditError::Readonly);
                 }
 
@@ -1385,7 +1386,7 @@ impl Editor {
         let buf = selector.select(self);
         // Don't care if we're actually in insert mode, that's more a key binding namespace.
 
-        if self[buf].flags().contains(BufferFlags::READONLY) {
+        if *self[buf].settings().readonly.read() {
             return Err(EditError::Readonly);
         }
 
@@ -1394,7 +1395,7 @@ impl Editor {
         }
 
         // Ensure the buffer ends with a newline before performing an insert.
-        if self[buf].flags().contains(BufferFlags::ENSURE_TRAILING_NEWLINE)
+        if *self[buf].settings().fix_eol.read()
             && !flags.contains(EditFlags::NO_ENSURE_TRAILING_NEWLINE)
             && deltas.has_inserts()
             && self[buf].text().chars().next_back() != Some('\n')
@@ -1885,6 +1886,7 @@ impl Editor {
         let buf = selector.select(self);
 
         let buffer = &self[buf];
+        let readonly = *buffer.settings().readonly.read();
         let flags = buffer.flags();
         let url = buffer.url().clone();
         let path = buffer.file_path();
@@ -1892,7 +1894,7 @@ impl Editor {
 
         let client = self.client();
         async move {
-            if flags.contains(BufferFlags::READONLY) {
+            if readonly {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
                 return Err(
                     io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly").into()
@@ -2021,7 +2023,7 @@ impl Editor {
         self.db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
-                BufferFlags::READONLY,
+                buffer::Settings { readonly: Setting::new(true), ..Default::default() },
                 filetype!(text),
                 path,
                 ReadonlyText::new(s),

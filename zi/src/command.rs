@@ -545,7 +545,7 @@ pub async fn reload(client: &Client) -> crate::Result<()> {
                 return async { Err(anyhow::anyhow!("buffer is dirty")) }.boxed();
             }
             let mut open_flags = OpenFlags::FORCE;
-            if buf.flags().contains(BufferFlags::READONLY) {
+            if *buf.settings().readonly.read() {
                 open_flags |= OpenFlags::READONLY;
             }
             let fut = editor.open(path, open_flags);

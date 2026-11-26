@@ -18,7 +18,7 @@ pub struct ExplorerBuffer<T: Entry, F: 'static> {
     cancel: Cancel,
     keymap: Keymap,
     confirm: F,
-    config: Settings,
+    settings: Settings,
 }
 
 impl<T, F> ExplorerBuffer<T, F>
@@ -68,7 +68,11 @@ where
                 keymap,
                 confirm,
                 url: Url::parse("buffer://explorer").unwrap(),
-                config: Default::default(),
+                settings: Settings {
+                    readonly: Setting::new(true),
+                    fix_eol: Setting::new(false),
+                    ..Default::default()
+                },
                 text: Default::default(),
             },
             injector,
@@ -79,10 +83,6 @@ where
 impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
     fn id(&self) -> BufferId {
         self.id
-    }
-
-    fn flags(&self) -> BufferFlags {
-        BufferFlags::READONLY
     }
 
     fn flushed(&mut self, _: Internal) {
@@ -106,7 +106,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
     }
 
     fn settings(&self) -> &Settings {
-        &self.config
+        &self.settings
     }
 
     fn text(&self) -> &(dyn AnyText + 'static) {

@@ -134,7 +134,7 @@ impl Editor {
         let display_buf = self.db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
                 id,
-                BufferFlags::empty(),
+                Default::default(),
                 filetype!(text),
                 path,
                 Rope::new(),

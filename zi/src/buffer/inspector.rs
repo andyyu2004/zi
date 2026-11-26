@@ -8,7 +8,7 @@ pub struct InspectorBuffer {
     id: BufferId,
     text: String,
     url: Url,
-    config: Settings,
+    settings: Settings,
 }
 
 impl InspectorBuffer {
@@ -16,7 +16,11 @@ impl InspectorBuffer {
         Self {
             id,
             url: Url::parse("buffer://inspector").unwrap(),
-            config: Default::default(),
+            settings: Settings {
+                readonly: Setting::new(true),
+                fix_eol: Setting::new(false),
+                ..Default::default()
+            },
             text: Default::default(),
         }
     }
@@ -25,10 +29,6 @@ impl InspectorBuffer {
 impl BufferInternal for InspectorBuffer {
     fn id(&self) -> BufferId {
         self.id
-    }
-
-    fn flags(&self) -> BufferFlags {
-        BufferFlags::READONLY
     }
 
     fn flushed(&mut self, _: Internal) {
@@ -48,7 +48,7 @@ impl BufferInternal for InspectorBuffer {
     }
 
     fn settings(&self) -> &Settings {
-        &self.config
+        &self.settings
     }
 
     fn text(&self) -> &(dyn AnyText + 'static) {
