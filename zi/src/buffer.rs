@@ -37,9 +37,7 @@ impl Selector<Self> for BufferId {
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct BufferFlags: u8 {
-        const READONLY = 1 << 0;
-        const DIRTY = 1 << 1;
-        const ENSURE_TRAILING_NEWLINE = 1 << 2;
+        const DIRTY = 1 << 0;
     }
 
     #[derive(Debug, Clone, Copy)]
@@ -60,6 +58,10 @@ pub struct Settings {
     pub tab_width: Setting<u8>,
     pub indent: Setting<IndentSettings>,
     pub format_on_save: Setting<bool>,
+    /// The buffer can't be edited.
+    pub readonly: Setting<bool>,
+    /// Add a newline at the end of the buffer before an insert if it doesn't end with one.
+    pub fix_eol: Setting<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +76,8 @@ impl Default for Settings {
             tab_width: Setting::new(4),
             indent: Setting::new(IndentSettings::Spaces(4)),
             format_on_save: Setting::new(true),
+            readonly: Setting::new(false),
+            fix_eol: Setting::new(true),
         }
     }
 }
@@ -258,7 +262,9 @@ impl Buffer {
 pub(crate) trait BufferInternal: Send + Sync {
     fn id(&self) -> BufferId;
 
-    fn flags(&self) -> BufferFlags;
+    fn flags(&self) -> BufferFlags {
+        BufferFlags::empty()
+    }
 
     fn url(&self) -> &Url;
 

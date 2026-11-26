@@ -94,19 +94,6 @@ impl From<api::editor::VerticalAlignment> for zi::VerticalAlignment {
     }
 }
 
-impl From<zi::BufferFlags> for api::editor::BufferFlags {
-    fn from(flags: zi::BufferFlags) -> Self {
-        let mut out = api::editor::BufferFlags::empty();
-        if flags.contains(zi::BufferFlags::READONLY) {
-            out |= api::editor::BufferFlags::READONLY;
-        }
-        if flags.contains(zi::BufferFlags::DIRTY) {
-            out |= api::editor::BufferFlags::DIRTY;
-        }
-        out
-    }
-}
-
 impl From<command::Arity> for zi::command::Arity {
     fn from(arity: command::Arity) -> Self {
         zi::command::Arity { min: arity.min, max: arity.max }

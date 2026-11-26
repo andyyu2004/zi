@@ -170,7 +170,7 @@ async fn insert_into_readonly() -> zi::Result<()> {
     let buf = cx.open(&path, zi::OpenFlags::READONLY).await?;
 
     cx.with(move |editor| {
-        assert!(editor.buffer(buf).flags().contains(zi::BufferFlags::READONLY));
+        assert!(*editor.buffer(buf).settings().readonly.read());
 
         assert!(matches!(editor.insert(zi::Active, "def"), Err(zi::EditError::Readonly)));
 

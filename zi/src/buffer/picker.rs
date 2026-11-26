@@ -24,7 +24,7 @@ pub struct PickerBuffer<P: Picker> {
     picker: P,
     url: Url,
     dynamic_handler: Option<DynamicHandler<P::Entry>>,
-    config: Settings,
+    settings: Settings,
 }
 
 pub type DynamicHandler<T> = Arc<dyn Fn(Injector<T>, &str) + Send + Sync>;
@@ -177,7 +177,7 @@ where
             picker,
             dynamic_handler: None,
             url: Url::parse("buffer://picker").unwrap(),
-            config: Default::default(),
+            settings: Settings { fix_eol: Setting::new(false), ..Default::default() },
             text: Default::default(),
             keymap: {
                 let next: Action = |editor| Self::select(editor, Direction::Down);
@@ -276,10 +276,6 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         self.id
     }
 
-    fn flags(&self) -> BufferFlags {
-        BufferFlags::empty()
-    }
-
     fn flushed(&mut self, _: Internal) {
         panic!("picker buffer has no backing file")
     }
@@ -297,7 +293,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
     }
 
     fn settings(&self) -> &Settings {
-        &self.config
+        &self.settings
     }
 
     fn text(&self) -> &(dyn AnyText + 'static) {

@@ -18,7 +18,7 @@ pub struct TextBuffer<X> {
     syntax: Option<Box<dyn Syntax>>,
     highlight_map: HighlightMap,
     version: u32,
-    config: Settings,
+    settings: Settings,
     undo_tree: UndoTree<UndoEntry>,
     /// Changes to the buffer that have not been saved to the undo tree
     changes: Vec<Change>,
@@ -99,7 +99,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
     #[inline]
     fn settings(&self) -> &Settings {
-        &self.config
+        &self.settings
     }
 
     #[inline]
@@ -195,14 +195,13 @@ impl<X: Text + Clone> TextBuffer<X> {
     #[inline]
     pub fn new(
         id: BufferId,
-        flags: BufferFlags,
+        settings: Settings,
         ft: FileType,
         path: impl AsRef<Path>,
         mut text: X,
         theme: &Theme,
         mut syntax: Option<Box<dyn Syntax>>,
     ) -> Self {
-        let flags = flags | BufferFlags::ENSURE_TRAILING_NEWLINE;
         let path = path.as_ref();
         let path = std::fs::canonicalize(path).ok().unwrap_or_else(|| path.to_path_buf());
         let file_url = Url::from_file_path(&path).ok();
@@ -214,8 +213,8 @@ impl<X: Text + Clone> TextBuffer<X> {
         );
 
         assert!(
-            text.as_text_mut().is_some() || flags.contains(BufferFlags::READONLY),
-            "must set readonly buffer flag for readonly text implementations"
+            text.as_text_mut().is_some() || *settings.readonly.read(),
+            "must set the readonly setting for readonly text implementations"
         );
 
         // let mut syntax = match Syntax::for_file_type(ft) {
@@ -239,14 +238,14 @@ impl<X: Text + Clone> TextBuffer<X> {
 
         Self {
             id,
-            flags,
+            flags: BufferFlags::empty(),
             url,
             file_url,
             text,
             syntax,
             language_id: ft,
             highlight_map,
-            config: Default::default(),
+            settings,
             changes: Default::default(),
             version: Default::default(),
             undo_tree: Default::default(),
@@ -277,7 +276,7 @@ impl<X: Text + Clone> TextBuffer<X> {
 
                 self.version = self.version.checked_add(1).unwrap();
             }
-            // FIXME need to check flags and prevent this
+            // FIXME need to check readonly and prevent this
             None => panic!("trying to modify a readonly buffer: {}", std::any::type_name::<X>()),
         }
     }
