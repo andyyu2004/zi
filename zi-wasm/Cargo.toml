@@ -10,7 +10,6 @@ tracing = { workspace = true }
 parking_lot = { workspace = true }
 zi = { workspace = true }
 slotmap = { workspace = true }
-mutants = { workspace = true }
 smol_str = { workspace = true }
 futures-util = { workspace = true }
 tree-sitter = { workspace = true, features = ["wasm"] }
@@ -24,4 +23,5 @@ tokio-stream = { workspace = true, features = ["fs"] }
 workspace = true
 
 [dev-dependencies]
+mutants = { workspace = true }
 wit-component = "0.263"
