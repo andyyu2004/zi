@@ -1,4 +1,7 @@
 /target
+.claude
+.direnv
+.pi 
 /runtime/plugins
 perf.data*
 .gdb_history

@@ -55,7 +55,7 @@ impl<X: Text + Clone + 'static> BufferHistory for TextBuffer<X> {
         }
 
         let changes = mem::take(&mut self.changes);
-        tracing::debug!(?flags, ?changes, "snapshot buffer");
+        tracing::trace!(?flags, ?changes, "snapshot buffer");
 
         self.undo_tree
             .push(UndoEntry { changes: changes.into(), cursor: self.saved_cursor.take() });
@@ -262,7 +262,7 @@ impl<X: Text + Clone> TextBuffer<X> {
         match self.text.as_text_mut() {
             Some(text) => {
                 if !deltas.is_identity() {
-                    tracing::debug!("set buffer dirty");
+                    tracing::trace!("set buffer dirty");
                     self.flags.insert(BufferFlags::DIRTY);
                 }
 

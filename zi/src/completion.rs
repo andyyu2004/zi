@@ -147,7 +147,7 @@ impl ActiveCompletionState {
     }
 
     fn compute_matches(&mut self) {
-        tracing::debug!(query = self.query, range = ?self.replacement_range, "completion matches");
+        tracing::trace!(query = self.query, range = ?self.replacement_range, "completion matches");
         let pattern = Atom::new(
             &self.query,
             CaseMatching::Ignore,

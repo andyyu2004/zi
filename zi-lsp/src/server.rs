@@ -279,7 +279,7 @@ impl zi::LanguageService for LanguageService {
                     None => return HandlerResult::Continue,
                 };
 
-                tracing::debug!(%uri, ?service_id, "lsp did_change");
+                tracing::trace!(%uri, ?service_id, "lsp did_change");
                 let text_document = lsp_types::VersionedTextDocumentIdentifier { uri, version };
 
                 fn build_rope(text: impl Text) -> Rope {
