@@ -20,3 +20,19 @@ fn replace_marks_many_times() {
     }
     assert_eq!(marks.iter(..).count(), 0);
 }
+
+#[test]
+fn marks_at_eof() {
+    let ns = <NamespaceId as rel::Key>::from_raw(rel::RawId::new(0, 0));
+    let mut created = Marks::default();
+    created.create(10, ns, Mark::builder(10));
+    let mut replaced = Marks::default();
+    replaced.replace(10, ns, [Mark::builder(10)]);
+
+    for mut marks in [created, replaced] {
+        let ranges = marks.iter(..).map(|(_, range, _)| range).collect::<Vec<_>>();
+        assert_eq!(ranges, [10..10]);
+        marks.drain(ns, ..);
+        assert_eq!(marks.iter(..).count(), 0);
+    }
+}

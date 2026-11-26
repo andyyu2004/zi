@@ -180,7 +180,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         &self,
         range: impl RangeBounds<usize>,
     ) -> impl Iterator<Item = (Range<usize>, Id)> + '_ {
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        let (start, end) = self.position_range(range);
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
         let leaves = iter::from_fn(move || {
@@ -259,7 +259,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             }
         }
 
-        let (start, end) = range_bounds_to_start_end(range, 0, self.len());
+        let (start, end) = self.position_range(range);
         let items = self.range(start..end).collect::<Vec<_>>();
         if !items.is_empty() {
             let ids = items.iter().map(|&(_, id)| id.into()).collect::<SetU64>();
@@ -328,6 +328,11 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
 
         self.assert_invariants();
         Some(start..end)
+    }
+
+    /// Marks can be at `0..=len`, so an unbounded end includes a mark at `len`.
+    fn position_range(&self, range: impl RangeBounds<usize>) -> (usize, usize) {
+        range_bounds_to_start_end(range, 0, self.len() + 1)
     }
 
     fn replace(&mut self, range: impl RangeBounds<usize>, replace_with: Replacement) {

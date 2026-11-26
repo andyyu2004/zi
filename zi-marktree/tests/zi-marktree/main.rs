@@ -220,6 +220,28 @@ fn marktree_drain_2() {
 }
 
 #[test]
+fn marktree_range_includes_eof() {
+    #[track_caller]
+    fn check(mut tree: MarkTree<Id, 4>) {
+        assert_eq!(tree.get(Id(0)), Some(5..5));
+        assert_iter_eq(tree.range(..), [(2..5, Id(1)), (5..5, Id(0))]);
+        assert_iter_eq(tree.range(5..), [(5..5, Id(0))]);
+        assert_iter_eq(tree.drain(3..), [(5..5, Id(0))]);
+        assert_iter_eq(tree.drain(..), [(2..5, Id(1))]);
+        assert_iter_eq(tree.range(..), []);
+    }
+
+    let mut tree = new(5);
+    tree.insert(5, Id(0));
+    tree.insert(2, Id(1)).width(3);
+    check(tree);
+    check(MarkTree::build(
+        5,
+        [(Id(0), MarkBuilder::new(5)), (Id(1), MarkBuilder::new(2).width(3))],
+    ));
+}
+
+#[test]
 fn marktree_drain_1() {
     let mut tree = new(10);
 

@@ -61,7 +61,7 @@ struct PerNs {
 
 impl PerNs {
     fn new(text_len: usize) -> Self {
-        Self { marks: SlotMap::default(), tree: MarkTree::new(text_len + 1) }
+        Self { marks: SlotMap::default(), tree: MarkTree::new(text_len) }
     }
     fn iter(
         &self,
