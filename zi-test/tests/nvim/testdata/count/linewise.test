@@ -1,0 +1,71 @@
+==== count after an operator on a linewise motion
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+d2j
+
+==== count before an operator on a linewise motion
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+2dj
+
+==== count on a linewise motion up
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+jjj2dk
+
+==== count on a linewise motion past the end of the buffer
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+jd9j
+
+==== count on a linewise motion past the start of the buffer
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+jjjj9dk
+
+==== count on a linewise motion keeps the column
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+----
+llljd2k
+
+==== count on a linewise motion is repeated by dot
+abcdef 1
+abcdef 2
+abcdef 3
+abcdef 4
+abcdef 5
+abcdef 6
+abcdef 7
+abcdef 8
+----
+d2j.
