@@ -1,0 +1,9 @@
+==== undo does not become the change dot repeats
+a b c d e f g h i j k l
+----
+dwu.
+
+==== redo does not become the change dot repeats
+a b c d e f g h i j k l
+----
+dwu<C-r>u.

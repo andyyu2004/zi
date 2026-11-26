@@ -515,3 +515,19 @@ async fn dot_with_operator_then_insert() {
 
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn dot_ignores_edit_outside_key_handling() {
+    let cx = new("one two three four").await;
+
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("dwg").unwrap();
+        editor.edit(zi::Active, &zi::Deltas::insert_at(0, "x")).unwrap();
+        editor.input("<ESC>.").unwrap();
+        assert_eq!(editor.cursor_line(), "three four");
+    })
+    .await;
+
+    cx.cleanup().await;
+}
