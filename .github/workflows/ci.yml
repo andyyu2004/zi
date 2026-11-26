@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Deny Cargo and compiler lint warnings in CI without changing local defaults.
+  CARGO_BUILD_WARNINGS: deny
+
 jobs:
   # Whether each job has passed on this source and CI shell: its store path (flake.nix ci)
   # is in the Nix cache. Pushes to master run every job, as they save the Rust cache that

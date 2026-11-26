@@ -12,7 +12,6 @@ bitflags = { workspace = true }
 futures-core = { workspace = true }
 parking_lot = { workspace = true }
 regex-cursor = { workspace = true }
-mutants = { workspace = true }
 rel = { workspace = true }
 slotmap = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt-multi-thread", "time", "macros", "fs", "io-std", "io-util"] }

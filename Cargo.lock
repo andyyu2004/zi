@@ -2770,7 +2770,6 @@ name = "plugin-example"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.63.0",
- "wit-bindgen-rt",
 ]
 
 [[package]]
@@ -2778,7 +2777,6 @@ name = "plugin-test"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.63.0",
- "wit-bindgen-rt",
 ]
 
 [[package]]
@@ -5060,12 +5058,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wit-bindgen-rt"
-version = "0.44.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "653c85dd7aee6fe6f4bded0d242406deadae9819029ce6f7d258c920c384358a"
-
-[[package]]
 name = "wit-bindgen-rust"
 version = "0.63.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5370,7 +5362,6 @@ dependencies = [
  "grep",
  "ignore",
  "itertools 0.15.0",
- "mutants",
  "nucleo",
  "parking_lot 0.13.0",
  "rand 0.10.4",
@@ -5405,7 +5396,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "expect-test",
- "parking_lot 0.13.0",
  "rel",
  "slotmap",
  "stdx",
@@ -5416,10 +5406,6 @@ dependencies = [
 [[package]]
 name = "zi-event"
 version = "0.1.0"
-dependencies = [
- "zi-core",
- "zi-text",
-]
 
 [[package]]
 name = "zi-fuzz"

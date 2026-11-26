@@ -3,9 +3,5 @@ name = "zi-event"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-zi-core.workspace = true
-zi-text.workspace = true
-
 [lints]
 workspace = true
