@@ -1278,7 +1278,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_next() {
-                        self.apply_completion_delta(&delta);
+                        self.apply_completion_delta(&delta)?;
                     }
                 } else {
                     let (view, buf) = self.get(Active);
@@ -1310,7 +1310,7 @@ impl Editor {
             State::Insert(state) => {
                 if let Completion::Active(state) = &mut state.completion {
                     if let Some(delta) = state.select_prev() {
-                        self.apply_completion_delta(&delta);
+                        self.apply_completion_delta(&delta)?;
                     }
                 } else {
                     // TODO
