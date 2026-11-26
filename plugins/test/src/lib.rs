@@ -102,7 +102,7 @@ fn test_buffer_apis() {
     let _path = buf.get_file_path();
 
     let flags = buf.get_flags();
-    assert!(!flags.contains(BufferFlags::READONLY));
+    assert!(flags.contains(BufferFlags::DIRTY));
 
     let lines = buf.len_lines();
     assert!(lines >= 1);

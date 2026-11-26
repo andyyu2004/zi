@@ -108,7 +108,6 @@ interface editor {
     }
 
     flags buffer-flags {
-        readonly,
         dirty,
     }
 
