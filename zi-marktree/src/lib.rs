@@ -287,6 +287,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 let (end, _) = del(root, 0, id);
                 (start, end)
             }
+            // A point mark has a single key (no `Flags::RANGE`), so it's gone after one delete.
             (start, None) => (start, start),
         };
 
