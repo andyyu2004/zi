@@ -403,3 +403,75 @@ async fn test_directional_focus_propagation() {
 
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn split_left_of_non_last_view() {
+    let cx = new("abc").with_size((48, 6)).await;
+    cx.with(|editor| {
+        let a = editor.view(zi::Active).id();
+        editor.split(zi::Active, Right, Fill(1));
+        editor.focus(a);
+        editor.split(zi::Active, Left, Fill(1));
+    })
+    .await;
+
+    cx.snapshot(expect![[r#"
+        "   1 ab|           1 abc           1 abc        "
+        "                                                "
+        "                                                "
+        "                                                "
+        "buffer://scratch:1:2                            "
+        "                                                "
+    "#]])
+        .await;
+
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn split_up_of_non_last_view() {
+    let cx = new("abc").with_size((20, 8)).await;
+    cx.with(|editor| {
+        let a = editor.view(zi::Active).id();
+        editor.split(zi::Active, Down, Fill(1));
+        editor.focus(a);
+        editor.split(zi::Active, Up, Fill(1));
+    })
+    .await;
+
+    cx.snapshot(expect![[r#"
+        "   1 ab|            "
+        "                    "
+        "   1 abc            "
+        "                    "
+        "   1 abc            "
+        "                    "
+        "buffer://scratch:1:2"
+        "                    "
+    "#]])
+        .await;
+
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn split_same_direction_honours_constraint() {
+    let cx = new("abc").with_size((50, 6)).await;
+    cx.with(|editor| {
+        editor.split(zi::Active, Right, Fill(1));
+        editor.split(zi::Active, Right, Percentage(70));
+    })
+    .await;
+
+    cx.snapshot(expect![[r#"
+        "   1 abc   1 ab   1 ab|                           "
+        "                                                  "
+        "                                                  "
+        "                                                  "
+        "buffer://scratch:1:2                              "
+        "                                                  "
+    "#]])
+        .await;
+
+    cx.cleanup().await;
+}
