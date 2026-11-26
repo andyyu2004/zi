@@ -207,6 +207,14 @@ impl TryFrom<&str> for Word {
     type Error = &'static str;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl FromStr for Word {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.chars().all(|c| !c.is_whitespace()) {
             Ok(Word(s.into()))
         } else {
@@ -462,7 +470,7 @@ pub(crate) fn builtin_handlers() -> HashMap<Word, Handler> {
             CommandFlags::empty(),
             executor_fn(|client, range, args, _force| async move {
                 assert!(range.is_none());
-                assert!(args.len() == 2);
+                assert_eq!(args.len(), 2);
 
                 client.with(move |editor| set_option(editor, &args[0], &args[1])).await
             }),

@@ -32,10 +32,10 @@ fn create_file(mbs: usize) -> PathBuf {
 
     assert!(mbs <= 2048, "don't go too crazy :)");
 
-    let path: io::Result<_> = try {
+    let path = (|| -> io::Result<_> {
         let path = std::env::temp_dir().join(format!("zi-test-file-{mbs}mb-lines"));
         if path.exists() {
-            return path;
+            return Ok(path);
         }
 
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -63,7 +63,7 @@ fn create_file(mbs: usize) -> PathBuf {
         assert!(path.exists());
         assert!(path.metadata()?.size() > 1024 * 1024 * mbs as u64, "file too small");
 
-        path
-    };
+        Ok(path)
+    })();
     path.unwrap()
 }

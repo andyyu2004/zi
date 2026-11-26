@@ -88,8 +88,7 @@ impl Theme {
         self.highlights
             .iter()
             .position(|(key, _)| key.as_ref() == name)
-            .map(|i| HighlightId(i as u32))
-            .unwrap_or_default()
+            .map_or(HighlightId::DEFAULT, |i| HighlightId(i as u32))
     }
 }
 

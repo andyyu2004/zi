@@ -170,6 +170,7 @@ impl api::editor::HostView for HostState {
         self.client.with(move |editor| editor.focus(view_id)).await;
     }
 
+    #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
     async fn drop(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
         self.views.remove(&view.rep());
         Ok(())
@@ -196,6 +197,7 @@ impl api::editor::HostBuffer for HostState {
         self.client.with(move |editor| editor.buffer(buf_id).text().len_lines() as u32).await
     }
 
+    #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
     async fn drop(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<()> {
         self.buffers.remove(&buf.rep());
         Ok(())
@@ -638,7 +640,7 @@ mod test {
                 for plugin in &plugins[..] {
                     let dep = plugin.zi_api_dependency();
                     assert_eq!(dep.call_get_name(&mut store).await?, "test");
-                    assert!(dep.call_dependencies(&mut store).await?.is_empty());
+                    assert_eq!(dep.call_dependencies(&mut store).await?, Vec::<String>::new());
 
                     let lifecycle = plugin.zi_api_lifecycle();
                     let init = lifecycle.call_initialize(&mut store).await?;

@@ -8,19 +8,19 @@ error: `columns(...)` goes on the struct
   --> tests/ui/relation_errors.rs:16:5
    |
 16 |     #[index(columns(a))]
-   |     ^^^^^^^^^^^^^^^^^^^^
+   |     ^
 
 error: a struct-level index needs `columns(a, b, ...)` with two or more columns; put single-column indexes on the field
   --> tests/ui/relation_errors.rs:21:1
    |
 21 | #[index]
-   | ^^^^^^^^
+   | ^
 
 error: a struct-level index needs `columns(a, b, ...)` with two or more columns; put single-column indexes on the field
   --> tests/ui/relation_errors.rs:27:1
    |
 27 | #[index(columns(a))]
-   | ^^^^^^^^^^^^^^^^^^^^
+   | ^
 
 error: no field `nope`
   --> tests/ui/relation_errors.rs:33:20
@@ -92,7 +92,7 @@ error: expected the referenced relation, e.g. `#[references(User)]`
    --> tests/ui/relation_errors.rs:101:5
     |
 101 |     #[references(on_delete = cascade)]
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ^
 
 error: expected `key = Type` or `columns = module_name`
    --> tests/ui/relation_errors.rs:106:12
@@ -104,7 +104,7 @@ error: relations can't be generic
    --> tests/ui/relation_errors.rs:112:15
     |
 112 | struct Generic<T> {
-    |               ^^^
+    |               ^
 
 error: `Relation` can only be derived for structs
    --> tests/ui/relation_errors.rs:116:10

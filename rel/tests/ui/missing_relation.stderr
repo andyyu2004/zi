@@ -19,7 +19,6 @@ note: required for `Post` to implement `References<Db>`
    |          -------- type parameter would need to implement `References<Db>`
  9 | struct Post {
    |        ^^^^
-   = help: consider manually implementing `References<Db>` to avoid undesired bounds
 note: required by a bound in `assert_references`
   --> tests/ui/missing_relation.rs:14:10
    |

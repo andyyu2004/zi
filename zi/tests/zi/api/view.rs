@@ -134,17 +134,17 @@ async fn test_directional_focus() {
 
         assert_eq!(editor.view(zi::Active).id(), e);
 
-        let mut check = #[track_caller]
-        |direction, expected| {
+        #[track_caller]
+        fn check(editor: &mut zi::Editor, direction: zi::Direction, expected: zi::ViewId) {
             assert_eq!(editor.focus_direction(direction), expected);
             assert_eq!(editor.view(zi::Active).id(), expected);
-        };
+        }
 
-        check(Up, d);
-        check(Right, b);
-        check(Down, c);
-        check(Down, c);
-        check(Left, a);
+        check(editor, Up, d);
+        check(editor, Right, b);
+        check(editor, Down, c);
+        check(editor, Down, c);
+        check(editor, Left, a);
     })
     .await;
     cx.cleanup().await;

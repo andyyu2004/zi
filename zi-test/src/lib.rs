@@ -115,7 +115,7 @@ impl TestContext {
     }
 
     /// Only for use when debugging failing tests to avoid the drop panic.
-    #[deprecated]
+    #[deprecated(since = "0.1.0")]
     pub fn defuse(&self) {
         self.bomb.defuse();
     }
