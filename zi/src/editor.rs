@@ -908,7 +908,12 @@ impl Editor {
             }
             _ => match keymap.on_key(mode, key).0 {
                 TrieResult::Found(f) => {
+                    let count = self.count;
                     f(self);
+                    if self.count == count && !matches!(mode!(self), Mode::OperatorPending(_)) {
+                        self.count = None;
+                    }
+
                     if mode == Mode::Normal && mode!(self) == Mode::Normal && self.count.is_none() {
                         self.dot.clear_normal_keys();
                     }
@@ -1777,7 +1782,6 @@ impl Editor {
         selector: impl Selector<ViewId>,
         motion: impl Motion,
     ) -> Result<Point, EditError> {
-        let motion = motion.repeat(self.take_count().unwrap_or(1));
         let view = selector.select(self);
         let (view, buf) = self.db.view_and_buffer_mut(view);
         let view_id = view.id();

@@ -9,6 +9,7 @@ use crate::keymap::Keymap;
 use crate::{
     Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment, hashmap, motion, trie,
 };
+use zi_textobject::motion::Motion;
 
 pub(super) fn new() -> Keymap {
     static KEYMAP: OnceLock<Keymap<Mode, KeyEvent, Action>> = OnceLock::new();
@@ -31,6 +32,11 @@ pub(super) fn new() -> Keymap {
     count_fn!(count_7, 7);
     count_fn!(count_8, 8);
     count_fn!(count_9, 9);
+
+    fn counted_motion(editor: &mut Editor, motion: impl Motion) {
+        let n = editor.take_count().unwrap_or(1);
+        set_error_if!(editor: editor.motion(Active, motion.repeat(n)));
+    }
 
     fn delete_operator_pending(editor: &mut Editor) {
         editor.set_mode(Mode::OperatorPending(Operator::Delete));
@@ -108,19 +114,19 @@ pub(super) fn new() -> Keymap {
     }
 
     fn prev_line(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevLine));
+        counted_motion(editor, motion::PrevLine);
     }
 
     fn next_line(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextLine));
+        counted_motion(editor, motion::NextLine);
     }
 
     fn prev_char(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevChar));
+        counted_motion(editor, motion::PrevChar);
     }
 
     fn next_char(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextChar));
+        counted_motion(editor, motion::NextChar);
     }
 
     fn inside_paren(editor: &mut Editor) {
@@ -241,19 +247,19 @@ pub(super) fn new() -> Keymap {
     }
 
     fn next_token(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextToken));
+        counted_motion(editor, motion::NextToken);
     }
 
     fn prev_token(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevToken));
+        counted_motion(editor, motion::PrevToken);
     }
 
     fn next_word(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::NextWord));
+        counted_motion(editor, motion::NextWord);
     }
 
     fn prev_word(editor: &mut Editor) {
-        set_error_if!(editor: editor.motion(Active, motion::PrevWord));
+        counted_motion(editor, motion::PrevWord);
     }
 
     fn matchit(editor: &mut Editor) {
