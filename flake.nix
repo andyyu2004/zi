@@ -328,6 +328,8 @@
             ++ extraPackages;
 
             ZI_NIX_GRAMMAR_DIR = grammars;
+            # Plugins the nvim tests load into the nvim they compare against.
+            ZI_NVIM_PLUGIN_PATH = pkgs.lib.concatStringsSep ":" [ "${pkgs.vimPlugins.vim-wordmotion}" ];
             shellHook = ''
               export ZI_GRAMMAR_DIR="''${ZI_GRAMMAR_DIR:-$ZI_NIX_GRAMMAR_DIR}"
             '';

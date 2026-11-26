@@ -1,0 +1,105 @@
+==== camelCase, snake_case and UPPERCASE words
+fooBar baz_qux HTTPServer x
+----
+eeeeeeegegegegegege
+
+==== punctuation, hyphens between letters, numbers
+a.b->c(d) foo-bar a-1 123 0x1f #ff00aa #A
+----
+eeeeeeeeeeeeeeeeeegegegegegegegege
+
+==== e doesn't stop on empty lines, ge does
+a
+
+b
+
+
+c
+----
+eeeegegegege
+
+==== counts
+one two three four
+----
+3e2ge
+
+==== ge with nothing before it goes to the start of the line
+  a b
+----
+llgege
+
+==== ge with a count stops at the first word if it runs out
+[{A
+----
+2e2ge
+
+==== de at the end of the buffer deletes the last character
+a b
+----
+eede
+
+==== dge onto an empty line covers its line break
+a
+
+b
+----
+jdge
+
+==== dge on the first empty line joins it
+a!
+
+a
+----
+dedge
+
+==== E and gE
+a.b->c(d) foo-bar
+  x
+----
+EEEgEgEgE
+
+==== E at the end of the buffer moves to the end
+a b
+----
+EEE
+
+==== dE at the end of the buffer deletes the last character
+a b
+----
+EEdE
+
+==== dgE at the start of the buffer does nothing
+aA
+----
+dgE
+
+==== d2gE running into the start of the buffer
+aaa
+----
+ld2gE
+
+==== dgE onto an empty line doesn't cover its line break
+aA
+
+ a
+----
+EEgEdgE
+
+==== dE across an empty line is linewise
+a
+
+b
+----
+jdE
+
+==== visual e and ge
+fooBar baz
+qux
+----
+veeegey
+
+==== visual E
+foo bar
+baz
+----
+vEEgEd

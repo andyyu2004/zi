@@ -262,6 +262,22 @@ pub(super) fn new() -> Keymap {
         counted_motion(editor, motion::PrevWord);
     }
 
+    fn next_word_end(editor: &mut Editor) {
+        counted_motion(editor, motion::NextWordEnd);
+    }
+
+    fn prev_word_end(editor: &mut Editor) {
+        counted_motion(editor, motion::PrevWordEnd);
+    }
+
+    fn next_token_end(editor: &mut Editor) {
+        counted_motion(editor, motion::NextTokenEnd);
+    }
+
+    fn prev_token_end(editor: &mut Editor) {
+        counted_motion(editor, motion::PrevTokenEnd);
+    }
+
     fn matchit(editor: &mut Editor) {
         set_error_if!(editor: editor.motion(Active, motion::MatchIt));
     }
@@ -461,6 +477,12 @@ pub(super) fn new() -> Keymap {
                 "W" => next_token,
                 "b" => prev_word,
                 "B" => prev_token,
+                "e" => next_word_end,
+                "E" => next_token_end,
+                "g" => {
+                    "e" => prev_word_end,
+                    "E" => prev_token_end,
+                },
                 "h" => prev_char,
                 "k" => prev_line,
                 "j" => next_line,
@@ -542,6 +564,8 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "e" => next_word_end,
+                    "E" => next_token_end,
                     "%" => matchit,
                     "G" => goto_end,
                     "y" => visual_yank,
@@ -551,6 +575,8 @@ pub(super) fn new() -> Keymap {
                     "<C-v>" => visual_block_mode,
                     "g" => {
                         "g" => goto_start,
+                        "e" => prev_word_end,
+                        "E" => prev_token_end,
                     },
                 })),
                 Mode::VisualLine => count_trie.clone().merge(trie!({
@@ -577,6 +603,8 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "e" => next_word_end,
+                    "E" => next_token_end,
                     "G" => goto_end,
                     "y" => visual_yank,
                     "d" | "x" => visual_delete,
@@ -585,6 +613,8 @@ pub(super) fn new() -> Keymap {
                     "V" => visual_line_mode,
                     "g" => {
                         "g" => goto_start,
+                        "e" => prev_word_end,
+                        "E" => prev_token_end,
                     },
                 })),
                 Mode::Normal => count_trie.merge(trie!({
@@ -622,6 +652,8 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "e" => next_word_end,
+                    "E" => next_token_end,
                     "a" => append,
                     "A" => append_eol,
                     "u" => undo,
@@ -651,6 +683,8 @@ pub(super) fn new() -> Keymap {
                         "t" => goto_type_definition,
                         "r" => find_references,
                         "g" => goto_start,
+                        "e" => prev_word_end,
+                        "E" => prev_token_end,
                     },
                     "t" => {
                         "s" => inspect,

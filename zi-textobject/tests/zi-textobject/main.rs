@@ -161,6 +161,78 @@ fn motion_next_token() {
 }
 
 #[test]
+fn motion_next_word_end() {
+    let motion = NextWordEnd;
+    check(&motion, "fooBar baz", 0, 2);
+    check(&motion, "fooBar baz", 2, 5);
+    check(&motion, "fooBar baz", 5, 9);
+    check(&motion, "HTTPServer", 0, 3);
+    check(&motion, "baz_qux", 0, 2);
+    check(&motion, "a-b", 0, 2);
+    check(&motion, "a-1", 0, 1);
+    check(&motion, "a->b", 0, 2);
+    check(&motion, "x 0x1f", 0, 5);
+    check(&motion, "x #ff", 0, 4);
+    check(&motion, "#AAG", 0, 3);
+    // empty lines aren't words
+    check(&motion, "a\n\nb", 0, 3);
+    // the end of the buffer is
+    check(&motion, "a b  ", 2, 4);
+    check(&motion, "a", 0, 0);
+    check(&motion, "aé b", 0, 1);
+    check(&motion, "a é", 0, 2);
+
+    check_range(&motion, "ab cd", 0, Some(0..2));
+    check_range(&motion, "a", 0, Some(0..1));
+    check_range(&motion, "a\n\nb", 1, Some(1..4));
+    check_range(&(&motion).repeat(2), "ab.c", 0, Some(0..3));
+}
+
+#[test]
+fn motion_prev_word_end() {
+    let motion = PrevWordEnd;
+    check(&motion, "fooBar baz", 9, 5);
+    check(&motion, "fooBar baz", 5, 2);
+    check(&motion, "fooBar baz", 2, 0);
+    check(&motion, "  a", 2, 0);
+    check(&motion, "a\n\nb", 3, 2);
+    check(&motion, "a\n\nb", 2, 0);
+    check(&(&motion).repeat(2), "[{A", 2, 1);
+
+    // covers the line break of an empty line
+    check_range(&motion, "a\n\nb", 3, Some(2..4));
+    check_range(&motion, "\n\na", 0, Some(0..1));
+}
+
+#[test]
+fn motion_next_token_end() {
+    let motion = NextTokenEnd;
+    check(&motion, "a.b c", 0, 2);
+    check(&motion, "a.b c", 2, 4);
+    check(&motion, "a\n\nb", 0, 3);
+    // goes to the end of the buffer when there is nothing left
+    check(&motion, "a b  ", 2, 4);
+    check(&motion, "a\n\n", 0, 2);
+
+    check_range(&motion, "a b", 2, Some(2..3));
+}
+
+#[test]
+fn motion_prev_token_end() {
+    let motion = PrevTokenEnd;
+    check(&motion, "a.b c", 4, 2);
+    check(&motion, "a\n\nb", 3, 2);
+    check(&motion, "  a", 2, 0);
+
+    check_range(&motion, "aA", 0, None);
+    check_range(&motion, "aaa", 1, Some(0..2));
+    check_range(&(&motion).repeat(2), "aaa", 1, Some(0..2));
+    check_range(&(&motion).repeat(2), "a b", 2, None);
+    // doesn't cover the line break of an empty line
+    check_range(&motion, "aA\n\n a", 3, Some(1..3));
+}
+
+#[test]
 fn motion_next_char() {
     let motion = NextChar;
     check(&motion, "a", 0, 1);

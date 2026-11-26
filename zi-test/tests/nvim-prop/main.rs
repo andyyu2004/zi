@@ -51,6 +51,14 @@ const I_NO_TRAILING_SPACE: &str = r"(?s)[A-z][!-~\n]*[A-z]";
 
 t!(I, "<ESC>", nvim_test);
 t!(I, "[WBhjkl]+", nvim_token_motions);
+t!(I, "(E|gE|[hjkl])+", nvim_token_end_motions);
+t!(I, "(e|ge|[hjkl])+", nvim_word_end_motions);
+// No count for `gE`: when a repetition starts at the start of the buffer, vim cancels the operator
+// but still moves the cursor, which a text object can't do.
+t!(I, "([1-3]?E|gE|[dhjkl])+", nvim_delete_token_end);
+t!(I, "([1-3]?(e|ge)|[dhjkl])+", nvim_delete_word_end);
+// No `l`, `j`, `k` or `E` (zi-editor/zi-tracking#39), and no `c` (zi-editor/zi-tracking#40).
+t!(I, "v([1-3]?(e|ge|gE)|h)+[yd]<ESC>", nvim_visual_word_end);
 t!(I, "[dWBhjkl]+", nvim_delete_operator);
 // t!(INPUT, "[cWBjk]+<ESC>", nvim_change_operator);
 // TODO add hjkl motions to undo tests

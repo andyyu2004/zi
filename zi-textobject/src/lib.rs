@@ -4,6 +4,7 @@ mod matchit;
 pub mod motion;
 mod until;
 mod within;
+mod word_end;
 use std::ops;
 
 use zi_core::PointOrByte;
@@ -14,6 +15,7 @@ pub use self::matchit::MatchIt;
 pub use self::motion::{Motion, MotionFlags};
 pub use self::until::Until;
 pub use self::within::Within;
+pub use self::word_end::{NextTokenEnd, NextWordEnd, PrevTokenEnd, PrevWordEnd};
 
 /// Charwise textobjects affect a [start, end) byte-range where `start` is inclusive and `end` is exclusive.
 /// Linewise ranges will NOT be expanded to include the full start and end lines.
@@ -43,6 +45,14 @@ bitflags::bitflags! {
         /// should return.
         const EXCLUSIVE = 1 << 0;
         const UPDATE_TARGET_COLUMN = 1 << 1;
+        /// The range ends with the character under the end of the motion. Vim's line count and
+        /// special cases look at that character, not the byte after it. When the motion ends on
+        /// an empty line the range stops before its line break, and ends at the start of a line.
+        const INCLUSIVE = 1 << 2;
+        /// Like a motion forced charwise with `o_v`, which turns off the special case that
+        /// makes a multi-line charwise delete linewise. An inclusive range then covers the line
+        /// break of an empty line it ends on.
+        const FORCE_CHARWISE = 1 << 3;
     }
 }
 
@@ -57,6 +67,23 @@ pub trait TextObject {
     #[inline]
     fn flags(&self) -> TextObjectFlags {
         TextObjectFlags::empty()
+    }
+
+    /// The byte range of the text object repeated `n` times.
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
+        let first = self.byte_range(text, byte)?;
+        let mut start = first.start;
+        let mut end = first.end;
+        for _ in 1..n {
+            match self.byte_range(text, end) {
+                Some(next) => {
+                    start = start.min(next.start);
+                    end = end.max(next.end);
+                }
+                None => break,
+            }
+        }
+        Some(start..end)
     }
 
     #[inline]
@@ -83,6 +110,11 @@ impl TextObject for &dyn Motion {
     fn flags(&self) -> TextObjectFlags {
         (**self).flags()
     }
+
+    #[inline]
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
+        (**self).byte_range_n(text, byte, n)
+    }
 }
 
 impl<O: TextObject> TextObject for &O {
@@ -99,6 +131,11 @@ impl<O: TextObject> TextObject for &O {
     #[inline]
     fn flags(&self) -> TextObjectFlags {
         (*self).flags()
+    }
+
+    #[inline]
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
+        (*self).byte_range_n(text, byte, n)
     }
 }
 
@@ -149,19 +186,7 @@ pub struct Repeat<M> {
 impl<M: TextObject> TextObject for Repeat<M> {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
-        let first = self.inner.byte_range(text, byte)?;
-        let mut start = first.start;
-        let mut end = first.end;
-        for _ in 1..self.n {
-            match self.inner.byte_range(text, end) {
-                Some(next) => {
-                    start = start.min(next.start);
-                    end = end.max(next.end);
-                }
-                None => break,
-            }
-        }
-        Some(start..end)
+        self.inner.byte_range_n(text, byte, self.n)
     }
 
     #[inline]
