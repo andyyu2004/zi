@@ -235,7 +235,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Inserter { tree: self, id, builder: MarkBuilder::new(at) }
     }
 
+    /// Removes the items whose start point is in the given range (the same items `range` returns)
+    /// and returns them.
     pub fn drain(&mut self, range: impl RangeBounds<usize>) -> Drain<'_, Id, N> {
+        /// Removes every key, start or end, belonging to `ids` from the leaves that overlap `range`.
         fn remove<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
@@ -260,7 +263,11 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let items = self.range(start..end).collect::<Vec<_>>();
         if !items.is_empty() {
             let ids = items.iter().map(|&(_, id)| id.into()).collect::<SetU64>();
+            // One pass over the leaves in the range removes both keys of point marks and of range
+            // marks that end inside the range.
             remove(self.tree.root_mut(), 0, &(start..end), &ids);
+            // A range mark that ends past the range still has its end key in a later leaf, so the
+            // id is still in the tree. Only those marks fall back to a per-id delete.
             for id in ids {
                 if self.tree.summary().ids.contains(id) {
                     self.delete(id).unwrap();
