@@ -909,13 +909,21 @@ impl Editor {
             _ => match keymap.on_key(mode, key).0 {
                 TrieResult::Found(f) => {
                     let count = self.count;
+                    self.dot.start_key();
                     f(self);
                     if self.count == count && !matches!(mode!(self), Mode::OperatorPending(_)) {
                         self.count = None;
                     }
 
-                    if mode == Mode::Normal && mode!(self) == Mode::Normal && self.count.is_none() {
-                        self.dot.clear_normal_keys();
+                    if let Some(new) = self.count.filter(|_| self.count != count) {
+                        self.dot.save_count(mode, new);
+                    }
+
+                    if mode == Mode::Normal && mode!(self) == Mode::Normal {
+                        self.dot.finalize_normal_mode_change();
+                        if self.count.is_none() {
+                            self.dot.clear_normal_keys();
+                        }
                     }
                 }
                 TrieResult::Partial => (),
@@ -979,6 +987,11 @@ impl Editor {
         if events.is_empty() {
             return;
         }
+
+        if let Some(count) = self.take_count() {
+            self.dot.set_count(count);
+        }
+        self.count = self.dot.count();
 
         // Mark that we're replaying to prevent recording during the replay
         self.dot.start_replaying();
@@ -1411,8 +1424,8 @@ impl Editor {
             return Err(EditError::Readonly);
         }
 
-        if self.mode() == Mode::Normal && !self.dot.is_replaying() {
-            self.dot.finalize_normal_mode_change();
+        if !flags.contains(EditFlags::NO_RECORD) {
+            self.dot.did_edit();
         }
 
         // Ensure the buffer ends with a newline before performing an insert.

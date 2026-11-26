@@ -1,0 +1,51 @@
+==== dot repeats the count of the change
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+----
+3dd.
+
+==== a count given to dot replaces the original count
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+----
+3dd2.
+
+==== a count given to dot is used by later dots
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+----
+3dd2..
+
+==== a count given to dot applies to a change without one
+a b c d e f g h i j k l
+----
+dw3.
+
+==== a count given to dot replaces a count after the operator
+a b c d e f g h i j k l
+----
+d2w3.
