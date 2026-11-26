@@ -480,7 +480,12 @@ fn relation(input: &DeriveInput) -> syn::Result<TokenStream2> {
         query_impls.push(quote!(#sig { #body }));
     }
 
+    let sqlite =
+        cfg!(feature = "rusqlite").then(|| sqlite_row(name, &fields, &references, &indexes));
+
     Ok(quote! {
+        #sqlite
+
         #[doc(hidden)]
         #[derive(Default)]
         #vis struct #indexes_struct {
@@ -609,13 +614,28 @@ fn database(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     }
 
+    let sqlite = cfg!(feature = "rusqlite").then(|| sqlite_database(name, &idents, &rows));
+
     Ok(quote! {
         // Every relation's foreign keys must point at relations this database has.
         const _: () = {
-            fn assert_references<T: ::rel::References<#name>>() {}
-            fn assert_all() {
-                #(assert_references::<#rows>();)*
+            fn assert_references<T: ::rel::Row + ::rel::References<#name>>(
+                db: &#name,
+                relation: &::rel::Relation<T>,
+            ) -> ::rel::Result<()> {
+                for row in relation.iter() {
+                    ::rel::References::check_references(row.row(), db)?;
+                }
+                ::std::result::Result::Ok(())
             }
+
+            fn assert_all(db: &#name) -> ::rel::Result<()> {
+                let _ = db;
+                #(assert_references::<#rows>(db, &db.#idents)?;)*
+                ::std::result::Result::Ok(())
+            }
+
+            #sqlite
         };
 
         impl ::rel::Database for #name {
@@ -667,4 +687,154 @@ fn database(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         )*
     })
+}
+
+fn sqlite_row(
+    name: &Ident,
+    fields: &[Field],
+    references: &[Reference],
+    indexes: &[Index],
+) -> TokenStream2 {
+    let field_name = |index: usize| {
+        let name = fields[index].ident.to_string();
+        name.strip_prefix("r#").unwrap_or(&name).to_owned()
+    };
+    let mut columns = Vec::new();
+    let mut binders = Vec::new();
+    let mut decoders = Vec::new();
+    let mut field_types = Vec::new();
+    for (index, field) in fields.iter().enumerate() {
+        let ident = &field.ident;
+        let sql_name = field_name(index);
+        let ty = &field.ty;
+        // The first result column and parameter are reserved for the row ID.
+        let result_column = index + 1;
+        let parameter = index + 2;
+        let reference = references.iter().find(|r| r.field == index);
+        let optional = type_argument(ty, "Option");
+        let nullable = optional.is_some();
+        let sql_type = if reference.is_some() { "INTEGER" } else { "" };
+        columns.push(quote! {
+            ::rel::sqlite::Column {
+                name: #sql_name.into(),
+                sql_type: #sql_type.into(),
+                nullable: #nullable,
+            }
+        });
+        let (bind, decode) = match (reference, optional) {
+            (Some(_), Some(key)) => (
+                quote!(stmt.raw_bind_parameter(#parameter, self.#ident.map(::rel::sqlite::SqlKey))?;),
+                quote!(row.get::<_, ::std::option::Option<::rel::sqlite::SqlKey<#key>>>(#result_column)?.map(|key| key.0)),
+            ),
+            (Some(_), None) => (
+                quote!(stmt.raw_bind_parameter(#parameter, ::rel::sqlite::SqlKey(self.#ident))?;),
+                quote!(row.get::<_, ::rel::sqlite::SqlKey<#ty>>(#result_column)?.0),
+            ),
+            (None, _) => {
+                field_types.push(ty);
+                (
+                    quote!(<__RelSqlite as ::rel::sqlite::Bind<#ty>>::bind(stmt, #parameter, &self.#ident)?;),
+                    quote!(<__RelSqlite as ::rel::sqlite::Decode<#ty>>::decode(row, #result_column)?),
+                )
+            }
+        };
+        binders.push(bind);
+        decoders.push(quote!(#ident: #decode));
+    }
+    let foreign_keys = references.iter().map(|reference| {
+        let column = field_name(reference.field);
+        let parent = &reference.parent;
+        quote! {
+            ::rel::sqlite::ForeignKey {
+                column: #column.into(),
+                table: <#parent as ::rel::Row>::NAME.into(),
+            }
+        }
+    });
+    let indexes = indexes.iter().map(|index| {
+        let columns = index.columns.iter().map(|&column| field_name(column));
+        let unique = index.unique;
+        quote! {
+            ::rel::sqlite::Index { columns: ::std::vec![#(#columns.into()),*], unique: #unique }
+        }
+    });
+
+    quote! {
+        impl<__RelSqlite> ::rel::sqlite::RowSchema<__RelSqlite> for #name {
+            fn table() -> ::rel::sqlite::Table {
+                ::rel::sqlite::Table {
+                    name: <Self as ::rel::Row>::NAME.into(),
+                    columns: ::std::vec![#(#columns),*],
+                    foreign_keys: ::std::vec![#(#foreign_keys),*],
+                    indexes: ::std::vec![#(#indexes),*],
+                }
+            }
+
+        }
+
+        impl<__RelSqlite> ::rel::sqlite::WriteRow<__RelSqlite> for #name
+        where
+            #(__RelSqlite: ::rel::sqlite::Bind<#field_types>,)*
+        {
+            fn bind(&self, stmt: &mut ::rel::sqlite::rusqlite::Statement<'_>)
+                -> ::rel::sqlite::rusqlite::Result<()>
+            {
+                let _ = &stmt;
+                #(#binders)*
+                ::std::result::Result::Ok(())
+            }
+        }
+
+        impl<__RelSqlite> ::rel::sqlite::ReadRow<__RelSqlite> for #name
+        where
+            #(__RelSqlite: ::rel::sqlite::Decode<#field_types>,)*
+        {
+            fn decode(row: &::rel::sqlite::rusqlite::Row<'_>)
+                -> ::rel::sqlite::rusqlite::Result<Self>
+            {
+                let _ = row;
+                ::std::result::Result::Ok(Self { #(#decoders),* })
+            }
+        }
+    }
+}
+
+fn sqlite_database(name: &Ident, fields: &[Ident], rows: &[Type]) -> TokenStream2 {
+    quote! {
+        impl<__RelSqlite> ::rel::sqlite::SnapshotSchema<__RelSqlite> for #name
+        where
+            #(#rows: ::rel::sqlite::RowSchema<__RelSqlite>,)*
+        {
+            fn tables() -> ::std::vec::Vec<::rel::sqlite::Table> {
+                ::std::vec![#(<#rows as ::rel::sqlite::RowSchema<__RelSqlite>>::table()),*]
+            }
+        }
+
+        impl<__RelSqlite> ::rel::sqlite::WriteSnapshot<__RelSqlite> for #name
+        where
+            #(#rows: ::rel::sqlite::WriteRow<__RelSqlite>,)*
+        {
+            fn write_snapshot(&self, tx: &::rel::sqlite::rusqlite::Transaction<'_>)
+                -> ::rel::sqlite::Result<()>
+            {
+                let _ = tx;
+                #(self.#fields.write_snapshot::<__RelSqlite>(tx)?;)*
+                ::std::result::Result::Ok(())
+            }
+        }
+
+        impl<__RelSqlite> ::rel::sqlite::ReadSnapshot<__RelSqlite> for #name
+        where
+            #(#rows: ::rel::sqlite::ReadRow<__RelSqlite>,)*
+        {
+            fn read_snapshot(mut self, tx: &::rel::sqlite::rusqlite::Transaction<'_>)
+                -> ::rel::sqlite::Result<Self>
+            {
+                let _ = tx;
+                #(self.#fields = ::rel::Relation::<#rows>::read_snapshot::<__RelSqlite>(tx)?;)*
+                assert_all(&self)?;
+                ::std::result::Result::Ok(self)
+            }
+        }
+    }
 }

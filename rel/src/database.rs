@@ -79,6 +79,35 @@ impl<T: Row> Relation<T> {
 
 /// A set of relations with foreign keys enforced between them. Implemented by `#[derive(Database)]`.
 pub trait Database {
+    /// Replace the data in the snapshot tables in a single transaction.
+    ///
+    /// Ordinary persisted fields must implement `rusqlite::ToSql`.
+    #[cfg(feature = "rusqlite")]
+    fn save(&self, conn: &mut crate::sqlite::rusqlite::Connection) -> crate::sqlite::Result<()>
+    where
+        Self: crate::sqlite::WriteSnapshot<crate::sqlite::Sqlite>,
+    {
+        conn.pragma_update(None, "foreign_keys", true)?;
+        let tx = conn.transaction()?;
+        self.write_snapshot(&tx)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Load a consistent snapshot. Fields outside rel relations are initialized by `Default`.
+    ///
+    /// Ordinary persisted fields must implement `rusqlite::types::FromSql`.
+    #[cfg(feature = "rusqlite")]
+    fn load(conn: &mut crate::sqlite::rusqlite::Connection) -> crate::sqlite::Result<Self>
+    where
+        Self: Default + crate::sqlite::ReadSnapshot<crate::sqlite::Sqlite>,
+    {
+        let tx = conn.transaction()?;
+        let db = Self::default().read_snapshot(&tx)?;
+        tx.commit()?;
+        Ok(db)
+    }
+
     /// Call `f` with every row in the database that refers to the row `parent` of type `parent_type`.
     #[doc(hidden)]
     fn visit_children(&self, parent_type: TypeId, parent: RawId, f: &mut dyn FnMut(Child));

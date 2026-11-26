@@ -3,10 +3,16 @@ name = "rel"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+rusqlite = ["dep:rusqlite", "dep:serde", "rel-derive/rusqlite"]
+
 [dependencies]
 rel-derive = { workspace = true }
+rusqlite = { version = "0.43", features = ["bundled", "fallible_uint"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
+serde_json = { workspace = true }
 trybuild = { workspace = true }
 
 [lints]
