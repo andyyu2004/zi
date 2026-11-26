@@ -97,6 +97,10 @@ where
         let point = entry.point();
 
         let preview = move |editor: &mut Editor, buf: BufferId| {
+            if !editor.has_view(self.preview) || !editor.has_buffer(buf) {
+                return;
+            }
+
             editor.set_buffer(self.preview, buf);
             if let Some(point) = point.and_then(|p| editor.text(buf).decode_point(p)) {
                 editor.reveal(self.preview, point, VerticalAlignment::Center);
@@ -149,6 +153,10 @@ where
 
         let fut = editor.open(path, OpenFlags::SPAWN_LANGUAGE_SERVICES);
         editor.callback("confirm selection", async move { fut?.await }, move |editor, buf| {
+            if !editor.has_buffer(buf) {
+                return Ok(());
+            }
+
             if let Some(point) = entry.point().and_then(|p| editor.text(buf).decode_point(p)) {
                 editor.reveal(Active, point, VerticalAlignment::Center);
             }
@@ -177,7 +185,11 @@ where
             picker,
             dynamic_handler: None,
             url: Url::parse("buffer://picker").unwrap(),
-            settings: Settings { fix_eol: Setting::new(false), ..Default::default() },
+            settings: Settings {
+                fix_eol: Setting::new(false),
+                buf_hidden: Setting::new(BufHidden::Wipe),
+                ..Default::default()
+            },
             text: Default::default(),
             keymap: {
                 let next: Action = |editor| Self::select(editor, Direction::Down);
@@ -249,7 +261,8 @@ impl<P: Picker> PickerBuffer<P> {
     }
 
     fn select_current(buf_id: BufferId, editor: &mut Editor) {
-        let picker_buf = editor[buf_id].as_any().downcast_ref::<Self>().unwrap();
+        let Some(picker_buf) = editor.db.buffers.get(buf_id) else { return };
+        let picker_buf = picker_buf.as_any().downcast_ref::<Self>().unwrap();
         let display_view = picker_buf.display_view;
         let cursor = editor.cursor(display_view);
 
@@ -347,6 +360,10 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         let display_view = self.display_view;
         let buf_id = self.id;
         client.send(move |editor| {
+            if !editor.has_buffer(buf_id) || !editor.has_view(display_view) {
+                return Ok(());
+            }
+
             // call `select` on the current line as the set of items may have changed.
             Self::select_current(buf_id, editor);
 
@@ -369,7 +386,7 @@ impl<P: Picker + Send + Sync> BufferInternal for PickerBuffer<P> {
         Some(&mut self.keymap)
     }
 
-    fn on_leave(&mut self, _: Internal) {
+    fn on_wipe(&mut self, _: Internal) {
         self.cancel.cancel();
     }
 

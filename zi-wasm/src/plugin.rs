@@ -16,7 +16,7 @@ use tokio_stream::wrappers::ReadDirStream;
 pub use wasmtime::Engine;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
 use zi::command::{self, CommandRange, Handler, Word};
-use zi::{Active, BufferId, Client, Point, ViewId, dirs};
+use zi::{Active, BufferId, Client, Editor, Point, SaveFlags, ViewId, dirs};
 
 use crate::wit::Plugin;
 use crate::wit::zi::api;
@@ -53,8 +53,42 @@ impl HostState {
         Resource::new_own(rep)
     }
 
-    fn get_view(&self, res: &Resource<api::editor::View>) -> ViewId {
-        self.views[&res.rep()]
+    fn view_id(&self, res: &Resource<api::editor::View>) -> wasmtime::Result<ViewId> {
+        self.views
+            .get(&res.rep())
+            .copied()
+            .ok_or_else(|| wasmtime::Error::msg("unknown view resource"))
+    }
+
+    fn buffer_id(&self, res: &Resource<api::editor::Buffer>) -> wasmtime::Result<BufferId> {
+        self.buffers
+            .get(&res.rep())
+            .copied()
+            .ok_or_else(|| wasmtime::Error::msg("unknown buffer resource"))
+    }
+
+    async fn with_view<T: Send + 'static>(
+        &self,
+        res: &Resource<api::editor::View>,
+        f: impl FnOnce(&mut Editor, ViewId) -> T + Send + 'static,
+    ) -> wasmtime::Result<T> {
+        let view = self.view_id(res)?;
+        self.client
+            .with(move |editor| editor.has_view(view).then(|| f(editor, view)))
+            .await
+            .ok_or_else(|| wasmtime::Error::msg(format!("view {view:?} no longer exists")))
+    }
+
+    async fn with_buffer<T: Send + 'static>(
+        &self,
+        res: &Resource<api::editor::Buffer>,
+        f: impl FnOnce(&mut Editor, BufferId) -> T + Send + 'static,
+    ) -> wasmtime::Result<T> {
+        let buf = self.buffer_id(res)?;
+        self.client
+            .with(move |editor| editor.has_buffer(buf).then(|| f(editor, buf)))
+            .await
+            .ok_or_else(|| wasmtime::Error::msg(format!("buffer {buf:?} no longer exists")))
     }
 
     fn push_buffer(&mut self, id: BufferId) -> Resource<api::editor::Buffer> {
@@ -67,81 +101,96 @@ impl HostState {
 pub type Store = wasmtime::Store<HostState>;
 
 impl api::editor::HostView for HostState {
+    async fn exists(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<bool> {
+        let view = self.view_id(&view)?;
+        Ok(self.client.with(move |editor| editor.has_view(view)).await)
+    }
+
     async fn get_buffer(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> Resource<api::editor::Buffer> {
-        let view_id = self.get_view(&view);
-        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
-        self.push_buffer(buf_id)
+    ) -> wasmtime::Result<Resource<api::editor::Buffer>> {
+        let buf_id = self.with_view(&view, |editor, view| editor.view(view).buffer()).await?;
+        Ok(self.push_buffer(buf_id))
     }
 
-    async fn get_cursor(&mut self, view: Resource<api::editor::View>) -> api::editor::Point {
-        let view_id = self.get_view(&view);
-        self.client.with(move |editor| editor.view(view_id).cursor().into()).await
+    async fn get_cursor(
+        &mut self,
+        view: Resource<api::editor::View>,
+    ) -> wasmtime::Result<api::editor::Point> {
+        self.with_view(&view, |editor, view| editor.view(view).cursor().into()).await
     }
 
-    async fn set_cursor(&mut self, view: Resource<api::editor::View>, pos: api::editor::Point) {
-        let view_id = self.get_view(&view);
-        self.client.with(move |editor| editor.set_cursor(view_id, Point::from(pos))).await;
+    async fn set_cursor(
+        &mut self,
+        view: Resource<api::editor::View>,
+        pos: api::editor::Point,
+    ) -> wasmtime::Result<()> {
+        self.with_view(&view, move |editor, view| {
+            editor.set_cursor(view, Point::from(pos));
+        })
+        .await
     }
 
-    async fn close(&mut self, view: Resource<api::editor::View>) {
-        let view_id = self.get_view(&view);
+    async fn close(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
+        let view_id = self.view_id(&view)?;
         command::close_view(&self.client, view_id).await;
+        Ok(())
     }
 
-    async fn save(&mut self, view: Resource<api::editor::View>, force: bool) -> Result<(), String> {
-        let view_id = self.get_view(&view);
-        command::save(&self.client, view_id, force).await.map_err(|e| e.to_string())
+    async fn save(
+        &mut self,
+        view: Resource<api::editor::View>,
+        force: bool,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let flags = if force { SaveFlags::FORCE } else { SaveFlags::empty() };
+        let fut = self.with_view(&view, move |editor, view| editor.save(view, flags)).await?;
+        Ok(fut.await.map_err(|e| e.to_string()))
     }
 
-    async fn inspect(&mut self, view: Resource<api::editor::View>) {
-        let view_id = self.get_view(&view);
-        command::inspect(&self.client, view_id).await;
+    async fn inspect(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
+        self.with_view(&view, Editor::inspect).await
     }
 
     async fn insert(
         &mut self,
         view: Resource<api::editor::View>,
         text: String,
-    ) -> Result<(), api::editor::EditError> {
-        let view_id = self.get_view(&view);
-        Ok(self.client.with(move |editor| editor.insert(view_id, &text)).await?)
+    ) -> wasmtime::Result<Result<(), api::editor::EditError>> {
+        let res = self.with_view(&view, move |editor, view| editor.insert(view, &text)).await?;
+        Ok(res.map_err(Into::into))
     }
 
     async fn delete_char(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> Result<(), api::editor::EditError> {
-        let view_id = self.get_view(&view);
-        Ok(self.client.with(move |editor| editor.delete_char(view_id)).await?)
+    ) -> wasmtime::Result<Result<(), api::editor::EditError>> {
+        let res = self.with_view(&view, Editor::delete_char).await?;
+        Ok(res.map_err(Into::into))
     }
 
     async fn paste_after(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> Result<(), api::editor::EditError> {
-        let view_id = self.get_view(&view);
-        Ok(self.client.with(move |editor| editor.paste_after(view_id)).await?)
+    ) -> wasmtime::Result<Result<(), api::editor::EditError>> {
+        let res = self.with_view(&view, Editor::paste_after).await?;
+        Ok(res.map_err(Into::into))
     }
 
     async fn undo(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> Result<bool, api::editor::EditError> {
-        let view_id = self.get_view(&view);
-        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
-        Ok(self.client.with(move |editor| editor.undo(buf_id)).await?)
+    ) -> wasmtime::Result<Result<bool, api::editor::EditError>> {
+        let res = self.with_view(&view, Editor::undo).await?;
+        Ok(res.map_err(Into::into))
     }
 
     async fn redo(
         &mut self,
         view: Resource<api::editor::View>,
-    ) -> Result<bool, api::editor::EditError> {
-        let view_id = self.get_view(&view);
-        let buf_id = self.client.with(move |editor| editor.view(view_id).buffer()).await;
-        Ok(self.client.with(move |editor| editor.redo(buf_id)).await?)
+    ) -> wasmtime::Result<Result<bool, api::editor::EditError>> {
+        let res = self.with_view(&view, Editor::redo).await?;
+        Ok(res.map_err(Into::into))
     }
 
     async fn scroll(
@@ -149,25 +198,22 @@ impl api::editor::HostView for HostState {
         view: Resource<api::editor::View>,
         direction: api::editor::Direction,
         amount: u32,
-    ) {
-        let view_id = self.get_view(&view);
+    ) -> wasmtime::Result<()> {
         let dir = zi::Direction::from(direction);
-        self.client.with(move |editor| editor.scroll(view_id, dir, amount as usize)).await;
+        self.with_view(&view, move |editor, view| editor.scroll(view, dir, amount as usize)).await
     }
 
     async fn align(
         &mut self,
         view: Resource<api::editor::View>,
         alignment: api::editor::VerticalAlignment,
-    ) {
-        let view_id = self.get_view(&view);
+    ) -> wasmtime::Result<()> {
         let align = zi::VerticalAlignment::from(alignment);
-        self.client.with(move |editor| editor.align_view(view_id, align)).await;
+        self.with_view(&view, move |editor, view| editor.align_view(view, align)).await
     }
 
-    async fn focus(&mut self, view: Resource<api::editor::View>) {
-        let view_id = self.get_view(&view);
-        self.client.with(move |editor| editor.focus(view_id)).await;
+    async fn focus(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
+        self.with_view(&view, Editor::focus).await
     }
 
     #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
@@ -178,35 +224,41 @@ impl api::editor::HostView for HostState {
 }
 
 impl api::editor::HostBuffer for HostState {
-    async fn get_file_path(&mut self, buf: Resource<api::editor::Buffer>) -> Option<String> {
-        let buf_id = self.buffers[&buf.rep()];
-        self.client
-            .with(move |editor| {
-                editor.buffer(buf_id).file_path().map(|p| p.to_string_lossy().into_owned())
-            })
-            .await
+    async fn exists(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<bool> {
+        let buf = self.buffer_id(&buf)?;
+        Ok(self.client.with(move |editor| editor.has_buffer(buf)).await)
     }
 
-    async fn get_flags(&mut self, buf: Resource<api::editor::Buffer>) -> api::editor::BufferFlags {
-        let buf_id = self.buffers[&buf.rep()];
-        self.client
-            .with(move |editor| {
-                let buf = editor.buffer(buf_id);
-                let mut flags = api::editor::BufferFlags::empty();
-                if *buf.settings().readonly.read() {
-                    flags |= api::editor::BufferFlags::READONLY;
-                }
-                if buf.flags().contains(zi::BufferFlags::DIRTY) {
-                    flags |= api::editor::BufferFlags::DIRTY;
-                }
-                flags
-            })
-            .await
+    async fn get_file_path(
+        &mut self,
+        buf: Resource<api::editor::Buffer>,
+    ) -> wasmtime::Result<Option<String>> {
+        self.with_buffer(&buf, |editor, buf| {
+            editor.buffer(buf).file_path().map(|p| p.to_string_lossy().into_owned())
+        })
+        .await
     }
 
-    async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> u32 {
-        let buf_id = self.buffers[&buf.rep()];
-        self.client.with(move |editor| editor.buffer(buf_id).text().len_lines() as u32).await
+    async fn get_flags(
+        &mut self,
+        buf: Resource<api::editor::Buffer>,
+    ) -> wasmtime::Result<api::editor::BufferFlags> {
+        self.with_buffer(&buf, |editor, buf| {
+            let buf = editor.buffer(buf);
+            let mut flags = api::editor::BufferFlags::empty();
+            if *buf.settings().readonly.read() {
+                flags |= api::editor::BufferFlags::READONLY;
+            }
+            if buf.flags().contains(zi::BufferFlags::DIRTY) {
+                flags |= api::editor::BufferFlags::DIRTY;
+            }
+            flags
+        })
+        .await
+    }
+
+    async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<u32> {
+        self.with_buffer(&buf, |editor, buf| editor.buffer(buf).text().len_lines() as u32).await
     }
 
     #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
@@ -217,48 +269,59 @@ impl api::editor::HostBuffer for HostState {
 }
 
 impl api::editor::Host for HostState {
-    async fn insert(&mut self, text: String) -> Result<(), api::editor::EditError> {
-        Ok(self.client.with(move |editor| editor.insert(Active, &text)).await?)
+    async fn insert(
+        &mut self,
+        text: String,
+    ) -> wasmtime::Result<Result<(), api::editor::EditError>> {
+        Ok(self.client.with(move |editor| editor.insert(Active, &text)).await.map_err(Into::into))
     }
 
-    async fn get_mode(&mut self) -> api::editor::Mode {
-        self.client.with(|editor| editor.mode()).await.into()
+    async fn get_mode(&mut self) -> wasmtime::Result<api::editor::Mode> {
+        Ok(self.client.with(|editor| editor.mode()).await.into())
     }
 
-    async fn set_mode(&mut self, mode: api::editor::Mode) {
+    async fn set_mode(&mut self, mode: api::editor::Mode) -> wasmtime::Result<()> {
         self.client.with(move |editor| editor.set_mode(mode.into())).await;
+        Ok(())
     }
 
-    async fn get_active_view(&mut self) -> Resource<api::editor::View> {
+    async fn get_active_view(&mut self) -> wasmtime::Result<Resource<api::editor::View>> {
         let view_id = self.client.with(|editor| editor.view(Active).id()).await;
-        self.push_view(view_id)
+        Ok(self.push_view(view_id))
     }
 
-    async fn save_all(&mut self, force: bool) -> Result<(), String> {
-        command::save_all(&self.client, force).await.map_err(|e| e.to_string())
+    async fn save_all(&mut self, force: bool) -> wasmtime::Result<Result<(), String>> {
+        Ok(command::save_all(&self.client, force).await.map_err(|e| e.to_string()))
     }
 
-    async fn reload(&mut self) -> Result<(), String> {
-        command::reload(&self.client).await.map_err(|e| e.to_string())
+    async fn reload(&mut self) -> wasmtime::Result<Result<(), String>> {
+        Ok(command::reload(&self.client).await.map_err(|e| e.to_string()))
     }
 
-    async fn open_jump_list(&mut self) {
+    async fn open_jump_list(&mut self) -> wasmtime::Result<()> {
         self.client
             .with(|editor| {
                 editor.open_jump_list(Active);
             })
             .await;
+        Ok(())
     }
 
-    async fn open_file_explorer(&mut self, path: String) {
+    async fn open_file_explorer(&mut self, path: String) -> wasmtime::Result<()> {
         self.client.with(move |editor| editor.open_file_explorer(path)).await;
+        Ok(())
     }
 
-    async fn set_option(&mut self, key: String, value: String) -> Result<(), String> {
-        self.client
+    async fn set_option(
+        &mut self,
+        key: String,
+        value: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        Ok(self
+            .client
             .with(move |editor| command::set_option(editor, &key, &value))
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string()))
     }
 }
 
@@ -661,11 +724,18 @@ mod test {
                     assert_eq!(
                         init,
                         InitializeResult {
-                            commands: vec![Command {
-                                name: "foo".into(),
-                                arity: Arity { min: 0, max: 1 },
-                                opts: CommandFlags::RANGE
-                            }]
+                            commands: vec![
+                                Command {
+                                    name: "foo".into(),
+                                    arity: Arity { min: 0, max: 1 },
+                                    opts: CommandFlags::RANGE
+                                },
+                                Command {
+                                    name: "stale-view".into(),
+                                    arity: Arity { min: 0, max: 0 },
+                                    opts: CommandFlags::empty()
+                                },
+                            ]
                         }
                     );
                     let handler = plugin.zi_api_command().handler();
@@ -679,6 +749,37 @@ mod test {
                     lifecycle.call_shutdown(&mut store).await?;
                 }
 
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn using_a_closed_view_traps_the_call() -> anyhow::Result<()> {
+        let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+        let client = editor.client();
+        let engine = engine();
+        let mut store = Store::new(engine, HostState::new(editor.client()));
+
+        let local = LocalSet::new();
+        local.spawn_local(editor.test_run(tasks));
+
+        local
+            .run_until(async move {
+                let plugins = load(engine, &mut store, &["test"]).await?;
+                let plugin = &plugins[0];
+                plugin.zi_api_lifecycle().call_initialize(&mut store).await?;
+
+                let handler = plugin.zi_api_command().handler();
+                let handler_resource = handler.call_constructor(&mut store).await?;
+                let err = handler
+                    .call_exec(&mut store, handler_resource, "stale-view", &[], false)
+                    .await
+                    .expect_err("using a closed view should trap");
+                assert!(format!("{err:?}").contains("no longer exists"), "{err:?}");
+
+                assert_eq!(client.with(|editor| editor.views().count()).await, 1);
                 Ok::<_, anyhow::Error>(())
             })
             .await

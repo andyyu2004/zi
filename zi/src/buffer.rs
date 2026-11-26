@@ -62,12 +62,23 @@ pub struct Settings {
     pub readonly: Setting<bool>,
     /// Add a newline at the end of the buffer before an insert if it doesn't end with one.
     pub fix_eol: Setting<bool>,
+    /// What happens to the buffer once no view shows it.
+    pub buf_hidden: Setting<BufHidden>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndentSettings {
     Spaces(u8),
     Tabs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufHidden {
+    /// Keep the buffer, so a view can show it again. For files and scratch buffers.
+    Hide,
+    /// Remove the buffer. For buffers that only exist to be shown, such as pickers and the
+    /// inspector. Its id is dead afterwards.
+    Wipe,
 }
 
 impl Default for Settings {
@@ -78,6 +89,7 @@ impl Default for Settings {
             format_on_save: Setting::new(true),
             readonly: Setting::new(false),
             fix_eol: Setting::new(true),
+            buf_hidden: Setting::new(BufHidden::Hide),
         }
     }
 }
@@ -201,8 +213,8 @@ impl Buffer {
         self.inner.flushed(Internal(()));
     }
 
-    pub(crate) fn on_leave(&mut self) {
-        self.inner.on_leave(Internal(()));
+    pub(crate) fn on_wipe(&mut self) {
+        self.inner.on_wipe(Internal(()));
     }
 
     pub(crate) fn pre_render(&mut self, client: &Client, view: &crate::db::View, area: tui::Rect) {
@@ -364,8 +376,8 @@ pub(crate) trait BufferInternal: Send + Sync {
         assert_eq!(self.id(), view.buffer());
     }
 
-    /// Called when a view is closed that was displaying this buffer
-    fn on_leave(&mut self, _: Internal) {}
+    /// Called just before the buffer is wiped.
+    fn on_wipe(&mut self, _: Internal) {}
 }
 
 impl dyn BufferInternal + '_ {
@@ -528,8 +540,8 @@ impl BufferInternal for Box<dyn BufferInternal> {
     }
 
     #[inline]
-    fn on_leave(&mut self, internal: Internal) {
-        self.as_mut().on_leave(internal);
+    fn on_wipe(&mut self, internal: Internal) {
+        self.as_mut().on_wipe(internal);
     }
 }
 

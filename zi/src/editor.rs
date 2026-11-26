@@ -542,7 +542,7 @@ impl Editor {
                 let path = path.to_path_buf();
                 client
                     .with(move |editor| match plan {
-                        Plan::Replace(id) => {
+                        Plan::Replace(id) if editor.has_buffer(id) => {
                             let buf = Buffer::new(TextBuffer::new(
                                 id,
                                 settings,
@@ -555,7 +555,7 @@ impl Editor {
                             *editor.db.buffer_mut(id) = buf;
                             id
                         }
-                        Plan::Insert => editor.db.insert_buffer(|id| {
+                        Plan::Replace(_) | Plan::Insert => editor.db.insert_buffer(|id| {
                             Buffer::new(TextBuffer::new(
                                 id,
                                 settings,
@@ -592,6 +592,10 @@ impl Editor {
 
             client
                 .with(move |editor| {
+                    if !editor.has_buffer(buf) {
+                        bail!("buffer {buf:?} was removed while it was opening");
+                    }
+
                     if !open_flags.contains(OpenFlags::BACKGROUND) {
                         editor.set_buffer(Active, buf);
                     }
@@ -626,7 +630,9 @@ impl Editor {
     pub fn set_buffer(&mut self, view: impl Selector<ViewId>, buf: impl Selector<BufferId>) {
         let view = view.select(self);
         let buf = buf.select(self);
+        let prev = self.db.views[view].buffer();
         self.db.set_buffer(view, buf);
+        self.wipe_if_hidden(prev);
     }
 
     pub fn highlight_id_by_name(&self, name: impl AsRef<str>) -> HighlightId {
@@ -1094,6 +1100,16 @@ impl Editor {
     #[inline]
     pub fn buffer(&self, selector: impl Selector<BufferId>) -> &Buffer {
         &self.db.buffers.get(selector.select(self)).expect("bad buffer id").buffer
+    }
+
+    #[inline]
+    pub fn has_view(&self, view: ViewId) -> bool {
+        self.db.views.contains(view)
+    }
+
+    #[inline]
+    pub fn has_buffer(&self, buf: BufferId) -> bool {
+        self.db.buffers.contains(buf)
     }
 
     #[inline]
@@ -1872,9 +1888,13 @@ impl Editor {
         self.buffer_mut(selector).clear_undo();
     }
 
-    fn close_buffer(&mut self, buf: BufferId) {
-        // can't naively remove the buffer as it might be referenced by multiple views
-        self.db.buffer_mut(buf).on_leave();
+    fn wipe_if_hidden(&mut self, buf: BufferId) {
+        if *self[buf].settings().buf_hidden.read() == buffer::BufHidden::Wipe
+            && self.db.views.by_buf(&buf).next().is_none()
+        {
+            self[buf].on_wipe();
+            rel::Database::delete(&mut self.db, buf).expect("no view shows it");
+        }
     }
 
     // Manual `impl Future` as we don't want to capture the `'self`
@@ -1917,10 +1937,11 @@ impl Editor {
             // Need to refetch flags as the hooks may have updated them
             let (flags, text) = client
                 .with(move |editor| {
-                    let buf = &editor[buf];
-                    (buf.flags(), dyn_clone::clone_box(buf.text()))
+                    let buf = editor.db.buffers.get(buf)?;
+                    Some((buf.flags(), dyn_clone::clone_box(buf.text())))
                 })
-                .await;
+                .await
+                .ok_or_else(|| anyhow!("buffer `{url}` was removed before it was saved"))?;
 
             if !flags.contains(BufferFlags::DIRTY) && !save_flags.contains(SaveFlags::FORCE) {
                 tracing::debug!("buffer is not dirty, skipping write");
@@ -1939,8 +1960,10 @@ impl Editor {
 
             client
                 .with(move |editor| {
-                    editor[buf].flushed();
-                    editor.dispatch(event::DidSaveBuffer { buf });
+                    if let Some(b) = editor.db.buffers.get_mut(buf) {
+                        b.buffer.flushed();
+                        editor.dispatch(event::DidSaveBuffer { buf });
+                    }
                 })
                 .await;
             Ok(())
@@ -1956,19 +1979,19 @@ impl Editor {
 
         self.dispatch(event::DidCloseView { view });
 
-        // TODO work on a scheme to cleanup views and buffers automatically
-        self.close_buffer(self.db.views[view].buffer());
+        let closed = &self.db.views[view];
+        let (buf, group) = (closed.buffer(), closed.group());
+        rel::Database::delete(&mut self.db, view).expect("a view in the tree is in the db");
+        self.wipe_if_hidden(buf);
 
-        if let Some(group) = self.db.views[view].group() {
+        if let Some(group) = group {
             let views = self.db.views.by_group(&Some(group)).map(|v| v.id()).collect::<Vec<_>>();
             // Ungroups the views, so closing them below doesn't come back here.
             rel::Database::delete(&mut self.db, group).expect("the view's group exists");
 
             // close all views in the same group
             for v in views {
-                if v != view {
-                    self.close_view(v);
-                }
+                self.close_view(v);
             }
         }
     }
@@ -2063,7 +2086,6 @@ impl Editor {
     }
 
     pub(crate) fn goto(&mut self, Location { buf, point }: Location) {
-        // FIXME what if buffer is gone
         self.set_buffer(Active, buf);
         self.set_cursor(Active, point);
         self.align_view(Active, VerticalAlignment::Center);
@@ -2085,14 +2107,26 @@ impl Editor {
     }
 
     pub fn jump_forward(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
-        let loc = self.view_mut(selector).jump_list_mut().next().copied()?;
+        let view = selector.select(self);
+        let loc = loop {
+            let loc = *self.view_mut(view).jump_list_mut().next()?;
+            if self.has_buffer(loc.buf) {
+                break loc;
+            }
+        };
         self.goto(loc);
         Some(loc)
     }
 
     pub fn jump_back(&mut self, selector: impl Selector<ViewId>) -> Option<Location> {
+        let view = selector.select(self);
         let current = self.current_location();
-        let loc = self.view_mut(selector).jump_list_mut().prev(current).copied()?;
+        let loc = loop {
+            let loc = *self.view_mut(view).jump_list_mut().prev(current)?;
+            if self.has_buffer(loc.buf) {
+                break loc;
+            }
+        };
         self.goto(loc);
         Some(loc)
     }

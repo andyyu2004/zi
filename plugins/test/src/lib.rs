@@ -28,10 +28,14 @@ impl command::GuestHandler for CommandHandler {
     }
 
     fn exec(&self, cmd: String, _args: Vec<String>, _force: bool) -> Result<(), CommandError> {
-        if cmd != "foo" {
-            return Err(CommandError::Message(format!("unexpected command: `{cmd}`")));
+        match cmd.as_str() {
+            "foo" => Ok(()),
+            "stale-view" => {
+                use_closed_view();
+                Ok(())
+            }
+            _ => Err(CommandError::Message(format!("unexpected command: `{cmd}`"))),
         }
-        Ok(())
     }
 }
 
@@ -44,11 +48,18 @@ impl lifecycle::Guest for Component {
         test_mode();
 
         InitializeResult {
-            commands: vec![Command {
-                name: "foo".into(),
-                arity: Arity { min: 0, max: 1 },
-                opts: CommandFlags::RANGE,
-            }],
+            commands: vec![
+                Command {
+                    name: "foo".into(),
+                    arity: Arity { min: 0, max: 1 },
+                    opts: CommandFlags::RANGE,
+                },
+                Command {
+                    name: "stale-view".into(),
+                    arity: Arity { min: 0, max: 0 },
+                    opts: CommandFlags::empty(),
+                },
+            ],
         }
     }
 
@@ -95,6 +106,20 @@ fn test_buffer_apis() {
 
     let lines = buf.len_lines();
     assert!(lines >= 1);
+}
+
+fn use_closed_view() {
+    let view = get_active_view();
+    view.inspect();
+    let buf = view.get_buffer();
+    assert!(view.exists());
+    assert!(buf.exists());
+
+    view.close();
+    assert!(!view.exists());
+    assert!(!buf.exists());
+
+    view.get_cursor();
 }
 
 fn test_view_scroll_align_focus() {

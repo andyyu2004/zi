@@ -71,6 +71,7 @@ where
                 settings: Settings {
                     readonly: Setting::new(true),
                     fix_eol: Setting::new(false),
+                    buf_hidden: Setting::new(BufHidden::Wipe),
                     ..Default::default()
                 },
                 text: Default::default(),
@@ -168,7 +169,7 @@ impl<T: Entry, F: Send + Sync> BufferInternal for ExplorerBuffer<T, F> {
         )
     }
 
-    fn on_leave(&mut self, _: Internal) {
+    fn on_wipe(&mut self, _: Internal) {
         self.cancel.cancel();
     }
 }

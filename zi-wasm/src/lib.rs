@@ -11,7 +11,7 @@ mod wit {
         ownership: Borrowing {
             duplicate_if_necessary: true
         },
-        imports: { default: async },
+        imports: { default: async | trappable },
         exports: { default: async },
         with: {},
         additional_derives: [

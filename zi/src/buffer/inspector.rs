@@ -19,6 +19,7 @@ impl InspectorBuffer {
             settings: Settings {
                 readonly: Setting::new(true),
                 fix_eol: Setting::new(false),
+                buf_hidden: Setting::new(BufHidden::Wipe),
                 ..Default::default()
             },
             text: Default::default(),
@@ -80,6 +81,10 @@ impl BufferInternal for InspectorBuffer {
     ) {
         let buf = self.id;
         client.send(move |editor| {
+            if !editor.has_buffer(buf) {
+                return Ok(());
+            }
+
             let mut query_cursor = QueryCursor::new();
             let output = {
                 let target_view = editor.view(Active);

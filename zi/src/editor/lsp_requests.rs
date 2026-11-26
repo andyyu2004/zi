@@ -329,6 +329,10 @@ impl Editor {
             let buf = open_fut.await?;
             client
                 .with(move |editor| {
+                    if !editor.has_buffer(buf) {
+                        return;
+                    }
+
                     if let Some(point) = editor.text(buf).decode_point(location.range.start()) {
                         editor.jump(from, Location::new(buf, point));
                     }
@@ -371,7 +375,9 @@ impl Editor {
             client
                 .with(move |editor| {
                     let ns = editor.create_namespace("semantic-tokens");
-                    editor[buf].replace_marks(ns, marks);
+                    if let Some(buf) = editor.db.buffers.get_mut(buf) {
+                        buf.buffer.replace_marks(ns, marks);
+                    }
                 })
                 .await;
 
