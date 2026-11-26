@@ -1,10 +1,10 @@
 # AGENTS.md
 
-zi is a vim-like terminal editor in Rust. Cargo workspace, nightly toolchain.
+zi is a vim-like terminal editor in Rust. Cargo workspace, Rust beta toolchain.
 
 ## Build and test
 
-- Use the nix dev shell: `nix develop` (or direnv, `.envrc` has `use flake`). It provides the pinned nightly (from `rust-toolchain.toml`), cargo-nextest, cargo-component, nvim, gopls, go and tree-sitter, and sets `ZI_GRAMMAR_DIR` to the grammars built by the flake. It also has just and coverage tools.
+- Use the nix dev shell: `nix develop` (or direnv, `.envrc` has `use flake`). It provides Rust beta (selected by `rust-toolchain.toml` and pinned by `flake.lock`), cargo-nextest, cargo-component, nvim, gopls, go and tree-sitter, and sets `ZI_GRAMMAR_DIR` to the grammars built by the flake. It also has just and coverage tools.
 - CI runs in the smaller `nix develop .#ci` shell: only what builds, lints and tests need. Everything either shell needs comes from the flake, not the user's profile; check with `nix develop .#ci -i -k HOME -c ...`.
 - Run tests with nextest: `cargo nextest run --workspace --exclude 'plugin-*'`. CI uses `--profile ci`. Run doctests separately with `cargo test --workspace --exclude 'plugin-*' --doc`.
 - Measure test coverage with `just coverage` (the workspace), or `just coverage -p zi-text --html --open` for some crates. Its summary table counts generic functions once per instantiation, so check `--show-missing-lines` for lines no test runs.

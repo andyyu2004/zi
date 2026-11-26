@@ -104,14 +104,13 @@ impl<Id: MarkTreeId, const N: usize> MarkTree<Id, N> {
         ));
 
         let mut builder = TreeBuilder::new();
-        let mut chunks = extents.into_iter().array_chunks::<N>();
-        for leaf in chunks.by_ref().map(ArrayVec::from).map(Leaf::from) {
-            builder.append(leaf);
-        }
-
-        let array = chunks.into_remainder().collect::<ArrayVec<_, _>>();
-        if !array.is_empty() {
-            builder.append(Leaf::from(array));
+        let mut extents = extents.into_iter();
+        loop {
+            let chunk = extents.by_ref().take(N).collect::<ArrayVec<_, N>>();
+            if chunk.is_empty() {
+                break;
+            }
+            builder.append(Leaf::from(chunk));
         }
 
         let tree = Self { tree: builder.build(), _id: PhantomData };

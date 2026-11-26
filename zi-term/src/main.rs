@@ -1,5 +1,3 @@
-#![feature(panic_update_hook)]
-
 use std::backtrace::Backtrace;
 use std::io;
 use std::path::PathBuf;
@@ -61,11 +59,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
-    std::panic::update_hook(move |prev, info| {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
         let backtrace = Backtrace::capture();
         let _ = panic_tx.send((info.to_string(), backtrace));
         prev(info);
-    });
+    }));
 
     let mut app = zi_term::App::new(term, panic_rx)?;
     app.enter()?;

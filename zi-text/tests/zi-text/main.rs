@@ -280,6 +280,20 @@ fn text_annotations() {
         "#]],
     );
 
+    check(
+        "abc\ndef\nghi",
+        [("0:1..2:1", 1)],
+        expect![[r#"
+            "abc" -> 1
+            "\n"
+            "def" -> 1
+            "\n"
+            "g" -> 1
+            "hi"
+            "\n"
+        "#]],
+    );
+
     // indexed by byte, not char
     check(
         "ab©d",

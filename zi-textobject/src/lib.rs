@@ -1,5 +1,3 @@
-#![feature(iter_map_windows)]
-
 mod around;
 pub mod delimiter;
 mod matchit;

@@ -120,7 +120,7 @@ restriction = { level = "allow", priority = -1 }
 style = { level = "warn", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
 
-single-range-in-vec-init = "allow"
+single_range_in_vec_init = "allow"
 
 # Pedantic lints that are noise here
 # Internal crates, not a published API: no errors/panics docs or #[must_use] on every getter and builder.

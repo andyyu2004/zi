@@ -58,7 +58,7 @@ fn find_range_uses_an_ordered_index_or_scans() {
 fn ref_gives_the_id_and_row() {
     let (db, [pen, ..]) = shop();
     let r = db.items.get_ref(pen).unwrap();
-    let copy = Clone::clone(&r);
+    let copy = r;
     assert_eq!(copy.id(), pen);
     assert_eq!(copy.row().name, "pen");
     // Derefs to the row.
@@ -72,7 +72,7 @@ fn ref_gives_the_id_and_row() {
 #[test]
 fn columns_are_copyable_handles() {
     let (db, [pen, ..]) = shop();
-    let column: Column<Item, u32> = Clone::clone(&item::stock);
+    let column: Column<Item, u32> = item::stock;
     assert_eq!(column.name(), "stock");
     assert_eq!(*column.get(&db.items[pen]), 10);
 }

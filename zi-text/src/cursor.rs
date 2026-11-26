@@ -227,7 +227,7 @@ mod tests {
             }
 
             assert_eq!(cursor.offset(), 0);
-            assert!(chunks.is_empty());
+            assert_eq!(chunks, []);
         }
 
         #[test]

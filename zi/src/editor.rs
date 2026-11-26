@@ -1560,7 +1560,7 @@ impl Editor {
                 let text = self[buf].text();
                 let line_start_byte = text.line_to_byte(cursor.line() + 1).min(text.len_bytes());
                 let deltas =
-                    Deltas::new([Delta::insert_at(line_start_byte, format!("{}\n", &reg.content))]);
+                    Deltas::new([Delta::insert_at(line_start_byte, format!("{}\n", reg.content))]);
                 self.edit(buf, &deltas)?;
                 self.move_cursor(view, Direction::Down, 1);
                 Ok(())
@@ -1894,7 +1894,9 @@ impl Editor {
         async move {
             if flags.contains(BufferFlags::READONLY) {
                 assert!(!flags.contains(BufferFlags::DIRTY), "readonly buffer should not be dirty");
-                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly"))?;
+                return Err(
+                    io::Error::new(io::ErrorKind::PermissionDenied, "buffer is readonly").into()
+                );
             }
 
             let Some(path) = path else {

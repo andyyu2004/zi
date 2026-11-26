@@ -1,5 +1,3 @@
-#![feature(iter_array_chunks, coroutines, iter_from_coroutine)]
-
 mod bitbag;
 mod builder;
 
@@ -179,57 +177,53 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
         let mut q = VecDeque::from([(0, self.tree.root().as_ref())]);
 
-        iter::from_coroutine(
-            #[coroutine]
-            move || {
-                while let Some((mut offset, node)) = q.pop_front() {
-                    match node {
-                        Node::Internal(inode) => {
-                            for child in inode.children() {
-                                let summary = child.summary();
-                                if (offset..offset + summary.bytes).intersects(&(start..end)) {
-                                    // Child node has intersection with the relevant range,
-                                    // continue exploring it.
-                                    q.push_back((offset, child.as_ref()));
-                                }
-
-                                offset += summary.bytes;
+        let leaves = iter::from_fn(move || {
+            while let Some((mut offset, node)) = q.pop_front() {
+                match node {
+                    Node::Internal(inode) => {
+                        for child in inode.children() {
+                            let summary = child.summary();
+                            if (offset..offset + summary.bytes).intersects(&(start..end)) {
+                                q.push_back((offset, child.as_ref()));
                             }
-                        }
-                        Node::Leaf(leaf) => {
-                            for extent in leaf.as_slice().extents {
-                                if offset >= end {
-                                    break;
-                                }
-
-                                if offset < start {
-                                    offset += extent.len();
-                                    continue;
-                                }
-
-                                for key in extent.keys() {
-                                    let flags = key.flags();
-                                    if flags.contains(Flags::END) {
-                                        continue;
-                                    }
-
-                                    if flags.contains(Flags::RANGE) {
-                                        let end = self
-                                            .get_right(key.id())
-                                            .expect("we should at least find the current key");
-                                        yield (offset..end, key.id().into());
-                                    } else {
-                                        yield (offset..offset, key.id().into());
-                                    }
-                                }
-
-                                offset += extent.len();
-                            }
+                            offset += summary.bytes;
                         }
                     }
+                    Node::Leaf(leaf) => return Some((offset, leaf)),
                 }
-            },
-        )
+            }
+            None
+        });
+
+        leaves.flat_map(move |(offset, leaf)| {
+            leaf.as_slice()
+                .extents
+                .iter()
+                .scan(offset, move |offset, extent| {
+                    if *offset >= end {
+                        return None;
+                    }
+                    let at = *offset;
+                    *offset += extent.len();
+                    Some((at, extent))
+                })
+                .filter(move |(at, _)| *at >= start)
+                .flat_map(move |(at, extent)| {
+                    extent.keys().filter_map(move |key| {
+                        let flags = key.flags();
+                        if flags.contains(Flags::END) {
+                            return None;
+                        }
+                        let right = if flags.contains(Flags::RANGE) {
+                            self.get_right(key.id())
+                                .expect("we should at least find the current key")
+                        } else {
+                            at
+                        };
+                        Some((at..right, key.id().into()))
+                    })
+                })
+        })
     }
 
     /// Inserts an item based on its byte position.
@@ -441,12 +435,21 @@ struct Extent {
     keys: SetU64,
 }
 
+struct DebugSet<F>(F);
+
+impl<F, I> fmt::Debug for DebugSet<F>
+where
+    F: Fn() -> I,
+    I: IntoIterator<Item: fmt::Debug>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_set().entries((self.0)()).finish()
+    }
+}
+
 impl fmt::Debug for Extent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("")
-            .field(&self.length)
-            .field_with(|f| f.debug_set().entries(self.keys()).finish())
-            .finish()
+        f.debug_tuple("").field(&self.length).field(&DebugSet(|| self.keys())).finish()
     }
 }
 
@@ -1061,10 +1064,7 @@ struct Summary {
 
 impl fmt::Debug for Summary {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("")
-            .field(&self.bytes)
-            .field_with(|f| f.debug_set().entries(self.ids.iter()).finish())
-            .finish()
+        f.debug_tuple("").field(&self.bytes).field(&DebugSet(|| self.ids.iter())).finish()
     }
 }
 

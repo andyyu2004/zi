@@ -91,38 +91,25 @@ impl Motion for NextToken {
 impl Motion for Prev {
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
         let mut byte = text.point_or_byte_to_byte(p);
-        let mut chars = text.byte_slice(..byte).chars().rev().peekable();
+        let mut chars = text.byte_slice(..byte).chars().rev();
+        let Some(mut c) = chars.next() else { return byte.into() };
 
-        let c = chars.peek().copied();
-        let mut windows = chars.by_ref().map_windows::<_, _, 2>(|c| *c).peekable();
-
-        if windows.peek().is_none() {
-            // If there is only one character left, then the windowed iterator is empty.
-            // In this case, we just move back one character if possible.
-            // Note that `c` must be saved before peeking the windows as that would consume it with
-            // no way of getting it back.
-            return (byte - c.map_or(0, char::len_utf8)).into();
-        }
-
-        while let Some([c, next]) = windows.next() {
+        for next in chars {
             byte -= c.len_utf8();
 
             if matches!((c, next), ('\n', '\n')) {
-                break;
+                return byte.into();
             }
 
             // Stop if we're about to hit a separator or newline, or at a word start, unless we're currently on a separator.
             if ((self.is_sep)(next) || (self.is_start)(c, next)) && (!(self.is_sep)(c)) {
-                break;
+                return byte.into();
             }
 
-            // last iteration of the loop, deal with the final character
-            if windows.peek().is_none() {
-                byte -= next.len_utf8();
-            }
+            c = next;
         }
 
-        byte.into()
+        (byte - c.len_utf8()).into()
     }
 }
 
