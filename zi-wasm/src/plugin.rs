@@ -246,9 +246,6 @@ impl api::editor::HostBuffer for HostState {
         self.with_buffer(&buf, |editor, buf| {
             let buf = editor.buffer(buf);
             let mut flags = api::editor::BufferFlags::empty();
-            if *buf.settings().readonly.read() {
-                flags |= api::editor::BufferFlags::READONLY;
-            }
             if buf.flags().contains(zi::BufferFlags::DIRTY) {
                 flags |= api::editor::BufferFlags::DIRTY;
             }
