@@ -196,6 +196,59 @@ async fn enter_normal_mode_on_last_line() {
 }
 
 #[tokio::test]
+async fn count_repeats_insert_of_multibyte_text() {
+    let cx = new("abc").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("3i").unwrap();
+        for c in ['h', 'é', '→'] {
+            editor.insert_char(zi::Active, c).unwrap();
+        }
+        editor.input("<ESC>").unwrap();
+        assert_eq!(editor.cursor_line(), "hé→hé→hé→abc");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn count_repeats_backspace_over_grapheme() {
+    let cx = new("abc").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("3i").unwrap();
+        for c in ['h', 'e', '\u{301}'] {
+            editor.insert_char(zi::Active, c).unwrap();
+        }
+        editor.input("<BS>").unwrap();
+        editor.insert_char(zi::Active, 'x').unwrap();
+        editor.input("<ESC>").unwrap();
+        assert_eq!(editor.cursor_line(), "hxhxhxabc");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn backspace_over_grapheme_then_before_insert_drops_count() {
+    let cx = new("abc").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 2));
+        editor.input("3i").unwrap();
+        for c in ['e', '\u{301}'] {
+            editor.insert_char(zi::Active, c).unwrap();
+        }
+        editor.input("<BS><BS>").unwrap();
+        editor.insert_char(zi::Active, 'y').unwrap();
+        editor.insert_char(zi::Active, 'z').unwrap();
+        editor.input("<ESC>").unwrap();
+        assert_eq!(editor.cursor_line(), "ayzc");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
 async fn delete_last_line() {
     let cx = new("").await;
     cx.with(|editor| {
