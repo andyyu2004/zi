@@ -5397,7 +5397,6 @@ dependencies = [
  "arbitrary",
  "expect-test",
  "rel",
- "slotmap",
  "stdx",
  "tree-sitter",
  "zi-tui",

@@ -4,19 +4,18 @@ use std::ops::Deref;
 use std::path::PathBuf;
 
 use rel::Relation;
-use slotmap::SlotMap;
 
 use crate::editor::Selector;
 use crate::private::Internal;
 use crate::view::ViewGroup;
-use crate::{BufferId, Editor, Namespace, NamespaceId, ViewGroupId, ViewId};
+use crate::{BufferId, Editor, Namespace, ViewGroupId, ViewId};
 
 #[derive(Default, rel::Database)]
 pub(crate) struct Db {
     pub(crate) buffers: Relation<Buffer>,
     pub(crate) views: Relation<View>,
     pub(crate) view_groups: Relation<ViewGroup>,
-    pub(crate) namespaces: SlotMap<NamespaceId, Namespace>,
+    pub(crate) namespaces: Relation<Namespace>,
 }
 
 /// A buffer's row. Its file path is fixed when it is created.

@@ -1,11 +1,15 @@
+use rel::Relation;
 use ustr::Ustr;
 use zi_core::NamespaceId;
 
 use crate::Editor;
 use crate::editor::Selector;
 
+#[derive(Debug, Relation)]
+#[relation(key = NamespaceId)]
 pub struct Namespace {
     id: NamespaceId,
+    #[index(unique)]
     name: Ustr,
 }
 
