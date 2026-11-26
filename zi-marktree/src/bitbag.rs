@@ -1,17 +1,17 @@
 use std::fmt;
 use std::ops::{BitOrAssign, SubAssign};
 
-use croaring::Bitmap;
+use croaring::Treemap;
 
-/// A bitmap with 32-bit values that stores duplicity up to `2`.
+/// A bitmap with 64-bit values that stores duplicity up to `2`.
 // Can be generalized to `N` duplicity, but we can optimize for `N = 2` for now.
 #[derive(Clone, PartialEq)]
-pub(crate) struct Bitbag([Bitmap; 2]);
+pub(crate) struct Bitbag([Treemap; 2]);
 
 impl Bitbag {
     /// Inserts the value into the bitmap, returning the new duplicity of the value.
     #[inline]
-    pub fn insert(&mut self, value: u32) -> usize {
+    pub fn insert(&mut self, value: u64) -> usize {
         for (i, bitmap) in self.0.iter_mut().enumerate() {
             if bitmap.add_checked(value) {
                 return i + 1;
@@ -23,7 +23,7 @@ impl Bitbag {
 
     /// Removes the value from the bitmap, returning the new duplicity of the value.
     #[inline]
-    pub fn remove(&mut self, value: u32) -> Option<usize> {
+    pub fn remove(&mut self, value: u64) -> Option<usize> {
         // Remove back to front to remove the value from the bitmap with the highest duplicity first.
         for (i, bitmap) in self.0.iter_mut().rev().enumerate() {
             if bitmap.remove_checked(value) {
@@ -35,18 +35,18 @@ impl Bitbag {
     }
 
     #[inline]
-    pub fn contains(&self, value: u32) -> bool {
+    pub fn contains(&self, value: u64) -> bool {
         self.0[0].contains(value)
     }
 
     #[cfg(test)]
-    pub fn get(&self, v: u32) -> Option<usize> {
+    pub fn get(&self, v: u64) -> Option<usize> {
         Some(2 - self.0.iter().rev().position(|bitmap| bitmap.contains(v))?)
     }
 
     /// Returns an iterator over the values and their duplicity.
     #[doc(hidden)]
-    pub fn iter(&self) -> impl Iterator<Item = (u32, usize)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (u64, usize)> + '_ {
         // Only used for debugging for now, so naive impl
         let mut values = self.values().map(|v| (v, 1)).collect::<Vec<_>>();
         for (k, c) in &mut values {
@@ -58,7 +58,7 @@ impl Bitbag {
     }
 
     #[inline]
-    pub fn values(&self) -> impl Iterator<Item = u32> + '_ {
+    pub fn values(&self) -> impl Iterator<Item = u64> + '_ {
         // The first bitmap contains all the values
         self.0[0].iter()
     }
@@ -71,9 +71,10 @@ impl BitOrAssign<&Self> for Bitbag {
         // - Had duplicity of 1 in the lhs and also exist in the rhs.
         // - Had duplicity of 2 on either side.
         // Ignore the case where the value ends up having more than 2 duplicity, consider that a caller bug.
-        self.0[1] |= (&self.0[0] & &rhs.0[0]) | &rhs.0[1];
+        let twice = (&self.0[0] & &rhs.0[0]) | &rhs.0[1];
+        self.0[1].or_inplace(&twice);
 
-        self.0[0] |= &rhs.0[0];
+        self.0[0].or_inplace(&rhs.0[0]);
         debug_assert!(self.0[1].is_subset(&self.0[0]));
     }
 }
@@ -81,8 +82,9 @@ impl BitOrAssign<&Self> for Bitbag {
 impl SubAssign<&Self> for Bitbag {
     #[inline]
     fn sub_assign(&mut self, rhs: &Self) {
-        self.0[0] -= (&rhs.0[0] - &self.0[1]) | &rhs.0[1];
-        self.0[1] -= &rhs.0[0];
+        let removed = (&rhs.0[0] - &self.0[1]) | &rhs.0[1];
+        self.0[0].andnot_inplace(&removed);
+        self.0[1].andnot_inplace(&rhs.0[0]);
         debug_assert!(self.0[1].is_subset(&self.0[0]));
     }
 }
@@ -100,9 +102,9 @@ impl Default for Bitbag {
     }
 }
 
-impl FromIterator<u32> for Bitbag {
+impl FromIterator<u64> for Bitbag {
     #[inline]
-    fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = u64>>(iter: I) -> Self {
         let mut bitbag = Self::default();
         iter.into_iter().for_each(|id| {
             let k = bitbag.insert(id);

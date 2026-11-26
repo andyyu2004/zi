@@ -20,7 +20,13 @@ pub use self::builder::MarkBuilder;
 use self::extent_builder::ExtentBuilder;
 use self::key::{Flags, Key};
 
-pub trait MarkTreeId: Copy + Eq + From<u32> + Into<u32> + fmt::Debug + 'static {}
+/// The number of bits available for a mark id.
+pub const ID_BITS: u32 = 61;
+
+/// The largest mark id: ids must be at most this, the bits above it hold the mark's flags.
+pub const MAX_ID: u64 = (1 << ID_BITS) - 1;
+
+pub trait MarkTreeId: Copy + Eq + From<u64> + Into<u64> + fmt::Debug + 'static {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Bias {
@@ -88,18 +94,18 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         Some(start..end)
     }
 
-    fn get_left(&self, id: u32) -> Option<usize> {
+    fn get_left(&self, id: u64) -> Option<usize> {
         let (offset, leaf) = self.find_left_leaf(id)?;
         leaf.get_left(id).map(|byte| offset + byte)
     }
 
-    fn get_right(&self, id: u32) -> Option<usize> {
+    fn get_right(&self, id: u64) -> Option<usize> {
         let (offset, leaf) = self.find_right_leaf(id)?;
         leaf.get_right(id).map(|byte| offset - byte)
     }
 
     /// Return the `(offset, leaf)` pair of the leftmost leaf that contains the given `id`.
-    fn find_left_leaf(&self, id: u32) -> Option<(usize, &Leaf<N>)> {
+    fn find_left_leaf(&self, id: u64) -> Option<(usize, &Leaf<N>)> {
         // Need to do a manual traversal to make use of the bitmaps.
         let mut node = self.tree.root().as_ref();
         if !node.summary().ids.contains(id) {
@@ -132,7 +138,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     }
 
     /// Return the `(end_offset, leaf)` pair of the rightmost leaf that contains the given `id`.
-    fn find_right_leaf(&self, id: u32) -> Option<(usize, &Leaf<N>)> {
+    fn find_right_leaf(&self, id: u64) -> Option<(usize, &Leaf<N>)> {
         let mut node = self.tree.root().as_ref();
         if !node.summary().ids.contains(id) {
             return None;
@@ -244,7 +250,7 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
         fn del<const N: usize>(
             node: &mut Arc<Node<ARITY, Leaf<N>>>,
             mut offset: usize,
-            id: u32,
+            id: u64,
         ) -> usize {
             match Arc::make_mut(node) {
                 Node::Internal(inode) => {
@@ -459,8 +465,8 @@ impl Extent {
         Self { length, keys: keys.into_iter().map(Key::into_raw).collect() }
     }
 
-    fn ids(&self) -> impl Iterator<Item = u32> + '_ {
-        self.keys.iter().map(|key| key as u32)
+    fn ids(&self) -> impl Iterator<Item = u64> + '_ {
+        self.keys().map(Key::id)
     }
 
     fn keys(&self) -> impl Iterator<Item = Key> + '_ {
@@ -486,20 +492,20 @@ impl<const N: usize> fmt::Debug for Leaf<N> {
 
 impl<const N: usize> Leaf<N> {
     #[inline]
-    fn get_left(&self, id: u32) -> Option<usize> {
+    fn get_left(&self, id: u64) -> Option<usize> {
         self.as_slice().get_left(id)
     }
 
     #[inline]
-    fn get_right(&self, id: u32) -> Option<usize> {
+    fn get_right(&self, id: u64) -> Option<usize> {
         self.as_slice().get_right(id)
     }
 
-    fn delete(&mut self, summary: &mut Summary, id: u32) -> Option<usize> {
+    fn delete(&mut self, summary: &mut Summary, id: u64) -> Option<usize> {
         let mut offset = 0;
 
         for extent in &mut self.extents {
-            if extent.keys.remove(u64::from(id)) {
+            if extent.keys.remove(Key::new(id, Flags::empty()).into_raw()) {
                 // Fast path if the flags are empty.
                 assert!(summary.ids.remove(id).is_some());
                 return Some(offset);
@@ -767,7 +773,7 @@ mod extent_builder {
 }
 
 mod key {
-    use std::{fmt, mem};
+    use std::fmt;
 
     bitflags::bitflags! {
         #[derive(Clone, Copy, PartialEq, Eq)]
@@ -786,8 +792,7 @@ mod key {
         }
     }
 
-    /// Key encodes the 32-bit id and 32-bit flags.
-    // We don't nearly need 32-bits of flag space, but we're keeping the id small to allow for optimizations.
+    /// Key packs an id into the low `ID_BITS` bits and the flags into the bits above them.
     #[derive(Clone, Copy)]
     pub(super) struct Key(u64);
 
@@ -798,21 +803,24 @@ mod key {
     }
 
     impl Key {
-        const FLAG_BITS: usize = 32;
-        const ID_BITS: usize = mem::size_of::<u64>() * 8 - Self::FLAG_BITS;
+        const ID_BITS: u32 = super::ID_BITS;
+        const ID_MASK: u64 = super::MAX_ID;
 
-        pub fn new(id: u32, flag: Flags) -> Self {
-            Self(u64::from(id) | (u64::from(flag.bits()) << 32))
+        pub fn new(id: u64, flags: Flags) -> Self {
+            debug_assert!(id <= Self::ID_MASK, "id {id} does not fit in {} bits", Self::ID_BITS);
+            let flag_bits = u64::from(flags.bits()) << Self::ID_BITS;
+            Self(id | flag_bits)
         }
 
         #[inline]
-        pub fn id(self) -> u32 {
-            self.0 as u32
+        pub fn id(self) -> u64 {
+            self.0 & Self::ID_MASK
         }
 
         #[inline]
         pub fn flags(self) -> Flags {
-            Flags::from_bits((self.0 >> Self::ID_BITS) as u32).unwrap()
+            let flag_bits = self.0 >> Self::ID_BITS;
+            Flags::from_bits(flag_bits as u32).unwrap()
         }
 
         #[inline]
@@ -823,6 +831,24 @@ mod key {
         #[inline]
         pub fn from_raw(id: u64) -> Self {
             Self(id)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{Flags, Key};
+        use crate::MAX_ID;
+
+        #[test]
+        fn key_roundtrip() {
+            for id in [0, 1, u64::from(u32::MAX), u64::from(u32::MAX) + 1, MAX_ID - 1, MAX_ID] {
+                for bits in 0..=Flags::all().bits() {
+                    let flags = Flags::from_bits(bits).unwrap();
+                    let key = Key::from_raw(Key::new(id, flags).into_raw());
+                    assert_eq!(key.id(), id);
+                    assert_eq!(key.flags(), flags);
+                }
+            }
         }
     }
 }
@@ -921,10 +947,10 @@ impl Default for LeafSlice<'_> {
 impl LeafSlice<'_> {
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is relative to the start of the leaf node.
-    fn get_left(&self, id: u32) -> Option<usize> {
+    fn get_left(&self, id: u64) -> Option<usize> {
         let mut offset = 0;
         for extent in self.extents {
-            if extent.keys.contains(u64::from(id)) {
+            if extent.keys.contains(Key::new(id, Flags::empty()).into_raw()) {
                 // Fast path if the flags are empty.
                 return Some(offset);
             }
@@ -944,11 +970,11 @@ impl LeafSlice<'_> {
 
     /// Return the item with the given `id` if it exists.
     /// The item `byte` is the distance to the end of the leaf node.
-    fn get_right(&self, id: u32) -> Option<usize> {
+    fn get_right(&self, id: u64) -> Option<usize> {
         let mut offset = 0;
 
         for extent in self.extents.iter().rev() {
-            if extent.keys.contains(u64::from(id)) {
+            if extent.keys.contains(Key::new(id, Flags::empty()).into_raw()) {
                 // Fast path if the flags are empty.
                 return Some(offset + extent.len());
             }
