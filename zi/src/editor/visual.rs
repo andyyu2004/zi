@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ops::Range;
 
 use zi_core::{Point, PointRange};
@@ -28,24 +29,23 @@ impl Selection {
         Self::Block { lines }
     }
 
-    pub fn content(&self, text: &(impl Text + ?Sized)) -> String {
+    pub fn content<'a>(&self, text: &'a (impl Text + ?Sized)) -> Cow<'a, str> {
         match self {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
                 let end_byte = text.point_to_byte(*end) + end_len(text, *end).unwrap_or(0);
-                text.byte_slice(start_byte..end_byte).to_cow().into_owned()
+                text.byte_slice(start_byte..end_byte).to_cow()
             }
             Self::Line { start_line, end_line } => {
-                let start_byte = text.line_to_byte(*start_line);
-                let end_byte =
-                    text.try_line_to_byte(*end_line + 1).unwrap_or_else(|| text.len_bytes());
-                text.byte_slice(start_byte..end_byte).to_cow().into_owned()
+                text.line_slice(*start_line..=*end_line).to_cow()
             }
-            Self::Block { lines } => lines
-                .iter()
-                .map(|range| text.point_slice(*range).to_cow())
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Self::Block { lines } => Cow::Owned(
+                lines
+                    .iter()
+                    .map(|range| text.point_slice(*range).to_cow())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
         }
     }
 

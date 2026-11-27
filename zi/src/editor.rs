@@ -1439,10 +1439,10 @@ impl Editor {
         let Some(sel) = self.visual_selection(selector) else { return };
         let view = selector.select(self);
         let buf = self.view(view).buffer();
-        let content = sel.content(self[buf].text());
+        let content = sel.content(self.db.buffers[buf].text());
         let kind = sel.register_kind();
 
-        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content.clone())) {
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(&*content)) {
             set_error!(self, err);
         }
         self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
