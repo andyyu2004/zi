@@ -1,5 +1,6 @@
 mod around;
 pub mod delimiter;
+mod find;
 mod matchit;
 pub mod motion;
 mod until;
@@ -12,6 +13,7 @@ use zi_text::grapheme::{Grapheme, graphemes_before, graphemes_from};
 use zi_text::{AnyText, Text as _, TextSlice};
 
 pub use self::around::Around;
+pub use self::find::{FindChar, FindKind};
 pub use self::matchit::MatchIt;
 pub use self::motion::{Motion, MotionFlags};
 pub use self::until::Until;

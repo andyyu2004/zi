@@ -45,7 +45,7 @@ use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
 use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
-use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
+use zi_textobject::{FindChar, FindKind, TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
 use self::db::{BufferQueries as _, Db, ViewQueries as _};
@@ -163,6 +163,13 @@ pub struct Editor {
     clipboard: Result<Clipboard, Arc<arboard::Error>>,
     dot: Dot,
     count: Option<usize>,
+    pending_find: Option<PendingFind>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PendingFind {
+    kind: FindKind,
+    count: usize,
 }
 
 macro_rules! mode {
@@ -419,6 +426,7 @@ impl Editor {
             plugin_managers: Default::default(),
             dot: Default::default(),
             count: None,
+            pending_find: None,
         };
 
         let notify_redraw = NOTIFY_REDRAW.get_or_init(Default::default);
@@ -797,6 +805,11 @@ impl Editor {
 
         self.dot.record_input(mode, &key);
 
+        if let Some(pending) = self.pending_find.take() {
+            self.finish_find(pending, &key);
+            return;
+        }
+
         tracing::trace!(%key, "handling key");
         #[expect(
             clippy::wildcard_enum_match_arm,
@@ -881,6 +894,24 @@ impl Editor {
 
     pub(crate) fn take_count(&mut self) -> Option<usize> {
         self.count.take()
+    }
+
+    pub(crate) fn start_find(&mut self, kind: FindKind) {
+        let count = self.take_count().unwrap_or(1);
+        self.pending_find = Some(PendingFind { kind, count });
+    }
+
+    fn finish_find(&mut self, PendingFind { kind, count }: PendingFind, key: &KeyEvent) {
+        let KeyCode::Char(target) = key.code() else {
+            if let Mode::OperatorPending(_) = self.mode() {
+                self.set_mode(Mode::Normal);
+            }
+            return;
+        };
+
+        if let Err(err) = self.motion(Active, FindChar { kind, target }.repeat(count)) {
+            set_error!(self, err);
+        }
     }
 
     pub(crate) fn update_count(&mut self, f: impl FnOnce(Option<usize>) -> usize) {

@@ -1,0 +1,60 @@
+==== f and F
+abcabc
+----
+fcfcFaFa
+
+==== t and T
+abcabc
+----
+tctcTaTa
+
+==== counts
+a.b.c.d.e
+----
+2f.3t.2F.T.
+
+==== no match does not move
+abc
+----
+fzlFz
+
+==== find stays on the line
+ab
+cb
+----
+jfbkfb
+
+==== df, dt, dF and dT
+foo(bar, baz)
+----
+df,
+
+==== dt
+foo(bar, baz)
+----
+dt,
+
+==== dF
+foo(bar, baz)
+----
+f)dF(
+
+==== dT
+foo(bar, baz)
+----
+f)dT(
+
+==== d with no match cancels
+abc
+----
+dfzl
+
+==== f and t over a combining mark
+aéxéx
+----
+fxtxFa
+
+==== f with a count past the last match
+a.b
+----
+3f.
