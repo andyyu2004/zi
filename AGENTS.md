@@ -23,6 +23,7 @@ zi is a vim-like terminal editor in Rust. Cargo workspace, Rust beta toolchain.
 - Avoid stubs and mocks where possible: test against the real thing (real language servers, nvim for vim behaviour, the real grammars). A test that stubs what it's about only shows the code does what the stub assumes.
 - Match on enums exhaustively, without a `_ =>` arm, so a new variant is a compile error wherever it needs a decision.
 - Use a `bool` only for something that will always have exactly two states, such as the `readonly` setting. Don't take a `bool` parameter: a bare `true` at the call site is ambiguous, so use a two-variant enum or bitflags (`OpenFlags::READONLY`).
+- For sequences, prefer `&[T]` to `Box<[T]>` to `Vec<T>`: borrow if you can, and own a `Vec` only if it still grows.
 - Prefer a type that says what a string holds (`Url`, `PathBuf`, `FileType`, a newtype) to `String` or `&str`.
 - Don't access tuple fields as `.0`, `.1`: destructure the tuple into named bindings (`let (start, end) = ...`, `|(_, right, id)| ...`).
 - The plugin API (`zi-wasm/wit/zi.wit`) follows the Rust API for now: when an editor API that plugins can reach changes, change the WIT and the test plugin (`plugins/test`) in the same PR.

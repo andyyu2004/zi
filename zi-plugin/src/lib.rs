@@ -1,130 +1,24 @@
-use std::fmt;
-use std::io::BufRead as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::str::FromStr;
+use std::process::Command;
 
-use anyhow::{Context as _, bail, ensure};
+use anyhow::{Context as _, ensure};
+
+mod build;
+mod language;
+mod name;
+mod process;
+#[cfg(test)]
+mod tests;
+
+pub use self::build::build;
+pub use self::language::Language;
+use self::language::TEMPLATE_NAME;
+pub use self::name::PluginName;
+use self::process::{run, tool};
 
 pub const WIT: &str = include_str!("../../zi-wasm/wit/zi.wit");
 
 const WORLD: &str = "plugin";
-
-const TEMPLATE_NAME: &str = "zi-plugin-template";
-
-const NPM_TEMPLATE: &[(&str, &str)] = &[
-    ("package.json", include_str!("../template/common/package.json")),
-    ("package-lock.json", include_str!("../template/common/package-lock.json")),
-    (".gitignore", include_str!("../template/common/.gitignore")),
-];
-
-const WASM_TARGET: &str = "wasm32-unknown-unknown";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-pub enum Language {
-    #[value(name = "ts", alias = "typescript")]
-    TypeScript,
-    #[value(name = "js", alias = "javascript")]
-    JavaScript,
-    #[value(name = "rust", alias = "rs")]
-    Rust,
-}
-
-impl Language {
-    const ALL: [Self; 3] = [Self::TypeScript, Self::JavaScript, Self::Rust];
-
-    fn marker(self) -> &'static Path {
-        Path::new(match self {
-            Self::TypeScript => "src/plugin.ts",
-            Self::JavaScript => "src/plugin.js",
-            Self::Rust => "Cargo.toml",
-        })
-    }
-
-    fn template(self) -> Vec<(&'static str, &'static str)> {
-        match self {
-            Self::TypeScript => [
-                NPM_TEMPLATE,
-                &[
-                    ("tsconfig.json", include_str!("../template/ts/tsconfig.json")),
-                    ("src/plugin.ts", include_str!("../template/ts/src/plugin.ts")),
-                ],
-            ]
-            .concat(),
-            Self::JavaScript => [
-                NPM_TEMPLATE,
-                &[
-                    ("jsconfig.json", include_str!("../template/js/jsconfig.json")),
-                    ("src/plugin.js", include_str!("../template/js/src/plugin.js")),
-                ],
-            ]
-            .concat(),
-            Self::Rust => vec![
-                ("Cargo.toml", include_str!("../template/rs/Cargo.toml")),
-                ("Cargo.lock", include_str!("../template/rs/Cargo.lock")),
-                (".gitignore", include_str!("../template/rs/.gitignore")),
-                ("src/lib.rs", include_str!("../template/rs/src/lib.rs")),
-            ],
-        }
-    }
-
-    fn markers(langs: impl IntoIterator<Item = Self>) -> String {
-        langs
-            .into_iter()
-            .map(|lang| lang.marker().display().to_string())
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-
-    pub fn detect(project: &Path) -> anyhow::Result<Self> {
-        let found = Self::ALL
-            .into_iter()
-            .filter(|lang| project.join(lang.marker()).is_file())
-            .collect::<Vec<_>>();
-        match found[..] {
-            [lang] => Ok(lang),
-            [] => bail!(
-                "`{}` is not a plugin project (it has none of {})",
-                project.display(),
-                Self::markers(Self::ALL)
-            ),
-            _ => bail!(
-                "`{}` looks like more than one kind of plugin project: {}",
-                project.display(),
-                Self::markers(found)
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PluginName(String);
-
-impl FromStr for PluginName {
-    type Err = anyhow::Error;
-
-    fn from_str(name: &str) -> anyhow::Result<Self> {
-        ensure!(
-            !name.is_empty()
-                && name.starts_with(|c: char| c.is_ascii_lowercase())
-                && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
-            "invalid plugin name `{name}`: use lowercase letters, digits and `-`, starting with a letter"
-        );
-        Ok(Self(name.to_owned()))
-    }
-}
-
-impl PluginName {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for PluginName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
 
 pub fn scaffold(dir: &Path, name: &PluginName, lang: Language) -> anyhow::Result<()> {
     if dir.exists() {
@@ -163,31 +57,6 @@ pub fn types(project: &Path) -> anyhow::Result<()> {
     }
 }
 
-pub fn build(project: &Path) -> anyhow::Result<PathBuf> {
-    let lang = Language::detect(project)?;
-    let name = plugin_name(project, lang)?;
-    types(project)?;
-
-    let output = project.join("dist").join(format!("{name}.wasm"));
-    std::fs::create_dir_all(project.join("dist"))?;
-    match lang {
-        Language::TypeScript => {
-            run(tool(project, "tsc")?.args(["-p", "."]).current_dir(project))?;
-            componentize(project, Path::new("dist/plugin.js"), &output)?;
-        }
-        Language::JavaScript => componentize(project, Path::new("src/plugin.js"), &output)?,
-        Language::Rust => {
-            let module = std::fs::read(cargo_build(project)?)?;
-            let component = wit_component::ComponentEncoder::default()
-                .module(&module)?
-                .validate(true)
-                .encode()?;
-            std::fs::write(&output, component)?;
-        }
-    }
-    Ok(output)
-}
-
 pub fn install(project: &Path) -> anyhow::Result<PathBuf> {
     let component = build(project)?;
     let plugin_dir = zi_core::dirs::plugin().next().context("no plugin directory")?;
@@ -202,165 +71,4 @@ pub fn install(project: &Path) -> anyhow::Result<PathBuf> {
 fn write_wit(dir: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(dir)?;
     Ok(std::fs::write(dir.join("zi.wit"), WIT)?)
-}
-
-fn componentize(project: &Path, js: &Path, output: &Path) -> anyhow::Result<()> {
-    run(tool(project, "jco")?
-        .arg("componentize")
-        .arg(js)
-        .args(["--wit", "types/zi.wit", "--world-name", WORLD])
-        .args(["--disable", "http", "--disable", "fetch-event"])
-        .arg("-o")
-        .arg(std::path::absolute(output)?)
-        .current_dir(project))
-}
-
-fn cargo_build(project: &Path) -> anyhow::Result<PathBuf> {
-    let mut cmd = Command::new("cargo");
-    cmd.args(["build", "--release", "--target", WASM_TARGET])
-        .arg("--message-format=json-render-diagnostics")
-        .current_dir(project)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .env_remove("RUSTFLAGS")
-        .env_remove("CARGO_ENCODED_RUSTFLAGS")
-        .env_remove("RUSTC_WRAPPER")
-        .env_remove("RUSTC_WORKSPACE_WRAPPER");
-    tracing::info!(command = ?cmd, "running");
-    let output = cmd.output().with_context(|| format!("failed to run {cmd:?}"))?;
-    ensure!(
-        output.status.success(),
-        "{cmd:?} failed with {} (is the {WASM_TARGET} target installed?)",
-        output.status
-    );
-
-    let mut wasm = None;
-    for line in output.stdout.lines() {
-        let message: serde_json::Value = serde_json::from_str(&line?)?;
-        if message["reason"] != "compiler-artifact"
-            || !message["target"]["kind"]
-                .as_array()
-                .is_some_and(|kinds| kinds.contains(&"cdylib".into()))
-        {
-            continue;
-        }
-        let files = message["filenames"].as_array().into_iter().flatten();
-        wasm = files
-            .filter_map(|file| file.as_str())
-            .map(PathBuf::from)
-            .find(|file| file.extension().is_some_and(|ext| ext == "wasm"));
-    }
-    wasm.context("cargo built no .wasm cdylib")
-}
-
-fn plugin_name(project: &Path, lang: Language) -> anyhow::Result<PluginName> {
-    let (path, name) = match lang {
-        Language::TypeScript | Language::JavaScript => {
-            let path = project.join("package.json");
-            let package: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(&path)
-                    .with_context(|| format!("failed to read `{}`", path.display()))?,
-            )?;
-            (path, package["name"].as_str().map(str::to_owned))
-        }
-        Language::Rust => {
-            let output = Command::new("cargo")
-                .args(["metadata", "--no-deps", "--format-version", "1"])
-                .current_dir(project)
-                .output()?;
-            ensure!(output.status.success(), "cargo metadata failed in `{}`", project.display());
-            let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-            (
-                project.join("Cargo.toml"),
-                metadata["packages"][0]["name"].as_str().map(str::to_owned),
-            )
-        }
-    };
-    match name {
-        Some(name) => name.parse(),
-        None => bail!("`{}` has no package name", path.display()),
-    }
-}
-
-fn tool(project: &Path, name: &str) -> anyhow::Result<Command> {
-    let path = std::path::absolute(project)?.join("node_modules/.bin").join(name);
-    ensure!(
-        path.exists(),
-        "`{}` not found: run `npm install` in `{}`",
-        path.display(),
-        project.display()
-    );
-    Ok(Command::new(path))
-}
-
-fn run(cmd: &mut Command) -> anyhow::Result<()> {
-    tracing::info!(command = ?cmd, "running");
-    let status = cmd.status().with_context(|| format!("failed to run {cmd:?}"))?;
-    ensure!(status.success(), "{cmd:?} failed with {status}");
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn source(lang: Language) -> &'static Path {
-        Path::new(match lang {
-            Language::TypeScript => "src/plugin.ts",
-            Language::JavaScript => "src/plugin.js",
-            Language::Rust => "src/lib.rs",
-        })
-    }
-
-    #[test]
-    fn detect_language() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(Language::detect(dir.path()).unwrap_err().to_string().contains("not a plugin"));
-
-        for lang in Language::ALL {
-            let project = dir.path().join(format!("{lang:?}"));
-            scaffold(&project, &"p".parse().unwrap(), lang).unwrap();
-            assert_eq!(Language::detect(&project).unwrap(), lang);
-        }
-
-        let both = dir.path().join("both");
-        scaffold(&both, &"p".parse().unwrap(), Language::TypeScript).unwrap();
-        std::fs::write(both.join("src/plugin.js"), "").unwrap();
-        assert!(Language::detect(&both).unwrap_err().to_string().contains("more than one"));
-    }
-
-    #[test]
-    fn scaffold_names_the_plugin() {
-        let dir = tempfile::tempdir().unwrap();
-        for lang in Language::ALL {
-            let project = dir.path().join(format!("{lang:?}"));
-            scaffold(&project, &"my-plugin".parse().unwrap(), lang).unwrap();
-            assert_eq!(plugin_name(&project, lang).unwrap().to_string(), "my-plugin");
-            let source = std::fs::read_to_string(project.join(source(lang))).unwrap();
-            assert!(source.contains(r#""my-plugin""#), "{source}");
-            assert!(!source.contains(TEMPLATE_NAME));
-        }
-    }
-
-    #[test]
-    fn tools_resolve_from_a_relative_project() {
-        let root = tempfile::tempdir().unwrap();
-        let bin = root.path().join("project/node_modules/.bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        std::fs::write(bin.join("jco"), "").unwrap();
-        std::env::set_current_dir(root.path()).unwrap();
-
-        let cmd = tool(Path::new("project"), "jco").unwrap();
-        assert_eq!(Path::new(cmd.get_program()), bin.canonicalize().unwrap().join("jco"));
-    }
-
-    #[test]
-    fn plugin_names() {
-        for name in ["zi", "my-plugin", "a1"] {
-            assert_eq!(name.parse::<PluginName>().unwrap().to_string(), name);
-        }
-        for name in ["", "My-Plugin", "1a", "-a", "a_b", "a/b", "@scope/a"] {
-            assert!(name.parse::<PluginName>().is_err(), "{name}");
-        }
-    }
 }
