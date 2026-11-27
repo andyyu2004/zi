@@ -72,6 +72,20 @@ fn marktree_shift_end_equal_start() {
 }
 
 #[test]
+fn marktree_get_empty_range_mark() {
+    let mut tree = new(1000);
+    for i in 0..100 {
+        tree.insert(i * 5, Id(i)).width(2);
+    }
+    for i in (0..100).rev() {
+        tree.shift(i * 5..i * 5 + 2, 0);
+    }
+    for i in 0..100 {
+        assert_eq!(tree.get(Id(i)), Some(i * 3..i * 3));
+    }
+}
+
+#[test]
 fn marktree_range_iter() {
     let mut tree = new(1000);
     tree.insert(0, Id(0));
@@ -687,8 +701,7 @@ fn apply_range_actions<const N: usize>(actions: &[RangeAction]) -> (MarkTree<Id,
 
 fn check_range<const N: usize>(actions: &[RangeAction], windows: &[(usize, usize)]) {
     let (tree, ids) = apply_range_actions::<N>(actions);
-    let (mut reference, _) = apply_range_actions::<N>(actions);
-    let ranges = ids.iter().map(|&id| (reference.delete(id).unwrap(), id)).collect::<Vec<_>>();
+    let ranges = ids.iter().map(|&id| (tree.get(id).unwrap(), id)).collect::<Vec<_>>();
 
     for &(start, len) in windows {
         let window = start..start + len;

@@ -356,12 +356,9 @@ impl LeafSlice<'_> {
                 // Fast path if the flags are empty.
                 return Some(offset);
             }
-            // Otherwise, scan
-            for key in extent.keys() {
-                if key.id() == id {
-                    assert!(!key.flags().contains(Flags::END));
-                    return Some(offset);
-                }
+            // Otherwise, scan. This may find an empty range mark's end key first, at the same offset.
+            if extent.ids().any(|key_id| key_id == id) {
+                return Some(offset);
             }
 
             offset += extent.len();
