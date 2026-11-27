@@ -11,6 +11,7 @@ mod events;
 mod file_io;
 mod lsp_requests;
 mod marks;
+mod operator_target;
 mod pickers;
 mod register;
 mod render;
@@ -53,6 +54,7 @@ use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
 pub use self::errors::EditError;
 use self::file_io::{OpenFile, OpenPlan};
+use self::operator_target::OperatorTarget;
 use self::register::Registers;
 pub use self::register::{Register, RegisterKind};
 pub use self::search::Match;
@@ -1590,87 +1592,26 @@ impl Editor {
 
         let &OperatorPendingState { operator } = state;
 
-        let mut obj_kind = obj.default_kind();
-        let flags = obj.flags();
-
         let text = self.db.buffers[buf].text();
-
         let cursor = self[view].cursor();
         let target_col = self[view].target_col();
-        let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
+        let Some(OperatorTarget {
+            range,
+            kind: obj_kind,
+            start: start_point,
+            start_char,
+            end_adjusted,
+        }) = OperatorTarget::resolve(&obj, text, cursor, operator)
+        else {
             // Set cursor to update target column
             // See 0793bc3910afb0982a85f2243b36dcfb2472b5d6
-            if flags.contains(TextObjectFlags::UPDATE_TARGET_COLUMN) {
+            if obj.flags().contains(TextObjectFlags::UPDATE_TARGET_COLUMN) {
                 self.set_cursor(view, cursor);
             }
 
             self.set_mode(Mode::Normal);
             return Ok(());
         };
-
-        let start_char = text.char_at_byte(range.start);
-
-        let start_point = text.byte_to_point(range.start);
-        let inclusive = flags.contains(TextObjectFlags::INCLUSIVE) && !range.is_empty();
-        let end_point = text.byte_to_point(range.end);
-        let end_point = if inclusive {
-            let last = text.char_before_byte(range.end).map_or(0, char::len_utf8);
-            text.byte_to_point(range.end - last)
-        } else {
-            end_point
-        };
-        // -1 to the line count if the end point is at the start of a line because it's exclusive
-        let mut line_count = end_point.line() - start_point.line() + 1;
-
-        let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
-            && end_point.byte_col() == 0
-            && obj_kind == TextObjectKind::Charwise
-            && line_count > 1;
-
-        if end_adjusted {
-            line_count -= 1;
-            // special case https://github.com/neovim/neovim/blob/2088521263d3bf9cfd23729adb1a7d152eaab104/src/nvim/ops.c#L6073-L6098
-            // tldr;
-            //  - if the end point is the first column of a line, we stop before the line terminator of the prior line.
-            //  - if the cursor is also before the first non-whitespace character of the line, the motion is executed linewise.
-            // This implementation is only roughly approximating neovim's behaviour.
-            //
-            // Using `start_point` instead of `cursor` as specified in neovim docs as nvim
-            // updates the cursor before this point.
-            if text.inindent(start_point) {
-                obj_kind = TextObjectKind::Linewise;
-            } else {
-                let line_idx = end_point.line() - 1;
-                let line_above = text.line(line_idx).expect("must be in-bounds");
-                let adjusted_end_byte =
-                    text.point_to_byte(Point::new(line_idx, line_above.len_bytes()));
-                if adjusted_end_byte > range.start {
-                    // avoid making the range empty
-                    range.end = adjusted_end_byte;
-                }
-            }
-        }
-
-        // Another neovim special case inherited from vi.
-        // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L1468-L1484
-        if obj_kind == TextObjectKind::Charwise
-            && line_count > 1
-            && operator == Operator::Delete
-            && !flags.contains(TextObjectFlags::INCLUSIVE)
-            && text.inindent(end_point)
-            && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
-        {
-            obj_kind = TextObjectKind::Linewise;
-        }
-
-        // If we're in a special case for linewise motions that are charwise by default,
-        // extend the range to include the full start and end lines.
-        if obj.default_kind() == TextObjectKind::Charwise && obj_kind == TextObjectKind::Linewise {
-            let start_line = start_point.line();
-            let start_byte = text.line_to_byte(start_line);
-            let end_byte = text.line_to_byte(start_line + line_count);
-            range = start_byte..end_byte;
-        }
 
         let (deltas, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
