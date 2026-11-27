@@ -1565,6 +1565,7 @@ impl Editor {
         let text = self.db.buffers[buf].text();
 
         let cursor = self[view].cursor();
+        let target_col = self[view].target_col();
         let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
             // Set cursor to update target column
             // See 0793bc3910afb0982a85f2243b36dcfb2472b5d6
@@ -1710,7 +1711,8 @@ impl Editor {
                     matches!(new_cursor, PointOrByte::Point(_)),
                     "expected point cursor for linewise motion"
                 );
-                (new_cursor, SetCursorFlags::USE_TARGET_COLUMN)
+                self[view].set_target_col(target_col);
+                (new_cursor, SetCursorFlags::FROM_TARGET_COLUMN)
             } else {
                 // another vim quirk, move the cursor to the first non-whitespace character
                 (new_cursor, SetCursorFlags::START_OF_LINE)

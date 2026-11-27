@@ -1,0 +1,23 @@
+==== dd then j keeps the column from before the delete
+aA
+
+
+aaa
+----
+ljddj
+
+==== dj on the last lines restores the column on the line above
+aa
+
+A
+----
+ejdj
+
+==== dj after W and B restores the column
+A
+
+ A
+
+A
+----
+dhWWWBjdj

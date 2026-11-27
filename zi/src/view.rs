@@ -36,8 +36,11 @@ bitflags::bitflags! {
         const START_OF_LINE = 1 << 0;
         /// Do not update the cursor target column even if the cursor did not move.
         const NO_FORCE_UPDATE_TARGET = 1 << 1;
-        /// Use the target column as the cursor column. Implies `NO_FORCE_UPDATE_TARGET`.
-        const USE_TARGET_COLUMN = 1 << 2 | Self::NO_FORCE_UPDATE_TARGET.bits();
+        /// Take the cursor column from the target column, then update the target as usual.
+        const FROM_TARGET_COLUMN = 1 << 2;
+        /// Use the target column as the cursor column and keep it as the target.
+        const USE_TARGET_COLUMN =
+            Self::FROM_TARGET_COLUMN.bits() | Self::NO_FORCE_UPDATE_TARGET.bits();
     }
 }
 
@@ -137,6 +140,14 @@ impl View {
         self.cursor.point
     }
 
+    pub(crate) fn target_col(&self) -> DisplayCol {
+        self.cursor.target_col
+    }
+
+    pub(crate) fn set_target_col(&mut self, col: DisplayCol) {
+        self.cursor.target_col = col;
+    }
+
     /// Move the cursor and scroll back to the start, for when the view's buffer changes.
     #[inline]
     pub(crate) fn reset_position(&mut self) {
@@ -226,7 +237,7 @@ impl View {
         flags: SetCursorFlags,
     ) -> Point {
         assert!(
-            !flags.contains(SetCursorFlags::USE_TARGET_COLUMN),
+            !flags.contains(SetCursorFlags::FROM_TARGET_COLUMN),
             "not applicable for bytewise cursor movement"
         );
 
@@ -299,7 +310,7 @@ impl View {
         let line = line.to_cow();
         let line_len = line.len();
 
-        let (pos, requested_col) = if flags.contains(SetCursorFlags::USE_TARGET_COLUMN) {
+        let (pos, requested_col) = if flags.contains(SetCursorFlags::FROM_TARGET_COLUMN) {
             let target_col = self.cursor.target_col;
             (Point::new(line_idx, buf.line_byte_col(&line, target_col)), target_col)
         } else {
