@@ -1818,13 +1818,15 @@ impl Editor {
             }
         }
 
-        let cursor = match (entry.cursor, entry.changes.first()) {
+        let earliest_change = entry
+            .changes
+            .iter()
+            .flat_map(|change| change.deltas.iter().map(|delta| delta.range().start))
+            .min();
+        let cursor = match (entry.cursor, earliest_change) {
             (Some(cursor), _) => cursor.into(),
-            (_, Some(fst)) => match fst.deltas.iter().next() {
-                Some(delta) => delta.range().start.into(),
-                None => return Ok(false),
-            },
-            _ => return Ok(false),
+            (None, Some(start)) => start.into(),
+            (None, None) => return Ok(false),
         };
 
         for view in self.views_into_buf(buf) {

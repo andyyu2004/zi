@@ -117,3 +117,22 @@ async fn undo_marks_buffer_dirty() -> zi::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn undo_in_file_without_trailing_newline_returns_cursor_to_change() -> zi::Result<()> {
+    let cx = new("").await;
+
+    cx.open_tmp("abc\ndef", zi::OpenFlags::empty()).await?;
+
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        editor.input("ihi<ESC>u").unwrap();
+        assert_eq!(editor.text(zi::Active), "abc\ndef");
+        assert_eq!(editor.cursor(zi::Active), zi::Point::new(0, 0));
+    })
+    .await;
+
+    cx.cleanup().await;
+
+    Ok(())
+}
