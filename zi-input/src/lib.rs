@@ -151,23 +151,17 @@ impl TryFrom<crossterm::event::KeyModifiers> for KeyModifiers {
     type Error = ();
 
     fn try_from(modifiers: crossterm::event::KeyModifiers) -> Result<Self, Self::Error> {
-        use crossterm::event::KeyModifiers as Ct;
-
-        let pairs = [
-            (Ct::SHIFT, KeyModifiers::SHIFT),
-            (Ct::CONTROL, KeyModifiers::CONTROL),
-            (Ct::ALT, KeyModifiers::ALT),
-        ];
-
-        let supported = pairs.iter().fold(Ct::NONE, |acc, &(ct, _)| acc | ct);
-        if !modifiers.difference(supported).is_empty() {
-            return Err(());
+        let mut out = Self::NONE;
+        for modifier in modifiers.iter() {
+            match modifier {
+                crossterm::event::KeyModifiers::SHIFT => out |= Self::SHIFT,
+                crossterm::event::KeyModifiers::CONTROL => out |= Self::CONTROL,
+                crossterm::event::KeyModifiers::ALT => out |= Self::ALT,
+                _ => return Err(()),
+            }
         }
 
-        Ok(pairs
-            .into_iter()
-            .filter(|&(ct, _)| modifiers.contains(ct))
-            .fold(KeyModifiers::NONE, |acc, (_, zi)| acc | zi))
+        Ok(out)
     }
 }
 
