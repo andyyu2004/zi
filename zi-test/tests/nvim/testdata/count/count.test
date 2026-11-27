@@ -28,3 +28,13 @@ f
 ----
 2ddjdd
 
+
+==== a zero inside a count
+abcdefghijklmnopqrstuvwxyz
+----
+10lD
+
+==== a zero inside a count after an operator
+abcdefghijklmnopqrstuvwxyz
+----
+d10l

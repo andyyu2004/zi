@@ -20,10 +20,14 @@ pub trait Motion: TextObject {
     /// The caller may choose to handle them distinctly.
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte;
 
-    /// The motion repeated `n` times.
+    /// The motion repeated `n` times, or until it stops moving.
     fn motion_n(&self, text: &dyn AnyText, mut p: PointOrByte, n: usize) -> PointOrByte {
         for _ in 0..n {
-            p = self.motion(text, p);
+            let next = self.motion(text, p);
+            if next == p {
+                break;
+            }
+            p = next;
         }
         p
     }

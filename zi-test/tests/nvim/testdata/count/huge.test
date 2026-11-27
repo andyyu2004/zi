@@ -1,0 +1,28 @@
+==== a huge count on a motion
+a b c
+----
+99999999999l
+
+==== huge counts on a charwise operator
+abc
+----
+9999999999d9999999999l
+
+==== huge counts on a linewise operator
+a
+b
+c
+----
+j9999999999d9999999999j
+
+==== huge counts on a linewise operator upwards
+a
+b
+c
+----
+jj9999999999d9999999999k
+
+==== a huge count on dot
+a b c d e f
+----
+dl99999999999.

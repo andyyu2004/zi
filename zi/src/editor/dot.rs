@@ -1,5 +1,6 @@
 use zi_input::{KeyCode, KeyEvent};
 
+use super::Count;
 use crate::Mode;
 
 /// dot repeat state
@@ -12,11 +13,11 @@ pub(super) struct Dot {
     /// Whether we're currently replaying (to prevent recording during replay)
     replaying: bool,
     /// The count of the last change, given separately from its keys
-    count: Option<usize>,
+    count: Option<Count>,
     /// Keys pressed in Normal mode before a recording starts
     normal_keys: Vec<KeyEvent>,
     /// The count typed in Normal mode before a recording starts
-    normal_count: Option<usize>,
+    normal_count: Option<Count>,
     /// Whether the key being handled has made an edit that can be repeated
     edited: bool,
 }
@@ -51,7 +52,7 @@ impl Dot {
     }
 
     /// Replace the last saved key, a count key, with the count it set
-    pub(super) fn save_count(&mut self, mode: Mode, count: usize) {
+    pub(super) fn save_count(&mut self, mode: Mode, count: Count) {
         if self.replaying {
             return;
         }
@@ -65,11 +66,11 @@ impl Dot {
         }
     }
 
-    pub(super) fn count(&self) -> Option<usize> {
+    pub(super) fn count(&self) -> Option<Count> {
         self.count
     }
 
-    pub(super) fn set_count(&mut self, count: usize) {
+    pub(super) fn set_count(&mut self, count: Count) {
         self.count = Some(count);
     }
 

@@ -12,6 +12,9 @@ mod macros;
 
 pub trait DynKeymap<M = Mode, K = KeyEvent, V = Action> {
     fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>);
+
+    /// Whether keys pressed in `mode` so far are the start of a longer sequence
+    fn is_pending(&self, mode: &M) -> bool;
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +39,10 @@ where
 {
     fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
         self.on_key(mode, key)
+    }
+
+    fn is_pending(&self, mode: &M) -> bool {
+        self.last_mode.as_ref() == Some(mode) && !self.buffer.is_empty()
     }
 }
 
@@ -287,6 +294,10 @@ where
 
         self.state = state;
         (v, buf)
+    }
+
+    fn is_pending(&self, mode: &M) -> bool {
+        self.a.is_pending(mode) || self.b.is_pending(mode)
     }
 }
 
