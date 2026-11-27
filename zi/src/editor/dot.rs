@@ -1,4 +1,4 @@
-use zi_input::KeyEvent;
+use zi_input::{KeyCode, KeyEvent};
 
 use crate::Mode;
 
@@ -30,10 +30,18 @@ impl Dot {
         self.recording = true;
     }
 
-    /// Save a key pressed in Normal mode (before we know if it's a change)
-    pub(super) fn save_normal_key(&mut self, key: &KeyEvent) {
-        if !self.replaying {
+    pub(super) fn record_input(&mut self, mode: Mode, key: &KeyEvent) {
+        if self.replaying {
+            return;
+        }
+
+        // A Normal-mode key may be the beginning of a change.
+        // FIXME: assumes '.' is not remapped.
+        if mode == Mode::Normal && !matches!(key.code(), KeyCode::Char('.')) {
             self.normal_keys.push(key.clone());
+        }
+        if self.recording {
+            self.events.push(key.clone());
         }
     }
 
@@ -81,13 +89,6 @@ impl Dot {
         if self.edited && !self.normal_keys.is_empty() && !self.recording && !self.replaying {
             self.start_recording();
             self.stop_recording();
-        }
-    }
-
-    /// Record a key event if we're currently recording and not replaying
-    pub(super) fn maybe_record(&mut self, key: &KeyEvent) {
-        if self.recording && !self.replaying {
-            self.events.push(key.clone());
         }
     }
 

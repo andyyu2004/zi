@@ -1,10 +1,32 @@
+use std::time::{Duration, Instant};
 use std::{io, ops};
 
 use grep::matcher::Matcher;
 use grep::regex::RegexMatcherBuilder;
 use grep::searcher::{BinaryDetection, Searcher, SearcherBuilder, SinkError, SinkMatch};
 
+use regex_cursor::Input;
+use regex_cursor::engines::meta::Regex;
+use zi_text::{AnyText, RopeCursor, Text};
+
 use crate::BufferId;
+
+pub(super) fn scan_buffer(text: &dyn AnyText, regex: &Regex) -> Box<[Match]> {
+    let input = Input::new(RopeCursor::new(text.byte_slice(..)));
+    let start = Instant::now();
+    regex
+        .find_iter(input)
+        // Search runs on the editor thread, so cap the work even if we miss some matches.
+        .take(1000)
+        .take_while(|_| start.elapsed() < Duration::from_millis(20))
+        .map(|m| {
+            let byte_range = m.range().clone();
+            #[cfg(debug_assertions)]
+            text.byte_slice(byte_range.clone());
+            Match { byte_range }
+        })
+        .collect()
+}
 
 const NUL: u8 = 0;
 
