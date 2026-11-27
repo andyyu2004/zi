@@ -3,7 +3,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
-use std::{fmt, iter};
+use std::{fmt, iter, panic};
 
 use proptest::collection::vec;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
@@ -118,6 +118,17 @@ fn marktree_range_iter() {
 fn marktree_id_too_large() {
     let mut tree = new(10);
     tree.insert(0, Id(1 << 61));
+}
+
+#[test]
+fn marktree_insert_out_of_bounds_keeps_existing_mark() {
+    let mut tree = new(10);
+    tree.insert(2, Id(0)).width(3);
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        tree.insert(8, Id(0)).width(3);
+    }));
+    assert!(result.is_err());
+    assert_eq!(tree.get(Id(0)), Some(2..5));
 }
 
 #[test]
