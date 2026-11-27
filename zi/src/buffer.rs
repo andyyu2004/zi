@@ -5,14 +5,14 @@ pub mod picker;
 mod text;
 
 use std::any::Any;
-use std::fmt;
 use std::path::{Path, PathBuf};
+use std::{fmt, ops};
 
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use zi_core::{BufferId, ByteCol, DisplayCol};
+use zi_core::{BufferId, ByteCol, DisplayCol, Line};
 use zi_text::{AnyText, Delta, Deltas, Text as _, TextSlice as _};
 
 pub use self::explorer::ExplorerBuffer;
@@ -302,6 +302,40 @@ impl Buffer {
             cells += self.grapheme_width(grapheme);
         }
         line.len()
+    }
+
+    pub(crate) fn display_span(&self, point: Point) -> ops::Range<DisplayCol> {
+        let text = self.text();
+        let line =
+            text.line(point.line()).map_or_else(String::new, |line| line.to_cow().into_owned());
+        let line = line.trim_end_matches(['\n', '\r']);
+        let start = self.line_display_col(line, point.byte_col());
+        let width = line
+            .get(point.byte_col()..)
+            .and_then(|rest| rest.graphemes(true).next())
+            .map_or(0, |grapheme| self.grapheme_width(grapheme));
+        start..DisplayCol::new(start.cells() + width.max(1))
+    }
+
+    pub(crate) fn line_byte_range(
+        &self,
+        line_idx: Line,
+        cells: &ops::Range<DisplayCol>,
+    ) -> ops::Range<ByteCol> {
+        let text = self.text();
+        let line = text.line(line_idx).map_or_else(String::new, |line| line.to_cow().into_owned());
+        let line = line.trim_end_matches(['\n', '\r']);
+        let mut range: Option<ops::Range<ByteCol>> = None;
+        let mut col = 0;
+        for (byte, grapheme) in line.grapheme_indices(true) {
+            let width = self.grapheme_width(grapheme);
+            if col < cells.end.cells() && col + width > cells.start.cells() {
+                let end = byte + grapheme.len();
+                range = Some(range.map_or(byte..end, |range| range.start..end));
+            }
+            col += width;
+        }
+        range.unwrap_or(line.len()..line.len())
     }
 }
 

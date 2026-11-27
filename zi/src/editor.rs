@@ -935,12 +935,9 @@ impl Editor {
             Mode::VisualLine => {
                 Some(visual::Selection::Line { start_line: start.line(), end_line: end.line() })
             }
-            Mode::VisualBlock => Some(visual::Selection::Block {
-                start_line: start.line(),
-                end_line: end.line(),
-                start_col: start.byte_col().min(end.byte_col()),
-                end_col: start.byte_col().max(end.byte_col()),
-            }),
+            Mode::VisualBlock => {
+                Some(visual::Selection::block(&self[self.view(view).buffer()], anchor, cursor))
+            }
             Mode::Normal
             | Mode::Insert
             | Mode::Command
@@ -1475,10 +1472,10 @@ impl Editor {
         let Some(sel) = self.visual_selection(selector) else { return };
         let view = selector.select(self);
         let buf = self.view(view).buffer();
-        let content = sel.content(self[buf].text());
+        let content = sel.content(self.db.buffers[buf].text());
         let kind = sel.register_kind();
 
-        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content.clone())) {
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(&*content)) {
             set_error!(self, err);
         }
         self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);

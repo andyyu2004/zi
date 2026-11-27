@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ops::Range;
 
 use zi_core::{Point, PointRange};
@@ -5,46 +6,46 @@ use zi_text::grapheme::graphemes_from;
 use zi_text::{PointRangeExt, Text, TextBase, TextSlice};
 
 use super::register::RegisterKind;
+use crate::buffer::Buffer;
 
 #[derive(Debug, Clone)]
 pub enum Selection {
     Charwise { start: Point, end: Point },
     Line { start_line: usize, end_line: usize },
-    Block { start_line: usize, end_line: usize, start_col: usize, end_col: usize },
+    Block { lines: Vec<PointRange> },
 }
 
 impl Selection {
-    pub fn content(&self, text: &(impl Text + ?Sized)) -> String {
+    pub(crate) fn block(buf: &Buffer, anchor: Point, cursor: Point) -> Self {
+        let anchor_span = buf.display_span(anchor);
+        let cursor_span = buf.display_span(cursor);
+        let cols = anchor_span.start.min(cursor_span.start)..anchor_span.end.max(cursor_span.end);
+        let lines = (anchor.line().min(cursor.line())..=anchor.line().max(cursor.line()))
+            .map(|line| {
+                let bytes = buf.line_byte_range(line, &cols);
+                PointRange::new((line, bytes.start), (line, bytes.end))
+            })
+            .collect();
+        Self::Block { lines }
+    }
+
+    pub fn content<'a>(&self, text: &'a (impl Text + ?Sized)) -> Cow<'a, str> {
         match self {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
                 let end_byte = text.point_to_byte(*end) + end_len(text, *end).unwrap_or(0);
-                text.byte_slice(start_byte..end_byte).to_cow().into_owned()
+                text.byte_slice(start_byte..end_byte).to_cow()
             }
             Self::Line { start_line, end_line } => {
-                let start_byte = text.line_to_byte(*start_line);
-                let end_byte =
-                    text.try_line_to_byte(*end_line + 1).unwrap_or_else(|| text.len_bytes());
-                text.byte_slice(start_byte..end_byte).to_cow().into_owned()
+                text.line_slice(*start_line..=*end_line).to_cow()
             }
-            Self::Block { start_line, end_line, start_col, end_col } => {
-                let mut content = String::new();
-                for line_idx in *start_line..=*end_line {
-                    if let Some(line) = text.line(line_idx) {
-                        if !content.is_empty() {
-                            content.push('\n');
-                        }
-                        let extracted: String = line
-                            .chars()
-                            .filter(|c| *c != '\n')
-                            .skip(*start_col)
-                            .take(*end_col - *start_col + 1)
-                            .collect();
-                        content.push_str(&extracted);
-                    }
-                }
-                content
-            }
+            Self::Block { lines } => Cow::Owned(
+                lines
+                    .iter()
+                    .map(|range| text.point_slice(*range).to_cow())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
         }
     }
 
@@ -68,21 +69,12 @@ impl Selection {
                     text.try_line_to_byte(*end_line + 1).unwrap_or_else(|| text.len_bytes());
                 vec![start_byte..end_byte]
             }
-            Self::Block { start_line, end_line, start_col, end_col } => {
-                let mut ranges = Vec::new();
-                for line_idx in (*start_line..=*end_line).rev() {
-                    if let Some(line) = text.line(line_idx) {
-                        let line_len = line.len_bytes().saturating_sub(1);
-                        if *start_col > line_len {
-                            continue;
-                        }
-                        let line_start = text.line_to_byte(line_idx);
-                        let col_end = (*end_col + 1).min(line_len);
-                        ranges.push((line_start + *start_col)..(line_start + col_end));
-                    }
-                }
-                ranges
-            }
+            Self::Block { lines } => lines
+                .iter()
+                .rev()
+                .filter(|range| !range.is_empty())
+                .map(|range| text.point_range_to_byte_range(*range))
+                .collect(),
         }
     }
 
@@ -90,7 +82,7 @@ impl Selection {
         match self {
             Self::Charwise { start, .. } => *start,
             Self::Line { start_line, .. } => Point::new(*start_line, 0),
-            Self::Block { start_line, start_col, .. } => Point::new(*start_line, *start_col),
+            Self::Block { lines } => lines.first().map_or(Point::new(0, 0), PointRange::start),
         }
     }
 
@@ -104,25 +96,11 @@ impl Selection {
             Self::Line { start_line, end_line } => (*start_line..=*end_line)
                 .map(|line| {
                     let line_len = text.line(line).map_or(0, |l| l.len_bytes());
-                    PointRange::new(Point::new(line, 0), Point::new(line, line_len))
+                    PointRange::new((line, 0), (line, line_len))
                 })
                 .collect(),
-            Self::Block { start_line, end_line, start_col, end_col } => {
-                let max_col = *end_col + 1;
-                (*start_line..=*end_line)
-                    .filter_map(|line| {
-                        let line_len =
-                            text.line(line).map_or(0, |l| l.len_bytes().saturating_sub(1));
-                        if *start_col > line_len {
-                            return None;
-                        }
-                        let clamped_end = max_col.min(line_len + 1);
-                        Some(PointRange::new(
-                            Point::new(line, *start_col),
-                            Point::new(line, clamped_end),
-                        ))
-                    })
-                    .collect()
+            Self::Block { lines } => {
+                lines.iter().filter(|range| !range.is_empty()).copied().collect()
             }
         }
     }

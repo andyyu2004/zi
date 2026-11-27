@@ -1,4 +1,4 @@
-use zi_core::{Point, PointRange};
+use zi_core::PointRange;
 
 use crate::{Text, TextBase};
 
@@ -18,7 +18,7 @@ impl PointRangeExt for PointRange {
             } else {
                 text.line(line).unwrap().len_bytes()
             };
-            PointRange::new(Point::new(line, start_col), Point::new(line, end_col))
+            PointRange::new((line, start_col), (line, end_col))
         })
     }
 }
@@ -32,7 +32,7 @@ mod tests {
     #[test]
     fn explode() {
         let text = "abc\ndefghi\n";
-        let range = PointRange::new(Point::new(0, 1), Point::new(1, 2));
+        let range = PointRange::new((0, 1), (1, 2));
         let actual = range.explode(text).collect::<Vec<_>>();
         let expected = vec![point_range!(0:1..0:3), point_range!(1:0..1:2)];
 

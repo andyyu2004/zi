@@ -147,7 +147,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
                 };
 
                 SyntaxHighlight {
-                    range: PointRange::new(Point::new(idx, start), Point::new(idx, end)),
+                    range: PointRange::new((idx, start), (idx, end)),
                     capture_idx: capture.index,
                     id,
                 }
