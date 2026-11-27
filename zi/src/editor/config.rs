@@ -11,6 +11,7 @@ pub struct Settings {
     pub global_search_split_ratio: Setting<(u16, u16)>,
     pub theme: Setting<Theme>,
     pub plugin_init_timeout: Setting<Duration>,
+    pub plugin_command_timeout: Setting<Duration>,
 }
 
 impl Default for Settings {
@@ -22,6 +23,7 @@ impl Default for Settings {
             global_search_split_ratio: Setting::new((1, 2)),
             theme: Setting::new(Theme::default()),
             plugin_init_timeout: Setting::new(Duration::from_millis(20)),
+            plugin_command_timeout: Setting::new(Duration::from_secs(1)),
         }
     }
 }

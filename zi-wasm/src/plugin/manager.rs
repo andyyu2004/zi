@@ -17,7 +17,7 @@ use zi::command::{CommandRange, Word};
 use zi::{Client, dirs};
 
 use super::host::PluginHost;
-use super::runtime::{EpochTicker, engine, linker, new_store};
+use super::runtime::{EpochTicking, engine, linker, new_store};
 use super::state::HostState;
 use crate::wit::Plugin;
 
@@ -188,7 +188,7 @@ pub(super) async fn initialize_all(
     hosts: Vec<PluginHost>,
     timeout: Duration,
 ) -> Vec<(PluginHost, mpsc::Receiver<PluginRequest>)> {
-    let _ticker = EpochTicker::start(engine());
+    let _ticking = EpochTicking::start();
     let results =
         futures_util::future::join_all(hosts.into_iter().map(|host| initialize(host, timeout)))
             .await;

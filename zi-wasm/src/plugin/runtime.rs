@@ -1,5 +1,6 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread::Thread;
 use std::time::Duration;
 
 use wasmtime::Engine;
@@ -28,31 +29,46 @@ pub(super) fn new_store(engine: &Engine, state: HostState) -> Store {
     store
 }
 
-pub(super) struct EpochTicker {
-    stop: Arc<AtomicBool>,
-}
+static TICKING: AtomicUsize = AtomicUsize::new(0);
 
-impl EpochTicker {
-    pub(super) fn start(engine: &'static Engine) -> Self {
-        let stop = Arc::new(AtomicBool::new(false));
-        let ticking = stop.clone();
-        std::thread::Builder::new()
-            .name("zi-wasm-epoch".into())
-            .spawn(move || {
-                while !ticking.load(Ordering::Relaxed) {
-                    std::thread::sleep(EPOCH_TICK);
-                    engine.increment_epoch();
-                }
-            })
-            .expect("couldn't spawn the epoch ticker thread");
-        Self { stop }
+/// Advances the engine's epoch while any guard is alive, so plugin calls yield and can time out.
+pub(super) struct EpochTicking(());
+
+impl EpochTicking {
+    pub(super) fn start() -> Self {
+        static TICKER: OnceLock<Thread> = OnceLock::new();
+        let ticker = TICKER.get_or_init(spawn_ticker);
+        if TICKING.fetch_add(1, Ordering::SeqCst) == 0 {
+            ticker.unpark();
+        }
+        Self(())
     }
 }
 
-impl Drop for EpochTicker {
+impl Drop for EpochTicking {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        TICKING.fetch_sub(1, Ordering::SeqCst);
     }
+}
+
+fn spawn_ticker() -> Thread {
+    let engine = engine().weak();
+    std::thread::Builder::new()
+        .name("zi-wasm-epoch".into())
+        .spawn(move || {
+            loop {
+                if TICKING.load(Ordering::SeqCst) == 0 {
+                    std::thread::park();
+                    continue;
+                }
+                std::thread::sleep(EPOCH_TICK);
+                let Some(engine) = engine.upgrade() else { break };
+                engine.increment_epoch();
+            }
+        })
+        .expect("couldn't spawn the epoch ticker thread")
+        .thread()
+        .clone()
 }
 
 pub(super) fn linker(engine: &Engine) -> wasmtime::Result<Linker<HostState>> {

@@ -85,5 +85,17 @@ async fn buffer_set_command() {
         .await;
     }
 
+    // :set plugincommandtimeout
+    for (cmd, ms) in [("set plugincommandtimeout 2000", 2000), ("set pct 300", 300)] {
+        cx.with(move |editor| editor.execute(cmd).unwrap()).await;
+        cx.with(move |editor| {
+            assert_eq!(
+                *editor.settings().plugin_command_timeout.read(),
+                std::time::Duration::from_millis(ms)
+            );
+        })
+        .await;
+    }
+
     cx.cleanup().await;
 }
