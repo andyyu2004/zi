@@ -105,7 +105,7 @@ async fn splits_have_independent_scroll() -> io::Result<()> {
     "#]])
         .await;
 
-    cx.with(|editor| editor.scroll(zi::Active, Down, 1)).await;
+    cx.with(|editor| editor.scroll_by(zi::Active, Down, 1)).await;
     cx.snapshot(expect![[r#"
         "   1 1                       2 2                   "
         "   2 2                       3 3                   "

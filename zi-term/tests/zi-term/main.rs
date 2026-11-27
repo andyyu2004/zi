@@ -109,7 +109,7 @@ async fn scroll() -> anyhow::Result<()> {
             .with(|editor| editor.open("tests/zi-term/testdata/numbers.txt", OpenFlags::empty()))
             .await?
             .await?;
-        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 50)).await;
+        client.with(|editor| editor.scroll_by(zi::Active, zi::Direction::Down, 50)).await;
         Ok(())
     })
     .await?;
@@ -120,7 +120,7 @@ async fn scroll() -> anyhow::Result<()> {
             .with(|editor| editor.open("tests/zi-term/testdata/minimal.rs", OpenFlags::empty()))
             .await?
             .await?;
-        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 1)).await;
+        client.with(|editor| editor.scroll_by(zi::Active, zi::Direction::Down, 1)).await;
         Ok(())
     })
     .await?;
@@ -131,7 +131,7 @@ async fn scroll() -> anyhow::Result<()> {
             .await?
             .await?;
 
-        client.with(|editor| editor.scroll(zi::Active, zi::Direction::Down, 9)).await;
+        client.with(|editor| editor.scroll_by(zi::Active, zi::Direction::Down, 9)).await;
 
         Ok(())
     })

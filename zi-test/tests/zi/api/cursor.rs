@@ -156,7 +156,7 @@ async fn cursor_viewport_coords_scroll() {
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
         assert_eq!(editor.cursor_viewport_coords(), (0, 0));
-        editor.scroll(zi::Active, Down, 1);
+        editor.scroll_by(zi::Active, Down, 1);
         // The shouldn't actually have moved relative to the viewport
         assert_eq!(editor.cursor_viewport_coords(), (0, 0));
     })
@@ -253,7 +253,7 @@ async fn cursor_with_scroll() {
     let cx = new("foo\nbar\nbaz").await;
     cx.with(|editor| {
         editor.set_cursor(zi::Active, (0, 0));
-        editor.scroll(zi::Active, zi::Direction::Down, 2);
+        editor.scroll_by(zi::Active, zi::Direction::Down, 2);
         assert_eq!(editor.cursor(zi::Active), (2, 0));
         assert_eq!(editor.cursor_line(), "baz");
         editor.move_cursor(zi::Active, Down, 1);

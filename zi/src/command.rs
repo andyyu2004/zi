@@ -496,6 +496,7 @@ pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> 
         "plugincommandtimeout" | "pct" => {
             editor.settings().plugin_command_timeout.write(Duration::from_millis(value.parse()?));
         }
+        "scroll" | "scr" => view.scroll.write(value.parse()?),
         _ => anyhow::bail!("unknown parameter: `{key}`"),
     }
     Ok(())

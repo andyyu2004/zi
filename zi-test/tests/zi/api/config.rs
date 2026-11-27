@@ -97,5 +97,10 @@ async fn buffer_set_command() {
         .await;
     }
 
+    // :set scroll
+    cx.with(|editor| assert_eq!(view(editor).scroll, 0)).await;
+    check_view(&cx, "set scroll 5", 5, |view| *view.scroll.read()).await;
+    check_view(&cx, "set scr 0", 0, |view| *view.scroll.read()).await;
+
     cx.cleanup().await;
 }

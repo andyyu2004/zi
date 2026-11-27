@@ -18,6 +18,8 @@ pub struct Settings {
     /// The width of the line numbers column including a space between the number and the text
     pub line_number_width: Setting<u8>,
     pub line_number_style: Setting<LineNumberStyle>,
+    /// The number of lines `<C-d>` and `<C-u>` scroll, vim's 'scroll'. 0 is half the view height.
+    pub scroll: Setting<usize>,
 }
 
 impl Default for Settings {
@@ -25,6 +27,7 @@ impl Default for Settings {
         Self {
             line_number_width: Setting::new(4),
             line_number_style: Setting::new(LineNumberStyle::Absolute),
+            scroll: Setting::new(0),
         }
     }
 }

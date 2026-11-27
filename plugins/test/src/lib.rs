@@ -125,8 +125,8 @@ fn use_closed_view() {
 
 fn test_view_scroll_align_focus() {
     let view = get_active_view();
-    view.scroll(Direction::Down, 1);
-    view.scroll(Direction::Up, 1);
+    view.scroll_by(Direction::Down, 1);
+    view.scroll_by(Direction::Up, 1);
     view.align(VerticalAlignment::Center);
     view.align(VerticalAlignment::Top);
     view.align(VerticalAlignment::Bottom);
