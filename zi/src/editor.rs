@@ -8,6 +8,7 @@ mod diagnostics;
 mod dot;
 mod errors;
 mod events;
+mod file_io;
 mod lsp_requests;
 mod marks;
 mod pickers;
@@ -35,7 +36,6 @@ use futures_util::stream::FuturesUnordered;
 use futures_util::{Stream, StreamExt};
 use ignore::WalkState;
 use stdx::path::{PathExt, Relative};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Notify, oneshot};
@@ -43,7 +43,7 @@ use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
-use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
+use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -52,6 +52,7 @@ use self::db::{BufferQueries as _, Db, ViewQueries as _};
 use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
 pub use self::errors::EditError;
+use self::file_io::{OpenFile, OpenPlan};
 use self::register::Registers;
 pub use self::register::{Register, RegisterKind};
 pub use self::search::Match;
@@ -505,118 +506,50 @@ impl Editor {
         let ft = FileType::detect(&path);
         let syntax = self.backend.new_syntax(ft)?;
 
-        let existing_buf = self.buffer_at_path(&path);
-
-        enum Plan {
-            Replace(BufferId),
-            Insert,
-            Existing(BufferId),
-        }
-
-        let plan = if let Some(buf) = existing_buf {
-            // If the buffer is already open, we can reuse it.
-            // There is an exception where the buffer is already open as a readonly buffer
-            // and we want to open it as a normal buffer. In that case we drop the old buffer and
-            // replace it with a writable one (with the same id). This is safe as we know we're not
-            // losing any data due to it being readonly.
-            if *self[buf].settings().readonly.read() && !open_flags.contains(OpenFlags::READONLY)
-                || open_flags.contains(OpenFlags::FORCE)
-            {
-                Plan::Replace(buf)
-            } else {
-                Plan::Existing(buf)
-            }
-        } else {
-            Plan::Insert
-        };
-
+        let plan = self.plan_open(&path, open_flags);
         let client = self.client();
         Ok(async move {
-            #[expect(clippy::too_many_arguments, reason = "inner helper, called once")]
-            async fn execute<T: Text + Clone + 'static>(
-                client: &Client,
-                plan: Plan,
-                ft: FileType,
-                path: &Path,
-                text: T,
-                theme: Setting<Theme>,
-                settings: buffer::Settings,
-                syntax: Option<Box<dyn Syntax>>,
-            ) -> BufferId {
-                let path = path.to_path_buf();
-                client
-                    .with(move |editor| match plan {
-                        Plan::Replace(id) if editor.has_buffer(id) => {
-                            let buf = Buffer::new(TextBuffer::new(
-                                id,
-                                settings,
-                                ft,
-                                &path,
-                                text,
-                                &theme.read(),
-                                syntax,
-                            ));
-                            *editor.db.buffer_mut(id) = buf;
-                            id
-                        }
-                        Plan::Replace(_) | Plan::Insert => editor.db.insert_buffer(|id| {
-                            Buffer::new(TextBuffer::new(
-                                id,
-                                settings,
-                                ft,
-                                &path,
-                                text,
-                                &theme.read(),
-                                syntax,
-                            ))
-                        }),
-                        Plan::Existing(_) => unreachable!(),
-                    })
-                    .await
-            }
-
             let start = Instant::now();
-            let buf = if let Plan::Existing(id) = plan {
-                id
-            } else if open_flags.contains(OpenFlags::READONLY) {
-                debug_assert!(path.exists() && path.is_file());
-                // Safety: hmm mmap is tricky, maybe we should try advisory lock the file at least
-                let text = unsafe { ReadonlyText::open(&path) }?;
-                let settings =
-                    buffer::Settings { readonly: Setting::new(true), ..Default::default() };
-                execute(&client, plan, ft, &path, text, theme, settings, syntax).await
-            } else {
-                let rope = if path.exists() {
-                    rope_from_reader(tokio::fs::File::open(&path).await?).await?
-                } else {
-                    Rope::new()
-                };
-                execute(&client, plan, ft, &path, rope, theme, Default::default(), syntax).await
+            let buf = match plan {
+                OpenPlan::Reuse(buf) => buf,
+                OpenPlan::Load { replace } => {
+                    let file = OpenFile { path: path.clone(), ft, syntax, theme };
+                    file.load(&client, replace, open_flags).await?
+                }
             };
-
-            client
-                .with(move |editor| {
-                    if !editor.has_buffer(buf) {
-                        bail!("buffer {buf:?} was removed while it was opening");
-                    }
-
-                    if !open_flags.contains(OpenFlags::BACKGROUND) {
-                        editor.set_buffer(Active, buf);
-                    }
-
-                    if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVICES) {
-                        editor.spawn_language_services_for_ft(ft)?;
-                    }
-
-                    editor.dispatch(event::DidOpenBuffer { buf });
-
-                    Ok::<_, Error>(())
-                })
-                .await?;
-
+            client.with(move |editor| editor.finish_open(buf, ft, open_flags)).await?;
             tracing::debug!(?path, %ft, time = ?start.elapsed(), "opened buffer");
             Ok(buf)
         })
+    }
+
+    fn plan_open(&self, path: &Path, flags: OpenFlags) -> OpenPlan {
+        let Some(buf) = self.buffer_at_path(path) else {
+            return OpenPlan::Load { replace: None };
+        };
+
+        // Reopen readonly buffers in place when the caller requests a writable one.
+        if *self[buf].settings().readonly.read() && !flags.contains(OpenFlags::READONLY)
+            || flags.contains(OpenFlags::FORCE)
+        {
+            OpenPlan::Load { replace: Some(buf) }
+        } else {
+            OpenPlan::Reuse(buf)
+        }
+    }
+
+    fn finish_open(&mut self, buf: BufferId, ft: FileType, flags: OpenFlags) -> Result<()> {
+        if !self.has_buffer(buf) {
+            bail!("buffer {buf:?} was removed while it was opening");
+        }
+        if !flags.contains(OpenFlags::BACKGROUND) {
+            self.set_buffer(Active, buf);
+        }
+        if flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVICES) {
+            self.spawn_language_services_for_ft(ft)?;
+        }
+        self.dispatch(event::DidOpenBuffer { buf });
+        Ok(())
     }
 
     pub fn register_command(&mut self, handler: Handler) -> Option<Handler> {
@@ -1977,13 +1910,7 @@ impl Editor {
                 return Ok(());
             }
 
-            use tokio_util::compat::FuturesAsyncReadCompatExt;
-            let mut file = tokio::fs::File::create(path).await?;
-            let mut reader = futures_util::io::AllowStdIo::new(text.reader()).compat();
-            let mut writer = tokio::io::BufWriter::new(&mut file);
-            tokio::io::copy(&mut reader, &mut writer).await?;
-            writer.flush().await?;
-            file.flush().await?;
+            file_io::write_buffer(&path, &*text).await?;
 
             tracing::debug!("buffer written to disk");
 
@@ -2242,44 +2169,6 @@ impl Editor {
     pub fn language_config_mut(&mut self) -> &mut language::Config {
         &mut self.language_config
     }
-}
-
-async fn rope_from_reader(reader: impl tokio::io::AsyncRead + Unpin) -> io::Result<Rope> {
-    let mut reader = tokio::io::BufReader::new(reader);
-    let mut builder = RopeBuilder::new();
-
-    // Handle utf-8 byte order mark.
-    // Not supporting other encodings for now.
-    let buf = reader.fill_buf().await?;
-    if let [0xEF, 0xBB, 0xBF, ..] = buf {
-        // Skip the BOM before decoding. This means we won't preserve it on save but we don't care.
-        reader.consume(3);
-    }
-
-    loop {
-        let buf = reader.fill_buf().await?;
-        if buf.is_empty() {
-            break;
-        }
-
-        let s = match std::str::from_utf8(buf) {
-            Ok(s) => s,
-            Err(err) => {
-                let n = err.valid_up_to();
-                if n == 0 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, err));
-                }
-                unsafe { std::str::from_utf8_unchecked(&buf[..n]) }
-            }
-        };
-
-        builder.append(s);
-
-        let n = s.len();
-        reader.consume(n);
-    }
-
-    Ok(builder.build())
 }
 
 pub trait Selector<T> {
