@@ -43,9 +43,7 @@ use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
-use zi_text::{
-    AnyText, Delta, Deltas, ReadonlyText, Rope, RopeBuilder, RopeCursor, Text, TextSlice,
-};
+use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, RopeBuilder, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{TextObject, TextObjectFlags, TextObjectKind};
 
@@ -750,31 +748,12 @@ impl Editor {
                 biased;
                 Some(event) = events.next() => self.handle_input(event?),
                 () = notify_redraw.notified() => tracing::trace!("redrawing due to request"),
-                f = callbacks.select_next_some() => match f {
-                    Ok(f) => if let Err(err) = f(self) {
-                        tracing::error!(error = &*err, "task callback failed");
-                        self.set_error(err);
-                    }
-                    Err(err) => {
-                        tracing::error!(error = &*err, "task failed");
-                        self.set_error(err);
-                    }
-                },
+                result = callbacks.select_next_some() => self.handle_callback_result(result),
                 req = requests.select_next_some() => {
                     // If the receiver dropped then we just ignore the request.
                     let _ = req.tx.send((req.f)(self));
                 },
-                Some(res) = plugin_manager_handles.next() => match res {
-                        Ok(Ok(())) => (),
-                        Ok(Err(err)) => {
-                            tracing::error!(error = &*err, "plugin manager failed");
-                            self.set_error(err);
-                        }
-                        Err(err) => {
-                            tracing::error!(error = &err as &dyn std::error::Error, "plugin manager died");
-                            self.set_error(err);
-                        }
-                    },
+                Some(result) = plugin_manager_handles.next() => self.handle_plugin_exit(result),
                 // Put the quit case last to ensure we handle all events first
                 () = self.notify_quit.notified() => break,
             }
@@ -793,6 +772,35 @@ impl Editor {
         Ok(())
     }
 
+    fn handle_callback_result(&mut self, result: Result<EditorCallback>) {
+        match result {
+            Ok(callback) => {
+                if let Err(err) = callback(self) {
+                    tracing::error!(error = &*err, "task callback failed");
+                    self.set_error(err);
+                }
+            }
+            Err(err) => {
+                tracing::error!(error = &*err, "task failed");
+                self.set_error(err);
+            }
+        }
+    }
+
+    fn handle_plugin_exit(&mut self, result: Result<Result<()>, tokio::task::JoinError>) {
+        match result {
+            Ok(Ok(())) => (),
+            Ok(Err(err)) => {
+                tracing::error!(error = &*err, "plugin manager failed");
+                self.set_error(err);
+            }
+            Err(err) => {
+                tracing::error!(error = &err as &dyn std::error::Error, "plugin manager died");
+                self.set_error(err);
+            }
+        }
+    }
+
     fn update_search(&mut self) {
         let view = self.tree().active();
         let active_buffer = self.view(view).buffer();
@@ -803,7 +811,6 @@ impl Editor {
         match k {
             ":" => {}
             "/" => {
-                use regex_cursor::Input;
                 use regex_cursor::engines::meta::Regex;
 
                 if query.is_empty() {
@@ -822,24 +829,9 @@ impl Editor {
                 let (view, buf) = self.db.view_and_buffer_mut(self.tree.active());
 
                 let text = buf.text();
-                let input = Input::new(RopeCursor::new(text.byte_slice(..)));
-
-                let start_time = Instant::now();
                 self.search_state.set_matches(
                     text.point_to_byte(view.cursor()),
-                    regex
-                        .find_iter(input)
-                        // This is run synchronously, so we add a strict limit to prevent noticable latency.
-                        // However, this may mean not all matches are found which needs a solution.
-                        .take(1000)
-                        .take_while(|_| start_time.elapsed() < Duration::from_millis(20))
-                        .map(|m| {
-                            let byte_range = m.range().clone();
-                            #[cfg(debug_assertions)]
-                            text.byte_slice(byte_range.clone());
-                            Match { byte_range }
-                        })
-                        .collect::<Box<_>>(),
+                    search::scan_buffer(text, &regex),
                 );
 
                 self.goto_match(|s| s.current_match());
@@ -870,20 +862,7 @@ impl Editor {
         self.status_error = None;
         let mode = mode!(self);
 
-        // Save the key if we're in Normal mode (it might be the start of a change)
-        if mode == Mode::Normal
-            && !self.dot.is_replaying()
-            // FIXME: assuming here that '.' is not remapped
-            && !matches!(key.code(), KeyCode::Char('.'))
-        {
-            self.dot.save_normal_key(&key);
-        }
-
-        self.dot.maybe_record(&key);
-
-        let mut empty = Keymap::default();
-        let (_, buf) = self.db.view_and_buffer_mut(self.tree.active());
-        let mut keymap = self.keymap.pair(buf.keymap().unwrap_or(&mut empty));
+        self.dot.record_input(mode, &key);
 
         tracing::trace!(%key, "handling key");
         #[expect(
@@ -892,54 +871,73 @@ impl Editor {
         )]
         match key.code() {
             KeyCode::Char(c) if matches!(mode, Mode::ReplacePending) => {
-                self.set_mode(Mode::Insert);
-                self.move_cursor(Active, Direction::Right, 1);
-                let _ = self.delete_char(Active);
-                let _ = self.insert_char(Active, c);
-                self.set_mode(Mode::Normal);
+                self.replace_pending_char(c);
             }
-            KeyCode::Char(_c) if matches!(mode, Mode::Insert | Mode::Command) => {
-                let (res, buffered) = keymap.on_key(mode, key);
-                match res {
-                    TrieResult::Found(f) => f(self),
-                    TrieResult::Partial | TrieResult::Nothing => (),
-                }
+            KeyCode::Char(_) if matches!(mode, Mode::Insert | Mode::Command) => {
+                self.handle_text_key(mode, key);
+            }
+            _ => self.handle_command_key(mode, key),
+        }
+    }
 
-                for event in buffered {
-                    let KeyCode::Char(c) = event.code() else { unreachable!() };
-                    if let Err(err) = self.handle_insert(c) {
-                        set_error!(self, err);
-                    }
+    fn replace_pending_char(&mut self, c: char) {
+        self.set_mode(Mode::Insert);
+        self.move_cursor(Active, Direction::Right, 1);
+        let _ = self.delete_char(Active);
+        let _ = self.insert_char(Active, c);
+        self.set_mode(Mode::Normal);
+    }
+
+    fn resolve_key(&mut self, mode: Mode, key: KeyEvent) -> (TrieResult<Action>, Vec<KeyEvent>) {
+        let mut empty = Keymap::default();
+        let (_, buf) = self.db.view_and_buffer_mut(self.tree.active());
+        self.keymap.pair(buf.keymap().unwrap_or(&mut empty)).on_key(mode, key)
+    }
+
+    fn handle_text_key(&mut self, mode: Mode, key: KeyEvent) {
+        let (result, buffered) = self.resolve_key(mode, key);
+        if let TrieResult::Found(action) = result {
+            action(self);
+        }
+
+        for event in buffered {
+            let KeyCode::Char(c) = event.code() else { unreachable!() };
+            if let Err(err) = self.handle_insert(c) {
+                set_error!(self, err);
+            }
+        }
+    }
+
+    fn handle_command_key(&mut self, mode: Mode, key: KeyEvent) {
+        match self.resolve_key(mode, key).0 {
+            TrieResult::Found(action) => self.run_key_action(mode, action),
+            TrieResult::Partial => (),
+            TrieResult::Nothing => {
+                self.count = None;
+                if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
+                    self.set_mode(Mode::Normal);
                 }
             }
-            _ => match keymap.on_key(mode, key).0 {
-                TrieResult::Found(f) => {
-                    let count = self.count;
-                    self.dot.start_key();
-                    f(self);
-                    if self.count == count && !matches!(mode!(self), Mode::OperatorPending(_)) {
-                        self.count = None;
-                    }
+        }
+    }
 
-                    if let Some(new) = self.count.filter(|_| self.count != count) {
-                        self.dot.save_count(mode, new);
-                    }
+    fn run_key_action(&mut self, mode: Mode, action: Action) {
+        let count = self.count;
+        self.dot.start_key();
+        action(self);
+        if self.count == count && !matches!(mode!(self), Mode::OperatorPending(_)) {
+            self.count = None;
+        }
 
-                    if mode == Mode::Normal && mode!(self) == Mode::Normal {
-                        self.dot.finalize_normal_mode_change();
-                        if self.count.is_none() {
-                            self.dot.clear_normal_keys();
-                        }
-                    }
-                }
-                TrieResult::Partial => (),
-                TrieResult::Nothing => {
-                    self.count = None;
-                    if matches!(mode, Mode::OperatorPending(_) | Mode::ReplacePending) {
-                        self.set_mode(Mode::Normal);
-                    }
-                }
-            },
+        if let Some(new) = self.count.filter(|_| self.count != count) {
+            self.dot.save_count(mode, new);
+        }
+
+        if mode == Mode::Normal && mode!(self) == Mode::Normal {
+            self.dot.finalize_normal_mode_change();
+            if self.count.is_none() {
+                self.dot.clear_normal_keys();
+            }
         }
     }
 
