@@ -1275,16 +1275,15 @@ impl Editor {
             state.record_insert(c);
         }
 
-        let (view, buf) = self.db.view_and_buffer_mut(self.tree.active());
-        let area = self.tree.view_area(view_id);
         match c {
             '\n' => {
-                let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
+                self.set_cursor_bytewise(view_id, cursor_byte + c.len_utf8());
                 self.indent_newline(view_id)?;
-                cursor
             }
-            _ => self.motion(Active, motion::NextChar)?,
-        };
+            _ => {
+                self.motion(Active, motion::NextChar)?;
+            }
+        }
 
         self.dispatch(event::DidInsertChar { view: view_id, char: c });
 
@@ -1352,19 +1351,21 @@ impl Editor {
     fn indent_newline(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
         let text = self[buf].text();
-        let cursor = self[view].cursor();
-        if cursor.byte_col() > 0 || !text.line(cursor.line()).unwrap().is_empty() {
-            // Simple heuristics to determine if we should indent the new line
-            return Ok(());
-        }
+        let line = self[view].cursor().line();
+        let leading = text.line(line).map_or(0, |slice| slice.indent());
 
         let tab_width = *self[buf].settings().tab_width.read();
-        match zi_indent::indent(zi_indent::Config { tab_width }, text, cursor.line()) {
+        match zi_indent::indent(zi_indent::Config { tab_width }, text, line) {
             Indent::Bytes(bytes) => {
-                let start_byte = text.line_to_byte(cursor.line());
-                let deltas = Deltas::insert_at(start_byte, " ".repeat(bytes));
+                if leading == 0 && bytes == 0 {
+                    return Ok(());
+                }
+
+                let start_byte = text.line_to_byte(line);
+                let deltas =
+                    Deltas::new([Delta::new(start_byte..start_byte + leading, " ".repeat(bytes))]);
                 self.edit(buf, &deltas)?;
-                self.set_cursor(view, cursor.right_bytes(bytes));
+                self.set_cursor(view, Point::new(line, bytes));
                 Ok(())
             }
         }
