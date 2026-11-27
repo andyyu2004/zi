@@ -1,7 +1,8 @@
 //! `e`, `ge`, `E` and `gE`.
 //!
-//! The word motions follow [vim-wordmotion](https://github.com/chaoren/vim-wordmotion) with its
-//! default settings, which the nvim tests load. The token (WORD) motions follow stock vim.
+//! These follow [vim-wordmotion](https://github.com/chaoren/vim-wordmotion), which the nvim tests
+//! load, with its default settings except that the uppercase motions are mapped, with WORDs
+//! separated by whitespace alone.
 //!
 //! Both work the way vim's `search()` does with the `e` flag and `c` in `cpoptions`: split each
 //! line into non-overlapping matches from its start, then move to the end of the next (or
@@ -88,8 +89,7 @@ fn spans(kind: Kind, dir: Direction, line: &LineInfo<'_>) -> Vec<Span> {
     }
 }
 
-/// WORDs: runs of non-blank characters. Going backwards, an empty line and the start of the
-/// buffer count as WORDs too.
+/// WORDs: runs of non-blank characters. Going backwards, an empty line counts as a WORD too.
 fn token_spans(dir: Direction, line: &LineInfo<'_>) -> Vec<Span> {
     let text = &*line.text;
     let mut spans = vec![];
@@ -111,8 +111,8 @@ fn token_spans(dir: Direction, line: &LineInfo<'_>) -> Vec<Span> {
     match dir {
         Direction::Forward => {}
         Direction::Backward => {
-            if (text.is_empty() || line.is_first) && spans.first().is_none_or(|s| s.start > 0) {
-                spans.insert(0, Span { start: 0, end: 0 });
+            if text.is_empty() {
+                spans.push(Span { start: 0, end: 0 });
             }
         }
     }
@@ -305,15 +305,8 @@ fn search(text: &dyn AnyText, byte: usize, kind: Kind, dir: Direction) -> Option
     }
 }
 
-/// Where a counted motion ends up.
-enum Target {
-    Moved(usize),
-    /// The motion failed, which cancels a pending operator. The cursor still moves.
-    Failed(usize),
-}
-
 macro_rules! word_end_motion {
-    ($(#[$attr:meta])* $name:ident, $dir:expr, $flags:expr) => {
+    ($(#[$attr:meta])* $name:ident, $kind:expr, $dir:expr) => {
         $(#[$attr])*
         pub struct $name;
 
@@ -323,9 +316,7 @@ macro_rules! word_end_motion {
             }
 
             fn motion_n(&self, text: &dyn AnyText, p: PointOrByte, n: usize) -> PointOrByte {
-                match Self::target(text, text.point_or_byte_to_byte(p), n) {
-                    Target::Moved(byte) | Target::Failed(byte) => byte.into(),
-                }
+                target(text, text.point_or_byte_to_byte(p), $kind, $dir, n).into()
             }
         }
 
@@ -344,25 +335,17 @@ macro_rules! word_end_motion {
                     return None;
                 }
 
-                let target = match Self::target(text, byte, n) {
-                    Target::Moved(target) => target,
-                    Target::Failed(_) => return None,
-                };
+                let target = target(text, byte, $kind, $dir, n);
                 let (start, end) = match $dir {
                     Direction::Forward => (byte, target),
                     Direction::Backward => (target, byte),
                 };
-                // The motions are inclusive: the range covers the character under `end`. vim only
-                // covers the line break of an empty line when the motion is forced charwise, and
-                // never the one ending the last line.
+                // The motions are inclusive and forced charwise: the range covers the character
+                // under `end`, including the line break of an empty line, but not the one ending
+                // the last line.
                 let end = match text.char_at_byte(end) {
                     None => end,
-                    Some('\n')
-                        if end + 1 == text.len_bytes()
-                            || !$flags.contains(TextObjectFlags::FORCE_CHARWISE) =>
-                    {
-                        end
-                    }
+                    Some('\n') if end + 1 == text.len_bytes() => end,
                     Some(c) => end + c.len_utf8(),
                 };
                 Some(start..end.min(text.len_bytes()))
@@ -373,7 +356,7 @@ macro_rules! word_end_motion {
             }
 
             fn flags(&self) -> TextObjectFlags {
-                TextObjectFlags::UPDATE_TARGET_COLUMN | TextObjectFlags::INCLUSIVE | $flags
+                TextObjectFlags::UPDATE_TARGET_COLUMN | TextObjectFlags::INCLUSIVE
             }
         }
     };
@@ -382,96 +365,44 @@ macro_rules! word_end_motion {
 word_end_motion!(
     /// `e`: the end of the next word.
     NextWordEnd,
-    Direction::Forward,
-    TextObjectFlags::FORCE_CHARWISE
+    Kind::Word,
+    Direction::Forward
 );
 
 word_end_motion!(
     /// `ge`: the end of the previous word.
     PrevWordEnd,
-    Direction::Backward,
-    TextObjectFlags::FORCE_CHARWISE
+    Kind::Word,
+    Direction::Backward
 );
 
 word_end_motion!(
     /// `E`: the end of the next whitespace delimited word.
     NextTokenEnd,
-    Direction::Forward,
-    TextObjectFlags::empty()
+    Kind::Token,
+    Direction::Forward
 );
 
 word_end_motion!(
     /// `gE`: the end of the previous whitespace delimited word.
     PrevTokenEnd,
-    Direction::Backward,
-    TextObjectFlags::empty()
+    Kind::Token,
+    Direction::Backward
 );
 
-/// Searches `n` times, stopping at the first search that finds nothing.
-fn search_n(text: &dyn AnyText, mut byte: usize, kind: Kind, dir: Direction, n: usize) -> usize {
+/// Searches `n` times, stopping at the first search that finds nothing. A failed search leaves
+/// the cursor where it is, but an operator still covers the character under it.
+fn target(text: &dyn AnyText, mut byte: usize, kind: Kind, dir: Direction, n: usize) -> usize {
+    let start = byte;
     for _ in 0..n {
         match search(text, byte, kind, dir) {
             Some(next) => byte = next,
             None => break,
         }
     }
-    byte
-}
-
-impl NextWordEnd {
-    fn target(text: &dyn AnyText, byte: usize, n: usize) -> Target {
-        // A failed search leaves the cursor where it is, but an operator still covers the
-        // character under it.
-        Target::Moved(search_n(text, byte, Kind::Word, Direction::Forward, n))
+    // wordmotion moves `ge` and `gE` to the start of the first line if the cursor didn't move.
+    match dir {
+        Direction::Backward if byte == start && text.byte_to_line(byte) == 0 => 0,
+        Direction::Forward | Direction::Backward => byte,
     }
-}
-
-impl PrevWordEnd {
-    fn target(text: &dyn AnyText, byte: usize, n: usize) -> Target {
-        let target = search_n(text, byte, Kind::Word, Direction::Backward, n);
-        // wordmotion moves to the start of the first line if the cursor didn't move at all.
-        if target == byte && text.byte_to_line(byte) == 0 {
-            return Target::Moved(0);
-        }
-        Target::Moved(target)
-    }
-}
-
-impl NextTokenEnd {
-    fn target(text: &dyn AnyText, mut byte: usize, n: usize) -> Target {
-        for _ in 0..n {
-            match search(text, byte, Kind::Token, Direction::Forward) {
-                Some(next) => byte = next,
-                // vim's `E` has gone to the end of the buffer looking for a WORD by the time it
-                // fails. An operator still applies.
-                None => return Target::Moved(byte.max(last_char(text))),
-            }
-        }
-        Target::Moved(byte)
-    }
-}
-
-impl PrevTokenEnd {
-    fn target(text: &dyn AnyText, mut byte: usize, n: usize) -> Target {
-        for _ in 0..n {
-            // vim's `gE` fails if it starts a repetition at the start of the buffer, but if it
-            // runs into the start it stops there.
-            if byte == 0 {
-                return Target::Failed(byte);
-            }
-            match search(text, byte, Kind::Token, Direction::Backward) {
-                Some(next) => byte = next,
-                None => return Target::Moved(0),
-            }
-        }
-        Target::Moved(byte)
-    }
-}
-
-/// The byte of the last character of the buffer, not counting a trailing line break.
-fn last_char(text: &dyn AnyText) -> usize {
-    let Some(last_line) = text.len_lines().checked_sub(1) else { return 0 };
-    let line =
-        line_info(text, last_line).map_or(0, |line| last_char_start(&line.text, line.text.len()));
-    text.line_to_byte(last_line) + line
 }

@@ -210,11 +210,12 @@ fn motion_next_token_end() {
     check(&motion, "a.b c", 0, 2);
     check(&motion, "a.b c", 2, 4);
     check(&motion, "a\n\nb", 0, 3);
-    // goes to the end of the buffer when there is nothing left
-    check(&motion, "a b  ", 2, 4);
-    check(&motion, "a\n\n", 0, 2);
+    // stays put when there is nothing left
+    check(&motion, "a b  ", 2, 2);
+    check(&motion, "a\n\n", 0, 0);
 
     check_range(&motion, "a b", 2, Some(2..3));
+    check_range(&motion, "a\n\nb", 2, Some(2..4));
 }
 
 #[test]
@@ -224,12 +225,13 @@ fn motion_prev_token_end() {
     check(&motion, "a\n\nb", 3, 2);
     check(&motion, "  a", 2, 0);
 
-    check_range(&motion, "aA", 0, None);
+    // goes to the start of the first line if it doesn't move
+    check_range(&motion, "aA", 0, Some(0..1));
     check_range(&motion, "aaa", 1, Some(0..2));
     check_range(&(&motion).repeat(2), "aaa", 1, Some(0..2));
-    check_range(&(&motion).repeat(2), "a b", 2, None);
-    // doesn't cover the line break of an empty line
-    check_range(&motion, "aA\n\n a", 3, Some(1..3));
+    check_range(&(&motion).repeat(2), "a b", 2, Some(0..3));
+    // covers the line break of an empty line
+    check_range(&motion, "aA\n\n a", 5, Some(3..6));
 }
 
 #[test]

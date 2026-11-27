@@ -58,17 +58,7 @@ a.b->c(d) foo-bar
 ----
 EEEgEgEgE
 
-==== E at the end of the buffer moves to the end
-a b
-----
-EEE
-
-==== dE at the end of the buffer deletes the last character
-a b
-----
-EEdE
-
-==== dgE at the start of the buffer does nothing
+==== dgE at the start of the buffer deletes the first character
 aA
 ----
 dgE
@@ -78,19 +68,35 @@ aaa
 ----
 ld2gE
 
-==== dgE onto an empty line doesn't cover its line break
+==== dgE onto an empty line covers its line break
 aA
 
  a
 ----
 EEgEdgE
 
-==== dE across an empty line is linewise
+==== dE from an empty line covers its line break
 a
 
 b
+c
 ----
 jdE
+
+==== E at the end of the buffer stays put
+a b
+----
+EEE
+
+==== dE at the end of the buffer deletes the character under the cursor
+a b
+----
+EEdE
+
+==== gE with nothing before it goes to the start of the line
+  a b
+----
+llgEgE
 
 ==== visual e and ge
 fooBar baz

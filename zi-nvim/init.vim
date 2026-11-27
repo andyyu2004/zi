@@ -25,6 +25,11 @@ function! ClearUndoHistory()
     unlet old_undolevels
 endfunction
 
+" wordmotion only maps W, B, E and gE when this is non-empty. A pattern that never matches keeps
+" WORDs separated by whitespace alone. zi's W and B still follow stock vim.
+let g:wordmotion_uppercase_spaces = ['\%(\)\@!']
+let g:wordmotion_mappings = {'W': '', 'B': ''}
+
 let mapleader = "\<Space>"
 
 nnoremap <silent> <leader>u <cmd>UndotreeToggle<CR> <bar> UndoTreeFocus<CR>

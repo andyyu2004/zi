@@ -1646,11 +1646,7 @@ impl Editor {
         let start_point = text.byte_to_point(range.start);
         let inclusive = flags.contains(TextObjectFlags::INCLUSIVE) && !range.is_empty();
         let end_point = text.byte_to_point(range.end);
-        // An inclusive range ending at the start of a line ends on that empty line, unless the
-        // motion was forced charwise, which covers the line break (see `TextObjectFlags`).
-        let end_point = if inclusive
-            && (end_point.col() > 0 || flags.contains(TextObjectFlags::FORCE_CHARWISE))
-        {
+        let end_point = if inclusive {
             let last = text.char_before_byte(range.end).map_or(0, char::len_utf8);
             text.byte_to_point(range.end - last)
         } else {
@@ -1690,25 +1686,12 @@ impl Editor {
 
         // Another neovim special case inherited from vi.
         // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L1468-L1484
-        let rest_of_end_line_is_blank = || {
-            if inclusive {
-                text.byte_slice(
-                    range.end
-                        ..text.try_line_to_byte(end_point.line() + 1).unwrap_or(text.len_bytes()),
-                )
-                .chars()
-                .all(char::is_whitespace)
-                    && text.inindent(start_point)
-            } else {
-                text.inindent(end_point)
-                    && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
-            }
-        };
         if obj_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
-            && !flags.contains(TextObjectFlags::FORCE_CHARWISE)
-            && rest_of_end_line_is_blank()
+            && !flags.contains(TextObjectFlags::INCLUSIVE)
+            && text.inindent(end_point)
+            && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
         {
             obj_kind = TextObjectKind::Linewise;
         }

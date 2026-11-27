@@ -45,14 +45,11 @@ bitflags::bitflags! {
         /// should return.
         const EXCLUSIVE = 1 << 0;
         const UPDATE_TARGET_COLUMN = 1 << 1;
-        /// The range ends with the character under the end of the motion. Vim's line count and
-        /// special cases look at that character, not the byte after it. When the motion ends on
-        /// an empty line the range stops before its line break, and ends at the start of a line.
+        /// An inclusive motion forced charwise, as vim-wordmotion does with `o_v`. The range ends
+        /// with the character under the end of the motion, including the line break of an empty
+        /// line, and vim's line count looks at that character, not the byte after it. It turns
+        /// off the special case that makes a multi-line charwise delete linewise.
         const INCLUSIVE = 1 << 2;
-        /// Like a motion forced charwise with `o_v`, which turns off the special case that
-        /// makes a multi-line charwise delete linewise. An inclusive range then covers the line
-        /// break of an empty line it ends on.
-        const FORCE_CHARWISE = 1 << 3;
     }
 }
 
