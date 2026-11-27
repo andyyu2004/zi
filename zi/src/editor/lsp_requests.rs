@@ -199,7 +199,10 @@ impl Editor {
     }
 
     pub(super) fn spawn_language_services_for_ft(&mut self, ft: FileType) -> Result<()> {
-        let Some(config) = self.language_config.languages.get(&ft) else { return Ok(()) };
+        let Some(config) = self.language_config.languages.get(&ft) else {
+            tracing::debug!(%ft, "no language servers configured for file type");
+            return Ok(());
+        };
 
         for service_id in config.language_services.clone() {
             if self.active_language_services.contains_key(&service_id) {

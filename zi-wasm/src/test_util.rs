@@ -46,17 +46,30 @@ pub fn build_plugin(name: &str) -> anyhow::Result<Vec<u8>> {
 }
 
 pub fn build_fixture_plugin(lang: Language) -> anyhow::Result<Vec<u8>> {
-    let (name, fixture, source) = match lang {
-        Language::TypeScript => ("test-ts", "plugin-ts/plugin.ts", "src/plugin.ts"),
-        Language::JavaScript => ("test-js", "plugin-js/plugin.js", "src/plugin.js"),
-        Language::Rust => ("test-rs", "plugin-rs/lib.rs", "src/lib.rs"),
+    let (name, fixture) = match lang {
+        Language::TypeScript => ("test-ts", "plugin-ts/plugin.ts"),
+        Language::JavaScript => ("test-js", "plugin-js/plugin.js"),
+        Language::Rust => ("test-rs", "plugin-rs/lib.rs"),
+    };
+    build_source_plugin(
+        lang,
+        name,
+        &std::fs::read_to_string(manifest_dir().join("fixtures").join(fixture))?,
+    )
+}
+
+pub fn build_source_plugin(lang: Language, name: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+    let source_path = match lang {
+        Language::TypeScript => "src/plugin.ts",
+        Language::JavaScript => "src/plugin.js",
+        Language::Rust => "src/lib.rs",
     };
     let project = plugin_target_dir()?.join(name);
     if project.exists() {
         std::fs::remove_dir_all(&project)?;
     }
     zi_plugin::scaffold(&project, &name.parse()?, lang)?;
-    std::fs::copy(manifest_dir().join("fixtures").join(fixture), project.join(source))?;
+    std::fs::write(project.join(source_path), source)?;
     match lang {
         Language::TypeScript | Language::JavaScript => {
             let node_modules = std::env::var_os("ZI_PLUGIN_TS_NODE_MODULES")

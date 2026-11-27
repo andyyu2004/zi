@@ -147,6 +147,10 @@ fn test_languages() {
         Err("language server `test-ls` for language `rust` is not defined".into())
     );
     add_language_server("test-ls", LanguageServer { command: "test-ls", args: &["--stdio"] });
+    assert_eq!(
+        add_language("rust", &["test-ls", "test-ls"]),
+        Err("language server `test-ls` is listed more than once for language `rust`".into())
+    );
     add_language("rust", &["test-ls"]).unwrap();
 }
 

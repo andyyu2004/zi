@@ -33,12 +33,12 @@ pub enum Language {
 impl Language {
     const ALL: [Self; 3] = [Self::TypeScript, Self::JavaScript, Self::Rust];
 
-    fn marker(self) -> &'static str {
-        match self {
+    fn marker(self) -> &'static Path {
+        Path::new(match self {
             Self::TypeScript => "src/plugin.ts",
             Self::JavaScript => "src/plugin.js",
             Self::Rust => "Cargo.toml",
-        }
+        })
     }
 
     fn template(self) -> Vec<(&'static str, &'static str)> {
@@ -68,6 +68,14 @@ impl Language {
         }
     }
 
+    fn markers(langs: impl IntoIterator<Item = Self>) -> String {
+        langs
+            .into_iter()
+            .map(|lang| lang.marker().display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     pub fn detect(project: &Path) -> anyhow::Result<Self> {
         let found = Self::ALL
             .into_iter()
@@ -78,12 +86,12 @@ impl Language {
             [] => bail!(
                 "`{}` is not a plugin project (it has none of {})",
                 project.display(),
-                Self::ALL.map(Self::marker).join(", ")
+                Self::markers(Self::ALL)
             ),
             _ => bail!(
                 "`{}` looks like more than one kind of plugin project: {}",
                 project.display(),
-                found.into_iter().map(Self::marker).collect::<Vec<_>>().join(", ")
+                Self::markers(found)
             ),
         }
     }
@@ -106,6 +114,12 @@ impl FromStr for PluginName {
     }
 }
 
+impl PluginName {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl fmt::Display for PluginName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
@@ -122,7 +136,7 @@ pub fn scaffold(dir: &Path, name: &PluginName, lang: Language) -> anyhow::Result
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&path, contents.replace(TEMPLATE_NAME, &name.0))
+        std::fs::write(&path, contents.replace(TEMPLATE_NAME, name.as_str()))
             .with_context(|| format!("failed to write `{}`", path.display()))?;
     }
     Ok(())
@@ -159,9 +173,9 @@ pub fn build(project: &Path) -> anyhow::Result<PathBuf> {
     match lang {
         Language::TypeScript => {
             run(tool(project, "tsc")?.args(["-p", "."]).current_dir(project))?;
-            componentize(project, "dist/plugin.js", &output)?;
+            componentize(project, Path::new("dist/plugin.js"), &output)?;
         }
-        Language::JavaScript => componentize(project, "src/plugin.js", &output)?,
+        Language::JavaScript => componentize(project, Path::new("src/plugin.js"), &output)?,
         Language::Rust => {
             let module = std::fs::read(cargo_build(project)?)?;
             let component = wit_component::ComponentEncoder::default()
@@ -190,9 +204,11 @@ fn write_wit(dir: &Path) -> anyhow::Result<()> {
     Ok(std::fs::write(dir.join("zi.wit"), WIT)?)
 }
 
-fn componentize(project: &Path, js: &str, output: &Path) -> anyhow::Result<()> {
+fn componentize(project: &Path, js: &Path, output: &Path) -> anyhow::Result<()> {
     run(tool(project, "jco")?
-        .args(["componentize", js, "--wit", "types/zi.wit", "--world-name", WORLD])
+        .arg("componentize")
+        .arg(js)
+        .args(["--wit", "types/zi.wit", "--world-name", WORLD])
         .args(["--disable", "http", "--disable", "fetch-event"])
         .arg("-o")
         .arg(std::path::absolute(output)?)
@@ -205,6 +221,7 @@ fn cargo_build(project: &Path) -> anyhow::Result<PathBuf> {
         .arg("--message-format=json-render-diagnostics")
         .current_dir(project)
         .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
         .env_remove("RUSTFLAGS")
         .env_remove("CARGO_ENCODED_RUSTFLAGS")
         .env_remove("RUSTC_WRAPPER")
@@ -287,12 +304,12 @@ fn run(cmd: &mut Command) -> anyhow::Result<()> {
 mod tests {
     use super::*;
 
-    fn source(lang: Language) -> &'static str {
-        match lang {
+    fn source(lang: Language) -> &'static Path {
+        Path::new(match lang {
             Language::TypeScript => "src/plugin.ts",
             Language::JavaScript => "src/plugin.js",
             Language::Rust => "src/lib.rs",
-        }
+        })
     }
 
     #[test]

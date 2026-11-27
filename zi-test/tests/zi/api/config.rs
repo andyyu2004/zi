@@ -73,5 +73,17 @@ async fn buffer_set_command() {
     check_view(&cx, "set numberwidth 6", 6, |view| *view.line_number_width.read()).await;
     check_view(&cx, "set nuw 3", 3, |view| *view.line_number_width.read()).await;
 
+    // :set plugininittimeout
+    for (cmd, ms) in [("set plugininittimeout 50", 50), ("set pit 7", 7)] {
+        cx.with(move |editor| editor.execute(cmd).unwrap()).await;
+        cx.with(move |editor| {
+            assert_eq!(
+                *editor.settings().plugin_init_timeout.read(),
+                std::time::Duration::from_millis(ms)
+            );
+        })
+        .await;
+    }
+
     cx.cleanup().await;
 }

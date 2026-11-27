@@ -18,7 +18,7 @@ tree-sitter = { workspace = true, features = ["wasm"] }
 # The version of wasmtime must match dependency that tree-sitter takes on wasmtie
 wasmtime = { version = "48", features = ["component-model", "component-model-async"] }
 streaming-iterator = { workspace = true }
-tokio = { workspace = true, features = ["sync", "io-std"] }
+tokio = { workspace = true, features = ["sync", "io-std", "time"] }
 tokio-stream = { workspace = true, features = ["fs"] }
 
 [lints]

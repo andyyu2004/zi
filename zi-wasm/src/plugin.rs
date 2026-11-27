@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::io;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
 use futures_util::future::BoxFuture;
 use futures_util::{FutureExt, Stream, StreamExt, TryStreamExt};
@@ -28,13 +29,49 @@ use zi_lsp::LanguageServerConfig;
 use crate::wit::Plugin;
 use crate::wit::zi::api;
 
+const EPOCH_TICK: Duration = Duration::from_millis(1);
+
 pub fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
     ENGINE.get_or_init(|| {
         let mut config = wasmtime::Config::new();
         config.wasm_component_model(true);
+        config.epoch_interruption(true);
         Engine::new(&config).expect("configuration should be valid")
     })
+}
+
+fn new_store(engine: &Engine, state: HostState) -> Store {
+    let mut store = Store::new(engine, state);
+    store.epoch_deadline_async_yield_and_update(1);
+    store
+}
+
+struct EpochTicker {
+    stop: Arc<AtomicBool>,
+}
+
+impl EpochTicker {
+    fn start(engine: &'static Engine) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let ticking = stop.clone();
+        std::thread::Builder::new()
+            .name("zi-wasm-epoch".into())
+            .spawn(move || {
+                while !ticking.load(Ordering::Relaxed) {
+                    std::thread::sleep(EPOCH_TICK);
+                    engine.increment_epoch();
+                }
+            })
+            .expect("couldn't spawn the epoch ticker thread");
+        Self { stop }
+    }
+}
+
+impl Drop for EpochTicker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
 }
 
 pub struct HostState {
@@ -380,6 +417,12 @@ impl api::editor::Host for HostState {
                         "language server `{id}` for language `{filetype}` is not defined"
                     ));
                 }
+                let mut seen = std::collections::BTreeSet::new();
+                if let Some(id) = ids.clone().find(|&id| !seen.insert(id)) {
+                    return Err(format!(
+                        "language server `{id}` is listed more than once for language `{filetype}`"
+                    ));
+                }
                 config.add_language(FileType::from_name(&filetype), LanguageConfig::new(ids));
                 Ok(())
             })
@@ -500,7 +543,7 @@ impl zi::plugin::PluginManager for PluginManager {
                 async move {
                     let component = component?;
                     let linker = linker(engine)?;
-                    let mut store = Store::new(engine, HostState::new(client));
+                    let mut store = new_store(engine, HostState::new(client));
                     let plugin = Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
                     Ok::<_, anyhow::Error>(PluginHost::new(plugins, store, plugin))
@@ -521,11 +564,9 @@ impl zi::plugin::PluginManager for PluginManager {
 
         tracing::info!(n = plugin_hosts.len(), "instantiated plugins");
 
-        for mut host in plugin_hosts.into_vec() {
-            match host.initialize().await {
-                Ok(receiver) => drop(join_set.spawn(host.run(receiver))),
-                Err(err) => tracing::error!(error = &*err, "error initializing plugin (skipping)"),
-            }
+        let timeout = client.with(|editor| *editor.settings().plugin_init_timeout.read()).await;
+        for (host, receiver) in initialize_all(plugin_hosts.into_vec(), timeout).await {
+            join_set.spawn(host.run(receiver));
         }
 
         self.initialized.send_replace(true);
@@ -567,11 +608,44 @@ impl PluginManager {
     }
 }
 
+async fn initialize_all(
+    hosts: Vec<PluginHost>,
+    timeout: Duration,
+) -> Vec<(PluginHost, mpsc::Receiver<PluginRequest>)> {
+    let _ticker = EpochTicker::start(engine());
+    let results = futures_util::future::join_all(hosts.into_iter().map(|mut host| async move {
+        let start = Instant::now();
+        let result = tokio::time::timeout(timeout, host.initialize()).await;
+        let name = host.name.clone().unwrap_or_else(|| "<unnamed>".into());
+        match result {
+            Ok(Ok(receiver)) => {
+                tracing::debug!(plugin = name, elapsed = ?start.elapsed(), "initialized plugin");
+                return Some((host, receiver));
+            }
+            Ok(Err(err)) => tracing::error!(
+                plugin = name,
+                error = &*err,
+                "plugin failed to initialize, skipping it (what it registered stays registered)"
+            ),
+            Err(_) => tracing::error!(
+                plugin = name,
+                ?timeout,
+                "plugin took too long to initialize, skipping it (what it registered stays registered)"
+            ),
+        }
+        host.handler.take();
+        None
+    }))
+    .await;
+    results.into_iter().flatten().collect()
+}
+
 struct PluginHost {
     manager: Arc<PluginManager>,
     store: Store,
     plugin: Plugin,
     handler: Option<ResourceAny>,
+    name: Option<String>,
 }
 
 impl Drop for PluginHost {
@@ -588,18 +662,18 @@ impl Drop for PluginHost {
 
 impl PluginHost {
     fn new(manager: Arc<PluginManager>, store: Store, plugin: Plugin) -> Self {
-        Self { manager, store, plugin, handler: None }
+        Self { manager, store, plugin, handler: None, name: None }
     }
 
     async fn initialize(&mut self) -> anyhow::Result<mpsc::Receiver<PluginRequest>> {
         let dep = self.plugin.zi_api_dependency();
         let name = dep.call_get_name(&mut self.store).await?;
+        self.name = Some(name.clone());
 
         let lifecycle = self.plugin.zi_api_lifecycle();
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
         let (sender, receiver) = mpsc::channel(16);
-        let _id = self.manager.add(name, sender.clone());
 
         let command = self.plugin.zi_api_command();
         self.handler = Some(command.handler().call_constructor(&mut self.store).await?);
@@ -659,6 +733,7 @@ impl PluginHost {
                 .await?;
         }
 
+        let _id = self.manager.add(name, sender);
         Ok(receiver)
     }
 
@@ -719,7 +794,7 @@ mod test {
     use super::*;
     use zi_plugin::Language;
 
-    use crate::test_util::{build_fixture_plugin, build_plugin};
+    use crate::test_util::{build_fixture_plugin, build_plugin, build_source_plugin};
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
 
     async fn load(
@@ -746,7 +821,7 @@ mod test {
 
         let engine = engine();
 
-        let mut store = Store::new(engine, HostState::new(editor.client()));
+        let mut store = new_store(engine, HostState::new(editor.client()));
 
         let local = LocalSet::new();
         local.spawn_local(editor.test_run(tasks));
@@ -814,7 +889,7 @@ mod test {
         let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
         let client = editor.client();
         let engine = engine();
-        let mut store = Store::new(engine, HostState::new(editor.client()));
+        let mut store = new_store(engine, HostState::new(editor.client()));
 
         let local = LocalSet::new();
         local.spawn_local(editor.test_run(tasks));
@@ -843,7 +918,7 @@ mod test {
         let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
         let client = editor.client();
         let engine = engine();
-        let mut store = Store::new(engine, HostState::new(editor.client()));
+        let mut store = new_store(engine, HostState::new(editor.client()));
 
         let local = LocalSet::new();
         local.spawn_local(editor.test_run(tasks));
@@ -913,5 +988,74 @@ mod test {
     #[cfg_attr(test, mutants::skip)]
     async fn rust_plugin() -> anyhow::Result<()> {
         check_fixture_plugin(Language::Rust, "test-rs").await
+    }
+
+    const SPIN_IN_INITIALIZE: &str = r#"
+export const dependency = { getName: () => "test-spin", dependencies: () => [] };
+export const lifecycle = {
+  initialize() {
+    for (;;) {}
+  },
+  shutdown() {},
+};
+class Handler {
+  exec() {}
+}
+export const command = { Handler };
+"#;
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn plugins_initialize_concurrently_within_a_timeout() -> anyhow::Result<()> {
+        let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+        let client = editor.client();
+        let engine = engine();
+
+        let local = LocalSet::new();
+        local.spawn_local(editor.test_run(tasks));
+
+        local
+            .run_until(async move {
+                let spin = Component::new(
+                    engine,
+                    build_source_plugin(Language::JavaScript, "test-spin", SPIN_IN_INITIALIZE)?,
+                )?;
+                let ok = Component::new(engine, build_fixture_plugin(Language::JavaScript)?)?;
+
+                let manager = Arc::new(PluginManager::default());
+                let linker = linker(engine)?;
+                let mut hosts = vec![];
+                for component in [&spin, &spin, &ok] {
+                    let mut store = new_store(engine, HostState::new(client.clone()));
+                    let plugin = Plugin::instantiate_async(&mut store, component, &linker).await?;
+                    hosts.push(PluginHost::new(manager.clone(), store, plugin));
+                }
+
+                let timeout = Duration::from_millis(500);
+                let start = Instant::now();
+                let initialized = initialize_all(hosts, timeout).await;
+                let elapsed = start.elapsed();
+
+                let names = initialized
+                    .into_iter()
+                    .map(|(mut host, _receiver)| {
+                        host.handler = None;
+                        host.name.clone()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(names, [Some("test-js".to_owned())]);
+                assert!(elapsed >= timeout && elapsed < 2 * timeout, "took {elapsed:?}");
+                assert!(
+                    client
+                        .with(|editor| {
+                            editor
+                                .language_config()
+                                .has_language_service(LanguageServiceId::new("test-ls"))
+                        })
+                        .await
+                );
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
     }
 }
