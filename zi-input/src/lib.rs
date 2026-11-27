@@ -20,20 +20,34 @@ impl TryFrom<crossterm::event::Event> for Event {
     )]
     fn try_from(event: crossterm::event::Event) -> Result<Self, Self::Error> {
         match event {
-            crossterm::event::Event::Key(event) => match event.code {
-                // weird crossterm case, we just convert this to `<S-Tab>`
-                crossterm::event::KeyCode::BackTab => Ok(Event::Key(KeyEvent::new(
-                    KeyCode::Tab,
-                    KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
-                ))),
-                _ => Ok(Event::Key(KeyEvent::new(
-                    event.code.try_into()?,
-                    event.modifiers.try_into()?,
-                ))),
+            crossterm::event::Event::Key(event) => match event.kind {
+                crossterm::event::KeyEventKind::Press | crossterm::event::KeyEventKind::Repeat => {
+                    KeyEvent::try_from(event).map(Event::Key)
+                }
+                crossterm::event::KeyEventKind::Release => Err(()),
             },
-
             crossterm::event::Event::Resize(width, height) => Ok(Event::Resize(width, height)),
             _ => Err(()),
+        }
+    }
+}
+
+#[cfg(feature = "crossterm")]
+impl TryFrom<crossterm::event::KeyEvent> for KeyEvent {
+    type Error = ();
+
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "every other crossterm key code converts through `KeyCode::try_from`"
+    )]
+    fn try_from(event: crossterm::event::KeyEvent) -> Result<Self, Self::Error> {
+        match event.code {
+            // weird crossterm case, we just convert this to `<S-Tab>`
+            crossterm::event::KeyCode::BackTab => Ok(KeyEvent::new(
+                KeyCode::Tab,
+                KeyModifiers::try_from(event.modifiers)? | KeyModifiers::SHIFT,
+            )),
+            _ => Ok(KeyEvent::new(event.code.try_into()?, event.modifiers.try_into()?)),
         }
     }
 }
@@ -114,6 +128,8 @@ impl fmt::Display for KeyCode {
             KeyCode::Insert => write!(f, "{}", keys::INSERT),
             KeyCode::Esc => write!(f, "{}", keys::ESC),
             KeyCode::F(n) => write!(f, "f{n}"),
+            KeyCode::Char(' ') => write!(f, "{}", keys::SPACE),
+            KeyCode::Char('<') => write!(f, "{}", keys::LESS_THAN),
             KeyCode::Char(c) => write!(f, "{c}"),
         }
     }
@@ -135,13 +151,17 @@ impl TryFrom<crossterm::event::KeyModifiers> for KeyModifiers {
     type Error = ();
 
     fn try_from(modifiers: crossterm::event::KeyModifiers) -> Result<Self, Self::Error> {
-        Ok(match modifiers {
-            crossterm::event::KeyModifiers::NONE => KeyModifiers::NONE,
-            crossterm::event::KeyModifiers::SHIFT => KeyModifiers::SHIFT,
-            crossterm::event::KeyModifiers::CONTROL => KeyModifiers::CONTROL,
-            crossterm::event::KeyModifiers::ALT => KeyModifiers::ALT,
-            _ => return Err(()),
-        })
+        let mut out = Self::NONE;
+        for modifier in modifiers.iter() {
+            match modifier {
+                crossterm::event::KeyModifiers::SHIFT => out |= Self::SHIFT,
+                crossterm::event::KeyModifiers::CONTROL => out |= Self::CONTROL,
+                crossterm::event::KeyModifiers::ALT => out |= Self::ALT,
+                _ => return Err(()),
+            }
+        }
+
+        Ok(out)
     }
 }
 
@@ -200,30 +220,24 @@ impl fmt::Display for KeyEvent {
         // special case, print <S-y> as just Y
         if let KeyCode::Char(c) = self.code
             && self.modifiers == KeyModifiers::SHIFT
+            && c.is_uppercase()
         {
-            assert!(c.is_uppercase());
             return write!(f, "{c}");
         }
 
+        let needs_brackets =
+            self.code.is_special() || matches!(self.code, KeyCode::Char(' ' | '<'));
+
         if self.modifiers.is_empty() {
-            if self.code.is_special() {
-                write!(f, "<{}>", self.code)
-            } else {
-                write!(f, "{}", self.code)
-            }
+            if needs_brackets { write!(f, "<{}>", self.code) } else { write!(f, "{}", self.code) }
         } else {
             write!(f, "<")?;
-            for modifier in self.modifiers.iter() {
-                write!(
-                    f,
-                    "{}-",
-                    match modifier {
-                        KeyModifiers::CONTROL => "C",
-                        KeyModifiers::SHIFT => "S",
-                        KeyModifiers::ALT => "A",
-                        _ => unreachable!("missing modifier case in fmt::Display for KeyEvent"),
-                    }
-                )?;
+            for (modifier, name) in
+                [(KeyModifiers::SHIFT, "S"), (KeyModifiers::CONTROL, "C"), (KeyModifiers::ALT, "A")]
+            {
+                if self.modifiers.contains(modifier) {
+                    write!(f, "{name}-")?;
+                }
             }
 
             write!(f, "{}>", self.code)

@@ -5435,6 +5435,7 @@ dependencies = [
  "chumsky",
  "crossterm",
  "serde",
+ "zi-input",
 ]
 
 [[package]]
