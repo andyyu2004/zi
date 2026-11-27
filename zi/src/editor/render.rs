@@ -265,12 +265,12 @@ impl Editor {
         lines.render_(area, surface)
     }
 
-    fn search_highlights(
-        &self,
-        text: &dyn AnyText,
+    fn search_highlights<'a>(
+        &'a self,
+        text: &'a dyn AnyText,
         line_offset: usize,
-        theme: &Theme,
-    ) -> impl Iterator<Item = (PointRange, Style)> {
+        theme: &'a Theme,
+    ) -> impl Iterator<Item = (PointRange, Style)> + 'a {
         let matches = if self.search_state.hlsearch { self.search_state.matches() } else { &[] };
         matches.iter().enumerate().filter_map(move |(i, mat)| {
             let range = text.byte_range_to_point_range(&mat.byte_range);
