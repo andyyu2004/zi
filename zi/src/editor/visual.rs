@@ -22,7 +22,7 @@ impl Selection {
         let lines = (anchor.line().min(cursor.line())..=anchor.line().max(cursor.line()))
             .map(|line| {
                 let bytes = buf.line_byte_range(line, &cols);
-                PointRange::new(Point::new(line, bytes.start), Point::new(line, bytes.end))
+                PointRange::new((line, bytes.start), (line, bytes.end))
             })
             .collect();
         Self::Block { lines }
@@ -96,7 +96,7 @@ impl Selection {
             Self::Line { start_line, end_line } => (*start_line..=*end_line)
                 .map(|line| {
                     let line_len = text.line(line).map_or(0, |l| l.len_bytes());
-                    PointRange::new(Point::new(line, 0), Point::new(line, line_len))
+                    PointRange::new((line, 0), (line, line_len))
                 })
                 .collect(),
             Self::Block { lines } => {
