@@ -4,12 +4,13 @@ use std::fmt;
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{Rect, StatefulWidget, Widget as _};
+use zi_core::style::Style;
 use zi_core::{IteratorRangeExt, Offset, PointRange};
-use zi_text::{AnyTextSlice, PointRangeExt, Text, TextSlice};
+use zi_text::{AnyText, AnyTextSlice, PointRangeExt, Text, TextSlice};
 
 use super::{Editor, State};
 use crate::completion::Completion;
-use crate::syntax::HighlightName;
+use crate::syntax::{HighlightName, Theme};
 use crate::{Active, ViewId};
 
 impl Editor {
@@ -17,22 +18,26 @@ impl Editor {
         let buffer_area = frame.buffer_mut().area;
         let tree_area = self.tree.area();
         assert!(buffer_area.height >= tree_area.height + Self::BOTTOM_BAR_HEIGHT);
-        let client = self.client();
-
         tracing::trace!(%tree_area, %buffer_area, "render editor");
 
-        // Only iterate over the views that are in the view tree, as otherwise they are definitely
-        // not visible and we don't need to render them.
-        self.tree.views().for_each(|view| {
+        self.prepare_visible_views();
+        self.tree.render(self, frame.buffer_mut());
+        self.render_bottom_bar(tree_area, frame.buffer_mut());
+        let (x, y) = self.terminal_cursor();
+        frame.set_cursor(x, y);
+    }
+
+    fn prepare_visible_views(&mut self) {
+        let client = self.client();
+        for view in self.tree.views() {
             let view = &self.db.views[view];
             let buf = self.db.buffers.get_mut(view.buffer()).expect("bad buffer id").buffer;
             let area = self.tree.view_area(view.id());
             buf.pre_render(&client, view, area);
-        });
+        }
+    }
 
-        self.tree.render(self, frame.buffer_mut());
-
-        // HACK probably there is a nicer way to not special case the cmd and statusline
+    fn render_bottom_bar(&self, tree_area: Rect, surface: &mut tui::Buffer) {
         let (view, buf) = self.db.view_and_buffer(self.tree.active());
         let path = buf.file_path();
         let path = path.as_ref().map(|p| p.display());
@@ -91,9 +96,11 @@ impl Editor {
                 width: tree_area.width,
                 height: Self::BOTTOM_BAR_HEIGHT,
             },
-            frame.buffer_mut(),
+            surface,
         );
+    }
 
+    fn terminal_cursor(&self) -> (u16, u16) {
         let (x, y) = self.cursor_viewport_coords();
         let offset = match &self.state {
             State::Command(state) => {
@@ -106,10 +113,10 @@ impl Editor {
             | State::VisualLine(_)
             | State::VisualBlock(_)
             | State::OperatorPending(_)
-            | State::ReplacePending => view.number_width.get(),
+            | State::ReplacePending => self.view(Active).number_width.get(),
         };
 
-        frame.set_cursor(x + offset, y);
+        (x + offset, y)
     }
 
     #[tracing::instrument(skip_all)]
@@ -222,39 +229,8 @@ impl Editor {
                 tracing::trace!(%range, %style, "highlight");
             });
 
-        let search_highlights = if self.search_state.hlsearch {
-            self.search_state.matches()
-        } else {
-            Default::default()
-        }
-        .iter()
-        .enumerate()
-        .filter_map(|(i, mat)| {
-            let range = text.byte_range_to_point_range(&mat.byte_range);
-            if range.end().line() < line_offset {
-                return None;
-            }
-
-            let hl_name = if self.search_state.current_match_idx() == i {
-                HighlightName::CURRENT_SEARCH
-            } else {
-                HighlightName::SEARCH
-            };
-
-            let style = self.highlight_id_by_name(hl_name).style(&theme)?;
-            Some((range, style))
-        });
-
-        let visual_highlights: Vec<(PointRange, _)> =
-            if let Some(sel) = self.visual_selection(view.id()) {
-                let style = self
-                    .highlight_id_by_name(HighlightName::VISUAL)
-                    .style(&theme)
-                    .unwrap_or_else(|| theme.default_style());
-                sel.point_ranges(text).into_iter().map(|r| (r, style)).collect()
-            } else {
-                vec![]
-            };
+        let search_highlights = self.search_highlights(text, line_offset, &theme);
+        let visual_highlights = self.visual_highlights(view.id(), text, &theme);
 
         let highlights = view_highlights
             .range_merge(search_highlights)
@@ -287,5 +263,42 @@ impl Editor {
         );
 
         lines.render_(area, surface)
+    }
+
+    fn search_highlights<'a>(
+        &'a self,
+        text: &'a dyn AnyText,
+        line_offset: usize,
+        theme: &'a Theme,
+    ) -> impl Iterator<Item = (PointRange, Style)> + 'a {
+        let matches = if self.search_state.hlsearch { self.search_state.matches() } else { &[] };
+        matches.iter().enumerate().filter_map(move |(i, mat)| {
+            let range = text.byte_range_to_point_range(&mat.byte_range);
+            if range.end().line() < line_offset {
+                return None;
+            }
+
+            let hl_name = if self.search_state.current_match_idx() == i {
+                HighlightName::CURRENT_SEARCH
+            } else {
+                HighlightName::SEARCH
+            };
+            let style = self.highlight_id_by_name(hl_name).style(theme)?;
+            Some((range, style))
+        })
+    }
+
+    fn visual_highlights(
+        &self,
+        view: ViewId,
+        text: &dyn AnyText,
+        theme: &Theme,
+    ) -> Vec<(PointRange, Style)> {
+        let Some(selection) = self.visual_selection(view) else { return Vec::new() };
+        let style = self
+            .highlight_id_by_name(HighlightName::VISUAL)
+            .style(theme)
+            .unwrap_or_else(|| theme.default_style());
+        selection.point_ranges(text).into_iter().map(|range| (range, style)).collect()
     }
 }

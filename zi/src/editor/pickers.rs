@@ -1,6 +1,12 @@
 use super::*;
 use crate::{Mark, lstypes};
 
+struct PickerViews {
+    preview: ViewId,
+    display: ViewId,
+    search: ViewId,
+}
+
 impl Editor {
     pub fn open_file_explorer(&mut self, path: impl AsRef<Path>) {
         inner(self, path.as_ref());
@@ -116,6 +122,66 @@ impl Editor {
 
         self.set_mode(Mode::Insert);
 
+        let PickerViews { preview, display, search } =
+            self.create_picker_views(view_group, path.as_ref(), split_ratio);
+        Self::restore_mode_on_picker_close(view_group, prev_mode);
+
+        let mut injector = None;
+        let picker_buf = self.db.insert_buffer(|id| {
+            let mut picker = PickerBuffer::new(id, display, request_redraw, P::new(preview));
+            injector = Some(picker.injector());
+            if let Some(source) = dynamic_source {
+                picker = picker.with_dynamic_handler(source);
+            }
+            Buffer::new(picker)
+        });
+
+        f(self, injector.unwrap());
+        self.set_buffer(search, picker_buf);
+
+        view_group
+    }
+
+    fn create_picker_views(
+        &mut self,
+        view_group: ViewGroupId,
+        path: &Path,
+        split_ratio: (u16, u16),
+    ) -> PickerViews {
+        let preview = self.create_picker_preview(view_group, split_ratio);
+        let display = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
+        let theme = self.theme();
+        let theme = theme.read();
+        let display_buf = self.db.insert_buffer(|id| {
+            Buffer::new(TextBuffer::new(
+                id,
+                buffer::Settings {
+                    buf_hidden: Setting::new(buffer::BufHidden::Wipe),
+                    ..Default::default()
+                },
+                filetype!(text),
+                path,
+                Rope::new(),
+                &theme,
+                None,
+            ))
+        });
+        self.db.set_buffer(display, display_buf);
+
+        let search = self.split(Active, Direction::Up, tui::Constraint::Max(1));
+        assert_eq!(self.tree().active(), search);
+
+        // Keep the views in the same group so they close together.
+        self.db.set_group(display, view_group);
+        self.db.set_group(search, view_group);
+        PickerViews { preview, display, search }
+    }
+
+    fn create_picker_preview(
+        &mut self,
+        view_group: ViewGroupId,
+        split_ratio: (u16, u16),
+    ) -> ViewId {
         let theme = self.theme();
         let theme = theme.read();
         let preview_buf = self.db.insert_buffer(|id| {
@@ -145,32 +211,10 @@ impl Editor {
                 .areas::<2>(area)[1]
         }));
 
-        let display_view = self.split(Active, Direction::Left, tui::Constraint::Fill(1));
-        let theme = self.theme();
-        let theme = theme.read();
-        let display_buf = self.db.insert_buffer(|id| {
-            Buffer::new(TextBuffer::new(
-                id,
-                buffer::Settings {
-                    buf_hidden: Setting::new(buffer::BufHidden::Wipe),
-                    ..Default::default()
-                },
-                filetype!(text),
-                path,
-                Rope::new(),
-                &theme,
-                None,
-            ))
-        });
-        self.db.set_buffer(display_view, display_buf);
+        preview
+    }
 
-        let search_view = self.split(Active, Direction::Up, tui::Constraint::Max(1));
-        assert_eq!(self.tree().active(), search_view);
-
-        // ensure all views are in the same group so they close together
-        self.db.set_group(display_view, view_group);
-        self.db.set_group(search_view, view_group);
-
+    fn restore_mode_on_picker_close(view_group: ViewGroupId, prev_mode: Mode) {
         event::subscribe_with::<event::DidCloseView>({
             move |editor, event| {
                 // restore the mode if the picker view group is closed
@@ -182,22 +226,6 @@ impl Editor {
                 }
             }
         });
-
-        let mut injector = None;
-        let picker_buf = self.db.insert_buffer(|id| {
-            let mut picker = PickerBuffer::new(id, display_view, request_redraw, P::new(preview));
-            injector = Some(picker.injector());
-            if let Some(source) = dynamic_source {
-                picker = picker.with_dynamic_handler(source);
-            }
-            Buffer::new(picker)
-        });
-
-        f(self, injector.unwrap());
-
-        self.set_buffer(search_view, picker_buf);
-
-        view_group
     }
 
     pub fn open_jump_list(&mut self, selector: impl Selector<ViewId>) -> ViewGroupId {
