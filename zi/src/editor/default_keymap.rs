@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use stdx::merge::Merge;
 use zi_input::KeyEvent;
-use zi_textobject::{Around, Within, delimiter};
+use zi_textobject::{Around, FindKind, Within, delimiter};
 
 use crate::editor::{Action, SaveFlags, set_error_if};
 use crate::keymap::Keymap;
@@ -258,6 +258,22 @@ pub(super) fn new() -> Keymap {
         counted_motion(editor, motion::NextWord);
     }
 
+    fn find_forward(editor: &mut Editor) {
+        editor.start_find(FindKind::Find);
+    }
+
+    fn find_backward(editor: &mut Editor) {
+        editor.start_find(FindKind::FindBack);
+    }
+
+    fn till_forward(editor: &mut Editor) {
+        editor.start_find(FindKind::Till);
+    }
+
+    fn till_backward(editor: &mut Editor) {
+        editor.start_find(FindKind::TillBack);
+    }
+
     fn prev_word(editor: &mut Editor) {
         counted_motion(editor, motion::PrevWord);
     }
@@ -477,6 +493,10 @@ pub(super) fn new() -> Keymap {
                 "W" => next_token,
                 "b" => prev_word,
                 "B" => prev_token,
+                "f" => find_forward,
+                "F" => find_backward,
+                "t" => till_forward,
+                "T" => till_backward,
                 "e" => next_word_end,
                 "E" => next_token_end,
                 "g" => {
@@ -564,6 +584,10 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "f" => find_forward,
+                    "F" => find_backward,
+                    "t" => till_forward,
+                    "T" => till_backward,
                     "e" => next_word_end,
                     "E" => next_token_end,
                     "%" => matchit,
@@ -603,6 +627,10 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "f" => find_forward,
+                    "F" => find_backward,
+                    "t" => till_forward,
+                    "T" => till_backward,
                     "e" => next_word_end,
                     "E" => next_token_end,
                     "G" => goto_end,
@@ -652,6 +680,10 @@ pub(super) fn new() -> Keymap {
                     "b" => prev_word,
                     "W" => next_token,
                     "B" => prev_token,
+                    "f" => find_forward,
+                    "F" => find_backward,
+                    "t" => till_forward,
+                    "T" => till_backward,
                     "e" => next_word_end,
                     "E" => next_token_end,
                     "a" => append,
@@ -675,6 +707,7 @@ pub(super) fn new() -> Keymap {
                         "l" => open_diagnostics,
                         "m" => open_marks,
                         "/" => open_global_search,
+                        "i" => inspect,
                     },
                     "g" => {
                         "d" => goto_definition,
@@ -685,9 +718,6 @@ pub(super) fn new() -> Keymap {
                         "g" => goto_start,
                         "e" => prev_word_end,
                         "E" => prev_token_end,
-                    },
-                    "t" => {
-                        "s" => inspect,
                     },
                     "z" => {
                         "t" => align_view_top,
