@@ -1153,11 +1153,13 @@ impl Editor {
                 let cursor = view.cursor();
                 let text = buf.text();
                 let byte_idx = text.point_to_byte(cursor);
-                let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else {
+                let Some(grapheme) = zi_text::grapheme::graphemes_before(text, byte_idx).next()
+                else {
                     return Ok(());
                 };
-                let start_byte_idx =
-                    byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
+                let start_byte_idx = byte_idx
+                    .checked_sub(grapheme.len)
+                    .expect("just checked there's a grapheme here");
 
                 buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
 

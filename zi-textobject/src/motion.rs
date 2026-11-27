@@ -105,11 +105,13 @@ impl Motion for NextToken {
 impl Motion for Prev {
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
         let mut byte = text.point_or_byte_to_byte(p);
-        let mut chars = text.byte_slice(..byte).chars().rev();
-        let Some(mut c) = chars.next() else { return byte.into() };
+        let mut graphemes = graphemes_before(text, byte);
+        let Some(Grapheme { first: mut c, mut len }) = graphemes.next() else {
+            return byte.into();
+        };
 
-        for next in chars {
-            byte -= c.len_utf8();
+        for Grapheme { first: next, len: next_len } in graphemes {
+            byte -= len;
 
             if matches!((c, next), ('\n', '\n')) {
                 return byte.into();
@@ -121,9 +123,10 @@ impl Motion for Prev {
             }
 
             c = next;
+            len = next_len;
         }
 
-        (byte - c.len_utf8()).into()
+        (byte - len).into()
     }
 }
 
