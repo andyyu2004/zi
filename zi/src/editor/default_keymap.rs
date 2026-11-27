@@ -571,7 +571,7 @@ pub(super) fn new() -> Keymap {
                     "c" => text_object_current_line_exclusive,
                 })),
                 Mode::OperatorPending(Operator::Yank) => count_trie.clone().merge(operator_pending_trie).merge(trie!({
-                    "y" => text_object_current_line_exclusive,
+                    "y" => text_object_current_line_inclusive,
                 })),
                 Mode::ReplacePending => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,

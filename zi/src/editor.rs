@@ -1501,11 +1501,7 @@ impl Editor {
         let buf = self.view(view).buffer();
         let content = sel.content(self.db.buffers[buf].text());
         let kind = sel.register_kind();
-
-        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(&*content)) {
-            set_error!(self, err);
-        }
-        self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
+        self.set_unnamed_register(kind, content.into_owned());
 
         if matches!(operator, Operator::Delete | Operator::Change) {
             let byte_ranges = sel.byte_ranges(self[buf].text());
@@ -1577,6 +1573,15 @@ impl Editor {
         self.registers.get(name)
     }
 
+    fn set_unnamed_register(&mut self, kind: impl Into<RegisterKind>, content: String) {
+        let reg = self.registers.get_or_insert(Registers::UNNAMED);
+        reg.set(kind, content);
+        let content = reg.content.clone();
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content)) {
+            set_error!(self, err);
+        }
+    }
+
     pub fn paste_after(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         // FIXME very naive implementation.
         let Some(reg) = self.registers.get(Registers::UNNAMED).cloned() else {
@@ -1590,10 +1595,25 @@ impl Editor {
                 let cursor = self[view].cursor();
                 let text = self[buf].text();
                 let line_start_byte = text.line_to_byte(cursor.line() + 1).min(text.len_bytes());
-                let deltas =
-                    Deltas::new([Delta::insert_at(line_start_byte, format!("{}\n", reg.content))]);
+                let ends_line = line_start_byte
+                    .checked_sub(1)
+                    .is_some_and(|byte| text.char_at_byte(byte) == Some('\n'));
+                let content = if ends_line {
+                    reg.content
+                } else {
+                    format!("\n{}", reg.content.strip_suffix('\n').unwrap_or(&reg.content))
+                };
+                let deltas = Deltas::new([Delta::insert_at(line_start_byte, content)]);
                 self.edit(buf, &deltas)?;
-                self.move_cursor(view, Direction::Down, 1);
+                let (view, buf) = self.db.view_and_buffer_mut(view);
+                let area = self.tree.view_area(view.id());
+                view.set_cursor_linewise(
+                    mode!(self),
+                    area,
+                    buf,
+                    Point::new(cursor.line() + 1, 0),
+                    SetCursorFlags::START_OF_LINE,
+                );
                 Ok(())
             }
         }
@@ -1637,6 +1657,15 @@ impl Editor {
             return Ok(());
         };
 
+        let buffer_is_empty = text.is_empty();
+        let content = text.byte_slice(range.clone()).to_string();
+        match operator {
+            Operator::Yank => self.set_unnamed_register(obj_kind, content),
+            Operator::Delete | Operator::Change => {
+                self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, content);
+            }
+        }
+
         let (deltas, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
                 let deltas = Deltas::delete(range.clone());
@@ -1651,12 +1680,13 @@ impl Editor {
                 (deltas, Some(cursor))
             }
             Operator::Yank => {
-                let text = text.byte_slice(range.clone()).to_cow();
-                if let Err(err) = with_clipboard!(self, |cb| cb.set_text(text.clone())) {
-                    set_error!(self, err);
-                }
-                self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, text);
-                (Deltas::empty(), None)
+                let cursor = match obj_kind {
+                    TextObjectKind::Linewise if !end_adjusted => {
+                        Some(PointOrByte::Point(start_point.with_byte_col(cursor.byte_col())))
+                    }
+                    TextObjectKind::Linewise | TextObjectKind::Charwise => None,
+                };
+                (Deltas::empty(), cursor)
             }
         };
 
@@ -1666,7 +1696,7 @@ impl Editor {
                 self[buf].snapshot_cursor(start_point);
                 self[buf].snapshot(SnapshotFlags::empty());
             }
-            Operator::Delete if text.is_empty() => {
+            Operator::Delete if buffer_is_empty => {
                 self.set_mode(Mode::Normal);
                 return Ok(());
             }
@@ -1701,7 +1731,7 @@ impl Editor {
             // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L6348-L6354
             let (new_cursor, flags) = if obj_kind.is_linewise()
                 && !end_adjusted
-                && matches!(operator, Operator::Delete)
+                && matches!(operator, Operator::Delete | Operator::Yank)
             {
                 assert!(
                     matches!(new_cursor, PointOrByte::Point(_)),

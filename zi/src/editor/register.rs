@@ -29,6 +29,14 @@ impl Register {
     pub(crate) fn set(&mut self, kind: impl Into<RegisterKind>, content: impl Into<String>) {
         self.kind = kind.into();
         self.content = content.into();
+        match self.kind {
+            RegisterKind::Charwise => {}
+            RegisterKind::Linewise => {
+                if !self.content.ends_with('\n') {
+                    self.content.push('\n');
+                }
+            }
+        }
     }
 }
 
