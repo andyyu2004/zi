@@ -29,9 +29,15 @@ impl LanguageServiceInstance {
         Self { service, handle }
     }
 
-    pub(crate) async fn wait(self) -> Result<()> {
+    pub(crate) async fn wait(mut self) -> Result<()> {
         self.handle.abort();
-        tokio::time::timeout(Duration::from_millis(50), self.handle).await??
+        tokio::time::timeout(Duration::from_millis(50), &mut self.handle).await??
+    }
+}
+
+impl Drop for LanguageServiceInstance {
+    fn drop(&mut self) {
+        self.handle.abort();
     }
 }
 

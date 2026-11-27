@@ -16,6 +16,7 @@ use zi_test::{TestContext, new};
 mod definition;
 mod diagnostics;
 mod format;
+mod startup;
 mod sync;
 
 // Utility type that can be referenced from within `Fn` closures.

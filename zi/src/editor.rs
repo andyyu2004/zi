@@ -24,7 +24,7 @@ use std::future::Future;
 use std::ops::{self, Deref, Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::pin::{Pin, pin};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{cmp, fmt, io, mem};
@@ -149,6 +149,8 @@ pub struct Editor {
     state: State,
     keymap: Keymap,
     active_language_services_by_ft: HashMap<FileType, Vec<LanguageServiceId>>,
+    /// Services whose `initialize` is in flight; an entry is stale once its init future is gone.
+    starting_language_services: HashMap<LanguageServiceId, Weak<()>>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     tree: layout::ViewTree,
@@ -411,6 +413,7 @@ impl Editor {
             language_config: Default::default(),
             active_language_services: Default::default(),
             active_language_services_by_ft: Default::default(),
+            starting_language_services: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
             status_error: Default::default(),
@@ -604,7 +607,7 @@ impl Editor {
                     }
 
                     if open_flags.contains(OpenFlags::SPAWN_LANGUAGE_SERVICES) {
-                        editor.spawn_language_services_for_ft(buf, ft)?;
+                        editor.spawn_language_services_for_ft(ft)?;
                     }
 
                     editor.dispatch(event::DidOpenBuffer { buf });

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::bail;
@@ -9,6 +10,7 @@ use futures_util::FutureExt;
 use url::Url;
 
 use super::{Result, Selector, active_servers_of, callback_with_timeout, event};
+use crate::buffer::Buffer;
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry};
 use crate::language_service::{LanguageServiceInstance, lstypes};
 use crate::lstypes::{TextExt, WorkspaceFolder};
@@ -196,66 +198,97 @@ impl Editor {
         }
     }
 
-    pub(super) fn spawn_language_services_for_ft(
-        &mut self,
-        buf: BufferId,
-        ft: FileType,
-    ) -> Result<()> {
-        if let Some(config) = &self.language_config.languages.get(&ft) {
-            for service_id in config.language_services.iter().copied() {
-                if self.active_language_services.contains_key(&service_id) {
-                    // Language server already running
-                    continue;
-                }
+    pub(super) fn spawn_language_services_for_ft(&mut self, ft: FileType) -> Result<()> {
+        let Some(config) = self.language_config.languages.get(&ft) else { return Ok(()) };
 
-                let client = LanguageClient::new(service_id, self.client());
-                let root_path = self.lsp_root_path(service_id);
-                let workspace_root = self.lsp_workspace_root(service_id);
-                let (service, fut) = self.language_config.language_services[&service_id]
-                    .spawn(&root_path, client)?;
-                let handle = tokio::spawn(fut);
-                let mut service = LanguageServiceInstance::new(service, handle);
-
-                callback_with_timeout(
-                    &self.callbacks_tx,
-                    "initializing language service",
-                    Duration::from_secs(30),
-                    async move {
-                        service
-                            .initialize(lstypes::InitializeParams {
-                                process_id: std::process::id(),
-                                workspace_folders: vec![workspace_root],
-                            })
-                            .await?;
-
-                        Ok(service)
-                    },
-                    move |editor, mut service| {
-                        service.initialized()?;
-                        tracing::info!("language service initialized");
-
-                        assert!(
-                            editor.active_language_services.insert(service_id, service).is_none(),
-                            "inserted duplicate language server"
-                        );
-
-                        editor
-                            .active_language_services_by_ft
-                            .entry(ft)
-                            .or_default()
-                            .push(service_id);
-
-                        // Fire an extra open event for the new language service.
-                        editor.dispatch(event::DidOpenBuffer { buf });
-                        editor.dispatch(event::DidInitializeLanguageService { service_id });
-
-                        Ok(())
-                    },
-                );
+        for service_id in config.language_services.clone() {
+            if self.active_language_services.contains_key(&service_id) {
+                self.register_language_service_for_ft(ft, service_id);
+                continue;
             }
+
+            if self
+                .starting_language_services
+                .get(&service_id)
+                .is_some_and(|starting| starting.strong_count() > 0)
+            {
+                continue;
+            }
+
+            let Some(service_config) = self.language_config.language_services.get(&service_id)
+            else {
+                bail!("language service `{service_id}` for language `{ft}` is not defined")
+            };
+
+            let client = LanguageClient::new(service_id, self.client());
+            let root_path = self.lsp_root_path(service_id);
+            let workspace_root = self.lsp_workspace_root(service_id);
+            let (service, fut) = service_config.spawn(&root_path, client)?;
+            let handle = tokio::spawn(fut);
+            let mut service = LanguageServiceInstance::new(service, handle);
+
+            // Dropped with the init future, so a failed or timed out start allows a retry.
+            let starting = Arc::new(());
+            self.starting_language_services.insert(service_id, Arc::downgrade(&starting));
+
+            callback_with_timeout(
+                &self.callbacks_tx,
+                format!("initializing language service `{service_id}`"),
+                Duration::from_secs(30),
+                async move {
+                    service
+                        .initialize(lstypes::InitializeParams {
+                            process_id: std::process::id(),
+                            workspace_folders: vec![workspace_root],
+                        })
+                        .await?;
+
+                    Ok((service, starting))
+                },
+                move |editor, (mut service, _starting)| {
+                    service.initialized()?;
+                    tracing::info!(%service_id, "language service initialized");
+
+                    assert!(
+                        editor.active_language_services.insert(service_id, service).is_none(),
+                        "inserted duplicate language server"
+                    );
+
+                    let fts = editor
+                        .language_config
+                        .languages
+                        .iter()
+                        .filter(|(_, config)| config.language_services.contains(&service_id))
+                        .map(|(&ft, _)| ft)
+                        .collect::<Vec<_>>();
+                    for &ft in &fts {
+                        editor.register_language_service_for_ft(ft, service_id);
+                    }
+
+                    // Fire an extra open event for buffers opened before the service was ready.
+                    let bufs = editor
+                        .buffers()
+                        .filter(|buf| fts.contains(&buf.file_type()))
+                        .map(Buffer::id)
+                        .collect::<Vec<_>>();
+                    for buf in bufs {
+                        editor.dispatch(event::DidOpenBuffer { buf });
+                    }
+                    editor.dispatch(event::DidInitializeLanguageService { service_id });
+
+                    Ok(())
+                },
+            );
         }
 
         Ok(())
+    }
+
+    fn register_language_service_for_ft(&mut self, ft: FileType, service_id: LanguageServiceId) {
+        let services = self.active_language_services_by_ft.entry(ft).or_default();
+        if !services.contains(&service_id) {
+            services.push(service_id);
+        }
     }
 
     fn jump_to_definition(

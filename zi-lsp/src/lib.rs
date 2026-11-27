@@ -57,7 +57,7 @@ where
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(false)
+        .kill_on_drop(true)
         .spawn()?;
 
     tracing::info!(?cmd, ?cwd, pid = child.id(), "spawned language server");
@@ -69,6 +69,8 @@ where
     let name = cmd.to_string_lossy().into_owned();
 
     Ok((server, async move {
+        // Owned by the main loop so the server is killed when the loop is dropped or aborted.
+        let _child = child;
         tokio::spawn(async move {
             let mut lines = tokio::io::BufReader::new(stderr.compat()).lines();
             while let Some(line) = lines.next_line().await? {
