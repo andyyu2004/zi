@@ -71,6 +71,9 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// Creates a new `MarkTree` appropriate for a text of length `n`.
     pub fn new(n: usize) -> Self {
         // assert!(n > 0, "MarkTree must have a non-zero length");
+        // `Leaf::min_extents` clamps to at least 2 and at most `N.div_ceil(2)`, which panics when
+        // N < 4.
+        const { assert!(N >= 4, "a MarkTree leaf must hold at least 4 extents") };
         let mut this = Self { tree: Tree::default(), _id: PhantomData };
         this.replace(0..0, Replacement::Gap(n));
         this
@@ -404,9 +407,10 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
             // Rebalancing many emptied leaves one at a time is slow, but `crop` drops all the leaves
             // of a range in one edit. Replacing a range without keys by as many bytes moves nothing.
             if underfilled.len() > 2 {
+                let crop_end = end.min(self.len());
                 let mut from = start;
-                for at in kept.into_iter().chain([end + 1]) {
-                    let to = at.saturating_sub(1).min(end);
+                for at in kept.into_iter().chain([crop_end + 1]) {
+                    let to = at.saturating_sub(1).min(crop_end);
                     if from < to && self.spans_leaves(from..to) {
                         self.replace(from..to, Replacement::Gap(to - from));
                     }

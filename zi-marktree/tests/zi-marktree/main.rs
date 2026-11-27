@@ -345,6 +345,23 @@ fn marktree_drain_1() {
 }
 
 #[test]
+fn marktree_drain_past_len() {
+    let marks = || (0..100).step_by(2).map(|i| (i..i, Id(i)));
+
+    let mut tree = new(100);
+    marks().for_each(|(_, id)| drop(tree.insert(id.0, id)));
+    assert_iter_eq(tree.drain(..=100), marks());
+    assert_iter_eq(tree.range(..), []);
+    assert_eq!(tree.len(), 100);
+
+    let mut tree = new(100);
+    marks().for_each(|(_, id)| drop(tree.insert(id.0, id)));
+    assert_iter_eq(tree.drain(..), marks());
+    assert_iter_eq(tree.range(..), []);
+    assert_eq!(tree.len(), 100);
+}
+
+#[test]
 fn marktree_bulk_drain() {
     const LEN: usize = 200;
     let mut tree = new(LEN);

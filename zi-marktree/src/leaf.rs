@@ -188,6 +188,9 @@ impl<const N: usize> Leaf<N> {
     }
 
     /// The fewest extents a leaf that isn't the root can have, see `is_underfilled`.
+    ///
+    /// `clamp` panics if 2 > `N.div_ceil(2)`, that is for N < 4. `MarkTree::new` rejects those
+    /// at compile time.
     fn min_extents() -> usize {
         (N / 4).clamp(2, N.div_ceil(2))
     }
@@ -204,7 +207,7 @@ impl<const N: usize> Leaf<N> {
         let leaves = entries.len().div_ceil(N).max(1);
         let last = match leaves {
             1 => entries.len(),
-            _ => (entries.len() - (leaves - 1) * N).max(Self::min_extents().max(2)),
+            _ => (entries.len() - (leaves - 1) * N).max(Self::min_extents()),
         };
         let mut rest = entries.len() - last;
         let mut entries = entries.into_iter();
