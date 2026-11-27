@@ -177,14 +177,16 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
     /// `start + by`, except left-biased marks at `start`, which stay there.
     pub fn shift(&mut self, range: impl RangeBounds<usize>, by: usize) {
         let (start, end) = range_bounds_to_start_end(range, 0, self.len());
-        if !self.spans_leaves(start..end) {
+        let insert_at_boundary = start == end && by > 0 && self.ends_leaf(start);
+        if !insert_at_boundary && !self.spans_leaves(start..end) {
             self.replace(start..end, Replacement::Gap(by));
             self.assert_invariants();
             return;
         }
 
         // `crop` drops the leaves between the first and last leaf of the range along with their
-        // keys, so take the keys out of the range first and put them back after the edit.
+        // keys, and applies bias only to the keys of the leaf it edits. So take the keys out of
+        // the range first and put them back after the edit.
         let mut left = SmallVec::<Key, 1>::new();
         let mut right = SmallVec::<Key, 1>::new();
         self.retain_keys(start..end, |at, key| {
@@ -254,6 +256,12 @@ impl<const N: usize, Id: MarkTreeId> MarkTree<Id, N> {
                 Node::Leaf(leaf) => return Some(leaf),
             }
         }
+    }
+
+    /// Whether a leaf ends at `at` and another starts there. An insert at `at` goes into the
+    /// first, so the keys at `at` in the second move whatever their bias.
+    fn ends_leaf(&self, at: usize) -> bool {
+        at < self.len() && self.spans_leaves(at..at + 1)
     }
 
     /// Whether `crop` replaces `range` across more than one leaf. It picks the first child that

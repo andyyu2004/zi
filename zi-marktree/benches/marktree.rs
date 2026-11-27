@@ -141,3 +141,18 @@ fn bench_marktree_shift<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
             (0..1_000).for_each(|i| tree.shift(i * 50..=i * 50, 2));
         });
 }
+
+#[divan::bench(consts = LEAF_SIZES)]
+fn bench_marktree_shift_insert<const LEAF_SIZE: usize>(bencher: Bencher<'_, '_>) {
+    bencher
+        .with_inputs(|| {
+            MarkTree::<Id, LEAF_SIZE>::build(
+                100_000,
+                (0..10_000).map(|i| (Id(i), MarkBuilder::new(i * 10).width(4))),
+            )
+        })
+        .bench_local_values(|mut tree| {
+            (0..1_000).for_each(|i| tree.shift(i * 50..i * 50, 2));
+            tree
+        });
+}

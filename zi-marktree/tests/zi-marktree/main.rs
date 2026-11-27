@@ -621,6 +621,23 @@ fn marktree_bias() {
 }
 
 #[test]
+fn marktree_bias_at_leaf_boundary() {
+    let bias = |i: usize| if i % 2 == 0 { Bias::Left } else { Bias::Right };
+    for at in 0..40 {
+        let mut tree = new(100);
+        for i in 0..80 {
+            tree.insert(i / 2 * 2, Id(i)).start_bias(bias(i));
+        }
+        tree.shift(at * 2..at * 2, 1);
+        for i in 0..80 {
+            let p = i / 2 * 2;
+            let p = if p > at * 2 || p == at * 2 && bias(i) == Bias::Right { p + 1 } else { p };
+            assert_eq!(tree.get(Id(i)), Some(p..p), "insert at {}, {tree:?}", at * 2);
+        }
+    }
+}
+
+#[test]
 fn marktree_range_mark() {
     let mut tree = new(5);
     tree.insert(0, Id(0)).width(1);
@@ -797,6 +814,12 @@ proptest::proptest! {
     }
 
     #[test]
+    fn marktree_prop_bias(actions in vec(arb_bias_action(), 0..200)) {
+        check_bias::<4>(&actions);
+        check_bias::<32>(&actions);
+    }
+
+    #[test]
     fn marktree_prop_range(
         actions in vec(arb_range_action(), 0..100),
         windows in vec((0..1100usize, 0..200usize), 1..10),
@@ -834,6 +857,61 @@ proptest::proptest! {
 fn assert_leaves_bounded<const N: usize>(tree: &MarkTree<Id, N>, marks: usize) {
     let leaves = tree.leaf_count();
     assert!(leaves <= (2 * marks).max(1), "{leaves} leaves for {marks} marks");
+}
+
+#[derive(Debug, Clone)]
+enum BiasAction {
+    Insert { at: usize, width: usize, id: Id, start: Bias, end: Bias },
+    Shift { at: usize, by: usize },
+}
+
+fn arb_bias() -> impl Strategy<Value = Bias> {
+    prop_oneof![proptest::strategy::Just(Bias::Left), proptest::strategy::Just(Bias::Right)]
+}
+
+fn arb_bias_action() -> BoxedStrategy<BiasAction> {
+    prop_oneof![
+        2 => (0..200usize, 0..20usize, 0..100usize, arb_bias(), arb_bias()).prop_map(
+            |(at, width, id, start, end)| BiasAction::Insert { at, width, id: Id(id), start, end }
+        ),
+        1 => (0..200usize, 1..5usize).prop_map(|(at, by)| BiasAction::Shift { at, by }),
+    ]
+    .boxed()
+}
+
+/// Checks marks against a model under inserts and insertions of text, whatever their bias.
+fn check_bias<const N: usize>(actions: &[BiasAction]) {
+    let shift = |pos: usize, bias: Bias, at: usize, by: usize| {
+        if pos > at || pos == at && bias == Bias::Right { pos + by } else { pos }
+    };
+    let mut tree = MarkTree::<Id, N>::new(200);
+    let mut model = BTreeMap::<Id, (Range<usize>, Bias, Bias)>::new();
+    for action in actions {
+        match *action {
+            BiasAction::Insert { at, width, id, start, end } => {
+                if at + width <= tree.len() {
+                    tree.insert(at, id).width(width).start_bias(start).end_bias(end);
+                    // A mark without width has no end key: its end follows its start.
+                    let end = if width == 0 { start } else { end };
+                    model.insert(id, (at..at + width, start, end));
+                }
+            }
+            BiasAction::Shift { at, by } => {
+                if at <= tree.len() {
+                    tree.shift(at..at, by);
+                    for (range, start, end) in model.values_mut() {
+                        *range = shift(range.start, *start, at, by)..shift(range.end, *end, at, by);
+                    }
+                }
+            }
+        }
+        for (&id, (range, _, _)) in &model {
+            // An empty range with opposed biases can invert, see zi-editor/zi-tracking#34.
+            if range.start <= range.end {
+                assert_eq!(tree.get(id), Some(range.clone()), "{id:?} after {action:?}");
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1011,9 +1089,7 @@ fn arb_action() -> BoxedStrategy<Action> {
         arb_action_insert(),
         (0..1000usize).prop_map(Id).prop_map(Action::Delete),
         (0..1100usize, 0..200usize).prop_map(|(start, len)| Action::Drain(start..start + len)),
-        // Only deleting shifts: an insertion at a leaf boundary can move left-biased marks
-        // (zi-editor/zi-tracking#12).
-        (0..1100usize, 1..200usize, 0..20usize)
+        (0..1100usize, 0..200usize, 0..20usize)
             .prop_map(|(start, len, by)| Action::Shift { range: start..start + len, by }),
     ]
     .boxed()
