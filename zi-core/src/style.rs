@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use stdx::merge::Merge;
 
-// Don't implement default to avoid misuse. Should always get the default style off the theme.
+/// A style overlay. The default leaves both colors and all modifiers unspecified.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 pub struct Style {
     pub fg: Option<Color>,
@@ -13,7 +13,7 @@ pub struct Style {
 
 impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut components = Vec::with_capacity(2);
+        let mut components = Vec::with_capacity(3);
 
         if let Some(fg) = self.fg {
             components.push(format!("fg={fg}"));
@@ -23,7 +23,13 @@ impl fmt::Display for Style {
             components.push(format!("bg={bg}"));
         }
 
-        write!(f, "{}", components.join(" "))
+        if !self.modifier.is_empty() {
+            let mut modifiers = String::new();
+            bitflags::parser::to_writer(&self.modifier, &mut modifiers)?;
+            components.push(format!("modifier={}", modifiers.replace(' ', "")));
+        }
+
+        f.write_str(&components.join(" "))
     }
 }
 
@@ -40,6 +46,7 @@ impl FromStr for Style {
             style = match key {
                 "fg" => style.with_fg(value.parse()?),
                 "bg" => style.with_bg(value.parse()?),
+                "modifier" => style.with_modifier(bitflags::parser::from_str(value)?),
                 _ => return Err(anyhow::anyhow!("invalid style field: {part}")),
             };
         }
@@ -69,15 +76,20 @@ impl Style {
     }
 }
 
-impl From<Style> for tui::Style {
-    #[inline]
-    fn from(s: Style) -> Self {
-        tui::Style { fg: s.fg.map(Into::into), bg: s.bg.map(Into::into), ..Default::default() }
-            .add_modifier(s.modifier)
+bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+    pub struct Modifier: u16 {
+        const BOLD = 1 << 0;
+        const DIM = 1 << 1;
+        const ITALIC = 1 << 2;
+        const UNDERLINED = 1 << 3;
+        const SLOW_BLINK = 1 << 4;
+        const RAPID_BLINK = 1 << 5;
+        const REVERSED = 1 << 6;
+        const HIDDEN = 1 << 7;
+        const CROSSED_OUT = 1 << 8;
     }
 }
-
-pub type Modifier = tui::Modifier;
 
 impl Merge for Style {
     #[inline]
@@ -114,15 +126,6 @@ impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Color::Rgb(r, g, b) => write!(f, "#{r:02x}{g:02x}{b:02x}"),
-        }
-    }
-}
-
-impl From<Color> for tui::Color {
-    #[inline]
-    fn from(c: Color) -> Self {
-        match c {
-            Color::Rgb(r, g, b) => tui::Color::Rgb(r, g, b),
         }
     }
 }
@@ -201,6 +204,14 @@ pub use style;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn style_round_trip() {
+        let style = style!(fg=0x11223300 bg=0x44556600 bold underline);
+        let encoded = style.to_string();
+        assert_eq!(encoded, "fg=#112233 bg=#445566 modifier=BOLD|UNDERLINED");
+        assert_eq!(encoded.parse::<Style>().unwrap(), style);
+    }
 
     #[test]
     fn style_macro() {

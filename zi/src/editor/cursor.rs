@@ -37,8 +37,8 @@ impl Editor {
     ) {
         let view_id = selector.select(self);
         let (view, buf) = self.db.view_and_buffer_mut(view_id);
-        let area = self.tree.view_area(view.id());
-        view.set_cursor_linewise(mode!(self), area, buf, pos.into(), flags);
+        let size = self.tree.view_size(view.id());
+        view.set_cursor_linewise(mode!(self), size, buf, pos.into(), flags);
     }
 
     #[inline]
@@ -71,7 +71,7 @@ impl Editor {
     pub fn set_cursor_bytewise(&mut self, selector: impl Selector<ViewId>, byte: usize) {
         let view_id = selector.select(self);
         let (view, buf) = self.db.view_and_buffer_mut(view_id);
-        let area = self.tree.view_area(view.id());
-        view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty());
+        let size = self.tree.view_size(view.id());
+        view.set_cursor_bytewise(mode!(self), size, buf, byte, SetCursorFlags::empty());
     }
 }

@@ -9,7 +9,6 @@ use std::str::FromStr;
 use std::{fmt, ops};
 
 use stdx::merge::Merge;
-use tui::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -34,13 +33,6 @@ impl From<(u16, u16)> for Size {
     #[inline]
     fn from((width, height): (u16, u16)) -> Self {
         Self::new(width, height)
-    }
-}
-
-impl From<Rect> for Size {
-    #[inline]
-    fn from(rect: Rect) -> Self {
-        Self::new(rect.width, rect.height)
     }
 }
 
@@ -69,7 +61,7 @@ impl PartialEq<(usize, usize)> for Offset {
     }
 }
 
-/// A point range encoded in utf-8. Use [`EncodedPointRange`] to specify a non-utf8 encoding.
+/// A half-open range of points whose columns are UTF-8 byte offsets.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct PointRange {
     // TODO these should maybe each be Bound<Point> to be more flexible
@@ -357,16 +349,6 @@ impl Direction {
     #[inline]
     pub fn is_horizontal(&self) -> bool {
         matches!(self, Self::Left | Self::Right)
-    }
-}
-
-impl From<Direction> for tui::Direction {
-    #[inline]
-    fn from(value: Direction) -> Self {
-        match value {
-            Direction::Left | Direction::Right => tui::Direction::Horizontal,
-            Direction::Up | Direction::Down => tui::Direction::Vertical,
-        }
     }
 }
 

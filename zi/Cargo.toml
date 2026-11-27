@@ -37,7 +37,6 @@ stdx = { workspace = true }
 zi-core = { workspace = true, features = ["tree-sitter"] }
 zi-event = { workspace = true }
 zi-marktree = { workspace = true }
-zi-indent = { workspace = true }
 zi-text = { workspace = true }
 zi-textobject = { workspace = true }
 zi-input = { workspace = true }

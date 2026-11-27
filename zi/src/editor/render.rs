@@ -4,7 +4,8 @@ use std::fmt;
 use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{Rect, StatefulWidget, Widget as _};
-use zi_core::style::Style;
+use zi_core::Size;
+use zi_core::style::{Color, Modifier, Style};
 use zi_core::{IteratorRangeExt, PointRange};
 use zi_text::{AnyText, AnyTextSlice, PointRangeExt, Text, TextSlice};
 
@@ -130,7 +131,7 @@ impl Editor {
             .style(&theme)
             .unwrap_or_else(|| theme.default_style());
 
-        surface.set_style(area, background);
+        surface.set_style(area, terminal_style(background));
         let number_width = self.render_view_content(area, surface, view);
         self[view].number_width.set(number_width as u16);
 
@@ -220,7 +221,7 @@ impl Editor {
             .flatten();
 
         let overlay_highlights = buf
-            .overlay_highlights(self, view, area.into())
+            .overlay_highlights(self, view, Size::new(area.width, area.height))
             .skip_while(|hl| hl.range.end().line() < line_offset)
             .filter_map(|hl| Some((hl.range, hl.id.style(&theme)?)));
 
@@ -262,7 +263,7 @@ impl Editor {
                     let default_style = theme.default_style();
                     // The merge is still necessary to fill in the missing fields in the style.
                     let style = default_style.merge(style.unwrap_or(default_style));
-                    (line, text, style.into())
+                    (line, text, terminal_style(style))
                 },
             ),
         );
@@ -306,4 +307,28 @@ impl Editor {
             .unwrap_or_else(|| theme.default_style());
         selection.point_ranges(text).into_iter().map(|range| (range, style)).collect()
     }
+}
+
+fn terminal_style(style: Style) -> tui::Style {
+    let color = |Color::Rgb(r, g, b)| tui::Color::Rgb(r, g, b);
+    let modifiers = [
+        (Modifier::BOLD, tui::Modifier::BOLD),
+        (Modifier::DIM, tui::Modifier::DIM),
+        (Modifier::ITALIC, tui::Modifier::ITALIC),
+        (Modifier::UNDERLINED, tui::Modifier::UNDERLINED),
+        (Modifier::SLOW_BLINK, tui::Modifier::SLOW_BLINK),
+        (Modifier::RAPID_BLINK, tui::Modifier::RAPID_BLINK),
+        (Modifier::REVERSED, tui::Modifier::REVERSED),
+        (Modifier::HIDDEN, tui::Modifier::HIDDEN),
+        (Modifier::CROSSED_OUT, tui::Modifier::CROSSED_OUT),
+    ];
+
+    let mut result =
+        tui::Style { fg: style.fg.map(color), bg: style.bg.map(color), ..tui::Style::default() };
+    for (flag, modifier) in modifiers {
+        if style.modifier.contains(flag) {
+            result = result.add_modifier(modifier);
+        }
+    }
+    result
 }

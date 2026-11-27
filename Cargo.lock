@@ -5722,7 +5722,6 @@ dependencies = [
  "ustr",
  "zi-core",
  "zi-event",
- "zi-indent",
  "zi-input",
  "zi-marktree",
  "zi-text",
@@ -5736,11 +5735,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "bitflags 2.13.2",
  "expect-test",
  "rel",
  "stdx",
  "tree-sitter",
- "zi-tui",
 ]
 
 [[package]]
@@ -5758,13 +5757,6 @@ dependencies = [
  "zi",
  "zi-input",
  "zi-tui",
-]
-
-[[package]]
-name = "zi-indent"
-version = "0.1.0"
-dependencies = [
- "zi-text",
 ]
 
 [[package]]

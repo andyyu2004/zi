@@ -42,7 +42,6 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{Notify, oneshot};
 use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
-use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
 use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, Text, TextSlice};
 use zi_textobject::motion::{self, Motion, MotionFlags};
@@ -1222,7 +1221,7 @@ impl Editor {
 
                 view.set_cursor_bytewise(
                     mode!(self),
-                    self.tree.view_area(view.id()),
+                    self.tree.view_size(view.id()),
                     buf,
                     start_byte_idx,
                     SetCursorFlags::empty(),
@@ -1250,10 +1249,10 @@ impl Editor {
         self.edit(view_id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)))?;
 
         let (view, buf) = self.db.view_and_buffer_mut(self.tree.active());
-        let area = self.tree.view_area(view_id);
+        let size = self.tree.view_size(view_id);
         match c {
             '\n' => {
-                let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
+                let cursor = view.move_cursor(mode!(self), size, buf, Direction::Down, 1);
                 self.indent_newline(view_id)?;
                 cursor
             }
@@ -1332,16 +1331,25 @@ impl Editor {
             return Ok(());
         }
 
-        let tab_width = *self[buf].settings().tab_width.read();
-        match zi_indent::indent(zi_indent::Config { tab_width }, text, cursor.line()) {
-            Indent::Bytes(bytes) => {
-                let start_byte = text.line_to_byte(cursor.line());
-                let deltas = Deltas::insert_at(start_byte, " ".repeat(bytes));
-                self.edit(buf, &deltas)?;
-                self.set_cursor(view, cursor.right_bytes(bytes));
-                Ok(())
+        let Some(previous) = cursor.line().checked_sub(1).and_then(|line| text.line(line)) else {
+            return Ok(());
+        };
+        let mut indent = previous.byte_slice(..previous.indent()).to_string();
+        let opens_block = previous.chars().next_back() == Some('{');
+        drop(previous);
+        if opens_block {
+            match *self[buf].settings().indent.read() {
+                IndentSettings::Spaces(n) => indent.extend(std::iter::repeat_n(' ', n as usize)),
+                IndentSettings::Tabs => indent.push('\t'),
             }
         }
+        if !indent.is_empty() {
+            let bytes = indent.len();
+            let start_byte = text.line_to_byte(cursor.line());
+            self.edit(buf, &Deltas::insert_at(start_byte, indent))?;
+            self.set_cursor(view, cursor.right_bytes(bytes));
+        }
+        Ok(())
     }
 
     fn get(&self, selector: impl Selector<ViewId>) -> (ViewId, BufferId) {
@@ -1537,10 +1545,10 @@ impl Editor {
                 buf.snapshot_cursor(start_point);
                 buf.snapshot(SnapshotFlags::empty());
             }
-            let area = self.tree.view_area(view.id());
+            let size = self.tree.view_size(view.id());
             view.set_cursor_bytewise(
                 target_mode,
-                area,
+                size,
                 buf,
                 buf.text().point_to_byte(start_point),
                 SetCursorFlags::empty(),
@@ -1549,10 +1557,10 @@ impl Editor {
         } else {
             let start_point = sel.start_point();
             let (view, buf) = self.db.view_and_buffer_mut(view);
-            let area = self.tree.view_area(view.id());
+            let size = self.tree.view_size(view.id());
             view.set_cursor_bytewise(
                 Mode::Normal,
-                area,
+                size,
                 buf,
                 buf.text().point_to_byte(start_point),
                 SetCursorFlags::empty(),
@@ -1715,13 +1723,13 @@ impl Editor {
             };
 
             let (view, buf) = self.db.view_and_buffer_mut(view);
-            let area = self.tree.view_area(view.id());
+            let size = self.tree.view_size(view.id());
             match new_cursor {
                 PointOrByte::Point(point) => {
-                    view.set_cursor_linewise(mode!(self), area, buf, point, flags)
+                    view.set_cursor_linewise(mode!(self), size, buf, point, flags)
                 }
                 PointOrByte::Byte(byte) => {
-                    view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
+                    view.set_cursor_bytewise(mode!(self), size, buf, byte, SetCursorFlags::empty())
                 }
             };
         }
@@ -1757,7 +1765,7 @@ impl Editor {
                 self.search_state.hlsearch = false;
 
                 let text = buf.text();
-                let area = self.tree.view_area(view.id());
+                let size = self.tree.view_size(view.id());
                 let motion_flags = motion.motion_flags();
 
                 let mut flags = SetCursorFlags::empty();
@@ -1771,10 +1779,10 @@ impl Editor {
 
                 let point = match motion.motion(text, view.cursor().into()) {
                     PointOrByte::Point(point) => {
-                        view.set_cursor_linewise(mode!(self), area, buf, point, flags)
+                        view.set_cursor_linewise(mode!(self), size, buf, point, flags)
                     }
                     PointOrByte::Byte(byte) => {
-                        view.set_cursor_bytewise(mode!(self), area, buf, byte, flags)
+                        view.set_cursor_bytewise(mode!(self), size, buf, byte, flags)
                     }
                 };
                 Ok(point)
@@ -1828,14 +1836,14 @@ impl Editor {
         };
 
         for view in self.views_into_buf(buf) {
-            let area = self.tree.view_area(view);
+            let size = self.tree.view_size(view);
             let (view, buf) = self.db.view_and_buffer_mut(view);
             match cursor {
                 PointOrByte::Point(point) => {
-                    view.set_cursor_linewise(mode!(self), area, buf, point, SetCursorFlags::empty())
+                    view.set_cursor_linewise(mode!(self), size, buf, point, SetCursorFlags::empty())
                 }
                 PointOrByte::Byte(byte) => {
-                    view.set_cursor_bytewise(mode!(self), area, buf, byte, SetCursorFlags::empty())
+                    view.set_cursor_bytewise(mode!(self), size, buf, byte, SetCursorFlags::empty())
                 }
             };
         }
@@ -1954,8 +1962,8 @@ impl Editor {
     pub fn scroll_by(&mut self, selector: impl Selector<ViewId>, direction: Direction, amt: usize) {
         let view = selector.select(self);
         let (view, buf) = self.db.view_and_buffer_mut(view);
-        let area = self.tree.view_area(view.id());
-        view.scroll(mode!(self), area, buf, direction, amt);
+        let size = self.tree.view_size(view.id());
+        view.scroll(mode!(self), size, buf, direction, amt);
     }
 
     /// Scroll by the view's `scroll` setting, as vim's `<C-d>` and `<C-u>` do.
@@ -2049,8 +2057,8 @@ impl Editor {
 
     pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {
         let view = selector.select(self);
-        let area = self.tree.view_area(view);
-        self.db.view_mut(view).align(area, alignment);
+        let size = self.tree.view_size(view);
+        self.db.view_mut(view).align(size, alignment);
     }
 
     pub fn jump_to(&mut self, loc: impl Into<Location>) {

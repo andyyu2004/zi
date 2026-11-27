@@ -1,8 +1,8 @@
-use zi_core::{BufferId, Mode, ViewId};
+use zi_core::{BufferId, ViewId};
 use zi_text::{AnyText, Deltas};
 
 use super::{AsyncEvent, Event};
-use crate::LanguageServiceId;
+use crate::{LanguageServiceId, Mode};
 
 #[derive(Debug, Clone)]
 pub struct DidChangeBuffer {

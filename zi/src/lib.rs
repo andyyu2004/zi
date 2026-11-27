@@ -13,6 +13,7 @@ mod language;
 mod language_service;
 mod layout;
 mod location;
+mod mode;
 mod namespace;
 mod operator;
 pub mod plugin;
@@ -22,13 +23,14 @@ mod undo;
 pub mod view;
 
 pub use location::Location;
+pub use mode::{Mode, Operator};
 pub use tokio::sync::Notify;
 pub use tree_sitter;
 pub use tui::{Constraint, LineNumberStyle};
 pub use url::Url;
 pub use zi_core::{
-    BufferId, ByteCol, CompletionItem, Direction, DisplayCol, Line, Mode, NamespaceId, Offset,
-    Operator, Point, PointRange, Size, ViewGroupId, ViewId,
+    BufferId, ByteCol, CompletionItem, Direction, DisplayCol, Line, NamespaceId, Offset, Point,
+    PointRange, Size, ViewGroupId, ViewId,
 };
 pub use zi_text::{
     AnyText, AnyTextMut, AnyTextSlice, Delta, Deltas, Rope, RopeBuilder, Text, TextBase, TextMut,

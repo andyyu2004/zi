@@ -208,3 +208,15 @@ async fn delete_last_line() {
     .await;
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn newline_keeps_tabs_in_indentation() {
+    let cx = new("\tfn f() {").await;
+    cx.with(|editor| {
+        editor.input("A<CR>").unwrap();
+        assert_eq!(editor.cursor_line(), "\t    ");
+        assert_eq!(editor.cursor(zi::Active), (1, 5));
+    })
+    .await;
+    cx.cleanup().await;
+}
