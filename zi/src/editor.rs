@@ -1498,7 +1498,7 @@ impl Editor {
         let (view, _) = self.db.view_and_buffer(self.tree.active());
         let cursor = view.cursor();
         let col = cursor.col();
-        self.cursor_line().chars().nth(col)
+        self.cursor_line().get(col..)?.chars().next()
     }
 
     pub fn theme(&self) -> Setting<Theme> {

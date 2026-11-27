@@ -192,8 +192,8 @@ impl View {
         let line_idx = self.cursor.point.line();
         let text = buf.text();
         let line = text.line(line_idx).unwrap_or_else(|| Box::new(""));
-        let byte =
-            line.chars().take(self.cursor.point.col()).map(|c| buf.char_width(c)).sum::<usize>();
+        let col = self.cursor.point.col().min(line.len_bytes());
+        let byte = line.byte_slice(..col).chars().map(|c| buf.char_width(c)).sum::<usize>();
         // TODO need tests for the column adjustment
         let x = byte - self.offset.col;
         let y = line_idx - self.offset.line;
@@ -209,16 +209,21 @@ impl View {
         direction: Direction,
         amt: usize,
     ) -> Point {
+        let point = self.cursor.point;
         let pos = match direction {
-            Direction::Left => match buf.text().char_before_point(self.cursor.point) {
-                // this is wrong, can't assume all characters are the same width
-                Some(c) => self.cursor.point.left(c.len_utf8() * amt),
-                None => return self.cursor.point,
-            },
-            Direction::Right => match buf.text().char_at_point(self.cursor.point) {
-                Some(c) => self.cursor.point.right(c.len_utf8() * amt),
-                None => return self.cursor.point,
-            },
+            Direction::Left => {
+                let Some(line) = buf.text().line(point.line()) else { return point };
+                let col = point.col().min(line.len_bytes());
+                let n: usize =
+                    line.byte_slice(..col).chars().rev().take(amt).map(char::len_utf8).sum();
+                point.with_col(col - n)
+            }
+            Direction::Right => {
+                let Some(line) = buf.text().line(point.line()) else { return point };
+                let col = point.col().min(line.len_bytes());
+                let n: usize = line.byte_slice(col..).chars().take(amt).map(char::len_utf8).sum();
+                point.with_col(col + n)
+            }
             // Horizontal movements set the target column.
             // Vertical movements try to keep moving to the target column.
             Direction::Up => self.cursor.point.up(amt),
@@ -366,6 +371,8 @@ impl View {
             // We move the cursor to the line to the rightmost character.
             _ => pos.with_col(max_col),
         };
+
+        let new_cursor = new_cursor.with_col(line.floor_char_boundary(new_cursor.col()));
 
         if self.cursor.target_col != pos.col() && self.cursor.point != new_cursor
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
