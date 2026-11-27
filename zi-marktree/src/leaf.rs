@@ -274,7 +274,10 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 
     #[inline]
     fn remove_up_to(&mut self, summary: &mut Self::Summary, up_to: ByteMetric) {
-        assert!(self.replace(summary, ..up_to, Replacement::Gap(0)).is_none(), "how to handle");
+        let extra = self.replace(summary, ..up_to, Replacement::Gap(0));
+        // Replacing a prefix with an empty gap moves its keys to offset 0. `shift` then pushes at
+        // most one extent for each extent the leaf had, so the leaf can't overflow.
+        assert!(extra.is_none(), "removing a prefix can't add extents");
     }
 }
 
