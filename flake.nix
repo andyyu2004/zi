@@ -312,7 +312,7 @@
         # The TypeScript plugin toolchain (jco, componentize-js, tsc) zi-plugin's template pins.
         pluginTsNodeModules =
           let
-            dir = ./zi-plugin/template;
+            dir = ./zi-plugin/template/common;
           in
           pkgs.buildNpmPackage {
             pname = "zi-plugin-ts-toolchain";

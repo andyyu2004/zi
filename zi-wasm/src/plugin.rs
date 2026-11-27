@@ -717,7 +717,9 @@ mod test {
     use zi::Editor;
 
     use super::*;
-    use crate::test_util::{build_plugin, build_ts_plugin};
+    use zi_plugin::Language;
+
+    use crate::test_util::{build_fixture_plugin, build_plugin};
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
 
     async fn load(
@@ -837,9 +839,7 @@ mod test {
             .await
     }
 
-    #[tokio::test]
-    #[cfg_attr(test, mutants::skip)]
-    async fn typescript_plugin() -> anyhow::Result<()> {
+    async fn check_fixture_plugin(lang: Language, name: &str) -> anyhow::Result<()> {
         let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
         let client = editor.client();
         let engine = engine();
@@ -850,53 +850,68 @@ mod test {
 
         local
             .run_until(async move {
-                let component = Component::new(engine, build_ts_plugin()?)?;
+                let component = Component::new(engine, build_fixture_plugin(lang)?)?;
                 let plugin =
                     Plugin::instantiate_async(&mut store, &component, &linker(engine)?).await?;
-                assert_eq!(plugin.zi_api_dependency().call_get_name(&mut store).await?, "test-ts");
+                assert_eq!(plugin.zi_api_dependency().call_get_name(&mut store).await?, name);
 
-                use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
+                use crate::wit::exports::zi::api::command::{
+                    Arity, Command, CommandError, CommandFlags,
+                };
                 let init = plugin.zi_api_lifecycle().call_initialize(&mut store).await?;
                 assert_eq!(
                     init,
                     InitializeResult {
                         commands: vec![Command {
-                            name: "ts-insert".into(),
+                            name: "insert-mode".into(),
                             arity: Arity { min: 0, max: 0 },
                             opts: CommandFlags::empty(),
                         }]
                     }
                 );
 
-                let typescript = client
+                let servers = client
                     .with(|editor| {
                         let config = editor.language_config();
-                        assert!(config.has_language_service(LanguageServiceId::new("test-ts-ls")));
+                        assert!(config.has_language_service(LanguageServiceId::new("test-ls")));
                         config.languages[&FileType::from_name("typescript")]
                             .language_services
                             .to_vec()
                     })
                     .await;
-                assert_eq!(typescript, [LanguageServiceId::new("test-ts-ls")]);
+                assert_eq!(servers, [LanguageServiceId::new("test-ls")]);
 
                 let handler = plugin.zi_api_command().handler();
                 let resource = handler.call_constructor(&mut store).await?;
                 handler
-                    .call_exec(&mut store, resource, "ts-insert", &[], false)
+                    .call_exec(&mut store, resource, "insert-mode", &[], false)
                     .await?
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
                 assert_eq!(client.with(|editor| editor.mode()).await, zi::Mode::Insert);
 
                 let err = handler.call_exec(&mut store, resource, "nope", &[], false).await?;
-                assert_eq!(
-                    err,
-                    Err(crate::wit::exports::zi::api::command::CommandError::Message(
-                        "unexpected command: `nope`".into()
-                    ))
-                );
+                assert_eq!(err, Err(CommandError::Message("unexpected command: `nope`".into())));
                 resource.resource_drop_async(&mut store).await?;
                 Ok::<_, anyhow::Error>(())
             })
             .await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn typescript_plugin() -> anyhow::Result<()> {
+        check_fixture_plugin(Language::TypeScript, "test-ts").await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn javascript_plugin() -> anyhow::Result<()> {
+        check_fixture_plugin(Language::JavaScript, "test-js").await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn rust_plugin() -> anyhow::Result<()> {
+        check_fixture_plugin(Language::Rust, "test-rs").await
     }
 }

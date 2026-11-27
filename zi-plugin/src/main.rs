@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
-use zi_plugin::PluginName;
+use zi_plugin::{Language, PluginName};
 
 #[derive(Parser)]
-#[command(about = "Create, build and install zi plugins written in TypeScript")]
+#[command(about = "Create, build and install zi plugins written in TypeScript, JavaScript or Rust")]
 struct Opts {
     #[command(subcommand)]
     command: Cmd,
@@ -14,19 +14,21 @@ struct Opts {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Create a plugin project, install its toolchain and generate its types.
+    /// Create a plugin project, install its npm toolchain (TypeScript, JavaScript) and generate its bindings.
     New {
         dir: PathBuf,
         /// Defaults to the directory's name.
         #[arg(long)]
         name: Option<PluginName>,
+        #[arg(long, value_enum, default_value_t = Language::TypeScript)]
+        lang: Language,
     },
-    /// Regenerate the TypeScript declarations for zi's API into `types/`.
+    /// Regenerate zi's API bindings: `types/` (TypeScript, JavaScript) or `wit/` (Rust).
     Types {
         #[arg(default_value = ".")]
         dir: PathBuf,
     },
-    /// Type-check and build the plugin into `dist/<name>.wasm`.
+    /// Build the plugin into `dist/<name>.wasm`.
     Build {
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -47,7 +49,7 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     match Opts::parse().command {
-        Cmd::New { dir, name } => {
+        Cmd::New { dir, name, lang } => {
             let name = match name {
                 Some(name) => name,
                 None => dir
@@ -56,8 +58,8 @@ fn main() -> anyhow::Result<()> {
                     .context("can't take a plugin name from the directory, pass --name")?
                     .parse()?,
             };
-            zi_plugin::scaffold(&dir, &name)?;
-            zi_plugin::npm_install(&dir)?;
+            zi_plugin::scaffold(&dir, &name, lang)?;
+            zi_plugin::install_toolchain(&dir)?;
             zi_plugin::types(&dir)?;
             tracing::info!(%name, dir = %dir.display(), "created plugin");
         }

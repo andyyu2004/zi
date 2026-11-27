@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::Context as _;
+use zi_plugin::Language;
 
 fn plugin_target_dir() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_exe()?
@@ -44,19 +45,25 @@ pub fn build_plugin(name: &str) -> anyhow::Result<Vec<u8>> {
     wit_component::ComponentEncoder::default().module(&module)?.validate(true).encode()
 }
 
-pub fn build_ts_plugin() -> anyhow::Result<Vec<u8>> {
-    let node_modules = std::env::var_os("ZI_PLUGIN_TS_NODE_MODULES")
-        .map(PathBuf::from)
-        .context("ZI_PLUGIN_TS_NODE_MODULES is not set (the nix shells set it)")?;
-    let project = plugin_target_dir()?.join("test-ts");
+pub fn build_fixture_plugin(lang: Language) -> anyhow::Result<Vec<u8>> {
+    let (name, fixture, source) = match lang {
+        Language::TypeScript => ("test-ts", "plugin-ts/plugin.ts", "src/plugin.ts"),
+        Language::JavaScript => ("test-js", "plugin-js/plugin.js", "src/plugin.js"),
+        Language::Rust => ("test-rs", "plugin-rs/lib.rs", "src/lib.rs"),
+    };
+    let project = plugin_target_dir()?.join(name);
     if project.exists() {
         std::fs::remove_dir_all(&project)?;
     }
-    zi_plugin::scaffold(&project, &"test-ts".parse()?)?;
-    std::fs::copy(
-        manifest_dir().join("fixtures/plugin-ts/plugin.ts"),
-        project.join("src/plugin.ts"),
-    )?;
-    std::os::unix::fs::symlink(node_modules, project.join("node_modules"))?;
+    zi_plugin::scaffold(&project, &name.parse()?, lang)?;
+    std::fs::copy(manifest_dir().join("fixtures").join(fixture), project.join(source))?;
+    match lang {
+        Language::TypeScript | Language::JavaScript => {
+            let node_modules = std::env::var_os("ZI_PLUGIN_TS_NODE_MODULES")
+                .context("ZI_PLUGIN_TS_NODE_MODULES is not set (the nix shells set it)")?;
+            std::os::unix::fs::symlink(node_modules, project.join("node_modules"))?;
+        }
+        Language::Rust => {}
+    }
     Ok(std::fs::read(zi_plugin::build(&project)?)?)
 }
