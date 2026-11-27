@@ -43,7 +43,7 @@ impl Selection {
             }
             Self::Block { lines } => lines
                 .iter()
-                .map(|range| text.byte_slice(text.point_range_to_byte_range(*range)).to_cow())
+                .map(|range| text.point_slice(*range).to_cow())
                 .collect::<Vec<_>>()
                 .join("\n"),
         }

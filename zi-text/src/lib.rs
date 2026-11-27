@@ -522,6 +522,11 @@ pub trait Text: TextBase {
 
     fn line_slice(&self, line_range: impl RangeBounds<usize>) -> Self::Slice<'_>;
 
+    #[inline]
+    fn point_slice(&self, range: PointRange) -> Self::Slice<'_> {
+        self.byte_slice(self.point_range_to_byte_range(range))
+    }
+
     fn chars(&self) -> impl DoubleEndedIterator<Item = char>;
 
     /// Returns an iterator over the lines of the text.
