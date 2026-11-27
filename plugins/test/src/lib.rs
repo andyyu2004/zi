@@ -46,6 +46,7 @@ impl lifecycle::Guest for Component {
         test_buffer_apis();
         test_view_scroll_align_focus();
         test_mode();
+        test_languages();
 
         InitializeResult {
             commands: vec![
@@ -138,6 +139,19 @@ fn test_mode() {
     assert_eq!(get_mode(), Mode::Insert);
     set_mode(Mode::Normal);
     assert_eq!(get_mode(), Mode::Normal);
+}
+
+fn test_languages() {
+    assert_eq!(
+        add_language("rust", &["test-ls"]),
+        Err("language server `test-ls` for language `rust` is not defined".into())
+    );
+    add_language_server("test-ls", LanguageServer { command: "test-ls", args: &["--stdio"] });
+    assert_eq!(
+        add_language("rust", &["test-ls", "test-ls"]),
+        Err("language server `test-ls` is listed more than once for language `rust`".into())
+    );
+    add_language("rust", &["test-ls"]).unwrap();
 }
 
 impl dependency::Guest for Component {

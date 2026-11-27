@@ -11,14 +11,13 @@ struct Dirs {
 
 fn dirs() -> &'static Dirs {
     DIRS.get_or_init(|| {
-        let dirs = directories_next::BaseDirs::new().expect("couldn't retrieve home directory");
-        let data = dirs.data_dir().join("zi");
+        let data = xdg_dir("XDG_DATA_HOME", Path::new(".local/share")).join("zi");
 
         let grammar_dir = match std::env::var_os("ZI_GRAMMAR_DIR") {
             Some(dir) if !dir.is_empty() => PathBuf::from(dir),
             _ => data.join("grammars"),
         };
-        let config_dir = dirs.config_dir().join("zi");
+        let config_dir = xdg_dir("XDG_CONFIG_HOME", Path::new(".config")).join("zi");
 
         if !grammar_dir.exists() {
             std::fs::create_dir_all(&grammar_dir).expect("couldn't create grammar directory");
@@ -49,6 +48,17 @@ fn dirs() -> &'static Dirs {
     })
 }
 
+fn xdg_dir(var: &str, default: &Path) -> PathBuf {
+    xdg_dir_from(std::env::var_os(var).map(PathBuf::from), std::env::home_dir(), default)
+}
+
+fn xdg_dir_from(var: Option<PathBuf>, home: Option<PathBuf>, default: &Path) -> PathBuf {
+    match var {
+        Some(dir) if dir.is_absolute() => dir,
+        _ => home.expect("couldn't find the home directory").join(default),
+    }
+}
+
 pub fn grammar() -> &'static Path {
     &dirs().grammar_dir
 }
@@ -59,4 +69,30 @@ pub fn plugin() -> impl Iterator<Item = &'static Path> {
 
 pub fn config() -> &'static Path {
     &dirs().config_dir
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn xdg_dirs() {
+        let home = Some(PathBuf::from("/home/u"));
+        assert_eq!(
+            xdg_dir_from(Some("/xdg/data".into()), home.clone(), Path::new(".local/share")),
+            Path::new("/xdg/data")
+        );
+        assert_eq!(
+            xdg_dir_from(None, home.clone(), Path::new(".local/share")),
+            Path::new("/home/u/.local/share")
+        );
+        assert_eq!(
+            xdg_dir_from(Some("relative".into()), home.clone(), Path::new(".config")),
+            Path::new("/home/u/.config")
+        );
+        assert_eq!(
+            xdg_dir_from(Some("".into()), home, Path::new(".config")),
+            Path::new("/home/u/.config")
+        );
+    }
 }

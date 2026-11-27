@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::config::Setting;
 use crate::syntax::Theme;
 
@@ -8,6 +10,7 @@ pub struct Settings {
     pub diagnostics_picker_split_ratio: Setting<(u16, u16)>,
     pub global_search_split_ratio: Setting<(u16, u16)>,
     pub theme: Setting<Theme>,
+    pub plugin_init_timeout: Setting<Duration>,
 }
 
 impl Default for Settings {
@@ -18,6 +21,7 @@ impl Default for Settings {
             diagnostics_picker_split_ratio: Setting::new((2, 1)),
             global_search_split_ratio: Setting::new((1, 2)),
             theme: Setting::new(Theme::default()),
+            plugin_init_timeout: Setting::new(Duration::from_millis(20)),
         }
     }
 }

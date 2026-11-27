@@ -10,3 +10,8 @@ mutants.out
 mutants.out.old
 rustc-ice-*
 tree-sitter-*
+node_modules/
+/zi-plugin/template/*/dist/
+/zi-plugin/template/*/types/
+/zi-plugin/template/*/wit/
+/zi-plugin/template/*/target/

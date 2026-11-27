@@ -3,6 +3,7 @@ use std::fmt;
 use std::future::Future;
 use std::ops::{Bound, Deref, RangeBounds, RangeInclusive};
 use std::str::FromStr;
+use std::time::Duration;
 
 use chumsky::Parser;
 use chumsky::primitive::end;
@@ -489,6 +490,9 @@ pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> 
         "tabstop" | "ts" | "tabwidth" => buf.tab_width.write(value.parse()?),
         "numberwidth" | "nuw" => view.line_number_width.write(value.parse()?),
         "numberstyle" | "nus" => view.line_number_style.write(value.parse()?),
+        "plugininittimeout" | "pit" => {
+            editor.settings().plugin_init_timeout.write(Duration::from_millis(value.parse()?));
+        }
         _ => anyhow::bail!("unknown parameter: `{key}`"),
     }
     Ok(())

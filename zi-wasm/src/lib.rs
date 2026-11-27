@@ -2,12 +2,15 @@ use std::io;
 
 mod plugin;
 mod syntax;
+#[cfg(test)]
+mod test_util;
 mod wit_conversion_impls;
 
 pub use self::plugin::PluginManager;
 
 mod wit {
     wasmtime::component::bindgen!({
+        world: "plugin",
         ownership: Borrowing {
             duplicate_if_necessary: true
         },

@@ -1,4 +1,5 @@
 pub mod completion;
+pub mod dirs;
 mod position;
 pub mod style;
 

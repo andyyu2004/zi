@@ -25,12 +25,9 @@ install-grammars:
     fi; \
     grammar_dir="${ZI_GRAMMAR_DIR:-}"; \
     if [ -z "$grammar_dir" ] || [ "$grammar_dir" = "${ZI_NIX_GRAMMAR_DIR:-}" ]; then \
-        case "$(uname -s)" in \
-            Darwin) grammar_dir="$HOME/Library/Application Support/zi/grammars" ;; \
-            *) case "${XDG_DATA_HOME:-}" in \
-                /*) grammar_dir="$XDG_DATA_HOME/zi/grammars" ;; \
-                *) grammar_dir="$HOME/.local/share/zi/grammars" ;; \
-            esac ;; \
+        case "${XDG_DATA_HOME:-}" in \
+            /*) grammar_dir="$XDG_DATA_HOME/zi/grammars" ;; \
+            *) grammar_dir="$HOME/.local/share/zi/grammars" ;; \
         esac; \
     fi; \
     for source_dir in "{{grammar-output}}"/*/; do \
@@ -43,6 +40,11 @@ install-grammars:
 test *FLAGS:
     cargo nextest run --workspace --exclude 'plugin-*' {{FLAGS}}
     cargo test --workspace --exclude 'plugin-*' --doc
+
+# Release-build `zi` and `zi-plugin` and install them into cargo's bin dir, e.g. `just install --root ~/.local`.
+install *FLAGS:
+    cargo install --locked --path zi-term {{FLAGS}}
+    cargo install --locked --path zi-plugin {{FLAGS}}
 
 # Test coverage, e.g. `just coverage -p zi-text --html --open`. Needs the dev shell.
 coverage +FLAGS="--workspace --exclude plugin-*":
