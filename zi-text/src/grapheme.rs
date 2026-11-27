@@ -44,6 +44,10 @@ impl Grapheme {
     }
 }
 
+pub fn grapheme_indices(line: &str) -> impl DoubleEndedIterator<Item = (usize, Grapheme)> + '_ {
+    line.grapheme_indices(true).map(|(start, grapheme)| (start, Grapheme::new(grapheme)))
+}
+
 pub fn graphemes_from<T: Text + ?Sized>(
     text: &T,
     byte: usize,

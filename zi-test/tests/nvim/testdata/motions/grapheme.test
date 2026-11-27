@@ -42,3 +42,23 @@ vld
 aéx
 ----
 lli<BS><ESC>
+
+==== e and ge over a word ending in a combining mark
+café bar
+----
+eegege
+
+==== e with a combining mark mid-word
+aéb c
+----
+ee
+
+==== E and gE over a combining mark
+aé. bé
+----
+EEgE
+
+==== de over a word ending in a combining mark
+café bar
+----
+de
