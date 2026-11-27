@@ -902,12 +902,9 @@ impl Editor {
             Mode::VisualLine => {
                 Some(visual::Selection::Line { start_line: start.line(), end_line: end.line() })
             }
-            Mode::VisualBlock => Some(visual::Selection::Block {
-                start_line: start.line(),
-                end_line: end.line(),
-                start_col: start.byte_col().min(end.byte_col()),
-                end_col: start.byte_col().max(end.byte_col()),
-            }),
+            Mode::VisualBlock => {
+                Some(visual::Selection::block(&self[self.view(view).buffer()], anchor, cursor))
+            }
             Mode::Normal
             | Mode::Insert
             | Mode::Command

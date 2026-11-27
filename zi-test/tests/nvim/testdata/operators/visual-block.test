@@ -1,0 +1,43 @@
+==== block delete
+abcd
+efgh
+ijkl
+----
+l<C-v>jjld
+
+==== block delete over a two-byte char
+aébc
+xyzw
+----
+l<C-v>jld
+
+==== block delete under a two-byte char
+xyzw
+aébc
+----
+l<C-v>jld
+
+==== block delete with a wide char at the cursor
+xyzw
+a日b
+----
+l<C-v>jd
+
+==== block delete with a wide char at the anchor
+a日b
+xyzw
+----
+l<C-v>jd
+
+==== block delete past the end of a short line
+abcd
+ab
+abcd
+----
+ll<C-v>jjd
+
+==== block delete over a combining mark
+aébc
+xyzw
+----
+l<C-v>jld

@@ -318,16 +318,12 @@ impl View {
             (pos, buf.line_display_col(&line, pos.byte_col()))
         };
 
-        // Non-insert modes not allowed to move past the end of the line.
+        // Insert and visual modes may put the cursor one past the end of the line, as nvim does.
         let k = match mode {
-            Mode::Insert => 0,
-            Mode::Normal
-            | Mode::Command
-            | Mode::Visual
-            | Mode::VisualLine
-            | Mode::VisualBlock
-            | Mode::OperatorPending(..)
-            | Mode::ReplacePending => line_len - prev_grapheme_boundary(&line, line_len, 1),
+            Mode::Insert | Mode::Visual | Mode::VisualLine | Mode::VisualBlock => 0,
+            Mode::Normal | Mode::Command | Mode::OperatorPending(..) | Mode::ReplacePending => {
+                line_len - prev_grapheme_boundary(&line, line_len, 1)
+            }
         };
 
         let max_col = ByteCol::from(line_len.saturating_sub(k));
