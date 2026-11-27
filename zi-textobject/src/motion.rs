@@ -1,5 +1,5 @@
 use zi_core::PointOrByte;
-use zi_text::{AnyText, Text, TextSlice, grapheme};
+use zi_text::{AnyText, Text, TextSlice};
 
 pub use super::*;
 
@@ -133,13 +133,12 @@ impl Motion for Prev {
 impl Motion for NextChar {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        let point = text.point_or_byte_to_point(p);
-        let Some(line) = text.line(point.line()) else {
-            return text.point_or_byte_to_byte(p).into();
-        };
-        let col = grapheme::next_grapheme_boundary(&line.to_cow(), point.byte_col(), 1);
-        let line_start = text.point_to_byte(point.with_byte_col(0));
-        (line_start + col).into()
+        let byte = text.point_or_byte_to_byte(p);
+        match graphemes_from(text, byte).next() {
+            Some(Grapheme { first, len }) if first != '\n' => byte + len,
+            _ => byte,
+        }
+        .into()
     }
 
     #[inline]
@@ -151,13 +150,12 @@ impl Motion for NextChar {
 impl Motion for PrevChar {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        let point = text.point_or_byte_to_point(p);
-        let Some(line) = text.line(point.line()) else {
-            return text.point_or_byte_to_byte(p).into();
-        };
-        let col = grapheme::prev_grapheme_boundary(&line.to_cow(), point.byte_col(), 1);
-        let line_start = text.point_to_byte(point.with_byte_col(0));
-        (line_start + col).into()
+        let byte = text.point_or_byte_to_byte(p);
+        match graphemes_before(text, byte).next() {
+            Some(Grapheme { first, len }) if first != '\n' => byte - len,
+            _ => byte,
+        }
+        .into()
     }
 
     #[inline]

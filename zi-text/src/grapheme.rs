@@ -4,7 +4,7 @@ use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 use zi_core::{ByteCol, Point};
 
-use crate::{AnyText, Text as _, TextSlice};
+use crate::{Text, TextBase as _, TextSlice};
 
 pub fn floor_grapheme_boundary(line: &str, byte_col: ByteCol) -> ByteCol {
     if byte_col >= line.len() {
@@ -44,7 +44,10 @@ impl Grapheme {
     }
 }
 
-pub fn graphemes_from(text: &dyn AnyText, byte: usize) -> impl Iterator<Item = Grapheme> + '_ {
+pub fn graphemes_from<T: Text + ?Sized>(
+    text: &T,
+    byte: usize,
+) -> impl Iterator<Item = Grapheme> + '_ {
     let point = text.byte_to_point(byte);
     let mut line_idx = point.line();
     let mut col = point.byte_col();
@@ -65,7 +68,10 @@ pub fn graphemes_from(text: &dyn AnyText, byte: usize) -> impl Iterator<Item = G
     })
 }
 
-pub fn graphemes_before(text: &dyn AnyText, byte: usize) -> impl Iterator<Item = Grapheme> + '_ {
+pub fn graphemes_before<T: Text + ?Sized>(
+    text: &T,
+    byte: usize,
+) -> impl Iterator<Item = Grapheme> + '_ {
     let point = text.byte_to_point(byte);
     let mut line_idx = Some(point.line());
     let mut col = Some(point.byte_col());
@@ -90,8 +96,8 @@ pub fn graphemes_before(text: &dyn AnyText, byte: usize) -> impl Iterator<Item =
     })
 }
 
-fn terminator(
-    text: &dyn AnyText,
+fn terminator<T: Text + ?Sized>(
+    text: &T,
     line_idx: usize,
     line_len: usize,
 ) -> impl DoubleEndedIterator<Item = char> {

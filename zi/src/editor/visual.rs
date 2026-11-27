@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use zi_core::{Point, PointRange};
-use zi_text::grapheme::next_grapheme_boundary;
+use zi_text::grapheme::graphemes_from;
 use zi_text::{PointRangeExt, Text, TextBase, TextSlice};
 
 use super::register::RegisterKind;
@@ -129,11 +129,5 @@ impl Selection {
 }
 
 fn end_len(text: &(impl Text + ?Sized), end: Point) -> Option<usize> {
-    let line = text.line(end.line())?;
-    let line = line.to_cow();
-    if end.byte_col() < line.len() {
-        Some(next_grapheme_boundary(&line, end.byte_col(), 1) - end.byte_col())
-    } else {
-        text.char_at_point(end).map(char::len_utf8)
-    }
+    graphemes_from(text, text.point_to_byte(end)).next().map(|grapheme| grapheme.len)
 }

@@ -137,10 +137,6 @@ impl View {
         self.cursor.point
     }
 
-    pub(crate) fn cursor_target_col(&self) -> DisplayCol {
-        self.cursor.target_col
-    }
-
     /// Move the cursor and scroll back to the start, for when the view's buffer changes.
     #[inline]
     pub(crate) fn reset_position(&mut self) {
@@ -174,9 +170,7 @@ impl View {
             self.cursor.point,
         );
         let line_idx = self.cursor.point.line();
-        let text = buf.text();
-        let line = text.line(line_idx).unwrap_or_else(|| Box::new(""));
-        let col = buf.display_col(&line.to_cow(), self.cursor.point.byte_col());
+        let col = buf.display_col(self.cursor.point);
         assert!(
             self.offset.col <= col,
             "cursor is to the left of the viewport: offset={} col={col:?}",
@@ -265,8 +259,7 @@ impl View {
         }
 
         let pos = text.byte_to_point(byte);
-        let line = text.line(pos.line()).unwrap_or_else(|| Box::new(""));
-        let col = buf.display_col(&line.to_cow(), pos.byte_col());
+        let col = buf.display_col(pos);
 
         if self.cursor.point != pos && self.cursor.target_col != col
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
@@ -308,10 +301,10 @@ impl View {
 
         let (pos, requested_col) = if flags.contains(SetCursorFlags::USE_TARGET_COLUMN) {
             let target_col = self.cursor.target_col;
-            (Point::new(line_idx, buf.byte_col_at(&line, target_col)), target_col)
+            (Point::new(line_idx, buf.line_byte_col(&line, target_col)), target_col)
         } else {
             let pos = Point::new(line_idx, pos.byte_col());
-            (pos, buf.display_col(&line, pos.byte_col()))
+            (pos, buf.line_display_col(&line, pos.byte_col()))
         };
 
         // Non-insert modes not allowed to move past the end of the line.
@@ -363,7 +356,7 @@ impl View {
         if self.cursor.target_col != requested_col && self.cursor.point != new_cursor
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
         {
-            self.cursor.target_col = buf.display_col(&line, new_cursor.byte_col());
+            self.cursor.target_col = buf.line_display_col(&line, new_cursor.byte_col());
         }
 
         self.cursor.point = new_cursor;
@@ -433,12 +426,9 @@ impl View {
         let point = self.cursor.point;
         let line = buf.text().line(point.line()).unwrap_or_else(|| Box::new(""));
         let line = line.to_cow();
-        let cursor_col = buf.display_col(&line, point.byte_col()).cells();
+        let cursor_col = buf.line_display_col(&line, point.byte_col()).cells();
         let target = DisplayCol::new((cursor_col + col.cells()).saturating_sub(prev.cells()));
-        let mut byte_col = buf.byte_col_at(&line, target);
-        if buf.display_col(&line, byte_col) < target {
-            byte_col = next_grapheme_boundary(&line, byte_col, 1);
-        }
+        let byte_col = buf.line_byte_col_at_or_after(&line, target);
         self.set_cursor_linewise(
             mode,
             size,

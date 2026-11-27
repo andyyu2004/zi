@@ -13,7 +13,7 @@ use tree_sitter::QueryCursor;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use zi_core::{BufferId, ByteCol, DisplayCol};
-use zi_text::{AnyText, Delta, Deltas};
+use zi_text::{AnyText, Delta, Deltas, Text as _, TextSlice as _};
 
 pub use self::explorer::ExplorerBuffer;
 pub use self::inspector::InspectorBuffer;
@@ -271,18 +271,35 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn display_col(&self, line: &str, byte_col: ByteCol) -> DisplayCol {
+    pub(crate) fn display_col(&self, point: Point) -> DisplayCol {
+        let text = self.text();
+        let line = text.line(point.line()).unwrap_or_else(|| Box::new(""));
+        self.line_display_col(&line.to_cow(), point.byte_col())
+    }
+
+    pub(crate) fn line_display_col(&self, line: &str, byte_col: ByteCol) -> DisplayCol {
         let end = line.floor_char_boundary(byte_col.min(line.len()));
         DisplayCol::new(line[..end].graphemes(true).map(|g| self.grapheme_width(g)).sum())
     }
 
-    pub(crate) fn byte_col_at(&self, line: &str, col: DisplayCol) -> ByteCol {
+    pub(crate) fn line_byte_col(&self, line: &str, col: DisplayCol) -> ByteCol {
         let mut cells = 0;
         for (byte, grapheme) in line.grapheme_indices(true) {
             cells += self.grapheme_width(grapheme);
             if col.cells() < cells {
                 return byte;
             }
+        }
+        line.len()
+    }
+
+    pub(crate) fn line_byte_col_at_or_after(&self, line: &str, col: DisplayCol) -> ByteCol {
+        let mut cells = 0;
+        for (byte, grapheme) in line.grapheme_indices(true) {
+            if col.cells() <= cells {
+                return byte;
+            }
+            cells += self.grapheme_width(grapheme);
         }
         line.len()
     }
