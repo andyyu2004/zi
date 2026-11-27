@@ -70,6 +70,7 @@ use crate::event::EventHandler;
 use crate::keymap::{DynKeymap, Keymap, TrieResult};
 use crate::language_service::LanguageServiceInstance;
 use crate::layout::Layer;
+use crate::namespace::NamespaceQueries as _;
 use crate::plugin::PluginManager;
 use crate::syntax::{HighlightId, Syntax, Theme};
 use crate::view::{SetCursorFlags, ViewGroup, ViewGroupQueries as _};
@@ -365,7 +366,9 @@ impl Editor {
         });
         let active_view = db.insert_view(scratch_buffer, None, View::new);
 
-        let default_namespace = db.namespaces.insert_with_key(|id| Namespace::new(id, "default"));
+        let default_namespace =
+            rel::Database::insert_with(&mut db, |id| Namespace::new(id, "default"))
+                .expect("the db has no namespaces yet");
 
         let empty_buffer = db.insert_buffer(|id| {
             Buffer::new(TextBuffer::new(
@@ -2079,11 +2082,12 @@ impl Editor {
 
     pub fn create_namespace(&mut self, name: impl Into<Ustr>) -> NamespaceId {
         let name = name.into();
-        if let Some(ns) = self.db.namespaces.values().find(|ns| ns.name() == name) {
+        if let Some(ns) = self.db.namespaces.by_name(&name) {
             return ns.id();
         }
 
-        self.db.namespaces.insert_with_key(|id| Namespace::new(id, name))
+        rel::Database::insert_with(&mut self.db, |id| Namespace::new(id, name))
+            .expect("the name was checked above")
     }
 
     pub fn align_view(&mut self, selector: impl Selector<ViewId>, alignment: VerticalAlignment) {

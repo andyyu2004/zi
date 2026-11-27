@@ -5,7 +5,7 @@ use super::mark::{Mark, Marks};
 #[test]
 fn replace_marks_many_times() {
     let mut marks = Marks::default();
-    let ns = NamespaceId::default();
+    let ns = <NamespaceId as rel::Key>::from_raw(rel::RawId::new(0, 0));
     for _ in 0..3000 {
         marks.replace(10, ns, [Mark::builder(1), Mark::builder(3).width(2), Mark::builder(7)]);
     }

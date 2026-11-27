@@ -47,8 +47,5 @@ rel::key! {
     pub struct ViewId;
     pub struct ViewGroupId;
     pub struct BufferId;
-}
-
-slotmap::new_key_type! {
     pub struct NamespaceId;
 }
