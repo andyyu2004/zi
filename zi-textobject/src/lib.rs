@@ -70,6 +70,7 @@ pub trait TextObject {
     }
 
     /// The byte range of the text object repeated `n` times.
+    /// By default each repetition starts where the previous one ends.
     fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
         let first = self.byte_range(text, byte)?;
         let mut start = first.start;
@@ -187,6 +188,11 @@ impl<M: TextObject> TextObject for Repeat<M> {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
         self.inner.byte_range_n(text, byte, self.n)
+    }
+
+    #[inline]
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
+        self.inner.byte_range_n(text, byte, self.n * n)
     }
 
     #[inline]
@@ -469,9 +475,15 @@ pub struct NextLine;
 impl TextObject for NextLine {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        self.byte_range_n(text, byte, 1)
+    }
+
+    #[inline]
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
-        text.line(line_idx + 1)?;
-        Some(line_range_to_byte_range(text, line_idx..=line_idx + 1, Inclusivity::Inclusive))
+        let end_line =
+            (line_idx + 1..=line_idx + n).take_while(|&idx| text.line(idx).is_some()).last()?;
+        Some(line_range_to_byte_range(text, line_idx..=end_line, Inclusivity::Inclusive))
     }
 
     #[inline]
@@ -485,10 +497,16 @@ pub struct PrevLine;
 impl TextObject for PrevLine {
     #[inline]
     fn byte_range(&self, text: &dyn AnyText, byte: usize) -> Option<ops::Range<usize>> {
+        self.byte_range_n(text, byte, 1)
+    }
+
+    #[inline]
+    fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
+        line_idx.checked_sub(1)?;
         Some(line_range_to_byte_range(
             text,
-            line_idx.checked_sub(1)?..=line_idx,
+            line_idx.saturating_sub(n)..=line_idx,
             Inclusivity::Inclusive,
         ))
     }
