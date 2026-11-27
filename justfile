@@ -41,6 +41,11 @@ test *FLAGS:
     cargo nextest run --workspace --exclude 'plugin-*' {{FLAGS}}
     cargo test --workspace --exclude 'plugin-*' --doc
 
+# Release-build `zi` and `zi-plugin` and install them into cargo's bin dir, e.g. `just install --root ~/.local`.
+install *FLAGS:
+    cargo install --locked --path zi-term {{FLAGS}}
+    cargo install --locked --path zi-plugin {{FLAGS}}
+
 # Test coverage, e.g. `just coverage -p zi-text --html --open`. Needs the dev shell.
 coverage +FLAGS="--workspace --exclude plugin-*":
     cargo llvm-cov nextest {{FLAGS}}
