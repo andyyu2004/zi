@@ -7,9 +7,11 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 use std::{fmt, iter, panic};
 
+use proptest::arbitrary::any;
 use proptest::collection::vec;
+use proptest::prop_oneof;
+use proptest::sample::Index;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
-use proptest::{prop_compose, prop_oneof};
 use zi_marktree::{Bias, Inserter, MarkBuilder, MarkTree, MarkTreeId};
 
 use self::naive::NaiveMarks;
@@ -775,44 +777,13 @@ proptest::proptest! {
     }
 
     #[test]
-    fn marktree_prop_insert_delete(at in vec(arb_action(), 0..100)) {
-        let mut tree = new(10000);
-        let mut naive = NaiveMarks::new(10000);
-        for action in at {
-            match action {
-                Action::Insert { at, width, id, start_bias, end_bias }
-                    if at + width <= naive.len() =>
-                {
-                    tree.insert(at, id).width(width).start_bias(start_bias).end_bias(end_bias);
-                    naive.insert(at, width, id, start_bias, end_bias);
-                }
-                Action::Delete(id) => assert_eq!(tree.delete(id), naive.delete(id)),
-                Action::Drain(range) => {
-                    let drained = sorted(tree.drain(range.clone()));
-                    assert_eq!(drained, naive.drain(range));
-                    for (_, id) in drained {
-                        assert_eq!(tree.get(id), None);
-                    }
-                }
-                Action::Range(range) => {
-                    assert_eq!(sorted(tree.range(range.clone())), naive.range(range));
-                }
-                Action::Shift { range, by } if range.end <= naive.len() => {
-                    tree.shift(range.clone(), by);
-                    naive.shift(range, by);
-                }
-                // Out of bounds of the shrunk tree.
-                Action::Insert { .. } | Action::Shift { .. } => {}
-            }
-
-            assert_eq!(tree.len(), naive.len());
-            assert_leaves_bounded(&tree, naive.ids().count());
-            // Ids of inserted marks are below 100, so this includes deleted ones.
-            for id in (0..100).map(Id) {
-                assert_eq!(tree.get(id), naive.get(id));
-            }
-            assert_eq!(sorted(tree.range(..)), naive.all());
-        }
+    fn marktree_prop_ops(
+        len in 0..1000usize,
+        initial in vec(arb_initial_mark(), 0..50),
+        ops in vec(arb_op(), 0..300),
+    ) {
+        check_ops::<4>(len, &initial, &ops);
+        check_ops::<32>(len, &initial, &ops);
     }
 
     #[test]
@@ -1023,13 +994,46 @@ fn check_build(
     tree
 }
 
-#[derive(Debug)]
-enum Action {
-    Insert { at: usize, width: usize, id: Id, start_bias: Bias, end_bias: Bias },
+/// The ids `marktree_prop_ops` uses, few enough that inserts often replace a mark.
+const OP_IDS: usize = 64;
+
+/// A mark `MarkTree::build` starts with, placed by `at` and `width` in the text.
+#[derive(Debug, Clone)]
+struct InitialMark {
+    at: Index,
+    width: usize,
+    start_bias: Bias,
+    end_bias: Bias,
+}
+
+/// An operation `marktree_prop_ops` applies to both trees. Positions are an `Index` into the text
+/// as it is when the operation runs, so every operation is in bounds.
+#[derive(Debug, Clone)]
+enum Op {
+    Insert {
+        at: Index,
+        width: usize,
+        id: Id,
+        start_bias: Bias,
+        end_bias: Bias,
+    },
     Delete(Id),
-    Drain(Range<usize>),
-    Range(Range<usize>),
-    Shift { range: Range<usize>, by: usize },
+    Get(Id),
+    /// `start` may be past the end of the text.
+    Drain {
+        start: Index,
+        len: usize,
+    },
+    /// `start` may be past the end of the text.
+    Range {
+        start: Index,
+        len: usize,
+    },
+    Shift {
+        start: Index,
+        len: usize,
+        by: usize,
+    },
 }
 
 /// `(start_bias, end_bias)` pairs. A right-biased start with a left-biased end can put the end
@@ -1042,27 +1046,87 @@ fn arb_biases() -> impl Strategy<Value = (Bias, Bias)> {
     ]
 }
 
-prop_compose! {
-    fn arb_action_insert()(
-        at in 0..1000usize,
-        width in 0..100usize,
-        id in 0..100usize,
-        (start_bias, end_bias) in arb_biases(),
-    ) -> Action {
-        Action::Insert { at, width, id: Id(id), start_bias, end_bias }
-    }
+fn arb_initial_mark() -> impl Strategy<Value = InitialMark> {
+    (any::<Index>(), 0..50usize, arb_biases()).prop_map(|(at, width, (start_bias, end_bias))| {
+        InitialMark { at, width, start_bias, end_bias }
+    })
 }
 
-fn arb_action() -> BoxedStrategy<Action> {
+fn arb_op() -> BoxedStrategy<Op> {
+    let id = (0..OP_IDS).prop_map(Id);
     prop_oneof![
-        arb_action_insert(),
-        (0..1000usize).prop_map(Id).prop_map(Action::Delete),
-        (0..1100usize, 0..200usize).prop_map(|(start, len)| Action::Drain(start..start + len)),
-        (0..1100usize, 0..300usize).prop_map(|(start, len)| Action::Range(start..start + len)),
-        (0..1100usize, 0..200usize, 0..20usize)
-            .prop_map(|(start, len, by)| Action::Shift { range: start..start + len, by }),
+        4 => (any::<Index>(), 0..50usize, id.clone(), arb_biases()).prop_map(
+            |(at, width, id, (start_bias, end_bias))| Op::Insert {
+                at,
+                width,
+                id,
+                start_bias,
+                end_bias,
+            }
+        ),
+        1 => id.clone().prop_map(Op::Delete),
+        1 => id.prop_map(Op::Get),
+        1 => (any::<Index>(), 0..100usize).prop_map(|(start, len)| Op::Drain { start, len }),
+        1 => (any::<Index>(), 0..300usize).prop_map(|(start, len)| Op::Range { start, len }),
+        4 => (any::<Index>(), 0..50usize, 0..20usize)
+            .prop_map(|(start, len, by)| Op::Shift { start, len, by }),
     ]
     .boxed()
+}
+
+/// Builds a tree and `NaiveMarks` of length `len` with the `initial` marks, applies `ops` to both,
+/// and checks they agree: on each operation's result as it runs, and on every mark at the end.
+fn check_ops<const N: usize>(len: usize, initial: &[InitialMark], ops: &[Op]) {
+    let mut naive = NaiveMarks::new(len);
+    let mut builders = vec![];
+    for (i, mark) in initial.iter().enumerate() {
+        let at = mark.at.index(len + 1);
+        let width = mark.width.min(len - at);
+        naive.insert(at, width, Id(i), mark.start_bias, mark.end_bias);
+        builders.push((
+            Id(i),
+            MarkBuilder::new(at).width(width).start_bias(mark.start_bias).end_bias(mark.end_bias),
+        ));
+    }
+    let mut tree = MarkTree::<Id, N>::build(len, builders);
+
+    for op in ops {
+        let len = naive.len();
+        match *op {
+            Op::Insert { ref at, width, id, start_bias, end_bias } => {
+                let at = at.index(len + 1);
+                let width = width.min(len - at);
+                tree.insert(at, id).width(width).start_bias(start_bias).end_bias(end_bias);
+                naive.insert(at, width, id, start_bias, end_bias);
+            }
+            Op::Delete(id) => assert_eq!(tree.delete(id), naive.delete(id), "{op:?}"),
+            Op::Get(id) => assert_eq!(tree.get(id), naive.get(id), "{op:?}"),
+            Op::Drain { ref start, len: n } => {
+                let start = start.index(len + 2);
+                let range = start..start + n;
+                assert_eq!(sorted(tree.drain(range.clone())), naive.drain(range), "{op:?}");
+            }
+            Op::Range { ref start, len: n } => {
+                let start = start.index(len + 2);
+                let range = start..start + n;
+                assert_eq!(sorted(tree.range(range.clone())), naive.range(range), "{op:?}");
+            }
+            Op::Shift { ref start, len: n, by } => {
+                let start = start.index(len + 1);
+                let range = start..start + n.min(len - start);
+                tree.shift(range.clone(), by);
+                naive.shift(range, by);
+            }
+        }
+    }
+
+    assert_eq!(tree.len(), naive.len());
+    assert_leaves_bounded(&tree, naive.ids().count());
+    let ids = initial.len().max(OP_IDS);
+    for id in (0..ids).map(Id) {
+        assert_eq!(tree.get(id), naive.get(id), "{id:?}");
+    }
+    assert_eq!(sorted(tree.range(..)), naive.all());
 }
 
 #[test]
