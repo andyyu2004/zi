@@ -8,6 +8,7 @@ mod word_end;
 use std::ops;
 
 use zi_core::PointOrByte;
+use zi_text::grapheme::{Grapheme, graphemes_before, graphemes_from};
 use zi_text::{AnyText, Text as _, TextSlice};
 
 pub use self::around::Around;
@@ -262,10 +263,10 @@ pub struct NextWord;
 impl NextWord {
     pub(crate) fn mv(text: &dyn AnyText, p: impl Into<PointOrByte>) -> (usize, bool) {
         let mut byte = text.point_or_byte_to_byte(p.into());
-        let mut chars = text.byte_slice(byte..).chars();
+        let mut graphemes = graphemes_from(text, byte);
 
-        let Some(c) = chars.next() else { return (byte, false) };
-        byte += c.len_utf8();
+        let Some(Grapheme { first: c, len }) = graphemes.next() else { return (byte, false) };
+        byte += len;
 
         if c == '\n' {
             // not even sure what the bool return is really meant to indicate anymore, but this needs to be
@@ -274,7 +275,7 @@ impl NextWord {
         }
 
         let mut found_sep = c.is_word_separator();
-        for c in chars {
+        for Grapheme { first: c, len } in graphemes {
             let is_sep = c.is_word_separator();
             if found_sep && !is_sep || c.is_word_start() {
                 break;
@@ -284,7 +285,7 @@ impl NextWord {
                 found_sep = true;
             }
 
-            byte += c.len_utf8();
+            byte += len;
             if c == '\n' {
                 return (byte, true);
             }
@@ -354,14 +355,14 @@ impl NextToken {
         stop_before_newline: bool,
     ) -> usize {
         let mut byte = text.point_or_byte_to_byte(p.into());
-        let mut chars = text.byte_slice(byte..).chars().peekable();
+        let mut graphemes = graphemes_from(text, byte).peekable();
 
-        match chars.peek() {
-            Some('\n') if stop_before_newline => {
-                assert_eq!(chars.next(), Some('\n'));
+        match graphemes.peek() {
+            Some(Grapheme { first: '\n', .. }) if stop_before_newline => {
+                graphemes.next();
                 // if the cursor is at the end of a line, the next word is the first word of the next line.
                 // However, we don't want to chop the trailing newline if there is one.
-                return byte + usize::from(chars.peek().is_some());
+                return byte + usize::from(graphemes.peek().is_some());
             }
             _ => (),
         }
@@ -370,7 +371,7 @@ impl NextToken {
 
         let mut found_sep = false;
         let mut prev_char = None;
-        while let Some(c) = chars.next() {
+        while let Some(Grapheme { first: c, len }) = graphemes.next() {
             if found_sep && !c.is_token_separator() {
                 break;
             }
@@ -380,12 +381,13 @@ impl NextToken {
                 break;
             }
 
-            if stop_before_newline && c == '\n' && (byte > start_byte || chars.peek().is_none()) {
+            if stop_before_newline && c == '\n' && (byte > start_byte || graphemes.peek().is_none())
+            {
                 break;
             }
 
             found_sep |= c.is_token_separator();
-            byte += c.len_utf8();
+            byte += len;
 
             prev_char = Some(c);
         }

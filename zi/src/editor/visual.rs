@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use zi_core::{Point, PointRange};
+use zi_text::grapheme::graphemes_from;
 use zi_text::{PointRangeExt, Text, TextBase, TextSlice};
 
 use super::register::RegisterKind;
@@ -17,8 +18,7 @@ impl Selection {
         match self {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
-                let end_byte =
-                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, char::len_utf8);
+                let end_byte = text.point_to_byte(*end) + end_len(text, *end).unwrap_or(0);
                 text.byte_slice(start_byte..end_byte).to_cow().into_owned()
             }
             Self::Line { start_line, end_line } => {
@@ -59,8 +59,7 @@ impl Selection {
         match self {
             Self::Charwise { start, end } => {
                 let start_byte = text.point_to_byte(*start);
-                let end_byte =
-                    text.point_to_byte(*end) + text.char_at_point(*end).map_or(0, char::len_utf8);
+                let end_byte = text.point_to_byte(*end) + end_len(text, *end).unwrap_or(0);
                 vec![start_byte..end_byte]
             }
             Self::Line { start_line, end_line } => {
@@ -98,7 +97,7 @@ impl Selection {
     pub fn point_ranges(&self, text: &(impl Text + ?Sized)) -> Vec<PointRange> {
         match self {
             Self::Charwise { start, end } => {
-                let end_col = end.byte_col() + text.char_at_point(*end).map_or(1, char::len_utf8);
+                let end_col = end.byte_col() + end_len(text, *end).unwrap_or(1);
                 let range = PointRange::new(*start, Point::new(end.line(), end_col));
                 range.explode(text).collect()
             }
@@ -127,4 +126,8 @@ impl Selection {
             }
         }
     }
+}
+
+fn end_len(text: &(impl Text + ?Sized), end: Point) -> Option<usize> {
+    graphemes_from(text, text.point_to_byte(end)).next().map(|grapheme| grapheme.len)
 }

@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::ops;
 
 use zi_core::PointOrByte;
+use zi_text::grapheme::{Grapheme, grapheme_indices, graphemes_from};
 use zi_text::{AnyText, Text as _, TextSlice as _};
 
 use super::{Motion, TextObject, TextObjectFlags, TextObjectKind};
@@ -24,12 +25,12 @@ struct Span {
 
 impl Span {
     /// The column vim compares with the cursor to decide whether the match is before or after it:
-    /// the start of its last character, or the column before an empty match.
+    /// the start of its last grapheme, or the column before an empty match.
     fn compare_col(self, line: &str) -> isize {
         if self.start == self.end {
             self.start.cast_signed() - 1
         } else {
-            last_char_start(line, self.end).cast_signed()
+            last_grapheme_start(line, self.end).cast_signed()
         }
     }
 
@@ -38,16 +39,16 @@ impl Span {
         if self.start == self.end {
             // vim puts the cursor at the start of an empty match. Normal mode can't put it past
             // the end of the line.
-            if self.start < line.len() { self.start } else { last_char_start(line, line.len()) }
+            if self.start < line.len() { self.start } else { last_grapheme_start(line, line.len()) }
         } else {
-            last_char_start(line, self.end)
+            last_grapheme_start(line, self.end)
         }
     }
 }
 
-/// The start of the last character before `end`.
-fn last_char_start(line: &str, end: usize) -> usize {
-    line[..end].char_indices().next_back().map_or(0, |(i, _)| i)
+/// The start of the last grapheme before `end`.
+fn last_grapheme_start(line: &str, end: usize) -> usize {
+    grapheme_indices(&line[..end]).next_back().map_or(0, |(i, _)| i)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +95,7 @@ fn token_spans(dir: Direction, line: &LineInfo<'_>) -> Vec<Span> {
     let text = &*line.text;
     let mut spans = vec![];
     let mut start = None;
-    for (i, c) in text.char_indices() {
+    for (i, Grapheme { first: c, .. }) in grapheme_indices(text) {
         match (start, c.is_whitespace()) {
             (None, false) => start = Some(i),
             (Some(s), true) => {
@@ -144,7 +145,7 @@ fn is_space(chars: &[char], i: usize) -> bool {
     between('-', char::is_ascii_alphabetic) || between('_', char::is_ascii_alphanumeric)
 }
 
-/// Length in chars of the match of wordmotion's word pattern at `i`, trying its alternatives in
+/// Length in graphemes of the match of wordmotion's word pattern at `i`, trying its alternatives in
 /// order as vim's regex engine does.
 fn word_match_at(chars: &[char], i: usize, space: &[bool]) -> Option<usize> {
     let at = |j: usize| chars.get(j).copied();
@@ -230,10 +231,10 @@ fn word_match_at(chars: &[char], i: usize, space: &[bool]) -> Option<usize> {
 
 fn word_spans(dir: Direction, line: &LineInfo<'_>) -> Vec<Span> {
     let text = &*line.text;
-    let chars = text.chars().collect::<Vec<_>>();
+    let (mut byte_offsets, chars): (Vec<_>, Vec<_>) =
+        grapheme_indices(text).map(|(i, Grapheme { first, .. })| (i, first)).unzip();
+    byte_offsets.push(text.len());
     let space = (0..chars.len()).map(|i| is_space(&chars, i)).collect::<Vec<_>>();
-    let byte_offsets =
-        text.char_indices().map(|(i, _)| i).chain(std::iter::once(text.len())).collect::<Vec<_>>();
 
     let mut spans = vec![];
     let mut i = 0;
@@ -343,10 +344,10 @@ macro_rules! word_end_motion {
                 // The motions are inclusive and forced charwise: the range covers the character
                 // under `end`, including the line break of an empty line, but not the one ending
                 // the last line.
-                let end = match text.char_at_byte(end) {
+                let end = match graphemes_from(text, end).next() {
                     None => end,
-                    Some('\n') if end + 1 == text.len_bytes() => end,
-                    Some(c) => end + c.len_utf8(),
+                    Some(Grapheme { first: '\n', .. }) if end + 1 == text.len_bytes() => end,
+                    Some(Grapheme { len, .. }) => end + len,
                 };
                 Some(start..end.min(text.len_bytes()))
             }

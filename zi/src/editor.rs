@@ -1153,11 +1153,13 @@ impl Editor {
                 let cursor = view.cursor();
                 let text = buf.text();
                 let byte_idx = text.point_to_byte(cursor);
-                let Some(c) = text.byte_slice(..byte_idx).chars().next_back() else {
+                let Some(grapheme) = zi_text::grapheme::graphemes_before(text, byte_idx).next()
+                else {
                     return Ok(());
                 };
-                let start_byte_idx =
-                    byte_idx.checked_sub(c.len_utf8()).expect("just checked there's a char here");
+                let start_byte_idx = byte_idx
+                    .checked_sub(grapheme.len)
+                    .expect("just checked there's a grapheme here");
 
                 buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
 
@@ -1563,7 +1565,7 @@ impl Editor {
         let text = self.db.buffers[buf].text();
 
         let cursor = self[view].cursor();
-        let target_col = self[view].cursor_target_col();
+        let target_col = self[view].target_col();
         let Some(mut range) = obj.byte_range(text, text.point_to_byte(cursor)) else {
             // Set cursor to update target column
             // See 0793bc3910afb0982a85f2243b36dcfb2472b5d6
@@ -1705,20 +1707,12 @@ impl Editor {
                 && !end_adjusted
                 && matches!(operator, Operator::Delete)
             {
-                let cursor = match new_cursor {
-                    PointOrByte::Point(point) => {
-                        let buffer = &self.db.buffers[buf];
-                        let text = buffer.text();
-                        let line = text
-                            .line(point.line())
-                            .or_else(|| text.line(text.len_lines().saturating_sub(1)))
-                            .unwrap_or_else(|| Box::new(""));
-                        let col = buffer.byte_col_at(&line.to_cow(), target_col);
-                        PointOrByte::Point(point.with_byte_col(col))
-                    }
-                    PointOrByte::Byte(_) => panic!("expected point cursor for linewise motion"),
-                };
-                (cursor, SetCursorFlags::empty())
+                assert!(
+                    matches!(new_cursor, PointOrByte::Point(_)),
+                    "expected point cursor for linewise motion"
+                );
+                self[view].set_target_col(target_col);
+                (new_cursor, SetCursorFlags::FROM_TARGET_COLUMN)
             } else {
                 // another vim quirk, move the cursor to the first non-whitespace character
                 (new_cursor, SetCursorFlags::START_OF_LINE)

@@ -4,6 +4,27 @@ use proptest::proptest;
 use super::*;
 
 #[test]
+fn graphemes_across_lines() {
+    use grapheme::{Grapheme, graphemes_before, graphemes_from};
+
+    let text = crop::Rope::from("ae\u{301}\nb\n");
+    let g = |first, len| Grapheme { first, len };
+    let all = [g('a', 1), g('e', 3), g('\n', 1), g('b', 1), g('\n', 1)];
+
+    assert_eq!(graphemes_from(&text, 0).collect::<Vec<_>>(), all);
+    assert_eq!(graphemes_from(&text, 1).collect::<Vec<_>>(), all[1..]);
+    assert_eq!(graphemes_from(&text, 4).collect::<Vec<_>>(), all[2..]);
+    assert_eq!(graphemes_from(&text, 5).collect::<Vec<_>>(), all[3..]);
+
+    let mut rev = all;
+    rev.reverse();
+    assert_eq!(graphemes_before(&text, 7).collect::<Vec<_>>(), rev);
+    assert_eq!(graphemes_before(&text, 5).collect::<Vec<_>>(), rev[2..]);
+    assert_eq!(graphemes_before(&text, 4).collect::<Vec<_>>(), rev[3..]);
+    assert_eq!(graphemes_before(&text, 0).count(), 0);
+}
+
+#[test]
 fn invert_deltas() {
     #[track_caller]
     fn t(text: &str, expected: &str, deltas: impl IntoIterator<Item = Delta<'static>>) {

@@ -1,5 +1,5 @@
 use zi_core::PointOrByte;
-use zi_text::{AnyText, Text, TextSlice, grapheme};
+use zi_text::{AnyText, Text, TextSlice};
 
 pub use super::*;
 
@@ -105,11 +105,13 @@ impl Motion for NextToken {
 impl Motion for Prev {
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
         let mut byte = text.point_or_byte_to_byte(p);
-        let mut chars = text.byte_slice(..byte).chars().rev();
-        let Some(mut c) = chars.next() else { return byte.into() };
+        let mut graphemes = graphemes_before(text, byte);
+        let Some(Grapheme { first: mut c, mut len }) = graphemes.next() else {
+            return byte.into();
+        };
 
-        for next in chars {
-            byte -= c.len_utf8();
+        for Grapheme { first: next, len: next_len } in graphemes {
+            byte -= len;
 
             if matches!((c, next), ('\n', '\n')) {
                 return byte.into();
@@ -121,22 +123,22 @@ impl Motion for Prev {
             }
 
             c = next;
+            len = next_len;
         }
 
-        (byte - c.len_utf8()).into()
+        (byte - len).into()
     }
 }
 
 impl Motion for NextChar {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        let point = text.point_or_byte_to_point(p);
-        let Some(line) = text.line(point.line()) else {
-            return text.point_or_byte_to_byte(p).into();
-        };
-        let col = grapheme::next_grapheme_boundary(&line.to_cow(), point.byte_col(), 1);
-        let line_start = text.point_to_byte(point.with_byte_col(0));
-        (line_start + col).into()
+        let byte = text.point_or_byte_to_byte(p);
+        match graphemes_from(text, byte).next() {
+            Some(Grapheme { first, len }) if first != '\n' => byte + len,
+            _ => byte,
+        }
+        .into()
     }
 
     #[inline]
@@ -148,13 +150,12 @@ impl Motion for NextChar {
 impl Motion for PrevChar {
     #[inline]
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
-        let point = text.point_or_byte_to_point(p);
-        let Some(line) = text.line(point.line()) else {
-            return text.point_or_byte_to_byte(p).into();
-        };
-        let col = grapheme::prev_grapheme_boundary(&line.to_cow(), point.byte_col(), 1);
-        let line_start = text.point_to_byte(point.with_byte_col(0));
-        (line_start + col).into()
+        let byte = text.point_or_byte_to_byte(p);
+        match graphemes_before(text, byte).next() {
+            Some(Grapheme { first, len }) if first != '\n' => byte - len,
+            _ => byte,
+        }
+        .into()
     }
 
     #[inline]

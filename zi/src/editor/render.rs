@@ -149,10 +149,8 @@ impl Editor {
 
         let height = state.matches().take(20).len() as u16;
         let (view_data, buf) = self.db.view_and_buffer(view);
-        let text = buf.text();
-        let start_point = text.byte_to_point(state.start_byte());
-        let line = text.line(start_point.line()).unwrap_or_else(|| Box::new(""));
-        let start_col = buf.display_col(&line.to_cow(), start_point.byte_col());
+        let start_point = buf.text().byte_to_point(state.start_byte());
+        let start_col = buf.display_col(start_point);
         let offset = view_data.offset();
         let area = Rect {
             x: view_area.x + view_data.number_width.get() + start_col.cells() as u16

@@ -1,0 +1,64 @@
+==== w and b over a word with a combining mark
+café bar
+----
+wbwbw
+
+==== w and b with a combining mark mid-word
+aéb c
+----
+wwbb
+
+==== W and B over a combining mark
+aé. b
+----
+WBWB
+
+==== dw over a combining mark
+aéb c
+----
+dw
+
+==== db over a combining mark
+aéb c
+----
+wdb
+
+==== dl deletes the whole grapheme
+aéx
+----
+ldl
+
+==== v selects the whole grapheme
+aéx
+----
+lvd
+
+==== v extends to the end of a grapheme
+aéx
+----
+vld
+
+==== backspace in insert mode deletes the whole grapheme
+aéx
+----
+lli<BS><ESC>
+
+==== e and ge over a word ending in a combining mark
+café bar
+----
+eegege
+
+==== e with a combining mark mid-word
+aéb c
+----
+ee
+
+==== E and gE over a combining mark
+aé. bé
+----
+EEgE
+
+==== de over a word ending in a combining mark
+café bar
+----
+de
