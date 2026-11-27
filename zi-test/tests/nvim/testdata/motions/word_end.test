@@ -28,7 +28,7 @@ one two three four
 ----
 llgege
 
-==== ge with a count stops at the first word if it runs out
+==== ge with a count runs into the start of the buffer
 [{A
 ----
 2e2ge
@@ -97,6 +97,11 @@ EEdE
   a b
 ----
 llgEgE
+
+==== gE with a count stops at the first WORD if it runs out
+  a b
+----
+llll2gE
 
 ==== visual e and ge
 fooBar baz
