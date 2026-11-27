@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 
 use stdx::sync::Cancel;
 use tree_sitter::QueryCursor;
-use unicode_width::UnicodeWidthChar;
-use zi_core::BufferId;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+use zi_core::{BufferId, ByteCol, DisplayCol};
 use zi_text::{AnyText, Delta, Deltas};
 
 pub use self::explorer::ExplorerBuffer;
@@ -263,11 +264,27 @@ impl Buffer {
         self.inner.syntax()
     }
 
-    pub(crate) fn char_width(&self, c: char) -> usize {
-        c.width().unwrap_or(match c {
-            '\t' => *self.settings().tab_width.read() as usize,
-            _ => 0,
-        })
+    fn grapheme_width(&self, grapheme: &str) -> usize {
+        match grapheme {
+            "\t" => *self.settings().tab_width.read() as usize,
+            _ => grapheme.width(),
+        }
+    }
+
+    pub(crate) fn display_col(&self, line: &str, byte_col: ByteCol) -> DisplayCol {
+        let end = line.floor_char_boundary(byte_col.min(line.len()));
+        DisplayCol::new(line[..end].graphemes(true).map(|g| self.grapheme_width(g)).sum())
+    }
+
+    pub(crate) fn byte_col_at(&self, line: &str, col: DisplayCol) -> ByteCol {
+        let mut cells = 0;
+        for (byte, grapheme) in line.grapheme_indices(true) {
+            cells += self.grapheme_width(grapheme);
+            if col.cells() < cells {
+                return byte;
+            }
+        }
+        line.len()
     }
 }
 

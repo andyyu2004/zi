@@ -98,7 +98,7 @@ impl Selection {
     pub fn point_ranges(&self, text: &(impl Text + ?Sized)) -> Vec<PointRange> {
         match self {
             Self::Charwise { start, end } => {
-                let end_col = end.col() + text.char_at_point(*end).map_or(1, char::len_utf8);
+                let end_col = end.byte_col() + text.char_at_point(*end).map_or(1, char::len_utf8);
                 let range = PointRange::new(*start, Point::new(end.line(), end_col));
                 range.explode(text).collect()
             }

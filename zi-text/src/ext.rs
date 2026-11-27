@@ -12,9 +12,9 @@ impl PointRangeExt for PointRange {
         let start_line = self.start().line();
         let end_line = self.end().line();
         (start_line..=end_line).map(move |line| {
-            let start_col = if line == start_line { self.start().col() } else { 0 };
+            let start_col = if line == start_line { self.start().byte_col() } else { 0 };
             let end_col = if line == end_line {
-                self.end().col()
+                self.end().byte_col()
             } else {
                 text.line(line).unwrap().len_bytes()
             };

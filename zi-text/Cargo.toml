@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 zi-core = { workspace = true }
+unicode-segmentation = { workspace = true }
 regex-cursor = { workspace = true }
 crop = { workspace = true }
 dyn-clone = { workspace = true }

@@ -4,12 +4,13 @@ use rel::Relation;
 use tui::LineNumberStyle;
 use ustr::Ustr;
 use zi_core::{Offset, Size, ViewGroupId, ViewId};
+use zi_text::grapheme::{floor_grapheme_boundary, next_grapheme_boundary, prev_grapheme_boundary};
 use zi_text::{self, Text as _, TextSlice};
 
 use crate::buffer::Buffer;
 use crate::config::Setting;
 use crate::editor::Selector;
-use crate::{BufferId, Col, Direction, Editor, JumpList, Location, Mode, Point};
+use crate::{BufferId, ByteCol, Direction, DisplayCol, Editor, JumpList, Location, Mode, Point};
 
 /// View-local configuration
 #[derive(Clone, Debug)]
@@ -117,19 +118,7 @@ pub(crate) struct Cursor {
     point: Point,
     // When we move the cursor down we may go to a shorter line, virtual column stores the column
     // that the cursor should really be at, but can't be because the line is too short.
-    target_col: Col,
-}
-
-impl From<Point> for Cursor {
-    fn from(pos: Point) -> Self {
-        Self::new(pos)
-    }
-}
-
-impl Cursor {
-    fn new(pos: Point) -> Self {
-        Self { point: pos, target_col: pos.col() }
-    }
+    target_col: DisplayCol,
 }
 
 impl View {
@@ -148,7 +137,7 @@ impl View {
         self.cursor.point
     }
 
-    pub(crate) fn cursor_target_col(&self) -> Col {
+    pub(crate) fn cursor_target_col(&self) -> DisplayCol {
         self.cursor.target_col
     }
 
@@ -184,23 +173,21 @@ impl View {
             self.offset,
             self.cursor.point,
         );
-        assert!(
-            self.offset.col <= self.cursor.point.col(),
-            "cursor is to the left of the viewport"
-        );
-
         let line_idx = self.cursor.point.line();
         let text = buf.text();
         let line = text.line(line_idx).unwrap_or_else(|| Box::new(""));
-        let col = self.cursor.point.col().min(line.len_bytes());
-        let byte = line.byte_slice(..col).chars().map(|c| buf.char_width(c)).sum::<usize>();
-        // TODO need tests for the column adjustment
-        let x = byte - self.offset.col;
+        let col = buf.display_col(&line.to_cow(), self.cursor.point.byte_col());
+        assert!(
+            self.offset.col <= col.cells(),
+            "cursor is to the left of the viewport: offset={} col={col:?}",
+            self.offset,
+        );
+        let x = col.cells() - self.offset.col;
         let y = line_idx - self.offset.line;
         (x.try_into().unwrap(), y.try_into().unwrap())
     }
 
-    /// `amt` is measured in characters or lines depending on the direction.
+    /// `amt` is measured in graphemes or lines depending on the direction.
     pub(crate) fn move_cursor(
         &mut self,
         mode: Mode,
@@ -213,16 +200,11 @@ impl View {
         let pos = match direction {
             Direction::Left => {
                 let Some(line) = buf.text().line(point.line()) else { return point };
-                let col = point.col().min(line.len_bytes());
-                let n: usize =
-                    line.byte_slice(..col).chars().rev().take(amt).map(char::len_utf8).sum();
-                point.with_col(col - n)
+                point.with_byte_col(prev_grapheme_boundary(&line.to_cow(), point.byte_col(), amt))
             }
             Direction::Right => {
                 let Some(line) = buf.text().line(point.line()) else { return point };
-                let col = point.col().min(line.len_bytes());
-                let n: usize = line.byte_slice(col..).chars().take(amt).map(char::len_utf8).sum();
-                point.with_col(col + n)
+                point.with_byte_col(next_grapheme_boundary(&line.to_cow(), point.byte_col(), amt))
             }
             // Horizontal movements set the target column.
             // Vertical movements try to keep moving to the target column.
@@ -283,15 +265,15 @@ impl View {
         }
 
         let pos = text.byte_to_point(byte);
+        let line = text.line(pos.line()).unwrap_or_else(|| Box::new(""));
+        let col = buf.display_col(&line.to_cow(), pos.byte_col());
 
-        if self.cursor.point != pos && self.cursor.target_col != pos.col() {
-            self.cursor = Cursor::new(pos);
-        } else {
-            self.cursor.point = pos;
-            if !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET) {
-                self.cursor.target_col = pos.col();
-            }
+        if self.cursor.point != pos && self.cursor.target_col != col
+            || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
+        {
+            self.cursor.target_col = col;
         }
+        self.cursor.point = pos;
 
         self.ensure_scroll_in_bounds(size);
         #[cfg(debug_assertions)]
@@ -305,15 +287,11 @@ impl View {
         mode: Mode,
         size: impl Into<Size>,
         buf: &Buffer,
-        mut pos: Point,
+        pos: Point,
         flags: SetCursorFlags,
     ) -> Point {
         let text = buf.text();
         let size = size.into();
-
-        if flags.contains(SetCursorFlags::USE_TARGET_COLUMN) {
-            pos = pos.with_col(self.cursor.target_col);
-        }
 
         // Check line is in-bounds
         let mut line_idx = pos.line();
@@ -325,9 +303,16 @@ impl View {
             }
         };
 
-        let line_len = line.len_bytes();
+        let line = line.to_cow();
+        let line_len = line.len();
 
-        let pos = Point::new(line_idx, pos.col());
+        let (pos, requested_col) = if flags.contains(SetCursorFlags::USE_TARGET_COLUMN) {
+            let target_col = self.cursor.target_col;
+            (Point::new(line_idx, buf.byte_col_at(&line, target_col)), target_col)
+        } else {
+            let pos = Point::new(line_idx, pos.byte_col());
+            (pos, buf.display_col(&line, pos.byte_col()))
+        };
 
         // Non-insert modes not allowed to move past the end of the line.
         let k = match mode {
@@ -338,13 +323,13 @@ impl View {
             | Mode::VisualLine
             | Mode::VisualBlock
             | Mode::OperatorPending(..)
-            | Mode::ReplacePending => line.chars().next_back().map_or(0, char::len_utf8),
+            | Mode::ReplacePending => line_len - prev_grapheme_boundary(&line, line_len, 1),
         };
 
-        let max_col = Col::from(line_len.saturating_sub(k));
+        let max_col = ByteCol::from(line_len.saturating_sub(k));
 
         // check column is in-bounds for the line
-        let new_cursor = match pos.col() {
+        let new_cursor = match pos.byte_col() {
             i if i < line_len => {
                 if flags.contains(SetCursorFlags::START_OF_LINE) {
                     let mut col = 0;
@@ -362,22 +347,23 @@ impl View {
                         col = 0;
                     }
 
-                    pos.with_col(col.max(i))
+                    pos.with_byte_col(col.max(i))
                 } else {
-                    pos.with_col(max_col.min(i))
+                    pos.with_byte_col(max_col.min(i))
                 }
             }
             // Cursor is out of bounds for the line, but the line exists.
             // We move the cursor to the line to the rightmost character.
-            _ => pos.with_col(max_col),
+            _ => pos.with_byte_col(max_col),
         };
 
-        let new_cursor = new_cursor.with_col(line.floor_char_boundary(new_cursor.col()));
+        let new_cursor =
+            new_cursor.with_byte_col(floor_grapheme_boundary(&line, new_cursor.byte_col()));
 
-        if self.cursor.target_col != pos.col() && self.cursor.point != new_cursor
+        if self.cursor.target_col != requested_col && self.cursor.point != new_cursor
             || !flags.contains(SetCursorFlags::NO_FORCE_UPDATE_TARGET)
         {
-            self.cursor.target_col = new_cursor.col();
+            self.cursor.target_col = buf.display_col(&line, new_cursor.byte_col());
         }
 
         self.cursor.point = new_cursor;

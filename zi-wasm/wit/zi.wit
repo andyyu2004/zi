@@ -76,11 +76,11 @@ interface editor {
     }
 
     type line = u32;
-    type col = u32;
+    type byte-col = u32;
 
     record point {
        line: line,
-       col: col,
+       byte-col: byte-col,
     }
 
     insert: func(text: string) -> result<_, edit-error>;

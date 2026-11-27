@@ -46,7 +46,7 @@ impl Editor {
             .map_or_else(|| buf.url() as &dyn fmt::Display, |p| p as &dyn fmt::Display);
 
         let mut status_spans = vec![tui::Span::styled(
-            format!("{}:{}:{} ", display, view.cursor().line() + 1_usize, view.cursor().col()),
+            format!("{}:{}:{} ", display, view.cursor().line() + 1_usize, view.cursor().byte_col()),
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
@@ -151,7 +151,7 @@ impl Editor {
         let start_point = self.text(view).byte_to_point(state.start_byte());
         let offset = self[view].offset();
         let area = Rect {
-            x: view_area.x + self[view].number_width.get() + start_point.col() as u16
+            x: view_area.x + self[view].number_width.get() + start_point.byte_col() as u16
                 - offset.col as u16,
             y: view_area.y + start_point.line() as u16 - offset.line as u16 + 1,
             height,

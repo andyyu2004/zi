@@ -63,13 +63,13 @@ impl From<zi::EditError> for api::editor::EditError {
 
 impl From<Point> for api::editor::Point {
     fn from(value: Point) -> Self {
-        Self { line: value.line() as u32, col: value.col() as u32 }
+        Self { line: value.line() as u32, byte_col: value.byte_col() as u32 }
     }
 }
 
 impl From<api::editor::Point> for Point {
     fn from(value: api::editor::Point) -> Self {
-        Self::from((value.line as usize, value.col as usize))
+        Self::from((value.line as usize, value.byte_col as usize))
     }
 }
 

@@ -5376,6 +5376,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tree-sitter",
+ "unicode-segmentation",
  "unicode-width",
  "url",
  "ustr",
@@ -5543,6 +5544,7 @@ dependencies = [
  "regex-cursor",
  "stdx",
  "test-strategy",
+ "unicode-segmentation",
  "zi-core",
 ]
 
