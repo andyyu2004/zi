@@ -1,7 +1,9 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use std::collections::{BTreeMap, BTreeSet};
+mod naive;
+
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::{fmt, iter, panic};
 
@@ -9,6 +11,8 @@ use proptest::collection::vec;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::{prop_compose, prop_oneof};
 use zi_marktree::{Bias, Inserter, MarkBuilder, MarkTree, MarkTreeId};
+
+use self::naive::NaiveMarks;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Id(usize);
@@ -37,6 +41,16 @@ fn assert_iter_eq<T: Eq + fmt::Debug + 'static>(
     let values = values.into_iter().collect::<Vec<_>>();
     let expected = expected.into_iter().collect::<Vec<_>>();
     assert_eq!(values, expected);
+}
+
+/// Checks the tree's marks are sorted by start and sorts them by start, then id, as `NaiveMarks`
+/// does: the tree doesn't order marks with the same start.
+#[track_caller]
+fn sorted(items: impl IntoIterator<Item = (Range<usize>, Id)>) -> Vec<(Range<usize>, Id)> {
+    let mut items = items.into_iter().collect::<Vec<_>>();
+    assert!(items.is_sorted_by_key(|(range, _)| range.start), "not sorted by start: {items:?}");
+    items.sort_by_key(|&(ref range, id)| (range.start, id));
+    items
 }
 
 fn new(n: usize) -> MarkTree<Id, 4> {
@@ -762,54 +776,42 @@ proptest::proptest! {
 
     #[test]
     fn marktree_prop_insert_delete(at in vec(arb_action(), 0..100)) {
-        let mut len = 10000;
-        let mut tree = new(len);
-        let mut insertions = BTreeMap::new();
+        let mut tree = new(10000);
+        let mut naive = NaiveMarks::new(10000);
         for action in at {
             match action {
-                Action::Insert { at, width, id, start_bias, end_bias } if at + width <= len => {
+                Action::Insert { at, width, id, start_bias, end_bias }
+                    if at + width <= naive.len() =>
+                {
                     tree.insert(at, id).width(width).start_bias(start_bias).end_bias(end_bias);
-                    // A point mark has a single key, so both ends move with the start bias.
-                    let end_bias = if width == 0 { start_bias } else { end_bias };
-                    insertions.insert(id, Mark { range: at..at + width, start_bias, end_bias });
+                    naive.insert(at, width, id, start_bias, end_bias);
                 }
-                Action::Delete(id) => {
-                    assert_eq!(tree.delete(id), insertions.remove(&id).map(|mark| mark.range));
-                }
+                Action::Delete(id) => assert_eq!(tree.delete(id), naive.delete(id)),
                 Action::Drain(range) => {
-                    let mut drained = tree.drain(range.clone()).collect::<Vec<_>>();
-                    drained.sort_by_key(|&(_, id)| id);
-                    let expected = insertions
-                        .extract_if(.., |_, mark| range.contains(&mark.range.start))
-                        .map(|(id, mark)| (mark.range, id))
-                        .collect::<Vec<_>>();
-                    assert_eq!(drained, expected);
+                    let drained = sorted(tree.drain(range.clone()));
+                    assert_eq!(drained, naive.drain(range));
                     for (_, id) in drained {
                         assert_eq!(tree.get(id), None);
                     }
                 }
-                Action::Shift { range, by } if range.end <= len => {
+                Action::Range(range) => {
+                    assert_eq!(sorted(tree.range(range.clone())), naive.range(range));
+                }
+                Action::Shift { range, by } if range.end <= naive.len() => {
                     tree.shift(range.clone(), by);
-                    len = len - range.len() + by;
-                    for mark in insertions.values_mut() {
-                        let Range { start, end } = mark.range;
-                        mark.range = shift_offset(start, mark.start_bias, &range, by)
-                            ..shift_offset(end, mark.end_bias, &range, by);
-                    }
+                    naive.shift(range, by);
                 }
                 // Out of bounds of the shrunk tree.
                 Action::Insert { .. } | Action::Shift { .. } => {}
             }
 
-            assert_eq!(tree.len(), len);
-            assert_leaves_bounded(&tree, insertions.len());
-
-            for (&id, mark) in &insertions {
-                assert_eq!(tree.get(id), Some(mark.range.clone()));
+            assert_eq!(tree.len(), naive.len());
+            assert_leaves_bounded(&tree, naive.ids().count());
+            // Ids of inserted marks are below 100, so this includes deleted ones.
+            for id in (0..100).map(Id) {
+                assert_eq!(tree.get(id), naive.get(id));
             }
-            let mut actual = tree.range(..).collect::<Vec<_>>();
-            actual.sort_by_key(|&(_, id)| id);
-            assert_iter_eq(actual, insertions.iter().map(|(&id, mark)| (mark.range.clone(), id)));
+            assert_eq!(sorted(tree.range(..)), naive.all());
         }
     }
 
@@ -879,36 +881,30 @@ fn arb_bias_action() -> BoxedStrategy<BiasAction> {
     .boxed()
 }
 
-/// Checks marks against a model under inserts and insertions of text, whatever their bias.
+/// Checks marks against `NaiveMarks` under inserts and insertions of text, whatever their bias.
 fn check_bias<const N: usize>(actions: &[BiasAction]) {
-    let shift = |pos: usize, bias: Bias, at: usize, by: usize| {
-        if pos > at || pos == at && bias == Bias::Right { pos + by } else { pos }
-    };
     let mut tree = MarkTree::<Id, N>::new(200);
-    let mut model = BTreeMap::<Id, (Range<usize>, Bias, Bias)>::new();
+    let mut naive = NaiveMarks::new(200);
     for action in actions {
         match *action {
             BiasAction::Insert { at, width, id, start, end } => {
                 if at + width <= tree.len() {
                     tree.insert(at, id).width(width).start_bias(start).end_bias(end);
-                    // A mark without width has no end key: its end follows its start.
-                    let end = if width == 0 { start } else { end };
-                    model.insert(id, (at..at + width, start, end));
+                    naive.insert(at, width, id, start, end);
                 }
             }
             BiasAction::Shift { at, by } => {
                 if at <= tree.len() {
                     tree.shift(at..at, by);
-                    for (range, start, end) in model.values_mut() {
-                        *range = shift(range.start, *start, at, by)..shift(range.end, *end, at, by);
-                    }
+                    naive.shift(at..at, by);
                 }
             }
         }
-        for (&id, (range, _, _)) in &model {
+        for id in naive.ids() {
+            let range = naive.get(id).unwrap();
             // An empty range with opposed biases can invert, see zi-editor/zi-tracking#34.
             if range.start <= range.end {
-                assert_eq!(tree.get(id), Some(range.clone()), "{id:?} after {action:?}");
+                assert_eq!(tree.get(id), Some(range), "{id:?} after {action:?}");
             }
         }
     }
@@ -932,47 +928,37 @@ fn arb_range_action() -> BoxedStrategy<RangeAction> {
     .boxed()
 }
 
-fn apply_range_actions<const N: usize>(actions: &[RangeAction]) -> (MarkTree<Id, N>, BTreeSet<Id>) {
+fn apply_range_actions<const N: usize>(actions: &[RangeAction]) -> (MarkTree<Id, N>, NaiveMarks) {
     let mut tree = MarkTree::<Id, N>::new(1000);
-    let mut ids = BTreeSet::new();
+    let mut naive = NaiveMarks::new(1000);
     for action in actions {
         match *action {
             RangeAction::Insert { at, width, id } => {
                 if at + width <= tree.len() {
-                    ids.insert(id);
                     tree.insert(at, id).width(width);
+                    naive.insert(at, width, id, Bias::Right, Bias::Right);
                 }
             }
             RangeAction::Delete(id) => {
-                ids.remove(&id);
                 tree.delete(id);
+                naive.delete(id);
             }
             RangeAction::Shift { ref range, by } => {
                 if range.end < tree.len() {
                     tree.shift(range.clone(), by);
+                    naive.shift(range.clone(), by);
                 }
             }
         }
     }
-    (tree, ids)
+    (tree, naive)
 }
 
 fn check_range<const N: usize>(actions: &[RangeAction], windows: &[(usize, usize)]) {
-    let (tree, ids) = apply_range_actions::<N>(actions);
-    let ranges = ids.iter().map(|&id| (tree.get(id).unwrap(), id)).collect::<Vec<_>>();
-
+    let (tree, naive) = apply_range_actions::<N>(actions);
     for &(start, len) in windows {
         let window = start..start + len;
-        let mut expected = ranges
-            .iter()
-            .filter(|(range, _)| window.contains(&range.start))
-            .cloned()
-            .collect::<Vec<_>>();
-        let mut actual = tree.range(window).collect::<Vec<_>>();
-        assert!(actual.is_sorted_by_key(|(range, _)| range.start));
-        expected.sort_by_key(|&(ref range, id)| (range.start, id));
-        actual.sort_by_key(|&(ref range, id)| (range.start, id));
-        assert_eq!(actual, expected);
+        assert_eq!(sorted(tree.range(window.clone())), naive.range(window));
     }
 }
 
@@ -1042,25 +1028,8 @@ enum Action {
     Insert { at: usize, width: usize, id: Id, start_bias: Bias, end_bias: Bias },
     Delete(Id),
     Drain(Range<usize>),
+    Range(Range<usize>),
     Shift { range: Range<usize>, by: usize },
-}
-
-#[derive(Debug)]
-struct Mark {
-    range: Range<usize>,
-    start_bias: Bias,
-    end_bias: Bias,
-}
-
-/// Where a key at `at` with the given bias is after `shift(range, by)`.
-fn shift_offset(at: usize, bias: Bias, range: &Range<usize>, by: usize) -> usize {
-    if at < range.start || (at == range.start && bias == Bias::Left) {
-        at
-    } else if at <= range.end {
-        range.start + by
-    } else {
-        at - range.len() + by
-    }
 }
 
 /// `(start_bias, end_bias)` pairs. A right-biased start with a left-biased end can put the end
@@ -1089,6 +1058,7 @@ fn arb_action() -> BoxedStrategy<Action> {
         arb_action_insert(),
         (0..1000usize).prop_map(Id).prop_map(Action::Delete),
         (0..1100usize, 0..200usize).prop_map(|(start, len)| Action::Drain(start..start + len)),
+        (0..1100usize, 0..300usize).prop_map(|(start, len)| Action::Range(start..start + len)),
         (0..1100usize, 0..200usize, 0..20usize)
             .prop_map(|(start, len, by)| Action::Shift { range: start..start + len, by }),
     ]
