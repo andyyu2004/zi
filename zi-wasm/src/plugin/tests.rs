@@ -10,7 +10,7 @@ use zi::{FileType, LanguageServiceId};
 use zi_plugin::Language;
 
 use super::host::PluginHost;
-use super::manager::{PluginManager, initialize_all};
+use super::manager::{PluginClient, PluginManager, initialize_all};
 use super::runtime::{Store, engine, linker, new_store};
 use super::state::HostState;
 use crate::wit::Plugin;
@@ -207,7 +207,7 @@ const SPIN_IN_INITIALIZE: &str = r#"
 export const dependency = { getName: () => "test-spin", dependencies: () => [] };
 export const lifecycle = {
   initialize() {
-for (;;) {}
+    for (;;) {}
   },
   shutdown() {},
 };
@@ -267,6 +267,73 @@ async fn plugins_initialize_concurrently_within_a_timeout() -> anyhow::Result<()
                     })
                     .await
             );
+            Ok::<_, anyhow::Error>(())
+        })
+        .await
+}
+
+const SPIN_IN_COMMAND: &str = r#"
+export const dependency = { getName: () => "test-spin-command", dependencies: () => [] };
+export const lifecycle = {
+  initialize() {
+    return { commands: [] };
+  },
+  shutdown() {},
+};
+class Handler {
+  exec(cmd) {
+    if (cmd === "spin") {
+      for (;;) {}
+    }
+  }
+}
+export const command = { Handler };
+"#;
+
+#[tokio::test]
+#[cfg_attr(test, mutants::skip)]
+async fn a_plugin_command_that_runs_too_long_stops_the_plugin() -> anyhow::Result<()> {
+    let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+    let client = editor.client();
+    let engine = engine();
+
+    let local = LocalSet::new();
+    local.spawn_local(editor.test_run(tasks));
+
+    local
+        .run_until(async move {
+            let timeout = Duration::from_millis(300);
+            client
+                .with(move |editor| editor.settings().plugin_command_timeout.write(timeout))
+                .await;
+
+            let component = Component::new(
+                engine,
+                build_source_plugin(Language::JavaScript, "test-spin-command", SPIN_IN_COMMAND)?,
+            )?;
+            let mut store = new_store(engine, HostState::new(client.clone()));
+            let plugin =
+                Plugin::instantiate_async(&mut store, &component, &linker(engine)?).await?;
+            let host = PluginHost::new(Arc::new(PluginManager::default()), store, plugin);
+            let [(host, _receiver)] =
+                <[_; 1]>::try_from(initialize_all(vec![host], Duration::from_secs(5)).await)
+                    .map_err(|_| anyhow::anyhow!("plugin didn't initialize"))?;
+
+            let word = |name: &'static str| zi::command::Word::try_from(name).unwrap();
+            let (sender, receiver) = tokio::sync::mpsc::channel(1);
+            let running = tokio::task::spawn_local(host.run(receiver));
+            let plugin = PluginClient::new(sender);
+
+            plugin.execute(word("ok"), None, Box::new([]), false).await?;
+
+            let start = Instant::now();
+            let err = plugin.execute(word("spin"), None, Box::new([]), false).await;
+            let elapsed = start.elapsed();
+            assert!(err.unwrap_err().to_string().contains("took longer than"));
+            assert!(elapsed >= timeout && elapsed < 2 * timeout, "took {elapsed:?}");
+
+            assert!(running.await?.is_err());
+            assert!(plugin.execute(word("ok"), None, Box::new([]), false).await.is_err());
             Ok::<_, anyhow::Error>(())
         })
         .await

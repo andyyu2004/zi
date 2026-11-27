@@ -9,7 +9,7 @@ use zi::Client;
 use zi::command::{CommandRange, Handler, Word};
 
 use super::manager::{PluginClient, PluginManager, PluginRequest};
-use super::runtime::Store;
+use super::runtime::{EpochTicking, Store};
 use crate::wit::Plugin;
 use crate::wit::exports::zi::api::lifecycle::Command;
 
@@ -69,7 +69,12 @@ impl PluginHost {
         loop {
             select! {
                 msg = receiver.recv() => match msg {
-                    Some(req) => self.handle_request(req).await?,
+                    Some(req) => {
+                        if let Err(err) = self.handle_request(req).await {
+                            self.abandon();
+                            return Err(err);
+                        }
+                    }
                     None => break,
                 }
             }
@@ -89,8 +94,17 @@ impl PluginHost {
         match req {
             PluginRequest::ExecuteCommand { name, range, args, tx, force } => {
                 let _ = range;
-                let result = self.exec(&name, &args, force).await?;
-                let _ = tx.send(result.map_err(|e| anyhow::anyhow!("{e}")));
+                let timeout = command_timeout(self.store.data().client().clone()).await;
+                let _ticking = EpochTicking::start();
+                let Ok(result) =
+                    tokio::time::timeout(timeout, self.exec(&name, &args, force)).await
+                else {
+                    let _ = tx.send(Err(anyhow::anyhow!(
+                        "plugin command `{name}` took longer than {timeout:?}, stopping the plugin"
+                    )));
+                    anyhow::bail!("plugin command `{name}` timed out after {timeout:?}");
+                };
+                let _ = tx.send(result?.map_err(|e| anyhow::anyhow!("{e}")));
             }
         }
         Ok(())
@@ -110,6 +124,10 @@ impl PluginHost {
             .call_exec(&mut self.store, handler, name, &args, force)
             .await
     }
+}
+
+async fn command_timeout(editor: Client) -> std::time::Duration {
+    editor.with(|editor| *editor.settings().plugin_command_timeout.read()).await
 }
 
 async fn register_commands(editor: &Client, client: &PluginClient, commands: Vec<Command>) {

@@ -493,6 +493,9 @@ pub fn set_option(editor: &Editor, key: &str, value: &str) -> crate::Result<()> 
         "plugininittimeout" | "pit" => {
             editor.settings().plugin_init_timeout.write(Duration::from_millis(value.parse()?));
         }
+        "plugincommandtimeout" | "pct" => {
+            editor.settings().plugin_command_timeout.write(Duration::from_millis(value.parse()?));
+        }
         _ => anyhow::bail!("unknown parameter: `{key}`"),
     }
     Ok(())
