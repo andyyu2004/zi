@@ -1644,7 +1644,14 @@ impl Editor {
         let start_char = text.char_at_byte(range.start);
 
         let start_point = text.byte_to_point(range.start);
+        let inclusive = flags.contains(TextObjectFlags::INCLUSIVE) && !range.is_empty();
         let end_point = text.byte_to_point(range.end);
+        let end_point = if inclusive {
+            let last = text.char_before_byte(range.end).map_or(0, char::len_utf8);
+            text.byte_to_point(range.end - last)
+        } else {
+            end_point
+        };
         // -1 to the line count if the end point is at the start of a line because it's exclusive
         let mut line_count = end_point.line() - start_point.line() + 1;
 
@@ -1682,6 +1689,7 @@ impl Editor {
         if obj_kind == TextObjectKind::Charwise
             && line_count > 1
             && operator == Operator::Delete
+            && !flags.contains(TextObjectFlags::INCLUSIVE)
             && text.inindent(end_point)
             && text.line(end_point.line()).unwrap().chars().all(char::is_whitespace)
         {

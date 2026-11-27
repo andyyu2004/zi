@@ -263,6 +263,22 @@ fn ensure_lines_eq(vi_lines: &str, zi_lines: &str) -> Result<(), anyhow::Error> 
 
 const DIR: &str = env!("CARGO_MANIFEST_DIR");
 
+/// The plugins to load, from `ZI_NVIM_PLUGIN_PATH`: a platform-separated list of directories,
+/// set by the nix shell. zi's word motions follow vim-wordmotion, so it must be one of them.
+fn plugin_runtimepath() -> String {
+    let paths = std::env::var_os("ZI_NVIM_PLUGIN_PATH").expect(
+        "ZI_NVIM_PLUGIN_PATH must list the nvim plugins to load (run the tests in `nix develop`)",
+    );
+    std::env::split_paths(&paths)
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(|path| {
+            // `:set` takes a comma separated list, and needs spaces escaped.
+            path.to_string_lossy().replace('\\', "\\\\").replace(',', "\\,").replace(' ', "\\ ")
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 impl Nvim {
     async fn spawn(width: u16, height: u16) -> zi::Result<Nvim> {
         let (nvim, join_handle, child) = nvim_rs::create::tokio::new_child_cmd(
@@ -270,7 +286,8 @@ impl Nvim {
                 // Command::new("/home/andy/dev/neovim/build/bin/nvim")
                 .arg("--embed")
                 .arg("--headless") // otherwise nvim will block until a ui is attached
-                // .args(["--cmd", &format!("set rtp+={DIR}/runtime/vim-wordmotion")]) // must use --cmd not -c or + as this has to run early
+                // must use --cmd not -c or + as this has to run early
+                .args(["--cmd", &format!("set rtp+={}", plugin_runtimepath())])
                 .args(["-u", &format!("{DIR}/init.vim")])
                 .arg("-n") // disable swap
                 .arg("-m"), // disable writing files to disk to avoid potential mayhem

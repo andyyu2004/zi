@@ -20,6 +20,14 @@ pub trait Motion: TextObject {
     /// The caller may choose to handle them distinctly.
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte;
 
+    /// The motion repeated `n` times.
+    fn motion_n(&self, text: &dyn AnyText, mut p: PointOrByte, n: usize) -> PointOrByte {
+        for _ in 0..n {
+            p = self.motion(text, p);
+        }
+        p
+    }
+
     #[inline]
     fn motion_flags(&self) -> MotionFlags {
         MotionFlags::empty()
@@ -33,6 +41,11 @@ impl Motion for &dyn Motion {
     }
 
     #[inline]
+    fn motion_n(&self, text: &dyn AnyText, p: PointOrByte, n: usize) -> PointOrByte {
+        (**self).motion_n(text, p, n)
+    }
+
+    #[inline]
     fn motion_flags(&self) -> MotionFlags {
         (**self).motion_flags()
     }
@@ -43,16 +56,17 @@ impl<M: Motion> Motion for &M {
     fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
         (**self).motion(text, p)
     }
+
+    #[inline]
+    fn motion_n(&self, text: &dyn AnyText, p: PointOrByte, n: usize) -> PointOrByte {
+        (**self).motion_n(text, p, n)
+    }
 }
 
 impl<M: Motion> Motion for Repeat<M> {
     #[inline]
-    fn motion(&self, text: &dyn AnyText, mut p: PointOrByte) -> PointOrByte {
-        for _ in 0..self.n {
-            p = self.inner.motion(text, p);
-        }
-
-        p
+    fn motion(&self, text: &dyn AnyText, p: PointOrByte) -> PointOrByte {
+        self.inner.motion_n(text, p, self.n)
     }
 
     #[inline]
