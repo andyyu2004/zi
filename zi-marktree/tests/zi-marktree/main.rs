@@ -741,8 +741,7 @@ proptest::proptest! {
                         assert_eq!(tree.get(id), None);
                     }
                 }
-                // Not up to the end: `range(..)` skips marks at the end (zi-editor/zi-tracking#12).
-                Action::Shift { range, by } if range.end < len => {
+                Action::Shift { range, by } if range.end <= len => {
                     tree.shift(range.clone(), by);
                     len = len - range.len() + by;
                     for mark in insertions.values_mut() {
@@ -757,8 +756,7 @@ proptest::proptest! {
 
             assert_eq!(tree.len(), len);
 
-            // `get` can panic on a range mark collapsed to zero width (zi-editor/zi-tracking#12).
-            for (&id, mark) in insertions.iter().filter(|(_, mark)| !mark.range.is_empty()) {
+            for (&id, mark) in &insertions {
                 assert_eq!(tree.get(id), Some(mark.range.clone()));
             }
             let mut actual = tree.range(..).collect::<Vec<_>>();
