@@ -1,26 +1,12 @@
 use std::time::Duration;
 
-use tokio::sync::mpsc;
-use zi::event::HandlerResult;
 use zi::lstypes::{PositionEncoding, ServerInfo};
 use zi::{
     LanguageConfig, LanguageServiceId, LanguageServiceState, LanguageServiceStatus,
     ServiceCapabilities, ServiceDetails,
 };
-use zi_lsp::LanguageServerConfig;
 
 use super::*;
-
-fn on_initialized(service_id: LanguageServiceId) -> mpsc::UnboundedReceiver<()> {
-    let (tx, rx) = mpsc::unbounded_channel();
-    zi::event::subscribe_with::<zi::event::DidInitializeLanguageService>(move |_editor, event| {
-        if event.service_id == service_id {
-            let _ = tx.send(());
-        }
-        HandlerResult::Continue
-    });
-    rx
-}
 
 async fn status(cx: &TestContext, id: LanguageServiceId) -> LanguageServiceStatus {
     cx.with(move |editor| editor.language_services())
@@ -140,26 +126,7 @@ async fn lsp_status_failed_initialize() -> zi::Result<()> {
 async fn lsp_status_detects_exited_server() -> zi::Result<()> {
     let cx = new("").await;
     let service_id = LanguageServiceId::from("gopls");
-
-    cx.with(move |editor| {
-        editor
-            .language_config_mut()
-            .add_language_service(service_id, LanguageServerConfig::new("gopls", []))
-            .add_language(zi::filetype!(go), LanguageConfig::new([service_id]));
-    })
-    .await;
-
-    let mut initialized = on_initialized(service_id);
-    cx.with(move |editor| {
-        editor
-            .open("tests/zi-lsp/testdirs/lsp-test/main.go", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES)
-    })
-    .await?
-    .await?;
-    if tokio::time::timeout(Duration::from_secs(40), initialized.recv()).await.is_err() {
-        let err = cx.with(|editor| editor.get_error().map(str::to_owned)).await;
-        panic!("gopls did not initialize: {err:?}");
-    }
+    start_gopls(&cx, &[]).await?;
 
     let LanguageServiceState::Running(details) = status(&cx, service_id).await.state else {
         panic!("gopls should be running");

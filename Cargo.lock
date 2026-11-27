@@ -5938,6 +5938,7 @@ dependencies = [
  "slotmap",
  "smol_str",
  "streaming-iterator",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",

@@ -1,7 +1,4 @@
-use tokio::sync::mpsc;
-use zi::event::HandlerResult;
-use zi::{BufferId, LanguageConfig, Url};
-use zi_lsp::LanguageServerConfig;
+use zi::{BufferId, Url};
 
 use super::*;
 
@@ -80,34 +77,7 @@ async fn lsp_definition_utf16() -> zi::Result<()> {
 async fn lsp_definition_cross_file() -> zi::Result<()> {
     let cx = new("").await;
 
-    cx.with(|editor| {
-        editor
-            .language_config_mut()
-            .add_language(zi::filetype!(go), LanguageConfig::new(["gopls".into()]))
-            .add_language_service(
-                "gopls",
-                LanguageServerConfig::new("gopls", ["-rpc.trace".into()]),
-            );
-    })
-    .await;
-
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    zi::event::subscribe_with::<zi::event::DidInitializeLanguageService>(move |_editor, _event| {
-        tx.send(()).unwrap();
-        HandlerResult::Continue
-    });
-
-    cx.with(move |editor| {
-        editor
-            .open("tests/zi-lsp/testdirs/lsp-test/main.go", zi::OpenFlags::SPAWN_LANGUAGE_SERVICES)
-    })
-    .await?
-    .await?;
-
-    if tokio::time::timeout(std::time::Duration::from_secs(40), rx.recv()).await.is_err() {
-        let err = cx.with(|editor| editor.get_error().map(str::to_owned)).await;
-        panic!("gopls did not initialize: {err:?}");
-    }
+    start_gopls(&cx, &["-rpc.trace"]).await?;
 
     cx.with(move |editor| {
         assert_eq!(editor.cursor_line(), "// An example go module to test lsp interactions");
