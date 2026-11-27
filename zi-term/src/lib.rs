@@ -1,5 +1,3 @@
-pub mod subcommand;
-
 use std::backtrace::Backtrace;
 use std::io;
 use std::sync::mpsc::Receiver;

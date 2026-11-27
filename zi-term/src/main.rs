@@ -1,6 +1,5 @@
 use std::backtrace::Backtrace;
 use std::io;
-use std::os::unix::process::CommandExt as _;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -22,14 +21,6 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let external = std::env::args_os().nth(1).and_then(|arg| {
-        zi_term::subcommand::find_external(&arg, std::env::var_os("PATH").as_deref())
-    });
-    if let Some(cmd) = external {
-        let err = std::process::Command::new(&cmd).args(std::env::args_os().skip(2)).exec();
-        return Err(anyhow::Error::new(err).context(format!("failed to run `{}`", cmd.display())));
-    }
-
     let mut opts = Opts::parse();
 
     const ZI_LOG: &str = "ZI_LOG";

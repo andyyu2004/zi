@@ -5852,7 +5852,6 @@ dependencies = [
  "crossterm",
  "futures-util",
  "mimalloc",
- "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

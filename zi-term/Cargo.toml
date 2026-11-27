@@ -32,5 +32,4 @@ zi-wasm = { workspace = true }
 tui = { path = "../zi-tui", package = "zi-tui" }
 
 [dev-dependencies]
-tempfile = { workspace = true }
 asciicast = { workspace = true }
