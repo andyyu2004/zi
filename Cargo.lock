@@ -5736,7 +5736,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "directories-next",
  "expect-test",
  "rel",
  "stdx",
@@ -5839,6 +5838,7 @@ dependencies = [
  "tempfile",
  "tracing",
  "tracing-subscriber",
+ "wit-component 0.263.0",
  "zi-core",
 ]
 

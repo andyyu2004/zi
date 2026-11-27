@@ -25,12 +25,9 @@ install-grammars:
     fi; \
     grammar_dir="${ZI_GRAMMAR_DIR:-}"; \
     if [ -z "$grammar_dir" ] || [ "$grammar_dir" = "${ZI_NIX_GRAMMAR_DIR:-}" ]; then \
-        case "$(uname -s)" in \
-            Darwin) grammar_dir="$HOME/Library/Application Support/zi/grammars" ;; \
-            *) case "${XDG_DATA_HOME:-}" in \
-                /*) grammar_dir="$XDG_DATA_HOME/zi/grammars" ;; \
-                *) grammar_dir="$HOME/.local/share/zi/grammars" ;; \
-            esac ;; \
+        case "${XDG_DATA_HOME:-}" in \
+            /*) grammar_dir="$XDG_DATA_HOME/zi/grammars" ;; \
+            *) grammar_dir="$HOME/.local/share/zi/grammars" ;; \
         esac; \
     fi; \
     for source_dir in "{{grammar-output}}"/*/; do \
