@@ -14,6 +14,13 @@ pub struct InitializeParams {
     pub workspace_folders: Vec<WorkspaceFolder>,
 }
 
+/// What a language service reported about itself when it initialized.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerInfo {
+    pub name: String,
+    pub version: Option<String>,
+}
+
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct WorkspaceFolder {
     pub uri: Url,

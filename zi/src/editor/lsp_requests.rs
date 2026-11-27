@@ -182,7 +182,7 @@ impl Editor {
     }
 
     #[expect(clippy::unused_self, reason = "the root will come from per-server config")]
-    fn lsp_root_path(&self, _server: LanguageServiceId) -> PathBuf {
+    pub(super) fn lsp_root_path(&self, _server: LanguageServiceId) -> PathBuf {
         // TODO this should be configurable per language server
         std::env::current_dir().unwrap()
     }
@@ -226,7 +226,13 @@ impl Editor {
             let client = LanguageClient::new(service_id, self.client());
             let root_path = self.lsp_root_path(service_id);
             let workspace_root = self.lsp_workspace_root(service_id);
-            let (service, fut) = service_config.spawn(&root_path, client)?;
+            let (service, fut) = match service_config.spawn(&root_path, client) {
+                Ok(spawned) => spawned,
+                Err(err) => {
+                    self.failed_language_services.insert(service_id, error_chain(&err));
+                    return Err(err);
+                }
+            };
             let handle = tokio::spawn(fut);
             let mut service = LanguageServiceInstance::new(service, handle);
 
@@ -234,22 +240,38 @@ impl Editor {
             let starting = Arc::new(());
             self.starting_language_services.insert(service_id, Arc::downgrade(&starting));
 
+            let timeout = Duration::from_secs(30);
             callback_with_timeout(
                 &self.callbacks_tx,
                 format!("initializing language service `{service_id}`"),
-                Duration::from_secs(30),
+                // Outlives the inner timeout so the callback below sees and records the failure.
+                timeout + Duration::from_secs(1),
                 async move {
-                    service
-                        .initialize(lstypes::InitializeParams {
-                            process_id: std::process::id(),
-                            workspace_folders: vec![workspace_root],
-                        })
-                        .await?;
-
-                    Ok((service, starting))
+                    let init = service.initialize(lstypes::InitializeParams {
+                        process_id: std::process::id(),
+                        workspace_folders: vec![workspace_root],
+                    });
+                    let res = match tokio::time::timeout(timeout, init).await {
+                        Ok(res) => res.map(|()| service),
+                        Err(_) => Err(anyhow::anyhow!(
+                            "initializing language service `{service_id}` timed out after {timeout:?}"
+                        )),
+                    };
+                    Ok((res, starting))
                 },
-                move |editor, (mut service, _starting)| {
-                    service.initialized()?;
+                move |editor, (res, _starting)| {
+                    let res = res.and_then(|mut service| {
+                        service.initialized()?;
+                        Ok(service)
+                    });
+                    let service = match res {
+                        Ok(service) => service,
+                        Err(err) => {
+                            editor.failed_language_services.insert(service_id, error_chain(&err));
+                            return Err(err);
+                        }
+                    };
+                    editor.failed_language_services.remove(&service_id);
                     tracing::info!(%service_id, "language service initialized");
 
                     assert!(
@@ -476,4 +498,20 @@ impl Editor {
             Ok(())
         }
     }
+}
+
+/// `err` and its causes, skipping a cause whose message already ends the text before it.
+fn error_chain(err: &anyhow::Error) -> String {
+    let mut out = String::new();
+    for cause in err.chain() {
+        let msg = cause.to_string();
+        if out.ends_with(&msg) {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push_str(": ");
+        }
+        out.push_str(&msg);
+    }
+    out
 }

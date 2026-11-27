@@ -296,7 +296,7 @@
                 runHook preBuild
                 export CARGO_COMPONENT_CACHE_DIR="$TMPDIR/cargo-component-cache"
                 cargo component build --locked --offline --release --target wasm32-unknown-unknown \
-                  --target-dir target -p plugin-example -p plugin-test
+                  --target-dir target -p plugin-example -p plugin-lspinfo -p plugin-test
                 runHook postBuild
               '';
 
@@ -304,6 +304,7 @@
                 runHook preInstall
                 mkdir -p "$out" "$testPlugins"
                 cp target/wasm32-unknown-unknown/release/plugin_example.wasm "$out/"
+                cp target/wasm32-unknown-unknown/release/plugin_lspinfo.wasm "$out/"
                 cp target/wasm32-unknown-unknown/release/plugin_test.wasm "$testPlugins/"
                 runHook postInstall
               '';

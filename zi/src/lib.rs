@@ -47,7 +47,12 @@ pub use self::editor::{
 };
 pub(crate) use self::jump::JumpList;
 pub use self::language::{FileType, LanguageConfig, LanguageServiceId};
-pub use self::language_service::{LanguageClient, LanguageService, LanguageServiceConfig, lstypes};
+pub use self::language_service::{
+    LanguageClient, LanguageService, LanguageServiceConfig, ServiceCommand, lstypes,
+};
+pub use self::language_service::{
+    LanguageServiceState, LanguageServiceStatus, ServiceCapabilities, ServiceDetails,
+};
 pub use self::namespace::Namespace;
 #[doc(hidden)]
 pub use self::syntax::HighlightName;

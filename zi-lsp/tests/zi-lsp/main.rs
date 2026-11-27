@@ -17,6 +17,7 @@ mod definition;
 mod diagnostics;
 mod format;
 mod startup;
+mod status;
 mod sync;
 
 // Utility type that can be referenced from within `Fn` closures.
@@ -166,7 +167,10 @@ impl<St: Clone + Send + Sync + 'static> zi::LanguageServiceConfig
             state: self.init_state.clone(),
         };
 
-        Ok((Box::new(zi_lsp::LanguageService::new(client, server)), Box::pin(async { Ok(()) })))
+        Ok((
+            Box::new(zi_lsp::LanguageService::new(client, server)),
+            Box::pin(std::future::pending()),
+        ))
     }
 }
 

@@ -1,0 +1,13 @@
+[package]
+name = "plugin-lspinfo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wit-bindgen.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true

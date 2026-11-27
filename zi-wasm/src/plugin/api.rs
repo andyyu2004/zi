@@ -125,6 +125,37 @@ impl api::editor::HostView for HostState {
         self.with_view(&view, Editor::focus).await
     }
 
+    async fn split(
+        &mut self,
+        view: Resource<api::editor::View>,
+        direction: api::editor::Direction,
+    ) -> wasmtime::Result<Resource<api::editor::View>> {
+        let direction = zi::Direction::from(direction);
+        let new = self
+            .with_view(&view, move |editor, view| {
+                editor.split(view, direction, zi::Constraint::Fill(1))
+            })
+            .await?;
+        Ok(self.push_view(new))
+    }
+
+    async fn set_buffer(
+        &mut self,
+        view: Resource<api::editor::View>,
+        buf: Resource<api::editor::Buffer>,
+    ) -> wasmtime::Result<()> {
+        let buf = self.buffer_id(&buf)?;
+        self.with_view(&view, move |editor, view| {
+            if editor.has_buffer(buf) {
+                editor.set_buffer(view, buf);
+                Ok(())
+            } else {
+                Err(wasmtime::Error::msg(format!("buffer {buf:?} no longer exists")))
+            }
+        })
+        .await?
+    }
+
     #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
     async fn drop(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<()> {
         self.forget_view(&view);
@@ -165,6 +196,13 @@ impl api::editor::HostBuffer for HostState {
 
     async fn len_lines(&mut self, buf: Resource<api::editor::Buffer>) -> wasmtime::Result<u32> {
         self.with_buffer(&buf, |editor, buf| editor.buffer(buf).text().len_lines() as u32).await
+    }
+
+    async fn get_filetype(
+        &mut self,
+        buf: Resource<api::editor::Buffer>,
+    ) -> wasmtime::Result<String> {
+        self.with_buffer(&buf, |editor, buf| editor.buffer(buf).file_type().to_string()).await
     }
 
     #[expect(clippy::unused_async_trait_impl, reason = "keep resource removal deferred until poll")]
@@ -243,6 +281,37 @@ impl api::editor::Host for HostState {
             })
             .await;
         Ok(())
+    }
+
+    async fn get_language_services(
+        &mut self,
+    ) -> wasmtime::Result<Vec<api::editor::LanguageServiceStatus>> {
+        let services = self.client().with(|editor| editor.language_services()).await;
+        Ok(services.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_buffers(&mut self) -> wasmtime::Result<Vec<Resource<api::editor::Buffer>>> {
+        let bufs = self
+            .client()
+            .with(|editor| editor.buffers().map(zi::buffer::Buffer::id).collect::<Vec<_>>())
+            .await;
+        Ok(bufs.into_iter().map(|buf| self.push_buffer(buf)).collect())
+    }
+
+    async fn create_scratch_buffer(
+        &mut self,
+        name: String,
+        text: String,
+    ) -> wasmtime::Result<Resource<api::editor::Buffer>> {
+        let buf = self
+            .client()
+            .with(move |editor| {
+                let buf = editor.create_readonly_buffer(name, text.into_bytes());
+                editor[buf].settings().buf_hidden.write(zi::buffer::BufHidden::Wipe);
+                buf
+            })
+            .await;
+        Ok(self.push_buffer(buf))
     }
 
     async fn add_language(

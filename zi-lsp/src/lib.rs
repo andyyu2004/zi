@@ -33,7 +33,7 @@ pub fn start<C>(
     cwd: impl AsRef<Path>,
     cmd: impl AsRef<OsStr>,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
-) -> Result<(ServerSocket, impl Future<Output = Result<()>> + 'static)>
+) -> Result<(ServerSocket, u32, impl Future<Output = Result<()>> + 'static)>
 where
     C: async_lsp::LanguageClient<
             NotifyResult = ControlFlow<crate::Result<()>>,
@@ -60,7 +60,8 @@ where
         .kill_on_drop(true)
         .spawn()?;
 
-    tracing::info!(?cmd, ?cwd, pid = child.id(), "spawned language server");
+    let pid = child.id();
+    tracing::info!(?cmd, ?cwd, pid, "spawned language server");
 
     let stdout = child.stdout.take().unwrap();
     let stdin = child.stdin.take().unwrap();
@@ -68,7 +69,7 @@ where
 
     let name = cmd.to_string_lossy().into_owned();
 
-    Ok((server, async move {
+    Ok((server, pid, async move {
         // Owned by the main loop so the server is killed when the loop is dropped or aborted.
         let _child = child;
         tokio::spawn(async move {
@@ -99,6 +100,10 @@ impl LanguageServerConfig {
 }
 
 impl zi::LanguageServiceConfig for LanguageServerConfig {
+    fn command(&self) -> Option<zi::ServiceCommand> {
+        Some(zi::ServiceCommand { program: self.command.clone(), args: self.args.clone() })
+    }
+
     fn spawn(
         &self,
         cwd: &Path,
@@ -106,9 +111,10 @@ impl zi::LanguageServiceConfig for LanguageServerConfig {
     ) -> anyhow::Result<(Box<dyn zi::LanguageService + Send>, BoxFuture<'static, anyhow::Result<()>>)>
     {
         tracing::debug!(command = ?self.command, args = ?self.args, "spawn language server");
-        let (server, fut) =
+        let (server, pid, fut) =
             start(LanguageClient::new(client.clone()), cwd, &self.command, &self.args[..])?;
-        Ok((Box::new(LanguageService::new(client, server)), Box::pin(fut.map_err(Into::into))))
+        let service = LanguageService::new(client, server).with_process_id(pid);
+        Ok((Box::new(service), Box::pin(fut.map_err(Into::into))))
     }
 }
 
