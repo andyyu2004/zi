@@ -52,7 +52,7 @@ impl Drop for EpochTicking {
 }
 
 fn spawn_ticker() -> Thread {
-    let engine = engine();
+    let engine = engine().weak();
     std::thread::Builder::new()
         .name("zi-wasm-epoch".into())
         .spawn(move || {
@@ -62,6 +62,7 @@ fn spawn_ticker() -> Thread {
                     continue;
                 }
                 std::thread::sleep(EPOCH_TICK);
+                let Some(engine) = engine.upgrade() else { break };
                 engine.increment_epoch();
             }
         })
