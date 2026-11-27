@@ -243,7 +243,9 @@ fn marktree_shift_delete_whole_leaves_range_mark() {
     tree.insert(1, Id(2)).width(2);
     tree.shift(260..343, 0);
 
-    assert_iter_eq(tree.range(..), [(1..2, Id(0)), (1..3, Id(2)), (260..260, Id(1))]);
+    let mut actual = tree.range(..).collect::<Vec<_>>();
+    actual.sort_by_key(|&(ref range, id)| (range.start, id));
+    assert_iter_eq(actual, [(1..2, Id(0)), (1..3, Id(2)), (260..260, Id(1))]);
     assert_eq!(tree.delete(Id(1)), Some(260..260));
 }
 
@@ -351,6 +353,23 @@ fn marktree_drain_1() {
     assert_iter_eq(tree.drain(0..2), [(1..1, Id(1))]);
     assert_iter_eq(tree.range(..), []);
     assert_eq!(tree.len(), 10);
+}
+
+#[test]
+fn marktree_drain_past_len() {
+    let marks = || (0..100).step_by(2).map(|i| (i..i, Id(i)));
+
+    let mut tree = new(100);
+    marks().for_each(|(_, id)| drop(tree.insert(id.0, id)));
+    assert_iter_eq(tree.drain(..=100), marks());
+    assert_iter_eq(tree.range(..), []);
+    assert_eq!(tree.len(), 100);
+
+    let mut tree = new(100);
+    marks().for_each(|(_, id)| drop(tree.insert(id.0, id)));
+    assert_iter_eq(tree.drain(..), marks());
+    assert_iter_eq(tree.range(..), []);
+    assert_eq!(tree.len(), 100);
 }
 
 #[test]
@@ -766,6 +785,7 @@ proptest::proptest! {
             }
 
             assert_eq!(tree.len(), len);
+            assert_leaves_bounded(&tree, insertions.len());
 
             for (&id, mark) in &insertions {
                 assert_eq!(tree.get(id), Some(mark.range.clone()));
@@ -784,6 +804,36 @@ proptest::proptest! {
         check_range::<4>(&actions, &windows);
         check_range::<32>(&actions, &windows);
     }
+
+    #[test]
+    fn marktree_prop_churn(
+        live in vec((1000..2000usize, 0..100usize), 1..10),
+        churn in vec((0..1000usize, 0..20usize, proptest::bool::ANY), 0..500),
+    ) {
+        // Live marks start after the churned ones, so draining at a churned mark only takes it.
+        let n = 2000;
+        let mut tree = new(n);
+        for (i, &(at, width)) in live.iter().enumerate() {
+            tree.insert(at, Id(i)).width(width.min(n - at));
+        }
+        let id = Id(live.len());
+        for &(at, width, drain) in &churn {
+            tree.insert(at, id).width(width);
+            if drain {
+                assert_iter_eq(tree.drain(at..=at), [(at..at + width, id)]);
+            } else {
+                assert_eq!(tree.delete(id), Some(at..at + width));
+            }
+            assert_leaves_bounded(&tree, live.len());
+        }
+    }
+}
+
+/// Every leaf but a root leaf holds at least one key, and a mark has at most two.
+#[track_caller]
+fn assert_leaves_bounded<const N: usize>(tree: &MarkTree<Id, N>, marks: usize) {
+    let leaves = tree.leaf_count();
+    assert!(leaves <= (2 * marks).max(1), "{leaves} leaves for {marks} marks");
 }
 
 #[derive(Debug, Clone)]

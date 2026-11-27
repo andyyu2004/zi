@@ -4,8 +4,7 @@ use std::ops::{Range, RangeBounds};
 
 use arrayvec::ArrayVec;
 use crop::tree::{AsSlice, BalancedLeaf, BaseMeasured, ReplaceableLeaf, Summarize};
-use smallvec::{SmallVec, smallvec};
-use stdx::iter::ExactChain;
+use smallvec::SmallVec;
 use tinyset::SetU64;
 
 use crate::extent::{Extent, ExtentBuilder};
@@ -140,40 +139,10 @@ impl<const N: usize> Leaf<N> {
 
         let mut entries = builder.finish();
         if entries.is_empty() {
-            // A keyless leaf that was deleted whole. `crop` keeps the leaf, so leave it empty.
+            // A keyless leaf that was deleted whole. It's underfilled, so `crop` merges it away.
             entries.push(Extent::new(0, []));
         }
-        let (chunks, remainder) = entries.as_chunks::<N>();
-        let mut chunks = chunks.iter();
-        let (chunk, used_remainder) = match chunks.next() {
-            Some(chunk) => (ArrayVec::from(chunk.clone()), false),
-            None => (ArrayVec::try_from(remainder).expect("remainder can't be too large"), true),
-        };
-
-        self.extents = chunk;
-        assert!(!self.extents.is_empty());
-
-        *summary = self.summarize();
-
-        if chunks.len() == 0 && (used_remainder || remainder.is_empty()) {
-            return None;
-        }
-
-        let rem = if remainder.is_empty() {
-            None
-        } else {
-            Some(ArrayVec::try_from(remainder).expect("remainder can't be too large"))
-        };
-
-        Some(
-            chunks
-                .cloned()
-                .map(ArrayVec::from)
-                .exact_chain(rem)
-                .map(Leaf::from)
-                .collect::<SmallVec<_, 1>>()
-                .into_iter(),
-        )
+        self.set_extents(summary, entries)
     }
 
     fn insert(
@@ -183,10 +152,8 @@ impl<const N: usize> Leaf<N> {
         keys: &[Key],
     ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
         debug_assert!(at <= summary.bytes);
-        if at == summary.bytes {
-            // Trying to insert at the end. Just propagate the new keys up.
-            let array = ArrayVec::<_, N>::from_iter([Extent::new(0, keys.iter().copied())]);
-            return Some(smallvec![Leaf::from(array)].into_iter());
+        for key in keys {
+            summary.ids.insert(key.id());
         }
 
         // We search from right-to-left because usually insertions happen in increasing order by range.
@@ -195,55 +162,65 @@ impl<const N: usize> Leaf<N> {
             offset -= self.extents[i].len();
             if at == offset {
                 // There is an existing extent that exactly matches the insertion point.
-                // Just add the new keys to the extent and return.
-                for key in keys {
-                    self.extents[i].keys.insert(key.into_raw());
-                    summary.ids.insert(key.id());
-                }
-                break;
+                self.extents[i].keys.extend(keys.iter().map(|key| key.into_raw()));
+                return None;
             }
 
             if offset < at {
-                // The extent covers the insertion point.
-                // Split the extent into two and add the key to the second extent.
+                // Split the extent at the insertion point, the keys start the second part. At the
+                // end of the leaf, the second part is empty.
                 let rem = self.extents[i].length - (at - offset);
                 self.extents[i].length -= rem;
-
-                match self.extents.try_insert(i + 1, Extent::new(rem, keys.iter().copied())) {
-                    Ok(()) => {
-                        for key in keys {
-                            summary.ids.insert(key.id());
-                        }
-                    }
+                let extent = Extent::new(rem, keys.iter().copied());
+                return match self.extents.try_insert(i + 1, extent) {
+                    Ok(()) => None,
                     Err(err) => {
-                        if i + 1 == N {
-                            summary.bytes -= rem;
-                            // Trying to insert at end, propagate the new key up.
-                            let array = ArrayVec::<_, N>::from_iter([err.element()]);
-                            return Some(smallvec![Leaf::from(array)].into_iter());
-                        }
-
-                        // If we can't fit, drain the remainder of the keys and propagate them up.
-                        let drained = self
-                            .extents
-                            .drain(i + 1..)
-                            .inspect(|extent| *summary -= extent)
-                            .collect::<ArrayVec<_, N>>();
-
-                        let extent = err.element();
-                        for key in extent.keys() {
-                            summary.ids.insert(key.id());
-                        }
-                        self.extents.insert(i + 1, extent);
-
-                        return Some(smallvec![Leaf::from(drained)].into_iter());
+                        let mut entries =
+                            self.extents.take().into_iter().collect::<SmallVec<_, N>>();
+                        entries.insert(i + 1, err.element());
+                        self.set_extents(summary, entries)
                     }
-                }
-                break;
+                };
             }
         }
 
-        None
+        unreachable!("the first extent starts at offset 0")
+    }
+
+    /// The fewest extents a leaf that isn't the root can have, see `is_underfilled`.
+    ///
+    /// `clamp` panics if 2 > `N.div_ceil(2)`, that is for N < 4. `MarkTree::new` rejects those
+    /// at compile time.
+    fn min_extents() -> usize {
+        (N / 4).clamp(2, N.div_ceil(2))
+    }
+
+    /// Makes `entries` the leaf's extents. If they don't fit, they fill this leaf and the returned
+    /// leaves that follow it in order, as appending marks in order leaves full leaves behind. The
+    /// last leaf takes enough extents not to be underfilled, at least two, so a trailing empty
+    /// extent is never alone in a leaf.
+    fn set_extents(
+        &mut self,
+        summary: &mut Summary,
+        entries: SmallVec<Extent, N>,
+    ) -> Option<<Self as ReplaceableLeaf<ByteMetric>>::ExtraLeaves> {
+        let leaves = entries.len().div_ceil(N).max(1);
+        let last = match leaves {
+            1 => entries.len(),
+            _ => (entries.len() - (leaves - 1) * N).max(Self::min_extents()),
+        };
+        let mut rest = entries.len() - last;
+        let mut entries = entries.into_iter();
+        let mut chunks = (0..leaves).map(|i| {
+            let len = if i + 1 == leaves { last } else { rest.min(N) };
+            rest = rest.saturating_sub(len);
+            Leaf::from(entries.by_ref().take(len).collect::<ArrayVec<_, N>>())
+        });
+
+        *self = chunks.next().expect("there is at least one leaf");
+        *summary = self.summarize();
+        let extra = chunks.collect::<SmallVec<_, 1>>();
+        (!extra.is_empty()).then(|| extra.into_iter())
     }
 }
 
@@ -302,16 +279,37 @@ impl<const N: usize> ReplaceableLeaf<ByteMetric> for Leaf<N> {
 }
 
 impl<const N: usize> BalancedLeaf for Leaf<N> {
+    /// A leaf is underfilled with fewer than two extents, as only its first extent can be keyless,
+    /// or fewer than a quarter of `N`, so leaves aren't rebalanced after every few deletes. Two
+    /// leaves either fit in one or split into halves that aren't underfilled. An empty leaf is
+    /// always underfilled: `crop` drops a leaf without bytes after balancing it, so one that holds
+    /// keys must be merged first.
     #[inline]
-    fn is_underfilled(&self, _summary: &Self::Summary) -> bool {
-        false
+    fn is_underfilled(&self, summary: &Self::Summary) -> bool {
+        self.extents.len() < Self::min_extents() || summary.bytes == 0
     }
 
-    #[inline]
     fn balance_leaves(
-        _left: (&mut Self, &mut Self::Summary),
-        _right: (&mut Self, &mut Self::Summary),
+        (left, left_summary): (&mut Self, &mut Self::Summary),
+        (right, right_summary): (&mut Self, &mut Self::Summary),
     ) {
+        if !left.is_underfilled(left_summary) && !right.is_underfilled(right_summary) {
+            return;
+        }
+
+        let mut builder = ExtentBuilder::<N>::default();
+        for extent in left.extents.take().iter().chain(&right.extents.take()) {
+            builder.push_extent(extent);
+        }
+
+        // Split the rest so `right` gets the larger half, at least two extents, so some bytes.
+        let entries = builder.finish();
+        let mid = if entries.len() <= N { entries.len() } else { entries.len() / 2 };
+        let mut entries = entries.into_iter();
+        left.extents = entries.by_ref().take(mid).collect();
+        right.extents = entries.collect();
+        *left_summary = left.summarize();
+        *right_summary = right.summarize();
     }
 }
 
