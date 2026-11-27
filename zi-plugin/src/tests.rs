@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::build::plugin_name;
+use crate::build::{RustPackage, npm_plugin_name};
 use crate::language::TEMPLATE_NAME;
 use crate::process::tool;
 use crate::{Language, PluginName, scaffold};
@@ -36,11 +36,49 @@ fn scaffold_names_the_plugin() {
     for lang in Language::ALL {
         let project = dir.path().join(format!("{lang:?}"));
         scaffold(&project, &"my-plugin".parse().unwrap(), lang).unwrap();
-        assert_eq!(plugin_name(&project, lang).unwrap().to_string(), "my-plugin");
+        let name = match lang {
+            Language::TypeScript | Language::JavaScript => npm_plugin_name(&project).unwrap(),
+            Language::Rust => RustPackage::load(&project).unwrap().name,
+        };
+        assert_eq!(name.as_str(), "my-plugin");
         let source = std::fs::read_to_string(project.join(source(lang))).unwrap();
         assert!(source.contains(r#""my-plugin""#), "{source}");
         assert!(!source.contains(TEMPLATE_NAME));
     }
+}
+
+#[test]
+fn build_rust_workspace_plugin() -> anyhow::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let root = dir.path();
+    std::fs::write(
+        root.join("Cargo.toml"),
+        r#"[workspace]
+members = ["other", "plugin"]
+resolver = "3"
+"#,
+    )?;
+
+    std::fs::create_dir_all(root.join("other/src"))?;
+    std::fs::write(
+        root.join("other/Cargo.toml"),
+        r#"[package]
+name = "other"
+version = "0.1.0"
+"#,
+    )?;
+    std::fs::write(root.join("other/src/lib.rs"), "")?;
+
+    let project = root.join("plugin");
+    scaffold(&project, &"my-plugin".parse()?, Language::Rust)?;
+    let manifest = project.join("Cargo.toml");
+    std::fs::write(&manifest, std::fs::read_to_string(&manifest)?.replace("[workspace]\n", ""))?;
+    std::fs::rename(project.join("Cargo.lock"), root.join("Cargo.lock"))?;
+
+    let output = crate::build(&project)?;
+    assert_eq!(output, project.join("dist/my-plugin.wasm"));
+    assert!(output.is_file());
+    Ok(())
 }
 
 #[test]
