@@ -94,10 +94,12 @@ pub(super) struct VisualState {
 #[derive(Debug)]
 pub(super) struct OperatorPendingState {
     pub(crate) operator: Operator,
+    /// The count typed before the operator. It multiplies the count typed after it.
+    pub(super) count: Option<usize>,
 }
 
 impl OperatorPendingState {
     pub(super) fn new(operator: Operator) -> Self {
-        Self { operator }
+        Self { operator, count: None }
     }
 }

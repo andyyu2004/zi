@@ -1,0 +1,87 @@
+==== counts before and after an operator multiply
+a b c d e f g h i j k l m n o p
+----
+2d3w
+
+==== multiplied counts are repeated by dot
+a b c d e f g h i j k l m n o p
+----
+2d3w.
+
+==== a count given to dot replaces multiplied counts
+a b c d e f g h i j k l m n o p
+----
+2d3w4.
+
+==== multiplied counts on a change
+a b c d e f g h i j k l m n o p
+----
+2c3lX<ESC>
+
+==== multiplied counts past the end of the buffer
+a b c d e f g h i j k l m n o p
+----
+2d20l
+
+==== multiplied counts on a linewise operator
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+----
+2d3d
+
+==== multi-digit counts before and after an operator multiply
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+----
+12d1d
+
+==== multiplied counts on f
+a.b.c.d.e.f.g.h
+----
+2d2f.
+
+==== multiplied counts on t
+a.b.c.d.e.f.g.h
+----
+2d2t.
+
+==== multiplied counts on F
+a.b.c.d.e.f.g.h
+----
+fh2d2F.
+
+==== multiplied counts on T
+a.b.c.d.e.f.g.h
+----
+fh2d2T.
+
+==== multiplied counts on f past the last match
+a.b.c
+----
+2d2f.
