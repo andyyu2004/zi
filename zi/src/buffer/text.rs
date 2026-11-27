@@ -177,7 +177,7 @@ impl<X: Text + Clone + Send + 'static> BufferInternal for TextBuffer<X> {
 
         // The current_line highlight
         Box::new(std::iter::once(Highlight {
-            range: PointRange::new(cursor.with_col(0), cursor.with_col(end)),
+            range: PointRange::new(cursor.with_byte_col(0), cursor.with_byte_col(end)),
             id: editor.highlight_id_by_name(HighlightName::CURSORLINE),
         }))
     }

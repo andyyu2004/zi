@@ -21,6 +21,7 @@ itertools = { workspace = true }
 rustc-hash = { workspace = true }
 ustr = { workspace = true }
 unicode-width = { workspace = true }
+unicode-segmentation = { workspace = true }
 tui = { workspace = true }
 nucleo = "0.5.0"
 ignore = "0.4.22"

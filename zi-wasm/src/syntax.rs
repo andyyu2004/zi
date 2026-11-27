@@ -200,7 +200,7 @@ fn delta_to_ts_edit(text: impl Text, delta: &Delta<'_>) -> InputEdit {
 
     fn walk(point: Point, text: &str) -> Point {
         let mut line = point.line();
-        let mut col = point.col();
+        let mut col = point.byte_col();
 
         for c in text.chars() {
             if c == '\n' {

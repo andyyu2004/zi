@@ -68,24 +68,24 @@ impl lifecycle::Guest for Component {
 
 fn test_cursor() {
     let view = get_active_view();
-    assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
-    view.set_cursor(Point { line: 0, col: 1 });
-    assert_eq!(view.get_cursor(), Point { line: 0, col: 0 });
+    assert_eq!(view.get_cursor(), Point { line: 0, byte_col: 0 });
+    view.set_cursor(Point { line: 0, byte_col: 1 });
+    assert_eq!(view.get_cursor(), Point { line: 0, byte_col: 0 });
     insert("abc").unwrap();
-    view.set_cursor(Point { line: 0, col: 1 });
-    assert_eq!(view.get_cursor(), Point { line: 0, col: 1 });
+    view.set_cursor(Point { line: 0, byte_col: 1 });
+    assert_eq!(view.get_cursor(), Point { line: 0, byte_col: 1 });
 }
 
 fn test_insert_delete_undo_redo() {
     let view = get_active_view();
-    view.set_cursor(Point { line: 0, col: 0 });
+    view.set_cursor(Point { line: 0, byte_col: 0 });
 
     view.insert("hello").unwrap();
 
     let buf = view.get_buffer();
     assert!(buf.len_lines() >= 1);
 
-    view.set_cursor(Point { line: 0, col: 4 });
+    view.set_cursor(Point { line: 0, byte_col: 4 });
     view.delete_char().unwrap();
 
     let undone = view.undo().unwrap();

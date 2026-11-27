@@ -235,13 +235,13 @@ pub(super) fn new() -> Keymap {
 
     fn open_newline(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_byte_col(usize::MAX));
         set_error_if!(editor: editor.insert_char(Active, '\n'));
     }
 
     fn open_newline_above(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.set_cursor(Active, editor.cursor(Active).with_col(0));
+        editor.set_cursor(Active, editor.cursor(Active).with_byte_col(0));
         set_error_if!(editor: editor.insert_char(Active, '\n'));
         set_error_if!(editor: editor.motion(Active, motion::PrevLine));
     }
@@ -291,7 +291,7 @@ pub(super) fn new() -> Keymap {
     }
 
     fn append_eol(editor: &mut Editor) {
-        editor.set_cursor(Active, editor.cursor(Active).with_col(usize::MAX));
+        editor.set_cursor(Active, editor.cursor(Active).with_byte_col(usize::MAX));
         editor.set_mode(Mode::Insert);
         editor.move_cursor(Active, Direction::Right, 1);
     }

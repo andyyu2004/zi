@@ -905,8 +905,8 @@ impl Editor {
             Mode::VisualBlock => Some(visual::Selection::Block {
                 start_line: start.line(),
                 end_line: end.line(),
-                start_col: start.col().min(end.col()),
-                end_col: start.col().max(end.col()),
+                start_col: start.byte_col().min(end.byte_col()),
+                end_col: start.byte_col().max(end.byte_col()),
             }),
             Mode::Normal
             | Mode::Insert
@@ -1019,7 +1019,7 @@ impl Editor {
                         break;
                     }
 
-                    start = start.left(c.len_utf8());
+                    start = start.left_bytes(c.len_utf8());
                 }
 
                 (start != end).then(|| PointRange::new(start, end))
@@ -1268,7 +1268,7 @@ impl Editor {
         let (view, buf) = self.get(selector);
         let text = self[buf].text();
         let cursor = self[view].cursor();
-        if cursor.col() > 0 || !text.line(cursor.line()).unwrap().is_empty() {
+        if cursor.byte_col() > 0 || !text.line(cursor.line()).unwrap().is_empty() {
             // Simple heuristics to determine if we should indent the new line
             return Ok(());
         }
@@ -1279,7 +1279,7 @@ impl Editor {
                 let start_byte = text.line_to_byte(cursor.line());
                 let deltas = Deltas::insert_at(start_byte, " ".repeat(bytes));
                 self.edit(buf, &deltas)?;
-                self.set_cursor(view, cursor.right(bytes));
+                self.set_cursor(view, cursor.right_bytes(bytes));
                 Ok(())
             }
         }
@@ -1428,7 +1428,7 @@ impl Editor {
     pub fn cursor_char(&self) -> Option<char> {
         let (view, _) = self.db.view_and_buffer(self.tree.active());
         let cursor = view.cursor();
-        let col = cursor.col();
+        let col = cursor.byte_col();
         self.cursor_line().get(col..)?.chars().next()
     }
 
@@ -1590,7 +1590,7 @@ impl Editor {
         let mut line_count = end_point.line() - start_point.line() + 1;
 
         let end_adjusted = flags.contains(TextObjectFlags::EXCLUSIVE)
-            && end_point.col() == 0
+            && end_point.byte_col() == 0
             && obj_kind == TextObjectKind::Charwise
             && line_count > 1;
 
@@ -1645,7 +1645,7 @@ impl Editor {
                 let cursor = match obj_kind {
                     // linewise deletions move the line but maintain the column
                     TextObjectKind::Linewise => {
-                        PointOrByte::Point(start_point.with_col(cursor.col()))
+                        PointOrByte::Point(start_point.with_byte_col(cursor.byte_col()))
                     }
                     // charwise deletions moves the cursor to the start of the range
                     TextObjectKind::Charwise => PointOrByte::Byte(range.start),
@@ -1686,7 +1686,7 @@ impl Editor {
                             // Special case if the motion started at the newline of the prior line.
                             Some('\n') if !end_adjusted => cursor,
                             _ if end_adjusted => start_point,
-                            _ => start_point.with_col(cursor.col()),
+                            _ => start_point.with_byte_col(cursor.byte_col()),
                         };
                         self[buf].snapshot_cursor(cursor);
                         self[buf].snapshot(SnapshotFlags::empty());
@@ -1706,7 +1706,16 @@ impl Editor {
                 && matches!(operator, Operator::Delete)
             {
                 let cursor = match new_cursor {
-                    PointOrByte::Point(point) => PointOrByte::Point(point.with_col(target_col)),
+                    PointOrByte::Point(point) => {
+                        let buffer = &self.db.buffers[buf];
+                        let text = buffer.text();
+                        let line = text
+                            .line(point.line())
+                            .or_else(|| text.line(text.len_lines().saturating_sub(1)))
+                            .unwrap_or_else(|| Box::new(""));
+                        let col = buffer.byte_col_at(&line.to_cow(), target_col);
+                        PointOrByte::Point(point.with_byte_col(col))
+                    }
                     PointOrByte::Byte(_) => panic!("expected point cursor for linewise motion"),
                 };
                 (cursor, SetCursorFlags::empty())

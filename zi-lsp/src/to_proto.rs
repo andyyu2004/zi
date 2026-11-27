@@ -66,7 +66,7 @@ pub fn point(
 ) -> lsp_types::Position {
     match encoding {
         lstypes::PositionEncoding::Utf8 => {
-            lsp_types::Position::new(point.line() as u32, point.col() as u32)
+            lsp_types::Position::new(point.line() as u32, point.byte_col() as u32)
         }
         lstypes::PositionEncoding::Utf16 => byte(encoding, text, text.point_to_byte(point)),
     }

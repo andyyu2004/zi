@@ -106,6 +106,51 @@ async fn set_cursor_mid_code_point() {
 }
 
 #[tokio::test]
+async fn move_cursor_vertical_keeps_display_col() {
+    let cx = new("abcd\n日本x\nab").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 3));
+        editor.move_cursor(zi::Active, Down, 1);
+        assert_eq!(editor.cursor(zi::Active), (1, 3), "display col 3 is the right half of 本");
+        editor.move_cursor(zi::Active, Down, 1);
+        assert_eq!(editor.cursor(zi::Active), (2, 1));
+        editor.move_cursor(zi::Active, Up, 1);
+        assert_eq!(editor.cursor(zi::Active), (1, 3));
+        editor.move_cursor(zi::Active, Up, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 3));
+
+        editor.set_cursor(zi::Active, (1, 3));
+        editor.move_cursor(zi::Active, Up, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 2), "本 starts at display col 2");
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
+async fn move_cursor_combining_mark() {
+    let cx = new("e\u{301}x\nabc").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        let (x0, y0) = editor.cursor_viewport_coords();
+        editor.move_cursor(zi::Active, Right, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 3), "e and its accent are one step");
+        assert_eq!(editor.cursor_viewport_coords(), (x0 + 1, y0), "the accent takes no cell");
+        editor.move_cursor(zi::Active, Left, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 0));
+
+        editor.set_cursor(zi::Active, (0, 1));
+        assert_eq!(editor.cursor(zi::Active), (0, 0), "snaps back to the start of the grapheme");
+
+        editor.set_cursor(zi::Active, (1, 1));
+        editor.move_cursor(zi::Active, Up, 1);
+        assert_eq!(editor.cursor(zi::Active), (0, 3));
+    })
+    .await;
+    cx.cleanup().await;
+}
+
+#[tokio::test]
 async fn cursor_viewport_coords_scroll() {
     let cx = new("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n").await;
     cx.with(|editor| {

@@ -17,3 +17,39 @@ aé日€b
 ab日
 ----
 llllh3l
+
+==== j and k keep the display column across wide chars
+abcd
+日本x
+ab
+----
+llljjkk
+
+==== j onto the right half of a wide char
+abcd
+日本
+----
+lljk
+
+==== j and k from a wide char
+日本x
+abcd
+----
+ljk
+
+==== l and h over a combining mark
+éx
+----
+lhl
+
+==== j onto a combining mark
+abc
+éx
+----
+lj
+
+==== dd keeps the display column
+abcd
+日本x
+----
+llldd

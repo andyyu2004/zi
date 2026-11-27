@@ -61,6 +61,7 @@ itertools = "0.15"
 mimalloc = "0.1.42"
 parking_lot = "0.13"
 unicode-width = "0.2"
+unicode-segmentation = "1.13"
 tempfile = "3.10"
 regex = "1"
 regex-cursor = { version = "0.1.4", default-features = false, features = ["perf-inline"] }

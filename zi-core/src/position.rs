@@ -4,7 +4,7 @@ mod tree_sitter_impls;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::iter::Peekable;
-use std::ops::{Add, Bound, RangeBounds, Sub};
+use std::ops::{Bound, RangeBounds};
 use std::str::FromStr;
 use std::{fmt, ops};
 
@@ -46,34 +46,26 @@ impl From<Rect> for Size {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset {
-    pub line: usize,
-    pub col: usize,
+    pub line: Line,
+    pub col: DisplayCol,
 }
 
 impl Offset {
-    pub fn new(line: usize, col: usize) -> Self {
+    pub fn new(line: Line, col: DisplayCol) -> Self {
         Self { line, col }
-    }
-
-    pub fn new_line(line: usize) -> Self {
-        Self::new(line, 0)
-    }
-
-    pub fn new_col(col: usize) -> Self {
-        Self::new(0, col)
     }
 }
 
 impl fmt::Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
+        write!(f, "{}:{}", self.line, self.col.cells())
     }
 }
 
 impl PartialEq<(usize, usize)> for Offset {
     #[inline]
-    fn eq(&self, &(line, col): &(usize, usize)) -> bool {
-        self.line == line && self.col == col
+    fn eq(&self, &(line, cells): &(usize, usize)) -> bool {
+        self.line == line && self.col.cells() == cells
     }
 }
 
@@ -180,15 +172,6 @@ impl fmt::Debug for PointRange {
     }
 }
 
-impl Sub<Offset> for PointRange {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, offset: Offset) -> Self {
-        Self::new(self.start - offset, self.end - offset)
-    }
-}
-
 impl From<PointRange> for ops::Range<Point> {
     fn from(val: PointRange) -> Self {
         val.start..val.end
@@ -244,30 +227,12 @@ impl From<(usize, usize)> for PointOrByte {
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point {
     line: Line,
-    col: Col,
-}
-
-impl Add<Offset> for Point {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, offset: Offset) -> Self {
-        Self::new(self.line + offset.line, self.col + offset.col)
-    }
-}
-
-impl Sub<Offset> for Point {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, offset: Offset) -> Self {
-        Self::new(self.line.saturating_sub(offset.line), self.col.saturating_sub(offset.col))
-    }
+    byte_col: ByteCol,
 }
 
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
+        write!(f, "{}:{}", self.line, self.byte_col)
     }
 }
 
@@ -291,28 +256,28 @@ impl FromStr for Point {
 impl From<Point> for (usize, usize) {
     #[inline]
     fn from(val: Point) -> Self {
-        (val.line, val.col)
+        (val.line, val.byte_col)
     }
 }
 
 impl From<(usize, usize)> for Point {
     #[inline]
-    fn from((line, col): (usize, usize)) -> Self {
-        Self { line, col }
+    fn from((line, byte_col): (usize, usize)) -> Self {
+        Self { line, byte_col }
     }
 }
 
 impl PartialEq<(usize, usize)> for Point {
     #[inline]
-    fn eq(&self, &(line, col): &(usize, usize)) -> bool {
-        self.line == line && self.col == col
+    fn eq(&self, &(line, byte_col): &(usize, usize)) -> bool {
+        self.line == line && self.byte_col == byte_col
     }
 }
 
 impl Point {
     #[inline]
-    pub fn new(line: Line, col: Col) -> Self {
-        Self { line, col }
+    pub fn new(line: Line, byte_col: ByteCol) -> Self {
+        Self { line, byte_col }
     }
 
     #[inline]
@@ -321,43 +286,59 @@ impl Point {
     }
 
     #[inline]
-    pub fn col(&self) -> Col {
-        self.col
+    pub fn byte_col(&self) -> ByteCol {
+        self.byte_col
     }
 
     #[inline]
-    pub fn left(self, amt: usize) -> Self {
-        Self::new(self.line, self.col.saturating_sub(amt))
+    pub fn left_bytes(self, bytes: usize) -> Self {
+        Self::new(self.line, self.byte_col.saturating_sub(bytes))
     }
 
     #[inline]
     pub fn up(self, amt: usize) -> Self {
-        Self::new(self.line.saturating_sub(amt), self.col)
+        Self::new(self.line.saturating_sub(amt), self.byte_col)
     }
 
     #[inline]
     pub fn down(self, amt: usize) -> Self {
-        Self::new(self.line.saturating_add(amt), self.col)
+        Self::new(self.line.saturating_add(amt), self.byte_col)
     }
 
     #[inline]
-    pub fn right(self, amt: usize) -> Self {
-        Self::new(self.line, self.col.saturating_add(amt))
+    pub fn right_bytes(self, bytes: usize) -> Self {
+        Self::new(self.line, self.byte_col.saturating_add(bytes))
     }
 
     pub fn with_line(self, line: Line) -> Self {
-        Self::new(line, self.col)
+        Self::new(line, self.byte_col)
     }
 
     #[inline]
-    pub fn with_col(self, col: Col) -> Self {
-        Self::new(self.line, col)
+    pub fn with_byte_col(self, byte_col: ByteCol) -> Self {
+        Self::new(self.line, byte_col)
     }
 }
 
 pub type Line = usize;
 
-pub type Col = usize;
+pub type ByteCol = usize;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DisplayCol(usize);
+
+impl DisplayCol {
+    #[inline]
+    pub const fn new(cells: usize) -> Self {
+        Self(cells)
+    }
+
+    #[inline]
+    pub const fn cells(self) -> usize {
+        let Self(cells) = self;
+        cells
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {

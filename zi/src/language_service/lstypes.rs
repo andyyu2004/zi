@@ -195,15 +195,15 @@ impl<T: Text> TextExt for T {
         }
 
         match encoding {
-            PositionEncoding::Utf8 => Some(Point::new(point.line(), point.col())),
+            PositionEncoding::Utf8 => Some(Point::new(point.line(), point.byte_col())),
             PositionEncoding::Utf16 => {
                 let line_start_byte = self.line_to_byte(point.line());
                 let line_start_cu = self.byte_to_utf16_cu(line_start_byte);
-                if line_start_cu + point.col() > self.len_utf16_cu() {
+                if line_start_cu + point.byte_col() > self.len_utf16_cu() {
                     return None;
                 }
 
-                let byte = self.utf16_cu_to_byte(line_start_cu + point.col());
+                let byte = self.utf16_cu_to_byte(line_start_cu + point.byte_col());
                 Some(self.byte_to_point(byte))
             }
         }

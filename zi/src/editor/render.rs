@@ -5,7 +5,7 @@ use stdx::iter::IteratorExt;
 use stdx::merge::Merge;
 use tui::{Rect, StatefulWidget, Widget as _};
 use zi_core::style::Style;
-use zi_core::{IteratorRangeExt, Offset, PointRange};
+use zi_core::{IteratorRangeExt, PointRange};
 use zi_text::{AnyText, AnyTextSlice, PointRangeExt, Text, TextSlice};
 
 use super::{Editor, State};
@@ -46,7 +46,7 @@ impl Editor {
             .map_or_else(|| buf.url() as &dyn fmt::Display, |p| p as &dyn fmt::Display);
 
         let mut status_spans = vec![tui::Span::styled(
-            format!("{}:{}:{} ", display, view.cursor().line() + 1_usize, view.cursor().col()),
+            format!("{}:{}:{} ", display, view.cursor().line() + 1_usize, view.cursor().byte_col()),
             tui::Style::new()
                 .fg(tui::Color::Rgb(0x88, 0x88, 0x88))
                 .bg(tui::Color::Rgb(0x07, 0x36, 0x42)),
@@ -148,11 +148,15 @@ impl Editor {
         }
 
         let height = state.matches().take(20).len() as u16;
-        let start_point = self.text(view).byte_to_point(state.start_byte());
-        let offset = self[view].offset();
+        let (view_data, buf) = self.db.view_and_buffer(view);
+        let text = buf.text();
+        let start_point = text.byte_to_point(state.start_byte());
+        let line = text.line(start_point.line()).unwrap_or_else(|| Box::new(""));
+        let start_col = buf.display_col(&line.to_cow(), start_point.byte_col());
+        let offset = view_data.offset();
         let area = Rect {
-            x: view_area.x + self[view].number_width.get() + start_point.col() as u16
-                - offset.col as u16,
+            x: view_area.x + view_data.number_width.get() + start_col.cells() as u16
+                - offset.col.cells() as u16,
             y: view_area.y + start_point.line() as u16 - offset.line as u16 + 1,
             height,
             width: 50,
@@ -235,7 +239,10 @@ impl Editor {
         let highlights = view_highlights
             .range_merge(search_highlights)
             .range_merge(visual_highlights.into_iter())
-            .map(|(range, style)| (range - Offset::new(line_offset, 0), style));
+            .map(|(range, style)| {
+                let (start, end) = (range.start().up(line_offset), range.end().up(line_offset));
+                (PointRange::new(start, end), style)
+            });
 
         let text = buf.text();
         let lines = text

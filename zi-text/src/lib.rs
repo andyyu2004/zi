@@ -2,6 +2,7 @@ mod cow_str_impl;
 mod cursor;
 mod delta;
 mod ext;
+pub mod grapheme;
 mod readonly;
 mod rope;
 mod str_impl;
@@ -88,7 +89,7 @@ pub trait TextBase: fmt::Display + fmt::Debug + Send + Sync {
     #[inline]
     fn point_to_byte(&self, point: Point) -> usize {
         // This doesn't actually check whether the column is within bounds of the line
-        self.line_to_byte(point.line()) + point.col()
+        self.line_to_byte(point.line()) + point.byte_col()
     }
 
     #[inline]
@@ -482,22 +483,6 @@ pub trait TextSlice<'a>: TextBase + Sized {
 
     fn line(&self, line_idx: usize) -> Option<Self::Slice>;
 
-    /// The largest char boundary at or before `byte_idx`, as [`str::floor_char_boundary`].
-    /// Returns the length if `byte_idx` is past the end.
-    #[inline]
-    fn floor_char_boundary(&self, byte_idx: usize) -> usize {
-        // Each chunk is a `str`, so chunk boundaries are char boundaries.
-        let mut start = 0;
-        for chunk in self.chunks() {
-            let end = start + chunk.len();
-            if byte_idx < end {
-                return start + chunk.floor_char_boundary(byte_idx - start);
-            }
-            start = end;
-        }
-        start
-    }
-
     /// Returns the byte index of the first non-whitespace character on the line.
     #[inline]
     fn indent(&self) -> usize {
@@ -510,7 +495,7 @@ pub trait TextSlice<'a>: TextBase + Sized {
     /// Returns true if the point is within the indentation of the line.
     #[inline]
     fn inindent(&self, point: Point) -> bool {
-        self.line(point.line()).unwrap().indent() >= point.col()
+        self.line(point.line()).unwrap().indent() >= point.byte_col()
     }
 
     fn reader(&self) -> impl Read + 'a {
@@ -663,8 +648,8 @@ where
             }
 
             annotations.next();
-            let start = if range.start().line() == i { range.start().col() } else { 0 };
-            let end = if range.end().line() == i { range.end().col() } else { line_len };
+            let start = if range.start().line() == i { range.start().byte_col() } else { 0 };
+            let end = if range.end().line() == i { range.end().byte_col() } else { line_len };
             if start < *col {
                 // Keep the first annotation when ranges overlap.
                 continue;

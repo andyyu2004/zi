@@ -11,14 +11,14 @@ async fn dot_repeat_insert() {
         editor.set_cursor(zi::Active, (0, 0));
         editor.input("iabc<ESC>").unwrap();
         assert_eq!(editor.cursor_line(), "abchello world");
-        assert_eq!(editor.cursor(zi::Active).col(), 2); // cursor should be on 'c'
+        assert_eq!(editor.cursor(zi::Active).byte_col(), 2); // cursor should be on 'c'
     })
     .await;
 
     cx.with(|editor| {
         editor.input(".").unwrap();
         assert_eq!(editor.cursor_line(), "ababcchello world");
-        assert_eq!(editor.cursor(zi::Active).col(), 4); // cursor should be on the second inserted 'c'
+        assert_eq!(editor.cursor(zi::Active).byte_col(), 4); // cursor should be on the second inserted 'c'
     })
     .await;
 
@@ -190,7 +190,7 @@ async fn dot_repeat_multichar_insert() {
         editor.input("ihelloworld<ESC>").unwrap();
         assert_eq!(editor.cursor_line(), "helloworld");
         // After <ESC>, cursor is on 'd' (last char inserted)
-        assert_eq!(editor.cursor(zi::Active).col(), 9);
+        assert_eq!(editor.cursor(zi::Active).byte_col(), 9);
     })
     .await;
 
@@ -274,7 +274,7 @@ async fn dot_no_repeat_motions() {
         // Now do a motion (which shouldn't be recorded)
         editor.input("w").unwrap(); // move forward one word
         // After 'w' from col 0, we should be at the start of "two" (col 5)
-        assert_eq!(editor.cursor(zi::Active).col(), 5);
+        assert_eq!(editor.cursor(zi::Active).byte_col(), 5);
     })
     .await;
 
