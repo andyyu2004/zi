@@ -121,3 +121,31 @@ async fn scroll_bounds_check() {
     .await;
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn scroll_horizontal_wide_chars() {
+    let cx = new("日本xy").await;
+    cx.with(|editor| {
+        editor.set_cursor(zi::Active, (0, 0));
+        let (x0, _) = editor.cursor_viewport_coords();
+
+        editor.scroll(zi::Active, Right, 2);
+        assert_eq!(editor.view(zi::Active).offset(), (0, 2), "offset is in cells");
+        assert_eq!(editor.cursor(zi::Active), (0, 3), "本 starts at cell 2");
+        assert_eq!(editor.cursor_viewport_coords().0, x0);
+
+        editor.scroll(zi::Active, Right, 1);
+        assert_eq!(
+            editor.cursor(zi::Active),
+            (0, 6),
+            "cell 3 is inside 本, so the cursor goes to x"
+        );
+        assert_eq!(editor.cursor_viewport_coords().0, x0 + 1);
+
+        editor.scroll(zi::Active, Left, 3);
+        assert_eq!(editor.view(zi::Active).offset(), (0, 0));
+        assert_eq!(editor.cursor(zi::Active), (0, 3));
+    })
+    .await;
+    cx.cleanup().await;
+}

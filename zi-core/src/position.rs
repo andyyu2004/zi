@@ -4,7 +4,7 @@ mod tree_sitter_impls;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::iter::Peekable;
-use std::ops::{Add, Bound, RangeBounds, Sub};
+use std::ops::{Bound, RangeBounds};
 use std::str::FromStr;
 use std::{fmt, ops};
 
@@ -46,34 +46,26 @@ impl From<Rect> for Size {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset {
-    pub line: usize,
-    pub col: usize,
+    pub line: Line,
+    pub col: DisplayCol,
 }
 
 impl Offset {
-    pub fn new(line: usize, col: usize) -> Self {
+    pub fn new(line: Line, col: DisplayCol) -> Self {
         Self { line, col }
-    }
-
-    pub fn new_line(line: usize) -> Self {
-        Self::new(line, 0)
-    }
-
-    pub fn new_col(col: usize) -> Self {
-        Self::new(0, col)
     }
 }
 
 impl fmt::Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
+        write!(f, "{}:{}", self.line, self.col.cells())
     }
 }
 
 impl PartialEq<(usize, usize)> for Offset {
     #[inline]
-    fn eq(&self, &(line, col): &(usize, usize)) -> bool {
-        self.line == line && self.col == col
+    fn eq(&self, &(line, cells): &(usize, usize)) -> bool {
+        self.line == line && self.col.cells() == cells
     }
 }
 
@@ -180,15 +172,6 @@ impl fmt::Debug for PointRange {
     }
 }
 
-impl Sub<Offset> for PointRange {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, offset: Offset) -> Self {
-        Self::new(self.start - offset, self.end - offset)
-    }
-}
-
 impl From<PointRange> for ops::Range<Point> {
     fn from(val: PointRange) -> Self {
         val.start..val.end
@@ -245,24 +228,6 @@ impl From<(usize, usize)> for PointOrByte {
 pub struct Point {
     line: Line,
     byte_col: ByteCol,
-}
-
-impl Add<Offset> for Point {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, offset: Offset) -> Self {
-        Self::new(self.line + offset.line, self.byte_col + offset.col)
-    }
-}
-
-impl Sub<Offset> for Point {
-    type Output = Self;
-
-    #[inline]
-    fn sub(self, offset: Offset) -> Self {
-        Self::new(self.line.saturating_sub(offset.line), self.byte_col.saturating_sub(offset.col))
-    }
 }
 
 impl fmt::Display for Point {

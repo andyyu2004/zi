@@ -160,7 +160,7 @@ impl View {
             }
         };
 
-        self.offset = Offset::new(line, 0);
+        self.offset = Offset::new(line, DisplayCol::default());
     }
 
     /// Returns the cursor coordinates in the buffer in cells (not characters) relative to the viewport.
@@ -178,11 +178,11 @@ impl View {
         let line = text.line(line_idx).unwrap_or_else(|| Box::new(""));
         let col = buf.display_col(&line.to_cow(), self.cursor.point.byte_col());
         assert!(
-            self.offset.col <= col.cells(),
+            self.offset.col <= col,
             "cursor is to the left of the viewport: offset={} col={col:?}",
             self.offset,
         );
-        let x = col.cells() - self.offset.col;
+        let x = col.cells() - self.offset.col.cells();
         let y = line_idx - self.offset.line;
         (x.try_into().unwrap(), y.try_into().unwrap())
     }
@@ -398,29 +398,53 @@ impl View {
     ) {
         let size = size.into();
         let prev = self.offset;
-        // don't need to bounds check the scroll, `move_cursor` handles that
+        // don't need to bounds check the scroll, moving the cursor handles that
         match direction {
-            Direction::Up => self.offset.line = self.offset.line.saturating_sub(amt),
-            Direction::Down => self.offset.line = self.offset.line.saturating_add(amt),
-            Direction::Left => self.offset.col = self.offset.col.saturating_sub(amt),
-            Direction::Right => self.offset.col = self.offset.col.saturating_add(amt),
+            Direction::Up => {
+                self.offset.line = self.offset.line.saturating_sub(amt);
+                self.move_cursor(mode, size, buf, direction, prev.line - self.offset.line);
+            }
+            Direction::Down => {
+                self.offset.line = self.offset.line.saturating_add(amt);
+                self.move_cursor(mode, size, buf, direction, self.offset.line - prev.line);
+            }
+            Direction::Left => {
+                let col = DisplayCol::new(prev.col.cells().saturating_sub(amt));
+                self.scroll_to_col(mode, size, buf, col);
+            }
+            Direction::Right => {
+                let col = DisplayCol::new(prev.col.cells().saturating_add(amt));
+                self.scroll_to_col(mode, size, buf, col);
+            }
         }
-
-        // Move the cursor the same amount to match.
-        let amt = match direction {
-            Direction::Up => prev.line - self.offset.line,
-            Direction::Down => self.offset.line - prev.line,
-            Direction::Left => prev.col - self.offset.col,
-            Direction::Right => self.offset.col - prev.col,
-        };
-
-        self.move_cursor(mode, size, buf, direction, amt);
         assert!(
             self.cursor.point.line() >= self.offset.line
                 && self.cursor.point.line() < self.offset.line + size.height as usize,
             "cursor is out of bounds: cursor={} offset={} size={size}",
             self.cursor.point,
             self.offset,
+        );
+    }
+
+    fn scroll_to_col(&mut self, mode: Mode, size: Size, buf: &Buffer, col: DisplayCol) {
+        let prev = self.offset.col;
+        self.offset.col = col;
+
+        let point = self.cursor.point;
+        let line = buf.text().line(point.line()).unwrap_or_else(|| Box::new(""));
+        let line = line.to_cow();
+        let cursor_col = buf.display_col(&line, point.byte_col()).cells();
+        let target = DisplayCol::new((cursor_col + col.cells()).saturating_sub(prev.cells()));
+        let mut byte_col = buf.byte_col_at(&line, target);
+        if buf.display_col(&line, byte_col) < target {
+            byte_col = next_grapheme_boundary(&line, byte_col, 1);
+        }
+        self.set_cursor_linewise(
+            mode,
+            size,
+            buf,
+            point.with_byte_col(byte_col),
+            SetCursorFlags::empty(),
         );
     }
 
