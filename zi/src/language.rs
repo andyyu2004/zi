@@ -146,6 +146,10 @@ impl FileType {
         })
     }
 
+    pub fn from_name(name: &str) -> Self {
+        ft(name)
+    }
+
     pub fn detect(path: &Path) -> Self {
         let filename = path.file_name().and_then(|name| name.to_str());
         let extension = path.extension().and_then(|ext| ext.to_str());
@@ -278,6 +282,10 @@ impl Config {
     ) -> &mut Self {
         self.languages.insert(file_type.into(), config);
         self
+    }
+
+    pub fn has_language_service(&self, id: LanguageServiceId) -> bool {
+        self.language_services.contains_key(&id)
     }
 
     pub fn add_language_service(

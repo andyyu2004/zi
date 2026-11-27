@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::io;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -10,13 +11,19 @@ use slotmap::SlotMap;
 use smol_str::SmolStr;
 use tokio::select;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReadDirStream;
 pub use wasmtime::Engine;
+use wasmtime::component::ResourceTable;
 use wasmtime::component::{Component, Linker, Resource, ResourceAny};
+use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use zi::command::{self, CommandRange, Handler, Word};
-use zi::{Active, BufferId, Client, Editor, Point, SaveFlags, ViewId, dirs};
+use zi::{
+    Active, BufferId, Client, Editor, FileType, LanguageConfig, LanguageServiceId, Point,
+    SaveFlags, ViewId, dirs,
+};
+use zi_lsp::LanguageServerConfig;
 
 use crate::wit::Plugin;
 use crate::wit::zi::api;
@@ -32,6 +39,8 @@ pub fn engine() -> &'static Engine {
 
 pub struct HostState {
     client: Client,
+    wasi: WasiCtx,
+    table: ResourceTable,
     // Need some mappings from wasm ui32 wasm resource rep to slotmap u64 keys.
     views: HashMap<u32, ViewId>,
     buffers: HashMap<u32, BufferId>,
@@ -40,7 +49,14 @@ pub struct HostState {
 
 impl HostState {
     fn new(client: Client) -> Self {
-        Self { client, views: HashMap::new(), buffers: HashMap::new(), next_rep: AtomicU32::new(1) }
+        Self {
+            client,
+            wasi: WasiCtx::builder().build(),
+            table: ResourceTable::new(),
+            views: HashMap::new(),
+            buffers: HashMap::new(),
+            next_rep: AtomicU32::new(1),
+        }
     }
 
     fn client(&self) -> &Client {
@@ -68,7 +84,7 @@ impl HostState {
     }
 
     async fn with_view<T: Send + 'static>(
-        &self,
+        &mut self,
         res: &Resource<api::editor::View>,
         f: impl FnOnce(&mut Editor, ViewId) -> T + Send + 'static,
     ) -> wasmtime::Result<T> {
@@ -80,7 +96,7 @@ impl HostState {
     }
 
     async fn with_buffer<T: Send + 'static>(
-        &self,
+        &mut self,
         res: &Resource<api::editor::Buffer>,
         f: impl FnOnce(&mut Editor, BufferId) -> T + Send + 'static,
     ) -> wasmtime::Result<T> {
@@ -99,6 +115,19 @@ impl HostState {
 }
 
 pub type Store = wasmtime::Store<HostState>;
+
+impl WasiView for HostState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView { ctx: &mut self.wasi, table: &mut self.table }
+    }
+}
+
+fn linker(engine: &Engine) -> wasmtime::Result<Linker<HostState>> {
+    let mut linker = Linker::new(engine);
+    wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
+    Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |state| state)?;
+    Ok(linker)
+}
 
 impl api::editor::HostView for HostState {
     async fn exists(&mut self, view: Resource<api::editor::View>) -> wasmtime::Result<bool> {
@@ -320,16 +349,65 @@ impl api::editor::Host for HostState {
             .await
             .map_err(|e| e.to_string()))
     }
+
+    async fn add_language_server(
+        &mut self,
+        id: String,
+        server: api::editor::LanguageServer,
+    ) -> wasmtime::Result<()> {
+        let api::editor::LanguageServer { command, args } = server;
+        let server = LanguageServerConfig::new(command, args.into_iter().map(Into::into));
+        self.client
+            .with(move |editor| {
+                editor.language_config_mut().add_language_service(id.as_str(), server);
+            })
+            .await;
+        Ok(())
+    }
+
+    async fn add_language(
+        &mut self,
+        filetype: String,
+        language_servers: Vec<String>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        Ok(self
+            .client
+            .with(move |editor| {
+                let config = editor.language_config_mut();
+                let ids = language_servers.iter().map(|id| LanguageServiceId::new(id.as_str()));
+                if let Some(id) = ids.clone().find(|&id| !config.has_language_service(id)) {
+                    return Err(format!(
+                        "language server `{id}` for language `{filetype}` is not defined"
+                    ));
+                }
+                config.add_language(FileType::from_name(&filetype), LanguageConfig::new(ids));
+                Ok(())
+            })
+            .await)
+    }
 }
 
 /// The plugin manager responsible for loading and running wasm plugins and keeping track of their state.
 /// This also provides the interface for the editor to interact with the plugins.
-#[derive(Default)]
 pub struct PluginManager {
     plugins: RwLock<SlotMap<PluginId, PluginState>>,
+    initialized: watch::Sender<bool>,
+}
+
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self { plugins: Default::default(), initialized: watch::Sender::new(false) }
+    }
 }
 
 impl PluginManager {
+    pub fn initialized(&self) -> impl Future<Output = ()> + Send + 'static {
+        let mut initialized = self.initialized.subscribe();
+        async move {
+            let _ = initialized.wait_for(|&initialized| initialized).await;
+        }
+    }
+
     #[must_use]
     fn add(&self, _name: impl Into<SmolStr>, tx: Sender<PluginRequest>) -> PluginId {
         // TODO name uniqueness check?
@@ -419,14 +497,10 @@ impl zi::plugin::PluginManager for PluginManager {
             .then(|component| {
                 let plugins = self.clone();
                 let client = client.clone();
-                let mut linker = Linker::new(engine);
                 async move {
                     let component = component?;
+                    let linker = linker(engine)?;
                     let mut store = Store::new(engine, HostState::new(client));
-                    Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(
-                        &mut linker,
-                        |state| state,
-                    )?;
                     let plugin = Plugin::instantiate_async(&mut store, &component, &linker).await?;
 
                     Ok::<_, anyhow::Error>(PluginHost::new(plugins, store, plugin))
@@ -447,9 +521,14 @@ impl zi::plugin::PluginManager for PluginManager {
 
         tracing::info!(n = plugin_hosts.len(), "instantiated plugins");
 
-        for host in plugin_hosts.into_vec() {
-            join_set.spawn(host.start());
+        for mut host in plugin_hosts.into_vec() {
+            match host.initialize().await {
+                Ok(receiver) => drop(join_set.spawn(host.run(receiver))),
+                Err(err) => tracing::error!(error = &*err, "error initializing plugin (skipping)"),
+            }
         }
+
+        self.initialized.send_replace(true);
 
         while let Some(res) = join_set.join_next().await {
             match res {
@@ -512,14 +591,14 @@ impl PluginHost {
         Self { manager, store, plugin, handler: None }
     }
 
-    pub async fn start(mut self) -> anyhow::Result<()> {
+    async fn initialize(&mut self) -> anyhow::Result<mpsc::Receiver<PluginRequest>> {
         let dep = self.plugin.zi_api_dependency();
         let name = dep.call_get_name(&mut self.store).await?;
 
         let lifecycle = self.plugin.zi_api_lifecycle();
         let init = lifecycle.call_initialize(&mut self.store).await?;
 
-        let (sender, mut receiver) = mpsc::channel(16);
+        let (sender, receiver) = mpsc::channel(16);
         let _id = self.manager.add(name, sender.clone());
 
         let command = self.plugin.zi_api_command();
@@ -580,6 +659,10 @@ impl PluginHost {
                 .await?;
         }
 
+        Ok(receiver)
+    }
+
+    async fn run(mut self, mut receiver: mpsc::Receiver<PluginRequest>) -> anyhow::Result<()> {
         loop {
             select! {
                 msg = receiver.recv() => match msg {
@@ -630,49 +713,12 @@ impl PluginHost {
 
 #[cfg(test)]
 mod test {
-    use std::path::Path;
-
-    use anyhow::Context as _;
     use tokio::task::LocalSet;
     use zi::Editor;
 
     use super::*;
+    use crate::test_util::{build_plugin, build_ts_plugin};
     use crate::wit::exports::zi::api::lifecycle::InitializeResult;
-
-    fn build_plugin(name: &str) -> anyhow::Result<Vec<u8>> {
-        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let target_dir = std::env::current_exe()?
-            .ancestors()
-            .nth(3)
-            .context("unexpected test executable path")?
-            .join("plugins");
-        let target = "wasm32-unknown-unknown";
-        let status = std::process::Command::new(env!("CARGO"))
-            .arg("build")
-            .arg("--release")
-            .args(["--target", target])
-            .arg("--manifest-path")
-            .arg(manifest_dir.join(format!("../plugins/{name}/Cargo.toml")))
-            .arg("--target-dir")
-            .arg(&target_dir)
-            // The test build's flags and rustc wrapper (cargo llvm-cov instruments through one)
-            // are for the host, not wasm.
-            .env_remove("RUSTFLAGS")
-            .env_remove("CARGO_ENCODED_RUSTFLAGS")
-            .env_remove("RUSTC_WRAPPER")
-            .env_remove("RUSTC_WORKSPACE_WRAPPER")
-            .status()
-            .context("failed to run cargo")?;
-        anyhow::ensure!(
-            status.success(),
-            "failed to build plugin `{name}` (is the {target} target installed?)"
-        );
-
-        let module = std::fs::read(
-            target_dir.join(target).join("release").join(format!("plugin_{name}.wasm")),
-        )?;
-        wit_component::ComponentEncoder::default().module(&module)?.validate(true).encode()
-    }
 
     async fn load(
         engine: &Engine,
@@ -680,12 +726,9 @@ mod test {
         names: &[&str],
     ) -> anyhow::Result<Box<[Plugin]>> {
         let mut plugins = Vec::with_capacity(names.len());
-        let mut linker = Linker::new(engine);
         for name in names {
             let component = Component::new(engine, build_plugin(name)?)?;
-            Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |state| {
-                state
-            })?;
+            let linker = linker(engine)?;
             let plugin = Plugin::instantiate_async(&mut *store, &component, &linker).await?;
             plugins.push(plugin);
         }
@@ -697,6 +740,7 @@ mod test {
     #[cfg_attr(test, mutants::skip)]
     async fn smoke() -> anyhow::Result<()> {
         let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+        let client = editor.client();
 
         let engine = engine();
 
@@ -716,6 +760,17 @@ mod test {
 
                     let lifecycle = plugin.zi_api_lifecycle();
                     let init = lifecycle.call_initialize(&mut store).await?;
+
+                    let rust = client
+                        .with(|editor| {
+                            let config = editor.language_config();
+                            assert!(config.has_language_service(LanguageServiceId::new("test-ls")));
+                            config.languages[&FileType::from_name("rust")]
+                                .language_services
+                                .to_vec()
+                        })
+                        .await;
+                    assert_eq!(rust, [LanguageServiceId::new("test-ls")]);
 
                     use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
                     assert_eq!(
@@ -777,6 +832,69 @@ mod test {
                 assert!(format!("{err:?}").contains("no longer exists"), "{err:?}");
 
                 assert_eq!(client.with(|editor| editor.views().count()).await, 1);
+                Ok::<_, anyhow::Error>(())
+            })
+            .await
+    }
+
+    #[tokio::test]
+    #[cfg_attr(test, mutants::skip)]
+    async fn typescript_plugin() -> anyhow::Result<()> {
+        let (editor, tasks) = Editor::new(crate::WasmBackend::default(), zi::Size::new(80, 24));
+        let client = editor.client();
+        let engine = engine();
+        let mut store = Store::new(engine, HostState::new(editor.client()));
+
+        let local = LocalSet::new();
+        local.spawn_local(editor.test_run(tasks));
+
+        local
+            .run_until(async move {
+                let component = Component::new(engine, build_ts_plugin()?)?;
+                let plugin =
+                    Plugin::instantiate_async(&mut store, &component, &linker(engine)?).await?;
+                assert_eq!(plugin.zi_api_dependency().call_get_name(&mut store).await?, "test-ts");
+
+                use crate::wit::exports::zi::api::command::{Arity, Command, CommandFlags};
+                let init = plugin.zi_api_lifecycle().call_initialize(&mut store).await?;
+                assert_eq!(
+                    init,
+                    InitializeResult {
+                        commands: vec![Command {
+                            name: "ts-insert".into(),
+                            arity: Arity { min: 0, max: 0 },
+                            opts: CommandFlags::empty(),
+                        }]
+                    }
+                );
+
+                let typescript = client
+                    .with(|editor| {
+                        let config = editor.language_config();
+                        assert!(config.has_language_service(LanguageServiceId::new("test-ts-ls")));
+                        config.languages[&FileType::from_name("typescript")]
+                            .language_services
+                            .to_vec()
+                    })
+                    .await;
+                assert_eq!(typescript, [LanguageServiceId::new("test-ts-ls")]);
+
+                let handler = plugin.zi_api_command().handler();
+                let resource = handler.call_constructor(&mut store).await?;
+                handler
+                    .call_exec(&mut store, resource, "ts-insert", &[], false)
+                    .await?
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                assert_eq!(client.with(|editor| editor.mode()).await, zi::Mode::Insert);
+
+                let err = handler.call_exec(&mut store, resource, "nope", &[], false).await?;
+                assert_eq!(
+                    err,
+                    Err(crate::wit::exports::zi::api::command::CommandError::Message(
+                        "unexpected command: `nope`".into()
+                    ))
+                );
+                resource.resource_drop_async(&mut store).await?;
                 Ok::<_, anyhow::Error>(())
             })
             .await

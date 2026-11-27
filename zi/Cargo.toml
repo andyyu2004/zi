@@ -27,7 +27,6 @@ nucleo = "0.5.0"
 ignore = "0.4.22"
 rayon = "1.9.0"
 futures-util = { workspace = true, features = ["io"] }
-directories-next = "2.0.0"
 smol_str = { workspace = true }
 arbitrary = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }

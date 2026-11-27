@@ -1,0 +1,22 @@
+[package]
+name = "zi-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "zi-plugin"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4.5.1", features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+zi-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

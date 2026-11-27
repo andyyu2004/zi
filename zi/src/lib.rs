@@ -1,10 +1,10 @@
+pub use zi_core::dirs;
 pub use zi_input as input;
 
 pub mod buffer;
 pub mod command;
 mod completion;
 mod config;
-pub mod dirs;
 mod editor;
 pub mod event;
 mod jump;

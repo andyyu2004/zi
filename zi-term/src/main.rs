@@ -1,5 +1,6 @@
 use std::backtrace::Backtrace;
 use std::io;
+use std::os::unix::process::CommandExt as _;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -9,8 +10,6 @@ use tracing_subscriber::EnvFilter;
 use tui::Terminal;
 use tui::backend::CrosstermBackend;
 use zi::input::Event;
-use zi::{LanguageConfig, filetype};
-use zi_lsp::LanguageServerConfig;
 
 #[derive(Parser)]
 struct Opts {
@@ -23,6 +22,14 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let external = std::env::args_os().nth(1).and_then(|arg| {
+        zi_term::subcommand::find_external(&arg, std::env::var_os("PATH").as_deref())
+    });
+    if let Some(cmd) = external {
+        let err = std::process::Command::new(&cmd).args(std::env::args_os().skip(2)).exec();
+        return Err(anyhow::Error::new(err).context(format!("failed to run `{}`", cmd.display())));
+    }
+
     let mut opts = Opts::parse();
 
     const ZI_LOG: &str = "ZI_LOG";
@@ -47,9 +54,9 @@ async fn main() -> anyhow::Result<()> {
     let (mut editor, tasks) =
         zi::Editor::new(zi_wasm::WasmBackend::default(), (size.width, size.height));
 
-    configure(&mut editor);
-
-    assert!(editor.register_plugin_manager(zi_wasm::PluginManager::default()).is_none());
+    let plugins = zi_wasm::PluginManager::default();
+    let plugins_initialized = plugins.initialized();
+    assert!(editor.register_plugin_manager(plugins).is_none());
 
     let init_path = zi::dirs::config().join("init.zi");
     if init_path.exists() {
@@ -74,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
 
     let client = editor.client();
     tokio::spawn(async move {
+        plugins_initialized.await;
         if let Some(path) = opts.path {
             if path.exists() && path.is_dir() {
                 std::env::set_current_dir(&path)?;
@@ -96,52 +104,4 @@ async fn main() -> anyhow::Result<()> {
     app.run(&mut editor, events, tasks).await?;
 
     Ok(())
-}
-
-fn configure(editor: &mut zi::Editor) {
-    editor
-        .language_config_mut()
-        .add_language(filetype!(rust), LanguageConfig::new(["rust-analyzer".into()]))
-        .add_language(filetype!(fsharp), LanguageConfig::new(["fsautocomplete".into()]))
-        .add_language(filetype!(text), LanguageConfig::new([]))
-        .add_language(filetype!(toml), LanguageConfig::new([]))
-        .add_language(filetype!(json), LanguageConfig::new([]))
-        .add_language(filetype!(yaml), LanguageConfig::new([]))
-        .add_language(filetype!(python), LanguageConfig::new(["pyright".into()]))
-        .add_language(filetype!(haskell), LanguageConfig::new(["hls".into()]))
-        .add_language(filetype!(go), LanguageConfig::new(["gopls".into()]))
-        .add_language(filetype!(gqlt), LanguageConfig::new(["gqlt".into()]))
-        .add_language(filetype!(c), LanguageConfig::new(["clangd".into()]))
-        .add_language(filetype!(zig), LanguageConfig::new(["zls".into()]))
-        .add_language(filetype!(nix), LanguageConfig::new(["nil".into()]))
-        .add_language(
-            filetype!(javascript),
-            LanguageConfig::new(["typescript-language-server".into()]),
-        )
-        .add_language(
-            filetype!(typescript),
-            LanguageConfig::new(["typescript-language-server".into()]),
-        )
-        .add_language_service("zls", LanguageServerConfig::new("zls", []))
-        .add_language_service("fsautocomplete", LanguageServerConfig::new("fsautocomplete", []))
-        .add_language_service(
-            "rust-analyzer",
-            LanguageServerConfig::new("lspmux", ["client".into()]),
-        )
-        .add_language_service("nil", LanguageServerConfig::new("nil", []))
-        .add_language_service("gopls", LanguageServerConfig::new("gopls", []))
-        .add_language_service("gqlt", LanguageServerConfig::new("gqlt", []))
-        .add_language_service("clangd", LanguageServerConfig::new("clangd", []))
-        .add_language_service(
-            "pyright",
-            LanguageServerConfig::new("pyright-langserver", ["--stdio".into()]),
-        )
-        .add_language_service(
-            "hls",
-            LanguageServerConfig::new("haskell-language-server-wrapper", ["--lsp".into()]),
-        )
-        .add_language_service(
-            "typescript-language-server",
-            LanguageServerConfig::new("typescript-language-server", ["--stdio".into()]),
-        );
 }

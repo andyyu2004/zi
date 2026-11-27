@@ -12,6 +12,7 @@ members = [
     "zi-lsp",
     "zi-marktree",
     "zi-nvim",
+    "zi-plugin",
     "zi-term",
     "zi-text",
     "zi-textobject",
@@ -36,6 +37,7 @@ zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }
 zi-nvim = { path = "zi-nvim" }
+zi-plugin = { path = "zi-plugin" }
 zi-input = { path = "zi-input" }
 zi-test = { path = "zi-test" }
 zi-text = { path = "zi-text" }

@@ -309,6 +309,31 @@
               '';
             };
 
+        # The TypeScript plugin toolchain (jco, componentize-js, tsc) zi-plugin's template pins.
+        pluginTsNodeModules =
+          let
+            dir = ./zi-plugin/template;
+          in
+          pkgs.buildNpmPackage {
+            pname = "zi-plugin-ts-toolchain";
+            version = "0.1.0";
+            src = fs.toSource {
+              root = dir;
+              fileset = fs.unions [
+                (dir + "/package.json")
+                (dir + "/package-lock.json")
+              ];
+            };
+            npmDepsHash = "sha256-zhwjv/0+bDfoM6NFMlXZnY3pU0nsO7z1aX1Phg9Uvw8=";
+            dontNpmBuild = true;
+            installPhase = ''
+              runHook preInstall
+              mkdir -p "$out"
+              cp -r node_modules "$out/node_modules"
+              runHook postInstall
+            '';
+          };
+
         # What builds, lints and tests need. CI runs in this shell; the dev shell adds to it.
         shell =
           { rust, extraPackages }:
@@ -321,6 +346,7 @@
               pkgs.gopls
               pkgs.go
               pkgs.tree-sitter
+              pkgs.nodejs
               pkgs.gnumake
               # wasmtime-c-api's build script runs cmake.
               pkgs.cmake
@@ -328,6 +354,7 @@
             ++ extraPackages;
 
             ZI_NIX_GRAMMAR_DIR = grammars;
+            ZI_PLUGIN_TS_NODE_MODULES = "${pluginTsNodeModules}/node_modules";
             # Plugins the nvim tests load into the nvim they compare against.
             ZI_NVIM_PLUGIN_PATH = pkgs.lib.concatStringsSep ":" [ "${pkgs.vimPlugins.vim-wordmotion}" ];
             shellHook = ''

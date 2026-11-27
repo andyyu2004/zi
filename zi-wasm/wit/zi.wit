@@ -94,6 +94,14 @@ interface editor {
     open-file-explorer: func(path: string);
     set-option: func(key: string, value: string) -> result<_, string>;
 
+    record language-server {
+        command: string,
+        args: list<string>,
+    }
+
+    add-language-server: func(id: string, server: language-server);
+    add-language: func(filetype: string, language-servers: list<string>) -> result<_, string>;
+
     enum direction {
         left,
         right,

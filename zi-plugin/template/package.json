@@ -1,0 +1,9 @@
+{
+  "name": "zi-plugin-template",
+  "private": true,
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.24.0",
+    "@bytecodealliance/jco": "1.42.0",
+    "typescript": "5.9.3"
+  }
+}

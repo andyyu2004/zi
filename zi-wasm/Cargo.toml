@@ -9,6 +9,8 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
 zi = { workspace = true }
+zi-lsp = { workspace = true }
+wasmtime-wasi = "48"
 slotmap = { workspace = true }
 smol_str = { workspace = true }
 futures-util = { workspace = true }
@@ -23,5 +25,6 @@ tokio-stream = { workspace = true, features = ["fs"] }
 workspace = true
 
 [dev-dependencies]
+zi-plugin = { workspace = true }
 mutants = { workspace = true }
 wit-component = "0.263"
