@@ -460,17 +460,21 @@ impl Editor {
                 tracing::debug!(?server_id, ?path, ?res, "diagnostic request response");
 
                 let path = path.clone();
-                client.send(move |editor| {
-                    editor.replace_diagnostics(path, None, res.diagnostics);
-                    for (url, related) in res.related_documents {
-                        let Ok(path) = url.to_file_path() else {
-                            tracing::warn!(?url, "ignoring non-file related document diagnostics");
-                            continue;
-                        };
-                        editor.replace_diagnostics(path, None, related);
-                    }
-                    Ok(())
-                });
+                client
+                    .with(move |editor| {
+                        editor.replace_diagnostics(path, None, res.diagnostics);
+                        for (url, related) in res.related_documents {
+                            let Ok(path) = url.to_file_path() else {
+                                tracing::warn!(
+                                    ?url,
+                                    "ignoring non-file related document diagnostics"
+                                );
+                                continue;
+                            };
+                            editor.replace_diagnostics(path, None, related);
+                        }
+                    })
+                    .await;
             }
 
             Ok(())
