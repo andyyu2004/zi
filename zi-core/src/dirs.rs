@@ -67,6 +67,10 @@ pub fn plugin() -> impl Iterator<Item = &'static Path> {
     dirs().plugin_dirs.iter().map(std::path::PathBuf::as_path)
 }
 
+pub fn state() -> PathBuf {
+    xdg_dir("XDG_STATE_HOME", Path::new(".local/state")).join("zi")
+}
+
 pub fn config() -> &'static Path {
     &dirs().config_dir
 }

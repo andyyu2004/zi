@@ -273,3 +273,41 @@ async fn lsp_initialize_timeout_kills_server() -> zi::Result<()> {
     cx.cleanup().await;
     Ok(())
 }
+
+#[tokio::test(start_paused = true)]
+async fn lsp_shutdown_finishes_when_a_server_does_not_reply() -> zi::Result<()> {
+    let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, (80, 24));
+    let service_id = LanguageServiceId::from("shutdown-hang");
+    let mut initialized = on_initialized(service_id);
+    let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
+
+    let server = FakeLanguageServer::builder()
+        .request::<request::Initialize, _>(|(), _| async {
+            Ok(lsp_types::InitializeResult::default())
+        })
+        .notification::<notification::Initialized>(|(), _| Ok(()))
+        .notification::<notification::DidOpenTextDocument>(|(), _| Ok(()))
+        .request::<request::Shutdown, _>(move |(), ()| {
+            shutdown_tx.send(()).unwrap();
+            std::future::pending()
+        })
+        .finish(());
+    editor
+        .language_config_mut()
+        .add_language(zi::filetype!(toml), LanguageConfig::new([service_id]))
+        .add_language_service(service_id, server);
+
+    let client = editor.client();
+    let editor = tokio::spawn(editor.test_run(tasks));
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    client
+        .with(move |editor| editor.open(path, zi::OpenFlags::SPAWN_LANGUAGE_SERVICES))
+        .await?
+        .await?;
+    initialized.recv().await.unwrap();
+    client.with(|editor| editor.close_view(zi::Active)).await;
+    shutdown_rx.recv().await.unwrap();
+    tokio::time::timeout(Duration::from_secs(3), editor).await???;
+    Ok(())
+}

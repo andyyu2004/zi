@@ -1,4 +1,5 @@
 use std::backtrace::Backtrace;
+use std::future::Future;
 use std::io;
 use std::sync::mpsc::Receiver;
 
@@ -36,9 +37,12 @@ impl<B: Backend<Error = io::Error> + io::Write> App<B> {
         editor: &mut Editor,
         events: impl Stream<Item = io::Result<Event>>,
         tasks: zi::Tasks,
+        shutdown: impl Future<Output = ()>,
     ) -> io::Result<()> {
-        editor
-            .run(events, tasks, |editor| {
+        let result = tokio::select! {
+            biased;
+            () = shutdown => Ok(()),
+            result = editor.run_events(events, tasks, |editor| {
                 // Cursor styling isn't really exposed through the ratatui API, so we just hack it here.
                 // Looks much less janky if we set the cursor before rendering.
                 let style = match editor.mode() {
@@ -54,8 +58,11 @@ impl<B: Backend<Error = io::Error> + io::Write> App<B> {
                 execute!(self.term.backend_mut(), cursor::Show, style)?;
 
                 self.render(editor)
-            })
-            .await
+            }) => result,
+        };
+        drop(self);
+        editor.shutdown().await;
+        result
     }
 
     #[tracing::instrument(skip_all, level = "debug")]
@@ -68,6 +75,7 @@ impl<B: Backend<Error = io::Error> + io::Write> App<B> {
 impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
         _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
+        _ = execute!(self.term.backend_mut(), SetCursorStyle::DefaultUserShape, cursor::Show);
         _ = terminal::disable_raw_mode();
 
         if let Ok((panic, backtrace)) = self.panic_rx.try_recv() {

@@ -1,10 +1,13 @@
 use std::backtrace::Backtrace;
 use std::io;
 use std::path::PathBuf;
+use std::process::ExitCode;
+use std::sync::Arc;
 
 use clap::Parser;
 use crossterm::event::EventStream;
 use futures_util::StreamExt;
+use tokio::sync::Notify;
 use tracing_subscriber::EnvFilter;
 use tui::Terminal;
 use tui::backend::CrosstermBackend;
@@ -20,14 +23,15 @@ struct Opts {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<ExitCode> {
     let mut opts = Opts::parse();
 
     const ZI_LOG: &str = "ZI_LOG";
 
     if std::env::var(ZI_LOG).is_ok() && opts.log.is_none() {
-        // If the user has set the ZI_LOG environment variable, but not specified a log file, default to /tmp/zi.log
-        opts.log = Some(PathBuf::from("/tmp/zi.log"));
+        let state = zi::dirs::state();
+        std::fs::create_dir_all(&state)?;
+        opts.log = Some(state.join("zi.log"));
     }
 
     if let Some(log) = opts.log {
@@ -56,12 +60,34 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    #[cfg(unix)]
+    let signal = {
+        use tokio::signal::unix::{SignalKind, signal};
+
+        let mut terminate = signal(SignalKind::terminate())?;
+        let mut hangup = signal(SignalKind::hangup())?;
+        async move {
+            tokio::select! {
+                _ = terminate.recv() => 143,
+                _ = hangup.recv() => 129,
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let signal = std::future::pending();
+
     let (panic_tx, panic_rx) = std::sync::mpsc::sync_channel(1);
-    let prev = std::panic::take_hook();
+    let panicked = Arc::new(Notify::new());
+    let notify_panic = Arc::clone(&panicked);
+    let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let backtrace = Backtrace::capture();
-        let _ = panic_tx.send((info.to_string(), backtrace));
-        prev(info);
+        use std::sync::mpsc::TrySendError;
+
+        match panic_tx.try_send((info.to_string(), Backtrace::capture())) {
+            Ok(()) => notify_panic.notify_one(),
+            Err(TrySendError::Full(_)) => {}
+            Err(TrySendError::Disconnected(_)) => previous_hook(info),
+        }
     }));
 
     let mut app = zi_term::App::new(term, panic_rx)?;
@@ -92,7 +118,14 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::task::yield_now().await;
 
-    app.run(&mut editor, events, tasks).await?;
+    let mut status = ExitCode::SUCCESS;
+    let shutdown = async {
+        status = ExitCode::from(tokio::select! {
+            () = panicked.notified() => 101,
+            code = signal => code,
+        });
+    };
+    app.run(&mut editor, events, tasks, shutdown).await?;
 
-    Ok(())
+    Ok(status)
 }

@@ -586,17 +586,28 @@ impl Editor {
         self.theme().read().highlight_id_by_name(name)
     }
 
-    async fn shutdown(&mut self) {
-        for mut server in mem::take(&mut self.active_language_services).into_values() {
-            // TODO shutdown concurrently
-            if let Err(err) = server.shutdown().await {
-                tracing::error!(error = &*err, "language server shutdown failed");
-            }
+    /// Shut down the active language services. Call after the editor loop stops.
+    pub async fn shutdown(&mut self) {
+        const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
-            if let Err(err) = server.wait().await {
-                tracing::error!(error = &*err, "language server wait failed: {err}");
-            }
-        }
+        let mut shutdowns: FuturesUnordered<_> = mem::take(&mut self.active_language_services)
+            .into_iter()
+            .map(|(service_id, mut server)| async move {
+                match tokio::time::timeout(SHUTDOWN_TIMEOUT, server.shutdown()).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(err)) => {
+                        tracing::error!(%service_id, error = &*err, "language server shutdown failed");
+                    }
+                    Err(_) => tracing::warn!(%service_id, "language server shutdown timed out"),
+                }
+
+                if let Err(err) = server.wait().await {
+                    tracing::error!(%service_id, error = &*err, "language server wait failed");
+                }
+            })
+            .collect();
+
+        while shutdowns.next().await.is_some() {}
     }
 
     fn should_quit(&self) -> bool {
@@ -667,6 +678,20 @@ impl Editor {
     pub async fn run(
         &mut self,
         events: impl Stream<Item = io::Result<Event>>,
+        tasks: Tasks,
+        render: impl FnMut(&mut Self) -> io::Result<()>,
+    ) -> io::Result<()> {
+        let result = self.run_events(events, tasks, render).await;
+        self.shutdown().await;
+        result
+    }
+
+    /// Run the editor until the last view closes.
+    ///
+    /// The caller can restore its interface before calling [`Self::shutdown`].
+    pub async fn run_events(
+        &mut self,
+        events: impl Stream<Item = io::Result<Event>>,
         Tasks { requests, callbacks, notify_redraw }: Tasks,
         mut render: impl FnMut(&mut Self) -> io::Result<()>,
     ) -> io::Result<()> {
@@ -709,8 +734,6 @@ impl Editor {
 
             render(self)?;
         }
-
-        self.shutdown().await;
 
         Ok(())
     }
