@@ -51,6 +51,11 @@ where
         self.maps.entry(mode).or_default().insert(keys.into_iter().peekable(), value)
     }
 
+    pub(crate) fn take_pending(&mut self, mode: &M) -> Vec<K> {
+        let pending = std::mem::take(&mut self.buffer);
+        if self.last_mode.as_ref() == Some(mode) { pending } else { Vec::new() }
+    }
+
     /// Returns the result of the key sequence and the keys that were discarded
     pub fn on_key(&mut self, mode: M, key: K) -> (TrieResult<V>, Vec<K>) {
         if let Some(last_mode) = &self.last_mode {

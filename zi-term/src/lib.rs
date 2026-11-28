@@ -3,7 +3,7 @@ use std::io;
 use std::sync::mpsc::Receiver;
 
 use crossterm::cursor::SetCursorStyle;
-use crossterm::event::DisableMouseCapture;
+use crossterm::event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste};
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::{cursor, execute, terminal};
 use futures_util::Stream;
@@ -26,7 +26,12 @@ impl<B: Backend<Error = io::Error> + io::Write> App<B> {
     }
 
     pub fn enter(&mut self) -> io::Result<()> {
-        execute!(self.term.backend_mut(), EnterAlternateScreen, DisableMouseCapture)?;
+        execute!(
+            self.term.backend_mut(),
+            EnterAlternateScreen,
+            DisableMouseCapture,
+            EnableBracketedPaste
+        )?;
         terminal::enable_raw_mode()?;
         Ok(())
     }
@@ -67,6 +72,7 @@ impl<B: Backend<Error = io::Error> + io::Write> App<B> {
 
 impl<W: Backend + io::Write> Drop for App<W> {
     fn drop(&mut self) {
+        _ = execute!(self.term.backend_mut(), DisableBracketedPaste);
         _ = execute!(self.term.backend_mut(), crossterm::terminal::LeaveAlternateScreen);
         _ = terminal::disable_raw_mode();
 

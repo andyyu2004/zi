@@ -20,6 +20,7 @@ mod state;
 pub mod visual;
 
 use std::any::Any;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::future::Future;
@@ -44,7 +45,7 @@ use ustr::Ustr;
 use zi_core::{PointOrByte, PointRange, Size};
 use zi_indent::Indent;
 use zi_input::{Event, KeyCode, KeyEvent, KeySequence};
-use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, Text, TextSlice};
+use zi_text::{AnyText, Delta, Deltas, ReadonlyText, Rope, Text};
 use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{FindChar, FindKind, TextObject, TextObjectFlags, TextObjectKind};
 
@@ -643,6 +644,10 @@ impl Editor {
     pub fn handle_input(&mut self, event: impl Into<Event>) {
         match event.into() {
             Event::Key(key) => self.handle_key_event(key),
+            Event::Paste(text) => {
+                self.status_error = None;
+                set_error_if!(self: self.handle_paste(text));
+            }
             Event::Resize(width, height) => self.resize(Size::new(width, height)),
         }
     }
@@ -828,6 +833,110 @@ impl Editor {
         }
     }
 
+    fn handle_paste(&mut self, text: String) -> Result<(), EditError> {
+        let text =
+            if text.contains('\r') { text.replace("\r\n", "\n").replace('\r', "\n") } else { text };
+        if text.is_empty() {
+            return Ok(());
+        }
+
+        self.pending_find = None;
+        let mode = self.mode();
+        let (_, buf) = self.db.view_and_buffer_mut(self.tree.active());
+        let global = self.keymap.take_pending(&mode);
+        let local = buf.keymap().map_or_else(Vec::new, |keymap| keymap.take_pending(&mode));
+        if matches!(mode, Mode::Insert | Mode::Command) {
+            let pending = if local.len() >= global.len() { local } else { global };
+            for key in pending {
+                if let KeyCode::Char(c) = key.code() {
+                    self.handle_insert(c)?;
+                }
+            }
+        }
+
+        match &mut self.state {
+            State::Command(state) => {
+                state.buffer.push_str(&text.replace('\n', " "));
+                self.update_search();
+                Ok(())
+            }
+            State::Insert(_) => {
+                self.insert_paste(&text)?;
+                let State::Insert(state) = &mut self.state else {
+                    unreachable!("not in insert mode")
+                };
+                state.record_paste(&text);
+                self.dot.record_paste(Mode::Insert, text);
+                Ok(())
+            }
+            State::Normal(_)
+            | State::Visual(_)
+            | State::VisualLine(_)
+            | State::VisualBlock(_)
+            | State::OperatorPending(_)
+            | State::ReplacePending => self.paste_into_buffer(text),
+        }
+    }
+
+    fn insert_paste(&mut self, text: &str) -> Result<(), EditError> {
+        let start = self.cursor_byte(Active);
+        self.edit(Active, &Deltas::insert_at(start, text))?;
+        self.set_cursor_bytewise(Active, start + text.len());
+        Ok(())
+    }
+
+    fn paste_into_buffer(&mut self, text: String) -> Result<(), EditError> {
+        let (view, buf) = self.get(Active);
+        if *self[buf].settings().readonly.read() {
+            return Err(EditError::Readonly);
+        }
+
+        let mode = self.mode();
+        let cursor = self.cursor(view);
+        let buffer = self[buf].text();
+        let mut start = buffer.point_to_byte(cursor);
+        let mut replacement = Cow::Borrowed(text.as_str());
+        let mut ranges = Vec::new();
+
+        if let Some(selection) = self.visual_selection(view) {
+            start = buffer.point_to_byte(selection.start_point());
+            ranges = selection.byte_ranges(buffer);
+            if matches!(selection, visual::Selection::Line { .. }) && !text.ends_with('\n') {
+                replacement = Cow::Owned(format!("{text}\n"));
+            }
+        } else if let Some(grapheme) = zi_text::grapheme::graphemes_from(buffer, start).next() {
+            if grapheme.first != '\n' {
+                start += grapheme.len;
+            }
+        }
+
+        let end = start + replacement.len();
+        let start_range = ranges.iter().position(|range| range.start == start);
+        let range = start_range.map_or(start..start, |index| ranges.swap_remove(index));
+        let deltas = Deltas::new(
+            std::iter::once(Delta::new(range, replacement))
+                .chain(ranges.into_iter().map(|range| Delta::new(range, ""))),
+        );
+
+        self.take_count();
+        self.dot.clear_normal_keys();
+        self[buf].snapshot_cursor(cursor);
+        self.edit(buf, &deltas)?;
+        if mode != Mode::Normal {
+            self.set_mode(Mode::Normal);
+        }
+        let first_byte_of_last_grapheme =
+            zi_text::grapheme::graphemes_before(self[buf].text(), end)
+                .next()
+                .map_or(start, |grapheme| end - grapheme.len);
+        self.set_cursor_bytewise(view, first_byte_of_last_grapheme);
+        self[buf].snapshot(SnapshotFlags::empty());
+        if mode == Mode::Normal {
+            self.dot.record_paste(mode, text);
+        }
+        Ok(())
+    }
+
     fn replace_pending_char(&mut self, c: char) {
         self.set_mode(Mode::Insert);
         self.move_cursor(Active, Direction::Right, 1);
@@ -989,7 +1098,7 @@ impl Editor {
 
         // Replay each recorded event
         for event in events {
-            self.handle_key_event(event);
+            self.handle_input(event);
         }
 
         // Stop replaying
@@ -1069,24 +1178,13 @@ impl Editor {
         set_error_if!(self: self.repeat_insert());
         let (view, buf) = self.get(Active);
 
-        {
-            // Clear any whitespace at the end of the cursor line when exiting insert mode
+        let State::Insert(state) = &mut self.state else { unreachable!("not in insert mode") };
+        if let Some((autoindent_buffer, end)) = state.autoindent.take() {
             let cursor = self[view].cursor();
-            if let Some(range) = self[buf].text().line(cursor.line()).and_then(|line| {
-                let end = Point::new(cursor.line(), line.len_bytes());
-                let mut start = end;
-                for c in line.chars().rev() {
-                    if !c.is_whitespace() {
-                        break;
-                    }
-
-                    start = start.left_bytes(c.len_utf8());
-                }
-
-                (start != end).then(|| PointRange::new(start, end))
-            }) {
+            if autoindent_buffer == buf && cursor.line() == end.line() {
+                let range = PointRange::new(end.with_byte_col(0), end);
                 let byte_range = self[buf].text().point_range_to_byte_range(range);
-                let _ = self.edit(Active, &Deltas::delete(byte_range));
+                let _ = self.edit(buf, &Deltas::delete(byte_range));
             }
         }
 
@@ -1105,9 +1203,10 @@ impl Editor {
         let Some(count) = state.count.take() else { return Ok(()) };
         let edits = std::mem::take(&mut state.edits);
         for _ in 1..count {
-            for &edit in &edits {
+            for edit in &edits {
                 match edit {
-                    InsertEdit::Char(c) => self.insert_char(Active, c)?,
+                    InsertEdit::Char(c) => self.insert_char(Active, *c)?,
+                    InsertEdit::Paste(text) => self.insert_paste(text)?,
                     InsertEdit::DeleteChar => self.delete_char(Active)?,
                 }
             }
@@ -1195,8 +1294,8 @@ impl Editor {
     }
 
     pub fn repeat_last_insert(&mut self) -> Result<(), EditError> {
-        for kev in self.dot.events().to_vec() {
-            self.handle_key_event(kev);
+        for event in self.dot.events().to_vec() {
+            self.handle_input(event);
         }
 
         Ok(())
@@ -1240,6 +1339,7 @@ impl Editor {
 
                 buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
                 if let State::Insert(state) = &mut self.state {
+                    state.invalidate_autoindent(buf.id());
                     state.record_delete(byte_idx - start_byte_idx);
                 }
 
@@ -1281,6 +1381,13 @@ impl Editor {
             '\n' => {
                 let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
                 self.indent_newline(view_id)?;
+                let (view, buf) = self.get(view_id);
+                let end = self.cursor(view);
+                if end != cursor {
+                    if let State::Insert(state) = &mut self.state {
+                        state.autoindent = Some((buf, end));
+                    }
+                }
                 cursor
             }
             _ => self.motion(Active, motion::NextChar)?,
@@ -1444,6 +1551,10 @@ impl Editor {
 
         if *self[buf].settings().readonly.read() {
             return Err(EditError::Readonly);
+        }
+
+        if let State::Insert(state) = &mut self.state {
+            state.invalidate_autoindent(buf);
         }
 
         if !flags.contains(EditFlags::NO_RECORD) {
