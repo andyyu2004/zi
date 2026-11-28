@@ -7,6 +7,7 @@ use chumsky::Parser;
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Event {
     Key(KeyEvent),
+    Paste(String),
     Resize(u16, u16),
 }
 
@@ -14,10 +15,6 @@ pub enum Event {
 impl TryFrom<crossterm::event::Event> for Event {
     type Error = ();
 
-    #[expect(
-        clippy::wildcard_enum_match_arm,
-        reason = "crossterm variants we don't map are unsupported"
-    )]
     fn try_from(event: crossterm::event::Event) -> Result<Self, Self::Error> {
         match event {
             crossterm::event::Event::Key(event) => match event.kind {
@@ -27,7 +24,10 @@ impl TryFrom<crossterm::event::Event> for Event {
                 crossterm::event::KeyEventKind::Release => Err(()),
             },
             crossterm::event::Event::Resize(width, height) => Ok(Event::Resize(width, height)),
-            _ => Err(()),
+            crossterm::event::Event::Paste(text) => Ok(Event::Paste(text)),
+            crossterm::event::Event::FocusGained
+            | crossterm::event::Event::FocusLost
+            | crossterm::event::Event::Mouse(_) => Err(()),
         }
     }
 }

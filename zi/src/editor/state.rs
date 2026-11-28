@@ -1,6 +1,6 @@
 use super::{Active, Editor};
 use crate::completion::Completion;
-use crate::{Mode, Operator, Point};
+use crate::{BufferId, Mode, Operator, Point};
 
 /// Per mode state
 #[derive(Debug)]
@@ -66,6 +66,8 @@ pub(super) struct NormalState {}
 #[derive(Debug, Default)]
 pub(super) struct InsertState {
     pub(super) completion: Completion,
+    /// Buffer and end of the untouched indentation generated on the current insert.
+    pub(super) autoindent: Option<(BufferId, Point)>,
     /// The count the insert started with. Leaving insert mode repeats `edits` to make it up.
     pub(super) count: Option<usize>,
     pub(super) edits: Vec<InsertEdit>,
@@ -77,6 +79,19 @@ impl InsertState {
     pub(super) fn record_insert(&mut self, c: char) {
         self.inserted_len += c.len_utf8();
         self.edits.push(InsertEdit::Char(c));
+    }
+
+    pub(super) fn record_paste(&mut self, text: &str) {
+        self.inserted_len += text.len();
+        if self.count.is_some() {
+            self.edits.push(InsertEdit::Paste(text.into()));
+        }
+    }
+
+    pub(super) fn invalidate_autoindent(&mut self, buffer: BufferId) {
+        if self.autoindent.is_some_and(|(autoindent_buffer, _)| autoindent_buffer == buffer) {
+            self.autoindent = None;
+        }
     }
 
     /// Record a backspace that deleted a grapheme `len` bytes long
@@ -92,9 +107,10 @@ impl InsertState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(super) enum InsertEdit {
     Char(char),
+    Paste(Box<str>),
     DeleteChar,
 }
 

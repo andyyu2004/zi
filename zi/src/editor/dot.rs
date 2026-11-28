@@ -1,12 +1,12 @@
-use zi_input::{KeyCode, KeyEvent};
+use zi_input::{Event, KeyCode, KeyEvent};
 
 use crate::Mode;
 
 /// dot repeat state
 #[derive(Debug, Default)]
 pub(super) struct Dot {
-    /// The recorded key events for the last change
-    events: Vec<KeyEvent>,
+    /// The recorded input events for the last change
+    events: Vec<Event>,
     /// Whether we're currently recording a change
     recording: bool,
     /// Whether we're currently replaying (to prevent recording during replay)
@@ -25,7 +25,7 @@ impl Dot {
     /// Start recording a new change operation
     pub(super) fn start_recording(&mut self) {
         self.events.clear();
-        self.events.append(&mut self.normal_keys);
+        self.events.extend(self.normal_keys.drain(..).map(Event::Key));
         self.count = self.normal_count.take();
         self.recording = true;
     }
@@ -41,7 +41,21 @@ impl Dot {
             self.normal_keys.push(key.clone());
         }
         if self.recording {
-            self.events.push(key.clone());
+            self.events.push(Event::Key(key.clone()));
+        }
+    }
+
+    pub(super) fn record_paste(&mut self, mode: Mode, text: String) {
+        if self.replaying {
+            return;
+        }
+
+        if mode == Mode::Normal {
+            self.start_recording();
+            self.events.push(Event::Paste(text));
+            self.stop_recording();
+        } else if self.recording {
+            self.events.push(Event::Paste(text));
         }
     }
 
@@ -113,7 +127,7 @@ impl Dot {
     }
 
     /// Get the recorded events to replay
-    pub(super) fn events(&self) -> &[KeyEvent] {
+    pub(super) fn events(&self) -> &[Event] {
         &self.events
     }
 

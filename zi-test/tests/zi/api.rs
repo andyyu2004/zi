@@ -5,6 +5,7 @@ mod cursor;
 mod dot;
 mod edit;
 mod event;
+mod input;
 mod lifecycle;
 mod marks;
 mod motion;
