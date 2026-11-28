@@ -1,0 +1,83 @@
+==== a counted insert is undone at once
+abc
+def
+----
+3ihi<ESC>u
+
+==== count repeats an insert
+abc
+def
+----
+3ihi<ESC>
+
+==== count repeats an append
+abc
+def
+----
+3ahi<ESC>
+
+==== count repeats an insert at the start of the line
+abc
+def
+----
+l3Ihi<ESC>
+
+==== count repeats an open line below
+abc
+def
+----
+2ohi<ESC>
+
+==== count repeats an open line above
+abc
+def
+----
+2Ohi<ESC>
+
+==== count repeats an insert with a newline
+abc
+def
+----
+3Ax<CR>y<ESC>
+
+==== count repeats an insert with a backspace
+abc
+def
+----
+3ihi<BS>o<ESC>
+
+==== a backspace with nothing to delete is not repeated
+abc
+def
+----
+3i<BS>x<ESC>
+
+==== backspacing before the insert drops the count
+abc
+def
+----
+ll3ix<BS><BS>y<ESC>
+
+==== a counted insert is repeated by dot
+abc
+def
+----
+3ihi<ESC>j.
+
+==== a count given to dot repeats an insert
+abc
+def
+----
+ihi<ESC>3.
+
+==== a count given to dot replaces the count of an insert
+abc
+def
+----
+3ihi<ESC>2.
+
+==== count repeats an insert left with fd
+abc
+def
+----
+3ihifd

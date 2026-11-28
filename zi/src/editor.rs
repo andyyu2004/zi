@@ -59,7 +59,7 @@ use self::register::Registers;
 pub use self::register::{Register, RegisterKind};
 pub use self::search::Match;
 use self::search::SearchState;
-use self::state::{OperatorPendingState, State};
+use self::state::{InsertEdit, OperatorPendingState, State};
 use crate::buffer::picker::{BufferPicker, BufferPickerEntry, DynamicHandler, Picker};
 use crate::buffer::{
     self as buffer, Buffer, BufferFlags, EditFlags, ExplorerBuffer, IndentSettings, Injector,
@@ -1049,6 +1049,9 @@ impl Editor {
         if let State::OperatorPending(state) = &mut self.state {
             state.count = self.count.take();
         }
+        if let (Mode::Normal, State::Insert(state)) = (from, &mut self.state) {
+            state.count = self.count.take();
+        }
 
         if !self.dot.is_replaying() {
             if Dot::should_start_recording(from, to) {
@@ -1063,6 +1066,7 @@ impl Editor {
 
     fn insert_to_normal(&mut self) {
         assert_eq!(self.mode(), Mode::Insert);
+        set_error_if!(self: self.repeat_insert());
         let (view, buf) = self.get(Active);
 
         {
@@ -1093,6 +1097,22 @@ impl Editor {
         // Request diagnostics using the pull model to ensure we have the latest diagnostics
         let fut = self.request_diagnostics(Active);
         self.spawn("pull diagnostics", fut);
+    }
+
+    /// Repeat the edits of an insert started with a count (`3ihi<Esc>` inserts `hihihi`)
+    fn repeat_insert(&mut self) -> Result<(), EditError> {
+        let State::Insert(state) = &mut self.state else { unreachable!("not in insert mode") };
+        let Some(count) = state.count.take() else { return Ok(()) };
+        let edits = std::mem::take(&mut state.edits);
+        for _ in 1..count {
+            for &edit in &edits {
+                match edit {
+                    InsertEdit::Char(c) => self.insert_char(Active, c)?,
+                    InsertEdit::DeleteChar => self.delete_char(Active)?,
+                }
+            }
+        }
+        Ok(())
     }
 
     #[inline]
@@ -1219,6 +1239,9 @@ impl Editor {
                     .expect("just checked there's a grapheme here");
 
                 buf.edit(&Deltas::delete(start_byte_idx..byte_idx));
+                if let State::Insert(state) = &mut self.state {
+                    state.record_delete(byte_idx - start_byte_idx);
+                }
 
                 view.set_cursor_bytewise(
                     mode!(self),
@@ -1248,6 +1271,9 @@ impl Editor {
         let cursor_byte = self[view.buffer()].text().point_to_byte(cursor);
         let view_id = view.id();
         self.edit(view_id, &Deltas::insert_at(cursor_byte, &*c.encode_utf8(&mut cbuf)))?;
+        if let State::Insert(state) = &mut self.state {
+            state.record_insert(c);
+        }
 
         let (view, buf) = self.db.view_and_buffer_mut(self.tree.active());
         let area = self.tree.view_area(view_id);

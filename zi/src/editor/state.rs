@@ -66,6 +66,36 @@ pub(super) struct NormalState {}
 #[derive(Debug, Default)]
 pub(super) struct InsertState {
     pub(super) completion: Completion,
+    /// The count the insert started with. Leaving insert mode repeats `edits` to make it up.
+    pub(super) count: Option<usize>,
+    pub(super) edits: Vec<InsertEdit>,
+    /// The length in bytes of the text `edits` leave inserted
+    inserted_len: usize,
+}
+
+impl InsertState {
+    pub(super) fn record_insert(&mut self, c: char) {
+        self.inserted_len += c.len_utf8();
+        self.edits.push(InsertEdit::Char(c));
+    }
+
+    /// Record a backspace that deleted a grapheme `len` bytes long
+    pub(super) fn record_delete(&mut self, len: usize) {
+        match self.inserted_len.checked_sub(len) {
+            Some(inserted_len) => {
+                self.inserted_len = inserted_len;
+                self.edits.push(InsertEdit::DeleteChar);
+            }
+            // Deleting text from before the insert drops the count, as in vim
+            None => self.count = None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) enum InsertEdit {
+    Char(char),
+    DeleteChar,
 }
 
 #[derive(Debug)]
