@@ -1450,22 +1450,20 @@ impl Editor {
             self.dot.did_edit();
         }
 
-        // Ensure the buffer ends with a newline before performing an insert.
-        if *self[buf].settings().fix_eol.read()
+        let fix_eol = *self[buf].settings().fix_eol.read()
             && !flags.contains(EditFlags::NO_ENSURE_TRAILING_NEWLINE)
-            && deltas.has_inserts()
-            && self[buf].text().chars().next_back() != Some('\n')
-        {
-            // This edit won't affect the primary delta so we don't need to adjust it.
-            let len = self[buf].text().len_bytes();
-            let newline_deltas = Deltas::insert_at(len, "\n");
-            let old_text = dyn_clone::clone_box(self[buf].text());
-            self[buf].edit(&newline_deltas);
-            self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: newline_deltas });
+            && deltas.has_inserts();
+
+        // Ensure the buffer ends with a newline before performing an insert.
+        // This edit won't affect the primary delta so we don't need to adjust it.
+        if let Some(change) = fix_eol.then(|| self.ensure_trailing_newline(buf)).flatten() {
+            self.dispatch(change);
         }
 
         let old_text = dyn_clone::clone_box(self[buf].text());
         self[buf].edit_flags(deltas, flags);
+
+        let newline_change = fix_eol.then(|| self.ensure_trailing_newline(buf)).flatten();
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
         for view in self.views_into_buf(buf) {
@@ -1474,7 +1472,22 @@ impl Editor {
         }
 
         self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: deltas.to_owned() });
+        if let Some(change) = newline_change {
+            self.dispatch(change);
+        }
         Ok(())
+    }
+
+    fn ensure_trailing_newline(&mut self, buf: BufferId) -> Option<event::DidChangeBuffer> {
+        if self[buf].text().chars().next_back() == Some('\n') {
+            return None;
+        }
+
+        let len = self[buf].text().len_bytes();
+        let deltas = Deltas::insert_at(len, "\n");
+        let old_text = dyn_clone::clone_box(self[buf].text());
+        self[buf].edit(&deltas);
+        Some(event::DidChangeBuffer { buf, old_text, deltas })
     }
 
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {

@@ -268,11 +268,15 @@ impl View {
         };
 
         // Prevent cursor being past end of line
-        if !insert && text.char_at_byte(byte) == Some('\n') && chars.peek() != Some(&'\n') {
-            byte = byte.saturating_sub('\n'.len_utf8());
-        }
-
-        let pos = text.byte_to_point(byte);
+        let prev = chars.peek().copied().filter(|&c| c != '\n');
+        let pos = match prev {
+            Some(prev) if !insert && text.char_at_byte(byte) == Some('\n') => {
+                let pos = text.byte_to_point(byte - prev.len_utf8());
+                let line = text.line(pos.line()).map_or_default(|line| line.to_cow());
+                pos.with_byte_col(floor_grapheme_boundary(&line, pos.byte_col()))
+            }
+            Some(_) | None => text.byte_to_point(byte),
+        };
         let col = buf.display_col(pos);
 
         if self.cursor.point != pos && self.cursor.target_col != col
