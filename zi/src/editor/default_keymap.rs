@@ -4,6 +4,7 @@ use stdx::merge::Merge;
 use zi_input::KeyEvent;
 use zi_textobject::{Around, FindKind, Within, delimiter};
 
+use crate::editor::state::State;
 use crate::editor::{Action, SaveFlags, set_error_if};
 use crate::keymap::Keymap;
 use crate::{
@@ -248,6 +249,9 @@ pub(super) fn new() -> Keymap {
         let indent = text.line(line).map_or(0, |slice| slice.indent());
         let new_line = format!("{}\n", " ".repeat(indent));
         set_error_if!(editor: editor.edit(Active, &Deltas::insert_at(start_byte, new_line)));
+        if let State::Insert(state) = &mut editor.state {
+            state.record_insert('\n');
+        }
         editor.set_cursor(Active, Point::new(line, indent));
     }
 

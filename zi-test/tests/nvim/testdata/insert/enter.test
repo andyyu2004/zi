@@ -57,3 +57,9 @@ Ox<ESC>
 def
 ----
 ox<ESC>
+
+==== a count repeats O above an indented line
+  abc
+def
+----
+2Ohi<ESC>
