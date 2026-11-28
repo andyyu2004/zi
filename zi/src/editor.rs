@@ -2005,7 +2005,13 @@ impl Editor {
             0 => height / 2,
             n => n,
         };
+        let start = self[view].cursor().line();
         self.scroll_by(view, direction, amt);
+        let moved = start.abs_diff(self[view].cursor().line());
+
+        let (view, buf) = self.db.view_and_buffer_mut(view);
+        let area = self.tree.view_area(view.id());
+        view.move_cursor(mode!(self), area, buf, direction, amt.saturating_sub(moved));
     }
 
     // Not sure if this should be public API
