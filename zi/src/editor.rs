@@ -159,7 +159,6 @@ pub struct Editor {
     status_error: Option<String>,
     command_handlers: HashMap<Word, Handler>,
     // plugins: Plugins,
-    notify_quit: Notify,
     backend: Box<dyn Backend>,
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
     clipboard: Result<Clipboard, Arc<arboard::Error>>,
@@ -417,7 +416,6 @@ impl Editor {
             command_handlers: command::builtin_handlers(),
             registers: Default::default(),
             diagnostics: Default::default(),
-            notify_quit: Default::default(),
             language_config: Default::default(),
             active_language_services: Default::default(),
             active_language_services_by_ft: Default::default(),
@@ -599,15 +597,6 @@ impl Editor {
         }
     }
 
-    fn should_quit(&self) -> bool {
-        if self.tree.is_empty() {
-            self.notify_quit.notify_one();
-            return true;
-        }
-
-        false
-    }
-
     pub fn get_error(&mut self) -> Option<&str> {
         self.status_error.as_deref()
     }
@@ -672,7 +661,9 @@ impl Editor {
     ) -> io::Result<()> {
         Self::subscribe_async_hooks().await;
 
-        render(self)?;
+        if !self.tree.is_empty() {
+            render(self)?;
+        }
 
         let mut plugin_manager_handles = self
             .plugin_managers
@@ -685,28 +676,45 @@ impl Editor {
         let mut requests = pin!(requests.fuse().peekable());
         let mut callbacks = pin!(callbacks.buffer_unordered(128).peekable());
 
-        let mut events = pin!(events);
-        loop {
-            select! {
-                biased;
-                Some(event) = events.next() => self.handle_input(event?),
-                () = notify_redraw.notified() => tracing::trace!("redrawing due to request"),
-                result = callbacks.select_next_some() => self.handle_callback_result(result),
-                req = requests.select_next_some() => {
-                    // If the receiver dropped then we just ignore the request.
-                    let _ = req.tx.send((req.f)(self));
-                },
-                Some(result) = plugin_manager_handles.next() => self.handle_plugin_exit(result),
-                // Put the quit case last to ensure we handle all events first
-                () = self.notify_quit.notified() => break,
+        let mut events = pin!(events.fuse());
+        'editor: loop {
+            // Wait for work, then drain a bounded batch of ready work before drawing.
+            // An unbounded stream of input still gives callbacks and rendering a turn.
+            const MAX_EVENTS_PER_FRAME: usize = 32;
+            for event_index in 0..MAX_EVENTS_PER_FRAME {
+                if self.tree.is_empty() {
+                    break 'editor;
+                }
+
+                let step = async {
+                    select! {
+                        Some(event) = events.next() => self.handle_input(event?),
+                        () = notify_redraw.notified() => tracing::trace!("redrawing due to request"),
+                        result = callbacks.select_next_some() => self.handle_callback_result(result),
+                        req = requests.select_next_some() => {
+                            // Ignore the result if the requester has dropped its receiver.
+                            let _ = req.tx.send((req.f)(self));
+                        },
+                        Some(result) = plugin_manager_handles.next() => self.handle_plugin_exit(result),
+                    }
+                    Ok::<_, io::Error>(())
+                };
+
+                // Poll with the real task waker so streams can wake us for the next batch.
+                let result = if event_index == 0 {
+                    Poll::Ready(step.await)
+                } else {
+                    futures_util::poll!(pin!(step))
+                };
+                match result {
+                    Poll::Pending => break,
+                    Poll::Ready(result) => result?,
+                }
             }
 
-            // Don't immediately break here as we want to finish handling any events first
-            if self.should_quit() {
-                // TODO if we don't break here some assertions fail
+            if self.tree.is_empty() {
                 break;
             }
-
             render(self)?;
         }
 

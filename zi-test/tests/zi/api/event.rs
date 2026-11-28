@@ -62,3 +62,25 @@ async fn event_unsubscribe_removes_only_that_subscription() {
 
     cx.cleanup().await;
 }
+
+#[tokio::test]
+async fn ready_input_is_rendered_in_one_batch() {
+    let (mut editor, tasks) = zi::Editor::new(zi::DummyBackend, (80, 24));
+    let inputs = "iabc".parse::<zi::input::KeySequence>().unwrap();
+    let events = futures_util::stream::iter(inputs.into_iter().map(zi::input::Event::Key).map(Ok));
+    let mut frames = Vec::new();
+
+    editor
+        .run(events, tasks, |editor| {
+            let line = editor.cursor_line();
+            if line == "abc" {
+                editor.close_view(zi::Active);
+            }
+            frames.push(line);
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(frames, ["", "abc"]);
+}
