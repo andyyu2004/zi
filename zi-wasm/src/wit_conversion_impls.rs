@@ -109,3 +109,77 @@ impl From<command::CommandFlags> for zi::command::CommandFlags {
         .expect("invalid command flags")
     }
 }
+
+impl From<zi::LanguageServiceStatus> for api::editor::LanguageServiceStatus {
+    fn from(status: zi::LanguageServiceStatus) -> Self {
+        let zi::LanguageServiceStatus { id, state, command, filetypes } = status;
+        Self {
+            id: id.to_string(),
+            state: state.into(),
+            command: command.map(|zi::ServiceCommand { program, args }| {
+                api::editor::LanguageServer {
+                    command: program.to_string_lossy().into_owned(),
+                    args: args.iter().map(|arg| arg.to_string_lossy().into_owned()).collect(),
+                }
+            }),
+            filetypes: filetypes.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+impl From<zi::LanguageServiceState> for api::editor::LanguageServiceState {
+    fn from(state: zi::LanguageServiceState) -> Self {
+        match state {
+            zi::LanguageServiceState::Running(details) => Self::Running(details.into()),
+            zi::LanguageServiceState::Exited(details) => Self::Exited(details.into()),
+            zi::LanguageServiceState::Starting => Self::Starting,
+            zi::LanguageServiceState::Failed(err) => Self::Failed(err),
+            zi::LanguageServiceState::NotStarted => Self::NotStarted,
+            zi::LanguageServiceState::Undefined => Self::Undefined,
+        }
+    }
+}
+
+impl From<zi::ServiceDetails> for api::editor::LanguageServiceDetails {
+    fn from(details: zi::ServiceDetails) -> Self {
+        let zi::ServiceDetails { server_info, process_id, root, position_encoding, capabilities } =
+            details;
+        Self {
+            server_info: server_info.map(|zi::lstypes::ServerInfo { name, version }| {
+                api::editor::ServerInfo { name, version }
+            }),
+            pid: process_id,
+            root: root.to_string_lossy().into_owned(),
+            position_encoding: position_encoding.map(|encoding| match encoding {
+                zi::lstypes::PositionEncoding::Utf8 => api::editor::PositionEncoding::Utf8,
+                zi::lstypes::PositionEncoding::Utf16 => api::editor::PositionEncoding::Utf16,
+            }),
+            capabilities: capabilities.into(),
+        }
+    }
+}
+
+impl From<zi::ServiceCapabilities> for api::editor::LanguageServiceCapabilities {
+    fn from(caps: zi::ServiceCapabilities) -> Self {
+        use api::editor::LanguageServiceCapabilities as Wit;
+        use zi::ServiceCapabilities as Zi;
+
+        let mut out = Wit::empty();
+        for (zi, wit) in [
+            (Zi::DEFINITION, Wit::DEFINITION),
+            (Zi::DECLARATION, Wit::DECLARATION),
+            (Zi::IMPLEMENTATION, Wit::IMPLEMENTATION),
+            (Zi::TYPE_DEFINITION, Wit::TYPE_DEFINITION),
+            (Zi::REFERENCES, Wit::REFERENCES),
+            (Zi::COMPLETION, Wit::COMPLETION),
+            (Zi::DIAGNOSTICS, Wit::DIAGNOSTICS),
+            (Zi::SEMANTIC_TOKENS, Wit::SEMANTIC_TOKENS),
+            (Zi::FORMATTING, Wit::FORMATTING),
+        ] {
+            if caps.contains(zi) {
+                out |= wit;
+            }
+        }
+        out
+    }
+}

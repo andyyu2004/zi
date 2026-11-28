@@ -10,6 +10,7 @@ mod errors;
 mod events;
 mod file_io;
 mod lsp_requests;
+mod lsp_status;
 mod marks;
 mod operator_target;
 mod pickers;
@@ -152,6 +153,8 @@ pub struct Editor {
     active_language_services_by_ft: HashMap<FileType, Vec<LanguageServiceId>>,
     /// Services whose `initialize` is in flight; an entry is stale once its init future is gone.
     starting_language_services: HashMap<LanguageServiceId, Weak<()>>,
+    /// Why each service's last start failed, until it next starts.
+    failed_language_services: HashMap<LanguageServiceId, String>,
     callbacks_tx: CallbacksSender,
     requests_tx: tokio::sync::mpsc::Sender<Request>,
     tree: layout::ViewTree,
@@ -422,6 +425,7 @@ impl Editor {
             active_language_services: Default::default(),
             active_language_services_by_ft: Default::default(),
             starting_language_services: Default::default(),
+            failed_language_services: Default::default(),
             state: Default::default(),
             search_state: Default::default(),
             status_error: Default::default(),

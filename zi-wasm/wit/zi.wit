@@ -102,6 +102,66 @@ interface editor {
     add-language-server: func(id: string, server: language-server);
     add-language: func(filetype: string, language-servers: list<string>) -> result<_, string>;
 
+    enum position-encoding {
+        utf8,
+        utf16,
+    }
+
+    flags language-service-capabilities {
+        definition,
+        declaration,
+        implementation,
+        type-definition,
+        references,
+        completion,
+        diagnostics,
+        semantic-tokens,
+        formatting,
+    }
+
+    record server-info {
+        name: string,
+        version: option<string>,
+    }
+
+    record language-service-details {
+        server-info: option<server-info>,
+        pid: option<u32>,
+        root: string,
+        position-encoding: option<position-encoding>,
+        capabilities: language-service-capabilities,
+    }
+
+    variant language-service-state {
+        /// Initialized and running.
+        running(language-service-details),
+        /// Initialized, but the server has since exited or crashed.
+        exited(language-service-details),
+        /// Waiting for `initialize` to return.
+        starting,
+        /// The last attempt to start it failed, with this error.
+        failed(string),
+        /// Defined, but no buffer of its file types has been opened yet.
+        not-started,
+        /// A language uses it, but it has no definition.
+        undefined,
+    }
+
+    record language-service-status {
+        id: string,
+        state: language-service-state,
+        command: option<language-server>,
+        filetypes: list<string>,
+    }
+
+    /// Every language service that is defined or that a language uses, by id.
+    get-language-services: func() -> list<language-service-status>;
+
+    /// Every buffer, in no particular order.
+    get-buffers: func() -> list<buffer>;
+    /// A new readonly buffer holding `text`. It is removed once no view shows it.
+    create-scratch-buffer: func(name: string, text: string) -> buffer;
+
     enum direction {
         left,
         right,
@@ -135,6 +195,9 @@ interface editor {
         scroll-by: func(direction: direction, amount: u32);
         align: func(alignment: vertical-alignment);
         focus: func();
+        /// Split this view in `direction`, focus the new view and return it. It shows the same buffer.
+        split: func(direction: direction) -> view;
+        set-buffer: func(buf: borrow<buffer>);
     }
 
     resource buffer {
@@ -142,6 +205,7 @@ interface editor {
         get-file-path: func() -> option<string>;
         get-flags: func() -> buffer-flags;
         len-lines: func() -> u32;
+        get-filetype: func() -> string;
     }
 }
 

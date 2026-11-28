@@ -5,13 +5,12 @@ build-plugins:
     mkdir -p target
     nix build --out-link {{plugin-output}} .#plugins
 
-install-plugins:
-    @if [ ! -f "{{plugin-output}}/plugin_example.wasm" ]; then \
-        echo "Run just build-plugins before installing plugins." >&2; exit 1; \
-    fi
+install-plugins: build-plugins
     plugin_dir="${ZI_PLUGIN_DIR:-runtime/plugins}" && \
     mkdir -p "$plugin_dir" && \
-    install -m 0644 "{{plugin-output}}/plugin_example.wasm" "$plugin_dir/plugin_example.wasm" && \
+    for plugin in plugin_example plugin_lspinfo; do \
+        install -m 0644 "{{plugin-output}}/$plugin.wasm" "$plugin_dir/$plugin.wasm" || exit 1; \
+    done && \
     if [ "$plugin_dir" = runtime/plugins ]; then rm -f "$plugin_dir/plugin_test.wasm"; fi
 
 build-grammars:

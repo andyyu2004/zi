@@ -28,3 +28,5 @@ workspace = true
 zi-plugin = { workspace = true }
 mutants = { workspace = true }
 wit-component = "0.263"
+expect-test = { workspace = true }
+tempfile = { workspace = true }

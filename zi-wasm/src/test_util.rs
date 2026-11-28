@@ -64,10 +64,11 @@ pub fn build_source_plugin(lang: Language, name: &str, source: &str) -> anyhow::
         Language::JavaScript => "src/plugin.js",
         Language::Rust => "src/lib.rs",
     };
-    let project = plugin_target_dir()?.join(name);
-    if project.exists() {
-        std::fs::remove_dir_all(&project)?;
-    }
+    let target_dir = plugin_target_dir()?;
+    std::fs::create_dir_all(&target_dir)?;
+    // A fresh directory per build, so tests building the same plugin at once don't collide.
+    let tempdir = tempfile::Builder::new().prefix(name).tempdir_in(&target_dir)?;
+    let project = tempdir.path().join(name);
     zi_plugin::scaffold(&project, &name.parse()?, lang)?;
     std::fs::write(project.join(source_path), source)?;
     match lang {

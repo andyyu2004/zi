@@ -34,6 +34,10 @@ impl command::GuestHandler for CommandHandler {
                 use_closed_view();
                 Ok(())
             }
+            "scratch" => {
+                open_scratch();
+                Ok(())
+            }
             _ => Err(CommandError::Message(format!("unexpected command: `{cmd}`"))),
         }
     }
@@ -57,6 +61,11 @@ impl lifecycle::Guest for Component {
                 },
                 Command {
                     name: "stale-view".into(),
+                    arity: Arity { min: 0, max: 0 },
+                    opts: CommandFlags::empty(),
+                },
+                Command {
+                    name: "scratch".into(),
                     arity: Arity { min: 0, max: 0 },
                     opts: CommandFlags::empty(),
                 },
@@ -146,12 +155,46 @@ fn test_languages() {
         add_language("rust", &["test-ls"]),
         Err("language server `test-ls` for language `rust` is not defined".into())
     );
-    add_language_server("test-ls", LanguageServer { command: "test-ls", args: &["--stdio"] });
+    add_language_server("test-ls", LanguageServerParam { command: "test-ls", args: &["--stdio"] });
     assert_eq!(
         add_language("rust", &["test-ls", "test-ls"]),
         Err("language server `test-ls` is listed more than once for language `rust`".into())
     );
     add_language("rust", &["test-ls"]).unwrap();
+
+    let services = get_language_services();
+    assert_eq!(
+        services,
+        [LanguageServiceStatus {
+            id: "test-ls".into(),
+            state: LanguageServiceState::NotStarted,
+            command: Some(LanguageServerResult {
+                command: "test-ls".into(),
+                args: vec!["--stdio".into()],
+            }),
+            filetypes: vec!["rust".into()],
+        }]
+    );
+}
+
+fn open_scratch() {
+    let view = get_active_view();
+    let original = view.get_buffer().get_file_path();
+    let buffers = get_buffers().len();
+
+    let buf = create_scratch_buffer("[scratch]", "one\ntwo\n");
+    assert_eq!(buf.get_file_path(), None, "a scratch buffer is not backed by a file");
+    assert_eq!(buf.get_filetype(), "text");
+    assert_eq!(buf.len_lines(), 2);
+    assert_eq!(get_buffers().len(), buffers + 1);
+
+    let split = view.split(Direction::Up);
+    split.set_buffer(&buf);
+    assert_eq!(get_active_view().get_buffer().len_lines(), 2);
+    assert_eq!(view.get_buffer().get_file_path(), original);
+
+    split.close();
+    assert!(!buf.exists(), "a scratch buffer is removed once no view shows it");
 }
 
 impl dependency::Guest for Component {

@@ -2848,6 +2848,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-lspinfo"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen 0.63.0",
+]
+
+[[package]]
 name = "plugin-test"
 version = "0.1.0"
 dependencies = [
@@ -5924,12 +5931,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "expect-test",
  "futures-util",
  "mutants",
  "parking_lot 0.13.0",
  "slotmap",
  "smol_str",
  "streaming-iterator",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",

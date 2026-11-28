@@ -23,6 +23,8 @@ pub struct LanguageService {
             + Sync,
     >,
     capabilities: Arc<OnceLock<lsp_types::ServerCapabilities>>,
+    server_info: Arc<OnceLock<zi::lstypes::ServerInfo>>,
+    process_id: Option<u32>,
     position_encoding: OnceLock<lstypes::PositionEncoding>,
     // Keeping track of this here for encoding conversions (and sanity checks)
     texts: HashMap<Url, (i32, Rope)>,
@@ -45,10 +47,18 @@ impl LanguageService {
             service_id,
             server: Box::new(server),
             capabilities: Default::default(),
+            server_info: Default::default(),
+            process_id: None,
             position_encoding: Default::default(),
             texts: Default::default(),
             semantic_tokens_legend: Default::default(),
         }
+    }
+
+    #[must_use]
+    pub fn with_process_id(mut self, pid: u32) -> Self {
+        self.process_id = Some(pid);
+        self
     }
 
     #[inline]
@@ -102,6 +112,18 @@ impl zi::LanguageService for LanguageService {
     #[inline]
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn server_info(&self) -> Option<&lstypes::ServerInfo> {
+        self.server_info.get()
+    }
+
+    fn process_id(&self) -> Option<u32> {
+        self.process_id
+    }
+
+    fn position_encoding(&self) -> Option<lstypes::PositionEncoding> {
+        Some(Self::position_encoding(self))
     }
 
     fn definition_capabilities(&self) -> Option<()> {
@@ -170,6 +192,7 @@ impl zi::LanguageService for LanguageService {
 
     fn initialize(&mut self, params: lstypes::InitializeParams) -> ResponseFuture<()> {
         let caps = Arc::clone(&self.capabilities);
+        let server_info = Arc::clone(&self.server_info);
         #[expect(
             deprecated,
             reason = "root_uri and root_path are deprecated but older servers still read them"
@@ -196,6 +219,10 @@ impl zi::LanguageService for LanguageService {
         Box::pin(async move {
             let result = fut.await?;
             caps.set(result.capabilities).expect("capabilities already initialized");
+            if let Some(info) = result.server_info {
+                let _ =
+                    server_info.set(lstypes::ServerInfo { name: info.name, version: info.version });
+            }
             Ok(())
         })
     }

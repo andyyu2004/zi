@@ -2,23 +2,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tokio::sync::{mpsc, watch};
-use zi::event::HandlerResult;
+use tokio::sync::watch;
 use zi::{LanguageConfig, LanguageServiceId, Url};
 use zi_lsp::LanguageServerConfig;
 
 use super::*;
-
-fn on_initialized(service_id: LanguageServiceId) -> mpsc::UnboundedReceiver<()> {
-    let (tx, rx) = mpsc::unbounded_channel();
-    zi::event::subscribe_with::<zi::event::DidInitializeLanguageService>(move |_editor, event| {
-        if event.service_id == service_id {
-            let _ = tx.send(());
-        }
-        HandlerResult::Continue
-    });
-    rx
-}
 
 async fn wait_for_error(cx: &TestContext) -> String {
     loop {
