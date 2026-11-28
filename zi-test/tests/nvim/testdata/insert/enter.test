@@ -1,0 +1,65 @@
+==== enter in the middle of a line moves the cursor to the start of the new line
+abc
+def
+----
+lia<CR>
+
+==== enter then typing continues at the start of the new line
+abc
+def
+----
+li<CR>x<ESC>
+
+==== enter in the middle of an indented line
+  abc
+def
+----
+llli<CR>
+
+==== enter at the end of a line
+abc
+def
+----
+A<CR>x<ESC>
+
+==== enter in the indent keeps the indent before the cursor
+  abc
+def
+----
+li<CR>x<ESC>
+
+==== enter at the start of an indented line drops its indent
+  abc
+def
+----
+0i<CR>x<ESC>
+
+==== enter before whitespace drops the whitespace
+a  bc
+def
+----
+li<CR>x<ESC>
+
+==== enter after whitespace keeps it on the first line
+  a bc
+def
+----
+llli<CR>x<ESC>
+
+==== O above an indented line keeps the line's indent
+  abc
+def
+----
+Ox<ESC>
+
+==== o below an indented line indents the new line
+  abc
+def
+----
+ox<ESC>
+
+==== a count repeats O above an indented line
+  abc
+def
+----
+2Ohi<ESC>

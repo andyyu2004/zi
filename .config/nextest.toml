@@ -1,10 +1,31 @@
+# Locally a test that takes over 10s is killed: keep tests fast. CI's machines are slower, so the
+# ci profile only kills a test that hangs.
 [profile.default]
-slow-timeout = { period = "60s", terminate-after = 5 }
+slow-timeout = { period = "10s", terminate-after = 1 }
+
+# Building a plugin from a cold cache takes longer, once.
+[[profile.default.overrides]]
+filter = "(package(zi-wasm) & test(/^plugin::tests::/)) | (package(zi-plugin) & test(/^tests::build_/))"
+slow-timeout = { period = "60s", terminate-after = 1 }
+
+# Each nvim test drives its own nvim. With all of them at once each takes 6-8s, though they
+# mostly wait rather than compute (cause unknown); four at a time takes up to 3.2s each.
+[[profile.default.overrides]]
+filter = "binary(nvim) | binary(nvim-prop)"
+test-group = "nvim"
 
 [profile.ci]
 fail-fast = false
 retries = 0
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# The default profile's overrides apply here too, after these; this one keeps its timeouts out.
+[[profile.ci.overrides]]
+filter = "all()"
+slow-timeout = { period = "60s", terminate-after = 5 }
+
 [profile.ci.junit]
 path = "junit.xml"
+
+[test-groups]
+nvim = { max-threads = 4 }

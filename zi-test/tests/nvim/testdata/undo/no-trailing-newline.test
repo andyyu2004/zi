@@ -1,0 +1,11 @@
+==== leaves the buffer with a trailing newline, so the next reset leaves it without one
+abc
+def
+----
+Ax<ESC>
+
+==== undo returns to the insert, not to the trailing newline the insert added
+abc
+def
+----
+ihi<ESC>u

@@ -1309,16 +1309,15 @@ impl Editor {
             state.record_insert(c);
         }
 
-        let (view, buf) = self.db.view_and_buffer_mut(self.tree.active());
-        let area = self.tree.view_area(view_id);
         match c {
             '\n' => {
-                let cursor = view.move_cursor(mode!(self), area, buf, Direction::Down, 1);
+                self.set_cursor_bytewise(view_id, cursor_byte + c.len_utf8());
                 self.indent_newline(view_id)?;
-                cursor
             }
-            _ => self.motion(Active, motion::NextChar)?,
-        };
+            _ => {
+                self.motion(Active, motion::NextChar)?;
+            }
+        }
 
         self.dispatch(event::DidInsertChar { view: view_id, char: c });
 
@@ -1386,19 +1385,21 @@ impl Editor {
     fn indent_newline(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         let (view, buf) = self.get(selector);
         let text = self[buf].text();
-        let cursor = self[view].cursor();
-        if cursor.byte_col() > 0 || !text.line(cursor.line()).unwrap().is_empty() {
-            // Simple heuristics to determine if we should indent the new line
-            return Ok(());
-        }
+        let line = self[view].cursor().line();
+        let leading = text.line(line).map_or(0, |slice| slice.indent());
 
         let tab_width = *self[buf].settings().tab_width.read();
-        match zi_indent::indent(zi_indent::Config { tab_width }, text, cursor.line()) {
+        match zi_indent::indent(zi_indent::Config { tab_width }, text, line) {
             Indent::Bytes(bytes) => {
-                let start_byte = text.line_to_byte(cursor.line());
-                let deltas = Deltas::insert_at(start_byte, " ".repeat(bytes));
+                if leading == 0 && bytes == 0 {
+                    return Ok(());
+                }
+
+                let start_byte = text.line_to_byte(line);
+                let deltas =
+                    Deltas::new([Delta::new(start_byte..start_byte + leading, " ".repeat(bytes))]);
                 self.edit(buf, &deltas)?;
-                self.set_cursor(view, cursor.right_bytes(bytes));
+                self.set_cursor(view, Point::new(line, bytes));
                 Ok(())
             }
         }
@@ -1484,22 +1485,20 @@ impl Editor {
             self.dot.did_edit();
         }
 
-        // Ensure the buffer ends with a newline before performing an insert.
-        if *self[buf].settings().fix_eol.read()
+        let fix_eol = *self[buf].settings().fix_eol.read()
             && !flags.contains(EditFlags::NO_ENSURE_TRAILING_NEWLINE)
-            && deltas.has_inserts()
-            && self[buf].text().chars().next_back() != Some('\n')
-        {
-            // This edit won't affect the primary delta so we don't need to adjust it.
-            let len = self[buf].text().len_bytes();
-            let newline_deltas = Deltas::insert_at(len, "\n");
-            let old_text = dyn_clone::clone_box(self[buf].text());
-            self[buf].edit(&newline_deltas);
-            self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: newline_deltas });
+            && deltas.has_inserts();
+
+        // Ensure the buffer ends with a newline before performing an insert.
+        // This edit won't affect the primary delta so we don't need to adjust it.
+        if let Some(change) = fix_eol.then(|| self.ensure_trailing_newline(buf)).flatten() {
+            self.dispatch(change);
         }
 
         let old_text = dyn_clone::clone_box(self[buf].text());
         self[buf].edit_flags(deltas, flags);
+
+        let newline_change = fix_eol.then(|| self.ensure_trailing_newline(buf)).flatten();
 
         // set the cursor again in relevant views as it may be out of bounds after the edit
         for view in self.views_into_buf(buf) {
@@ -1508,7 +1507,22 @@ impl Editor {
         }
 
         self.dispatch(event::DidChangeBuffer { buf, old_text, deltas: deltas.to_owned() });
+        if let Some(change) = newline_change {
+            self.dispatch(change);
+        }
         Ok(())
+    }
+
+    fn ensure_trailing_newline(&mut self, buf: BufferId) -> Option<event::DidChangeBuffer> {
+        if self[buf].text().chars().next_back() == Some('\n') {
+            return None;
+        }
+
+        let len = self[buf].text().len_bytes();
+        let deltas = Deltas::insert_at(len, "\n");
+        let old_text = dyn_clone::clone_box(self[buf].text());
+        self[buf].edit(&deltas);
+        Some(event::DidChangeBuffer { buf, old_text, deltas })
     }
 
     fn views_into_buf(&self, buf: BufferId) -> impl Iterator<Item = ViewId> + 'static {
@@ -1561,11 +1575,7 @@ impl Editor {
         let buf = self.view(view).buffer();
         let content = sel.content(self.db.buffers[buf].text());
         let kind = sel.register_kind();
-
-        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(&*content)) {
-            set_error!(self, err);
-        }
-        self.registers.get_or_insert(Registers::UNNAMED).set(kind, content);
+        self.set_unnamed_register(kind, content.into_owned());
 
         if matches!(operator, Operator::Delete | Operator::Change) {
             let byte_ranges = sel.byte_ranges(self[buf].text());
@@ -1637,6 +1647,15 @@ impl Editor {
         self.registers.get(name)
     }
 
+    fn set_unnamed_register(&mut self, kind: impl Into<RegisterKind>, content: String) {
+        let reg = self.registers.get_or_insert(Registers::UNNAMED);
+        reg.set(kind, content);
+        let content = reg.content.clone();
+        if let Err(err) = with_clipboard!(self, |cb| cb.set_text(content)) {
+            set_error!(self, err);
+        }
+    }
+
     pub fn paste_after(&mut self, selector: impl Selector<ViewId>) -> Result<(), EditError> {
         // FIXME very naive implementation.
         let Some(reg) = self.registers.get(Registers::UNNAMED).cloned() else {
@@ -1650,10 +1669,25 @@ impl Editor {
                 let cursor = self[view].cursor();
                 let text = self[buf].text();
                 let line_start_byte = text.line_to_byte(cursor.line() + 1).min(text.len_bytes());
-                let deltas =
-                    Deltas::new([Delta::insert_at(line_start_byte, format!("{}\n", reg.content))]);
+                let ends_line = line_start_byte
+                    .checked_sub(1)
+                    .is_some_and(|byte| text.char_at_byte(byte) == Some('\n'));
+                let content = if ends_line {
+                    reg.content
+                } else {
+                    format!("\n{}", reg.content.strip_suffix('\n').unwrap_or(&reg.content))
+                };
+                let deltas = Deltas::new([Delta::insert_at(line_start_byte, content)]);
                 self.edit(buf, &deltas)?;
-                self.move_cursor(view, Direction::Down, 1);
+                let (view, buf) = self.db.view_and_buffer_mut(view);
+                let area = self.tree.view_area(view.id());
+                view.set_cursor_linewise(
+                    mode!(self),
+                    area,
+                    buf,
+                    Point::new(cursor.line() + 1, 0),
+                    SetCursorFlags::START_OF_LINE,
+                );
                 Ok(())
             }
         }
@@ -1697,6 +1731,15 @@ impl Editor {
             return Ok(());
         };
 
+        let buffer_is_empty = text.is_empty();
+        let content = text.byte_slice(range.clone()).to_string();
+        match operator {
+            Operator::Yank => self.set_unnamed_register(obj_kind, content),
+            Operator::Delete | Operator::Change => {
+                self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, content);
+            }
+        }
+
         let (deltas, new_cursor) = match operator {
             Operator::Delete | Operator::Change => {
                 let deltas = Deltas::delete(range.clone());
@@ -1711,12 +1754,13 @@ impl Editor {
                 (deltas, Some(cursor))
             }
             Operator::Yank => {
-                let text = text.byte_slice(range.clone()).to_cow();
-                if let Err(err) = with_clipboard!(self, |cb| cb.set_text(text.clone())) {
-                    set_error!(self, err);
-                }
-                self.registers.get_or_insert(Registers::UNNAMED).set(obj_kind, text);
-                (Deltas::empty(), None)
+                let cursor = match obj_kind {
+                    TextObjectKind::Linewise if !end_adjusted => {
+                        Some(PointOrByte::Point(start_point.with_byte_col(cursor.byte_col())))
+                    }
+                    TextObjectKind::Linewise | TextObjectKind::Charwise => None,
+                };
+                (Deltas::empty(), cursor)
             }
         };
 
@@ -1726,7 +1770,7 @@ impl Editor {
                 self[buf].snapshot_cursor(start_point);
                 self[buf].snapshot(SnapshotFlags::empty());
             }
-            Operator::Delete if text.is_empty() => {
+            Operator::Delete if buffer_is_empty => {
                 self.set_mode(Mode::Normal);
                 return Ok(());
             }
@@ -1761,7 +1805,7 @@ impl Editor {
             // https://github.com/neovim/neovim/blob/efb44e0cad294f51e330d57d7590d38de5cec62c/src/nvim/ops.c#L6348-L6354
             let (new_cursor, flags) = if obj_kind.is_linewise()
                 && !end_adjusted
-                && matches!(operator, Operator::Delete)
+                && matches!(operator, Operator::Delete | Operator::Yank)
             {
                 assert!(
                     matches!(new_cursor, PointOrByte::Point(_)),
@@ -1878,13 +1922,15 @@ impl Editor {
             }
         }
 
-        let cursor = match (entry.cursor, entry.changes.first()) {
+        let earliest_change = entry
+            .changes
+            .iter()
+            .flat_map(|change| change.deltas.iter().map(|delta| delta.range().start))
+            .min();
+        let cursor = match (entry.cursor, earliest_change) {
             (Some(cursor), _) => cursor.into(),
-            (_, Some(fst)) => match fst.deltas.iter().next() {
-                Some(delta) => delta.range().start.into(),
-                None => return Ok(false),
-            },
-            _ => return Ok(false),
+            (None, Some(start)) => start.into(),
+            (None, None) => return Ok(false),
         };
 
         for view in self.views_into_buf(buf) {
@@ -2037,7 +2083,13 @@ impl Editor {
             0 => height / 2,
             n => n,
         };
+        let start = self[view].cursor().line();
         self.scroll_by(view, direction, amt);
+        let moved = start.abs_diff(self[view].cursor().line());
+
+        let (view, buf) = self.db.view_and_buffer_mut(view);
+        let area = self.tree.view_area(view.id());
+        view.move_cursor(mode!(self), area, buf, direction, amt.saturating_sub(moved));
     }
 
     // Not sure if this should be public API

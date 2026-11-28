@@ -1,0 +1,18 @@
+==== an earlier case must not change where the next one leaves the cursor
+x
+----
+l
+
+==== dE from an empty line to the end of the buffer
+a
+
+b
+----
+jdE
+
+==== de from an empty line to the end of the buffer
+a
+
+b
+----
+jde

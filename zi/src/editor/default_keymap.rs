@@ -4,10 +4,12 @@ use stdx::merge::Merge;
 use zi_input::KeyEvent;
 use zi_textobject::{Around, FindKind, Within, delimiter};
 
+use crate::editor::state::State;
 use crate::editor::{Action, SaveFlags, set_error_if};
 use crate::keymap::Keymap;
 use crate::{
-    Active, Direction, Editor, Mark, Mode, Operator, VerticalAlignment, hashmap, motion, trie,
+    Active, Deltas, Direction, Editor, Mark, Mode, Operator, Point, Text, TextSlice,
+    VerticalAlignment, hashmap, motion, trie,
 };
 use zi_textobject::motion::Motion;
 
@@ -222,9 +224,16 @@ pub(super) fn new() -> Keymap {
 
     fn open_newline_above(editor: &mut Editor) {
         editor.set_mode(Mode::Insert);
-        editor.set_cursor(Active, editor.cursor(Active).with_byte_col(0));
-        set_error_if!(editor: editor.insert_char(Active, '\n'));
-        set_error_if!(editor: editor.motion(Active, motion::PrevLine));
+        let line = editor.cursor(Active).line();
+        let text = editor.text(Active);
+        let start_byte = text.line_to_byte(line);
+        let indent = text.line(line).map_or(0, |slice| slice.indent());
+        let new_line = format!("{}\n", " ".repeat(indent));
+        set_error_if!(editor: editor.edit(Active, &Deltas::insert_at(start_byte, new_line)));
+        if let State::Insert(state) = &mut editor.state {
+            state.record_insert('\n');
+        }
+        editor.set_cursor(Active, Point::new(line, indent));
     }
 
     fn next_token(editor: &mut Editor) {
@@ -540,7 +549,7 @@ pub(super) fn new() -> Keymap {
                     "c" => text_object_current_line_exclusive,
                 })),
                 Mode::OperatorPending(Operator::Yank) => operator_pending_trie.merge(trie!({
-                    "y" => text_object_current_line_exclusive,
+                    "y" => text_object_current_line_inclusive,
                 })),
                 Mode::ReplacePending => trie!({
                     "<ESC>" | "<C-c>" => normal_mode,
