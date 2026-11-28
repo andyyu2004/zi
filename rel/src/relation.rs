@@ -284,3 +284,21 @@ impl<T: Row> std::ops::Index<T::Key> for Relation<T> {
         self.get(id).unwrap_or_else(|| panic!("no such {}: {id:?}", T::NAME))
     }
 }
+
+#[cfg(feature = "rusqlite")]
+impl<T: Row> Relation<T> {
+    pub(crate) fn vacant_slots(&self) -> impl Iterator<Item = RawId> {
+        self.free.iter().map(|&index| RawId::new(index, self.slots[index as usize].generation))
+    }
+
+    pub(crate) fn from_snapshot(slots: Vec<(RawId, Option<T>)>, free: Vec<u32>) -> Result<Self> {
+        let mut relation = Self { free, ..Self::default() };
+        for (id, row) in slots {
+            relation.slots.push(Slot { generation: id.generation(), row: None });
+            if let Some(row) = row {
+                relation.fill(T::Key::from_raw(id), row)?;
+            }
+        }
+        Ok(relation)
+    }
+}

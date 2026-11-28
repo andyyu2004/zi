@@ -15,3 +15,6 @@ pub use index::{HashIndex, LookupIndex, OrdIndex, UniqueHashIndex, UniqueOrdInde
 pub use query::{Column, Join, Ref, RefersTo};
 pub use rel_derive::{Database, Relation};
 pub use relation::{OnDelete, Reference, Relation, Row, Unconstrained};
+
+#[cfg(feature = "rusqlite")]
+pub mod sqlite;
