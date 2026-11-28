@@ -70,19 +70,18 @@ pub trait TextObject {
     }
 
     /// The byte range of the text object repeated `n` times.
-    /// By default each repetition starts where the previous one ends.
+    /// By default each repetition starts where the previous one ends, until one doesn't reach further.
     fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
         let first = self.byte_range(text, byte)?;
         let mut start = first.start;
         let mut end = first.end;
         for _ in 1..n {
-            match self.byte_range(text, end) {
-                Some(next) => {
-                    start = start.min(next.start);
-                    end = end.max(next.end);
-                }
-                None => break,
+            let Some(next) = self.byte_range(text, end) else { break };
+            start = start.min(next.start);
+            if next.end <= end {
+                break;
             }
+            end = next.end;
         }
         Some(start..end)
     }
@@ -192,7 +191,7 @@ impl<M: TextObject> TextObject for Repeat<M> {
 
     #[inline]
     fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
-        self.inner.byte_range_n(text, byte, self.n * n)
+        self.inner.byte_range_n(text, byte, self.n.saturating_mul(n))
     }
 
     #[inline]
@@ -481,8 +480,9 @@ impl TextObject for NextLine {
     #[inline]
     fn byte_range_n(&self, text: &dyn AnyText, byte: usize, n: usize) -> Option<ops::Range<usize>> {
         let line_idx = text.byte_to_line(byte);
-        let end_line =
-            (line_idx + 1..=line_idx + n).take_while(|&idx| text.line(idx).is_some()).last()?;
+        let end_line = (line_idx + 1..=line_idx.saturating_add(n))
+            .take_while(|&idx| text.line(idx).is_some())
+            .last()?;
         Some(line_range_to_byte_range(text, line_idx..=end_line, Inclusivity::Inclusive))
     }
 

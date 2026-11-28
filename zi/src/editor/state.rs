@@ -1,4 +1,4 @@
-use super::{Active, Editor};
+use super::{Active, Count, Editor};
 use crate::completion::Completion;
 use crate::{Mode, Operator, Point};
 
@@ -67,7 +67,7 @@ pub(super) struct NormalState {}
 pub(super) struct InsertState {
     pub(super) completion: Completion,
     /// The count the insert started with. Leaving insert mode repeats `edits` to make it up.
-    pub(super) count: Option<usize>,
+    pub(super) count: Option<Count>,
     pub(super) edits: Vec<InsertEdit>,
     /// The length in bytes of the text `edits` leave inserted
     inserted_len: usize,
@@ -125,7 +125,7 @@ pub(super) struct VisualState {
 pub(super) struct OperatorPendingState {
     pub(crate) operator: Operator,
     /// The count typed before the operator. It multiplies the count typed after it.
-    pub(super) count: Option<usize>,
+    pub(super) count: Option<Count>,
 }
 
 impl OperatorPendingState {

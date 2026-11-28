@@ -1,6 +1,7 @@
 mod completion;
 
 mod config;
+mod count;
 pub(crate) mod cursor;
 pub mod db;
 mod default_keymap;
@@ -49,6 +50,7 @@ use zi_textobject::motion::{self, Motion, MotionFlags};
 use zi_textobject::{FindChar, FindKind, TextObject, TextObjectFlags, TextObjectKind};
 
 use self::config::Settings;
+use self::count::Count;
 use self::db::{BufferQueries as _, Db, ViewQueries as _};
 use self::diagnostics::BufferDiagnostics;
 use self::dot::Dot;
@@ -164,7 +166,7 @@ pub struct Editor {
     plugin_managers: BTreeMap<&'static str, Arc<dyn PluginManager + Send + Sync>>,
     clipboard: Result<Clipboard, Arc<arboard::Error>>,
     dot: Dot,
-    count: Option<usize>,
+    count: Option<Count>,
     pending_find: Option<PendingFind>,
 }
 
@@ -812,6 +814,11 @@ impl Editor {
             return;
         }
 
+        if let Some(digit) = self.count_digit(mode, &key) {
+            self.push_count_digit(mode, digit);
+            return;
+        }
+
         tracing::trace!(%key, "handling key");
         #[expect(
             clippy::wildcard_enum_match_arm,
@@ -826,6 +833,32 @@ impl Editor {
             }
             _ => self.handle_command_key(mode, key),
         }
+    }
+
+    /// The digit `key` types into the count. As in vim, a count is read before the keymap sees
+    /// the key, and `0` only continues a count.
+    fn count_digit(&mut self, mode: Mode, key: &KeyEvent) -> Option<u8> {
+        match mode {
+            Mode::Normal
+            | Mode::OperatorPending(_)
+            | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock => {}
+            Mode::Insert | Mode::Command | Mode::ReplacePending => return None,
+        }
+
+        let KeyCode::Char(c @ '0'..='9') = key.code() else { return None };
+        if !key.modifiers().is_empty() || (c == '0' && self.count.is_none()) {
+            return None;
+        }
+
+        let mut empty = Keymap::default();
+        let (_, buf) = self.db.view_and_buffer_mut(self.tree.active());
+        if self.keymap.pair(buf.keymap().unwrap_or(&mut empty)).is_pending(&mode) {
+            return None;
+        }
+
+        c.to_digit(10).map(|digit| digit as u8)
     }
 
     fn replace_pending_char(&mut self, c: char) {
@@ -877,10 +910,6 @@ impl Editor {
             self.count = None;
         }
 
-        if self.count.is_some() && self.count != count {
-            self.dot.save_count(mode, self.pending_count().expect("count is set"));
-        }
-
         if mode == Mode::Normal && mode!(self) == Mode::Normal {
             self.dot.finalize_normal_mode_change();
             if self.count.is_none() {
@@ -895,6 +924,10 @@ impl Editor {
     }
 
     pub(crate) fn take_count(&mut self) -> Option<usize> {
+        self.take_pending_count().map(Count::get)
+    }
+
+    fn take_pending_count(&mut self) -> Option<Count> {
         let count = self.pending_count();
         self.count = None;
         if let State::OperatorPending(state) = &mut self.state {
@@ -904,7 +937,7 @@ impl Editor {
     }
 
     /// The count typed so far, multiplied by the count typed before a pending operator (`2d3w` is 6)
-    fn pending_count(&self) -> Option<usize> {
+    fn pending_count(&self) -> Option<Count> {
         let operator_count = match &self.state {
             State::OperatorPending(state) => state.count,
             State::Normal(_)
@@ -940,8 +973,9 @@ impl Editor {
         }
     }
 
-    pub(crate) fn update_count(&mut self, f: impl FnOnce(Option<usize>) -> usize) {
-        self.count = Some(f(self.count));
+    fn push_count_digit(&mut self, mode: Mode, digit: u8) {
+        self.count = Some(Count::push_digit(self.count, digit));
+        self.dot.save_count(mode, self.pending_count().expect("count is set"));
     }
 
     pub fn visual_anchor(&self) -> Option<Point> {
@@ -979,7 +1013,7 @@ impl Editor {
             return;
         }
 
-        if let Some(count) = self.take_count() {
+        if let Some(count) = self.take_pending_count() {
             self.dot.set_count(count);
         }
         self.count = self.dot.count();
@@ -1104,7 +1138,7 @@ impl Editor {
         let State::Insert(state) = &mut self.state else { unreachable!("not in insert mode") };
         let Some(count) = state.count.take() else { return Ok(()) };
         let edits = std::mem::take(&mut state.edits);
-        for _ in 1..count {
+        for _ in 1..count.get() {
             for &edit in &edits {
                 match edit {
                     InsertEdit::Char(c) => self.insert_char(Active, c)?,
