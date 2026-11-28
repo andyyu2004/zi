@@ -8,7 +8,6 @@ members = [
     "stdx",
     "zi",
     "zi-core",
-    "zi-indent",
     "zi-lsp",
     "zi-marktree",
     "zi-nvim",
@@ -33,7 +32,6 @@ zi = { path = "zi" }
 zi-core = { path = "zi-core" }
 zi-wasm = { path = "zi-wasm" }
 zi-event = { path = "zi-event" }
-zi-indent = { path = "zi-indent" }
 zi-lsp = { path = "zi-lsp" }
 zi-marktree = { path = "zi-marktree" }
 zi-nvim = { path = "zi-nvim" }

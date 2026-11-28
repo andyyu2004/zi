@@ -40,6 +40,11 @@ impl ViewTree {
             .expect("view has never been in the view tree")
     }
 
+    pub fn view_size(&self, id: ViewId) -> Size {
+        let area = self.view_area(id);
+        Size::new(area.width, area.height)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.layers.is_empty()
     }
@@ -291,12 +296,9 @@ struct Container {
 }
 
 impl Container {
-    fn new(
-        direction: impl Into<tui::Direction>,
-        children: impl IntoIterator<Item = (Constraint, Node)>,
-    ) -> Self {
+    fn new(direction: Direction, children: impl IntoIterator<Item = (Constraint, Node)>) -> Self {
         let (constraints, children): (Vec<_>, Vec<_>) = children.into_iter().unzip();
-        Container { direction: direction.into(), constraints, children }
+        Container { direction: split_axis(direction), constraints, children }
     }
 
     fn area(&self, area: Rect, view: ViewId) -> Option<Rect> {
@@ -327,7 +329,7 @@ impl Container {
     fn insert(&mut self, idx: usize, new: ViewId, direction: Direction, constraint: Constraint) {
         assert_eq!(
             self.direction,
-            direction.into(),
+            split_axis(direction),
             "cannot insert into container with a different direction"
         );
 
@@ -362,7 +364,7 @@ impl Container {
             let child = &mut self.children[i];
             match child {
                 Node::View(v) if *v == view => {
-                    if self.direction == direction.into() {
+                    if self.direction == split_axis(direction) {
                         self.insert(i, new, direction, constraint);
                         return true;
                     }
@@ -418,7 +420,7 @@ impl Container {
                 TraverseResult::Continue => {}
                 TraverseResult::Done(next) => return TraverseResult::Done(next),
                 TraverseResult::Propagate => {
-                    if self.direction != direction.into() {
+                    if self.direction != split_axis(direction) {
                         // If the container direction is different, we try again in the parent container
                         return TraverseResult::Propagate;
                     }
@@ -445,5 +447,12 @@ impl Container {
         }
 
         TraverseResult::Continue
+    }
+}
+
+fn split_axis(direction: Direction) -> tui::Direction {
+    match direction {
+        Direction::Left | Direction::Right => tui::Direction::Horizontal,
+        Direction::Up | Direction::Down => tui::Direction::Vertical,
     }
 }

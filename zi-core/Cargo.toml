@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tui = { path = "../zi-tui", package = "zi-tui" }
+bitflags = { workspace = true }
 stdx = { workspace = true }
 tree-sitter = { workspace = true, optional = true }
 anyhow = { workspace = true }
